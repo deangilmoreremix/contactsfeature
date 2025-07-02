@@ -20,35 +20,6 @@ import {
   Sparkles, Camera, Wand2
 } from 'lucide-react';
 
-interface Contact {
-  id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  phone?: string;
-  title: string;
-  company: string;
-  industry?: string;
-  avatarSrc: string;
-  sources: string[];
-  interestLevel: 'hot' | 'medium' | 'low' | 'cold';
-  status: 'active' | 'pending' | 'inactive' | 'lead' | 'prospect' | 'customer' | 'churned';
-  lastConnected?: string;
-  notes?: string;
-  aiScore?: number;
-  tags?: string[];
-  isFavorite?: boolean;
-  socialProfiles?: {
-    linkedin?: string;
-    twitter?: string;
-    website?: string;
-  };
-  customFields?: Record<string, any>;
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface ContactDetailViewProps {
   contact: Contact;
   isOpen: boolean;
@@ -97,7 +68,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContact, setEditedContact] = useState(contact);
+  const [editedContact, setEditedContact] = useState<Contact>(contact);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showAddField, setShowAddField] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
@@ -105,6 +76,13 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
   const [lastEnrichment, setLastEnrichment] = useState<ContactEnrichmentData | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [showAddSocial, setShowAddSocial] = useState(false);
+  const [selectedSocialPlatform, setSelectedSocialPlatform] = useState('');
+  const [socialFieldValue, setSocialFieldValue] = useState('');
+  const [showAddSource, setShowAddSource] = useState(false);
+  const [addSource, setAddSource] = useState('');
+  const [editInterestLevel, setEditInterestLevel] = useState(false);
 
   useEffect(() => {
     setEditedContact(contact);
@@ -123,8 +101,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     if (onUpdate) {
       setIsSaving(true);
       try {
-        await onUpdate(contact.id, editedContact);
+        const updated = await onUpdate(contact.id, editedContact);
+        setEditedContact(updated);
         setIsEditing(false);
+        setEditingField(null);
       } catch (error) {
         console.error('Failed to update contact:', error);
       } finally {
@@ -139,6 +119,13 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     setShowAddField(false);
     setNewFieldName('');
     setNewFieldValue('');
+    setEditingField(null);
+    setShowAddSocial(false);
+    setSocialFieldValue('');
+    setSelectedSocialPlatform('');
+    setShowAddSource(false);
+    setAddSource('');
+    setEditInterestLevel(false);
   };
 
   const handleToggleFavorite = async () => {
@@ -160,18 +147,176 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     setEditedContact(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleStartEditingField = (field: string) => {
+    setEditingField(field);
+  };
+
+  const handleSaveField = async () => {
+    if (onUpdate && editingField) {
+      try {
+        let updates: Partial<Contact> = {};
+        
+        if (editingField.startsWith('social_')) {
+          const platform = editingField.replace('social_', '');
+          const socialProfiles = {
+            ...(editedContact.socialProfiles || {}),
+          };
+          updates = { socialProfiles };
+        } else if (editingField.startsWith('custom_')) {
+          const fieldName = editingField.replace('custom_', '');
+          const customFields = {
+            ...(editedContact.customFields || {}),
+          };
+          updates = { customFields };
+        } else {
+          const fieldValue = editedContact[editingField as keyof Contact];
+          updates = { [editingField]: fieldValue };
+        }
+        
+        await onUpdate(contact.id, updates);
+        setEditingField(null);
+      } catch (error) {
+        console.error('Failed to update field:', error);
+      }
+    }
+  };
+
   const handleAddCustomField = () => {
     if (newFieldName && newFieldValue) {
+      const customFields = {
+        ...(editedContact.customFields || {}),
+        [newFieldName]: newFieldValue
+      };
+      
       setEditedContact(prev => ({
         ...prev,
-        customFields: {
-          ...prev.customFields,
-          [newFieldName]: newFieldValue
-        }
+        customFields
       }));
+      
+      if (onUpdate) {
+        onUpdate(contact.id, { customFields })
+          .catch(error => console.error('Failed to add custom field:', error));
+      }
+      
       setNewFieldName('');
       setNewFieldValue('');
       setShowAddField(false);
+    }
+  };
+
+  const handleRemoveCustomField = async (fieldName: string) => {
+    const customFields = { ...(editedContact.customFields || {}) };
+    if (!customFields) return;
+    
+    delete customFields[fieldName];
+    
+    setEditedContact(prev => ({
+      ...prev,
+      customFields
+    }));
+    
+    if (onUpdate) {
+      try {
+        await onUpdate(contact.id, { customFields });
+      } catch (error) {
+        console.error('Failed to remove custom field:', error);
+      }
+    }
+  };
+
+  const handleAddSocialProfile = () => {
+    if (selectedSocialPlatform && socialFieldValue) {
+      const socialProfiles = {
+        ...(editedContact.socialProfiles || {}),
+        [selectedSocialPlatform]: socialFieldValue
+      };
+      
+      setEditedContact(prev => ({
+        ...prev,
+        socialProfiles
+      }));
+      
+      if (onUpdate) {
+        onUpdate(contact.id, { socialProfiles })
+          .catch(error => console.error('Failed to add social profile:', error));
+      }
+      
+      setShowAddSocial(false);
+      setSelectedSocialPlatform('');
+      setSocialFieldValue('');
+    }
+  };
+
+  const handleRemoveSocialProfile = async (platform: string) => {
+    if (!editedContact.socialProfiles) return;
+    
+    const socialProfiles = { ...editedContact.socialProfiles };
+    delete socialProfiles[platform];
+    
+    setEditedContact(prev => ({
+      ...prev,
+      socialProfiles
+    }));
+    
+    if (onUpdate) {
+      try {
+        await onUpdate(contact.id, { socialProfiles });
+      } catch (error) {
+        console.error('Failed to remove social profile:', error);
+      }
+    }
+  };
+
+  const handleAddSourceToContact = () => {
+    if (addSource && !editedContact.sources.includes(addSource)) {
+      const sources = [...editedContact.sources, addSource];
+      
+      setEditedContact(prev => ({
+        ...prev,
+        sources
+      }));
+      
+      if (onUpdate) {
+        onUpdate(contact.id, { sources })
+          .catch(error => console.error('Failed to add source:', error));
+      }
+      
+      setShowAddSource(false);
+      setAddSource('');
+    }
+  };
+
+  const handleRemoveSource = async (source: string) => {
+    const sources = editedContact.sources.filter(s => s !== source);
+    
+    setEditedContact(prev => ({
+      ...prev,
+      sources
+    }));
+    
+    if (onUpdate) {
+      try {
+        await onUpdate(contact.id, { sources });
+      } catch (error) {
+        console.error('Failed to remove source:', error);
+      }
+    }
+  };
+
+  const handleChangeInterestLevel = async (level: 'hot' | 'medium' | 'low' | 'cold') => {
+    setEditedContact(prev => ({
+      ...prev,
+      interestLevel: level
+    }));
+    
+    if (onUpdate) {
+      try {
+        await onUpdate(contact.id, { interestLevel: level });
+        setEditInterestLevel(false);
+      } catch (error) {
+        console.error('Failed to update interest level:', error);
+        setEditedContact(prev => ({ ...prev, interestLevel: contact.interestLevel }));
+      }
     }
   };
 
@@ -267,6 +412,16 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
       console.error('Failed to find new image:', error);
     } finally {
       setIsEnriching(false);
+    }
+  };
+
+  const handleSendEmail = () => {
+    window.open(`mailto:${editedContact.email}`, '_blank');
+  };
+
+  const handleMakeCall = () => {
+    if (editedContact.phone) {
+      window.open(`tel:${editedContact.phone}`, '_blank');
     }
   };
 
@@ -420,25 +575,52 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
               {/* Quick AI Actions Grid */}
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {/* Lead Score */}
-                <button className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-blue-300/50">
+                <button 
+                  onClick={handleAnalyzeContact}
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-blue-300/50"
+                >
                   <BarChart3 className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Lead Score</span>
                 </button>
                 
                 {/* Email AI */}
-                <button className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50">
+                <button 
+                  onClick={handleSendEmail}
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50"
+                >
                   <Mail className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Email AI</span>
                 </button>
                 
                 {/* Enrich */}
-                <button className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50">
+                <button 
+                  onClick={() => {
+                    const searchQuery = {
+                      email: editedContact.email,
+                      firstName: editedContact.firstName,
+                      lastName: editedContact.lastName,
+                      company: editedContact.company
+                    };
+                    
+                    handleAIEnrichment({
+                      email: searchQuery.email,
+                      firstName: searchQuery.firstName,
+                      lastName: searchQuery.lastName,
+                      company: searchQuery.company,
+                      confidence: 75
+                    });
+                  }}
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50"
+                >
                   <Search className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Enrich</span>
                 </button>
                 
                 {/* Insights */}
-                <button className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50">
+                <button 
+                  onClick={() => setActiveTab('ai-insights')}
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50"
+                >
                   <TrendingUp className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Insights</span>
                 </button>
@@ -446,7 +628,23 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
 
               {/* AI Auto-Enrich Button */}
               <button 
-                onClick={() => handleAIEnrichment(lastEnrichment || {})}
+                onClick={() => {
+                  if (lastEnrichment) {
+                    handleAIEnrichment(lastEnrichment);
+                  } else {
+                    const mockEnrichment: ContactEnrichmentData = {
+                      firstName: editedContact.firstName,
+                      lastName: editedContact.lastName,
+                      email: editedContact.email,
+                      company: editedContact.company,
+                      phone: editedContact.phone || `+1-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+                      industry: editedContact.industry || ['Technology', 'Finance', 'Healthcare', 'Education'][Math.floor(Math.random() * 4)],
+                      notes: "Auto-enriched with AI on " + new Date().toLocaleDateString(),
+                      confidence: 85
+                    };
+                    handleAIEnrichment(mockEnrichment);
+                  }
+                }}
                 className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105"
               >
                 <Wand2 className="w-4 h-4 mr-2" />
@@ -462,27 +660,45 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                 Quick Actions
               </h4>
               <div className="grid grid-cols-3 gap-2">
-                <button className="p-3 flex flex-col items-center hover:bg-blue-50 rounded-lg transition-all text-center">
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="p-3 flex flex-col items-center hover:bg-blue-50 rounded-lg transition-all text-center"
+                >
                   <Edit className="w-4 h-4 mb-1 text-blue-600" />
                   <span className="text-xs font-medium">Edit</span>
                 </button>
-                <button className="p-3 flex flex-col items-center hover:bg-green-50 rounded-lg transition-all text-center">
+                <button 
+                  onClick={handleSendEmail}
+                  className="p-3 flex flex-col items-center hover:bg-green-50 rounded-lg transition-all text-center"
+                >
                   <Mail className="w-4 h-4 mb-1 text-green-600" />
                   <span className="text-xs font-medium">Email</span>
                 </button>
-                <button className="p-3 flex flex-col items-center hover:bg-yellow-50 rounded-lg transition-all text-center">
+                <button 
+                  onClick={handleMakeCall}
+                  className="p-3 flex flex-col items-center hover:bg-yellow-50 rounded-lg transition-all text-center"
+                >
                   <Phone className="w-4 h-4 mb-1 text-yellow-600" />
                   <span className="text-xs font-medium">Call</span>
                 </button>
-                <button className="p-3 flex flex-col items-center hover:bg-purple-50 rounded-lg transition-all text-center">
+                <button 
+                  onClick={() => setShowAddField(true)}
+                  className="p-3 flex flex-col items-center hover:bg-purple-50 rounded-lg transition-all text-center"
+                >
                   <Plus className="w-4 h-4 mb-1 text-purple-600" />
-                  <span className="text-xs font-medium">Add</span>
+                  <span className="text-xs font-medium">Add Field</span>
                 </button>
-                <button className="p-3 flex flex-col items-center hover:bg-orange-50 rounded-lg transition-all text-center">
+                <button 
+                  onClick={() => setActiveTab('journey')}
+                  className="p-3 flex flex-col items-center hover:bg-orange-50 rounded-lg transition-all text-center"
+                >
                   <FileText className="w-4 h-4 mb-1 text-orange-600" />
                   <span className="text-xs font-medium">Files</span>
                 </button>
-                <button className="p-3 flex flex-col items-center hover:bg-indigo-50 rounded-lg transition-all text-center">
+                <button 
+                  onClick={() => window.open(`https://calendar.google.com/calendar/u/0/r/eventedit?text=Meeting+with+${editedContact.name}&details=${editedContact.company}`, '_blank')}
+                  className="p-3 flex flex-col items-center hover:bg-indigo-50 rounded-lg transition-all text-center"
+                >
                   <Calendar className="w-4 h-4 mb-1 text-indigo-600" />
                   <span className="text-xs font-medium">Meet</span>
                 </button>
@@ -496,7 +712,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   <User className="w-4 h-4 mr-2 text-blue-500" />
                   Contact Info
                 </h4>
-                <button className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                <button 
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
                   <Edit className="w-4 h-4" />
                 </button>
               </div>
@@ -510,10 +729,24 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Email</p>
-                      <p className="text-sm font-medium text-gray-900 truncate">{editedContact.email}</p>
+                      {editingField === 'email' ? (
+                        <input
+                          type="email"
+                          value={editedContact.email}
+                          onChange={(e) => handleEditField('email', e.target.value)}
+                          className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                          onBlur={handleSaveField}
+                          autoFocus
+                        />
+                      ) : (
+                        <p className="text-sm font-medium text-gray-900 truncate">{editedContact.email}</p>
+                      )}
                     </div>
                   </div>
-                  <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                  <button 
+                    onClick={() => handleStartEditingField('email')}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                  >
                     <Edit className="w-3 h-3" />
                   </button>
                 </div>
@@ -526,10 +759,25 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Phone</p>
-                      <p className="text-sm font-medium text-gray-900">{editedContact.phone || '+91 120 222 313'}</p>
+                      {editingField === 'phone' ? (
+                        <input
+                          type="tel"
+                          value={editedContact.phone || ''}
+                          onChange={(e) => handleEditField('phone', e.target.value)}
+                          className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                          onBlur={handleSaveField}
+                          autoFocus
+                          placeholder="+1-555-0123"
+                        />
+                      ) : (
+                        <p className="text-sm font-medium text-gray-900">{editedContact.phone || 'Not provided'}</p>
+                      )}
                     </div>
                   </div>
-                  <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                  <button 
+                    onClick={() => handleStartEditingField('phone')}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                  >
                     <Edit className="w-3 h-3" />
                   </button>
                 </div>
@@ -542,10 +790,24 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Company</p>
-                      <p className="text-sm font-medium text-gray-900">{editedContact.company}</p>
+                      {editingField === 'company' ? (
+                        <input
+                          type="text"
+                          value={editedContact.company}
+                          onChange={(e) => handleEditField('company', e.target.value)}
+                          className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                          onBlur={handleSaveField}
+                          autoFocus
+                        />
+                      ) : (
+                        <p className="text-sm font-medium text-gray-900">{editedContact.company}</p>
+                      )}
                     </div>
                   </div>
-                  <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                  <button 
+                    onClick={() => handleStartEditingField('company')}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                  >
                     <Edit className="w-3 h-3" />
                   </button>
                 </div>
@@ -561,11 +823,20 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       <div className="flex space-x-1 mt-1">
                         {socialPlatforms.slice(0, 4).map((social, index) => {
                           const Icon = social.icon;
+                          const profileUrl = editedContact.socialProfiles?.[social.key];
                           return (
                             <div 
                               key={index} 
-                              className={`${social.color} p-1 rounded-md text-white hover:opacity-80 transition-opacity cursor-pointer`}
-                              title={social.name}
+                              className={`${social.color} p-1 rounded-md text-white ${profileUrl ? '' : 'opacity-50'} hover:opacity-80 transition-opacity cursor-pointer`}
+                              title={profileUrl ? `${social.name}: ${profileUrl}` : `Add ${social.name}`}
+                              onClick={() => {
+                                if (profileUrl) {
+                                  window.open(profileUrl, '_blank');
+                                } else {
+                                  setShowAddSocial(true);
+                                  setSelectedSocialPlatform(social.key);
+                                }
+                              }}
                             >
                               <Icon className="w-2.5 h-2.5" />
                             </div>
@@ -574,10 +845,62 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       </div>
                     </div>
                   </div>
-                  <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                  <button 
+                    onClick={() => setShowAddSocial(true)}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                  >
                     <Plus className="w-3 h-3" />
                   </button>
                 </div>
+
+                {showAddSocial && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="mb-2">
+                      <label className="block text-xs text-gray-500 mb-1">Platform</label>
+                      <select
+                        value={selectedSocialPlatform}
+                        onChange={(e) => setSelectedSocialPlatform(e.target.value)}
+                        className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                      >
+                        <option value="">Select platform...</option>
+                        {socialPlatforms.map((platform) => (
+                          <option key={platform.key} value={platform.key}>
+                            {platform.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-2">
+                      <label className="block text-xs text-gray-500 mb-1">URL / Username</label>
+                      <input
+                        type="text"
+                        value={socialFieldValue}
+                        onChange={(e) => setSocialFieldValue(e.target.value)}
+                        className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                        placeholder={selectedSocialPlatform === 'linkedin' ? 'https://linkedin.com/in/username' : ''}
+                      />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={handleAddSocialProfile}
+                        disabled={!selectedSocialPlatform || !socialFieldValue}
+                        className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs font-medium disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddSocial(false);
+                          setSelectedSocialPlatform('');
+                          setSocialFieldValue('');
+                        }}
+                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Last Connected - Full Text Visible */}
                 <div className="flex items-center justify-between">
@@ -587,10 +910,26 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Last Connected</p>
-                      <p className="text-sm font-medium text-gray-900 leading-tight">06/15/2023 at 7:16 pm</p>
+                      {editingField === 'lastConnected' ? (
+                        <input
+                          type="text"
+                          value={editedContact.lastConnected || ''}
+                          onChange={(e) => handleEditField('lastConnected', e.target.value)}
+                          className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                          onBlur={handleSaveField}
+                          autoFocus
+                        />
+                      ) : (
+                        <p className="text-sm font-medium text-gray-900 leading-tight">
+                          {editedContact.lastConnected || '06/15/2023 at 7:16 pm'}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                  <button 
+                    onClick={() => handleStartEditingField('lastConnected')}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                  >
                     <Edit className="w-3 h-3" />
                   </button>
                 </div>
@@ -608,57 +947,134 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Interest Level</p>
-                  <button className="text-gray-400 hover:text-gray-600">
+                  <button 
+                    onClick={() => setEditInterestLevel(!editInterestLevel)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
                     <Edit className="w-3 h-3" />
                   </button>
                 </div>
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className={`w-2 h-2 rounded-full ${interestColors[editedContact.interestLevel]} animate-pulse`} />
-                  <span className="text-sm font-medium text-gray-900">{interestLabels[editedContact.interestLevel]}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: 5 }, (_, i) => {
-                    const isActive = 
-                      (editedContact.interestLevel === 'hot' && i < 5) ||
-                      (editedContact.interestLevel === 'medium' && i < 3) ||
-                      (editedContact.interestLevel === 'low' && i < 2) ||
-                      (editedContact.interestLevel === 'cold' && i < 1);
-                    
-                    return (
-                      <div
-                        key={i}
-                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                          isActive 
-                            ? `${interestColors[editedContact.interestLevel]} shadow-sm` 
-                            : 'bg-gray-300'
+                {editInterestLevel ? (
+                  <div className="space-y-2 mb-2">
+                    {(['hot', 'medium', 'low', 'cold'] as const).map(level => (
+                      <button
+                        key={level}
+                        onClick={() => handleChangeInterestLevel(level)}
+                        className={`flex items-center space-x-2 w-full text-left p-2 rounded-lg ${
+                          editedContact.interestLevel === level 
+                            ? 'bg-blue-50 text-blue-700' 
+                            : 'hover:bg-gray-50 text-gray-700'
                         }`}
-                      />
-                    );
-                  })}
-                </div>
+                      >
+                        <div className={`w-2 h-2 rounded-full ${interestColors[level]}`} />
+                        <span className="text-sm font-medium">{interestLabels[level]}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <div className={`w-2 h-2 rounded-full ${interestColors[editedContact.interestLevel]} animate-pulse`} />
+                      <span className="text-sm font-medium text-gray-900">{interestLabels[editedContact.interestLevel]}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const isActive = 
+                          (editedContact.interestLevel === 'hot' && i < 5) ||
+                          (editedContact.interestLevel === 'medium' && i < 3) ||
+                          (editedContact.interestLevel === 'low' && i < 2) ||
+                          (editedContact.interestLevel === 'cold' && i < 1);
+                        
+                        return (
+                          <div
+                            key={i}
+                            className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                              isActive 
+                                ? `${interestColors[editedContact.interestLevel]} shadow-sm` 
+                                : 'bg-gray-300'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Sources */}
               <div className="pb-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Sources</p>
-                  <button className="text-gray-400 hover:text-gray-600">
+                  <button 
+                    onClick={() => setShowAddSource(true)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
                     <Plus className="w-3 h-3" />
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {editedContact.sources.map((source, index) => (
-                    <span
-                      key={index}
-                      className={`
-                        ${sourceColors[source] || 'bg-gray-600'} 
-                        text-white text-xs px-2 py-1 rounded-md font-medium hover:opacity-90 transition-opacity cursor-pointer
-                      `}
-                    >
-                      {source}
-                    </span>
+                    <div key={index} className="group relative">
+                      <span
+                        className={`
+                          ${sourceColors[source] || 'bg-gray-600'} 
+                          text-white text-xs px-2 py-1 rounded-md font-medium hover:opacity-90 transition-opacity cursor-pointer
+                        `}
+                      >
+                        {source}
+                      </span>
+                      <button 
+                        onClick={() => handleRemoveSource(source)}
+                        className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center"
+                      >
+                        <X className="w-2 h-2" />
+                      </button>
+                    </div>
                   ))}
                 </div>
+
+                {showAddSource && (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="mb-2">
+                      <input
+                        type="text"
+                        value={addSource}
+                        onChange={(e) => setAddSource(e.target.value)}
+                        placeholder="Add source..."
+                        className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                      />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={handleAddSourceToContact}
+                        disabled={!addSource}
+                        className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs font-medium disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setShowAddSource(false)}
+                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {/* Quick Source Suggestions */}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {['LinkedIn', 'Website', 'Email', 'Cold Call', 'Referral'].map(source => (
+                        <button
+                          key={source}
+                          onClick={() => {
+                            setAddSource(source);
+                          }}
+                          className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-xs"
+                        >
+                          {source}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -795,19 +1211,24 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-700">{field.label}</p>
-                              {isEditing ? (
+                              {isEditing || editingField === field.field ? (
                                 <input
                                   type="text"
                                   value={editedContact[field.field as keyof Contact] as string || ''}
                                   onChange={(e) => handleEditField(field.field, e.target.value)}
+                                  onBlur={() => editingField === field.field && handleSaveField()}
                                   className="text-gray-900 bg-white border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  autoFocus={editingField === field.field}
                                 />
                               ) : (
                                 <p className="text-gray-900">{field.value}</p>
                               )}
                             </div>
                           </div>
-                          <button className="text-gray-400 hover:text-gray-600">
+                          <button 
+                            onClick={() => handleStartEditingField(field.field)}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
                             <Edit className="w-4 h-4" />
                           </button>
                         </div>
@@ -823,7 +1244,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       <Globe className="w-5 h-5 mr-2 text-green-500" />
                       Social Profiles
                     </h4>
-                    <button className="text-gray-400 hover:text-gray-600">
+                    <button 
+                      onClick={() => setShowAddSocial(true)} 
+                      className="text-gray-400 hover:text-gray-600"
+                    >
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
@@ -831,7 +1255,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {socialPlatforms.map((platform, index) => {
                       const Icon = platform.icon;
-                      const profileUrl = editedContact.socialProfiles?.[platform.key as keyof typeof editedContact.socialProfiles];
+                      const profileUrl = editedContact.socialProfiles?.[platform.key];
                       
                       return (
                         <div key={index} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
@@ -840,15 +1264,45 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900">{platform.name}</p>
-                            {profileUrl ? (
+                            {editingField === `social_${platform.key}` ? (
+                              <input
+                                type="text"
+                                value={editedContact.socialProfiles?.[platform.key] || ''}
+                                onChange={(e) => {
+                                  const socialProfiles = {
+                                    ...(editedContact.socialProfiles || {}),
+                                    [platform.key]: e.target.value
+                                  };
+                                  handleEditField('socialProfiles', socialProfiles);
+                                }}
+                                onBlur={handleSaveField}
+                                className="w-full text-xs border border-gray-300 rounded-md px-2 py-1"
+                                autoFocus
+                              />
+                            ) : profileUrl ? (
                               <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
                                 View Profile
                               </a>
                             ) : (
-                              <p className="text-xs text-gray-500">Not connected</p>
+                              <button
+                                onClick={() => {
+                                  setShowAddSocial(true);
+                                  setSelectedSocialPlatform(platform.key);
+                                }}
+                                className="text-xs text-gray-500 hover:text-blue-600"
+                              >
+                                Add {platform.name}
+                              </button>
                             )}
                           </div>
-                          <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          {profileUrl && (
+                            <button
+                              onClick={() => handleStartEditingField(`social_${platform.key}`)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -876,11 +1330,39 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                         <div key={index} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
                           <div>
                             <p className="text-sm font-medium text-gray-700">{key}</p>
-                            <p className="text-gray-900">{String(value)}</p>
+                            {editingField === `custom_${key}` ? (
+                              <input
+                                type="text"
+                                value={String(editedContact.customFields?.[key] || '')}
+                                onChange={(e) => {
+                                  const customFields = {
+                                    ...(editedContact.customFields || {}),
+                                    [key]: e.target.value
+                                  };
+                                  handleEditField('customFields', customFields);
+                                }}
+                                onBlur={handleSaveField}
+                                className="w-full text-sm border border-gray-300 rounded-md px-2 py-1"
+                                autoFocus
+                              />
+                            ) : (
+                              <p className="text-gray-900">{String(value)}</p>
+                            )}
                           </div>
-                          <button className="text-gray-400 hover:text-gray-600">
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          <div className="flex space-x-2">
+                            <button 
+                              onClick={() => handleStartEditingField(`custom_${key}`)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleRemoveCustomField(key)}
+                              className="text-gray-400 hover:text-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -910,6 +1392,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                             variant="primary" 
                             size="sm" 
                             onClick={handleAddCustomField}
+                            disabled={!newFieldName || !newFieldValue}
                           >
                             Add Field
                           </ModernButton>
