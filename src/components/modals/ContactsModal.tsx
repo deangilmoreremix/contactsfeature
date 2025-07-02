@@ -349,6 +349,80 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     setIsNewContactModalOpen(false);
   };
 
+  // Export functionality
+  const handleExportContacts = () => {
+    // Determine which contacts to export
+    const contactsToExport = selectedContacts.length > 0
+      ? filteredContacts.filter(contact => selectedContacts.includes(contact.id))
+      : filteredContacts;
+    
+    if (contactsToExport.length === 0) {
+      alert('No contacts to export');
+      return;
+    }
+
+    // Prepare data for CSV export
+    const headers = [
+      'firstName',
+      'lastName', 
+      'name',
+      'email',
+      'phone',
+      'title',
+      'company',
+      'industry',
+      'sources',
+      'interestLevel',
+      'status',
+      'notes',
+      'tags',
+      'aiScore'
+    ];
+
+    // Convert contacts to CSV rows
+    const rows = contactsToExport.map(contact => {
+      return [
+        contact.firstName,
+        contact.lastName,
+        contact.name,
+        contact.email,
+        contact.phone || '',
+        contact.title,
+        contact.company,
+        contact.industry || '',
+        (contact.sources || []).join(';'),
+        contact.interestLevel,
+        contact.status,
+        (contact.notes || '').replace(/\n/g, ' '), // Remove newlines in notes
+        (contact.tags || []).join(';'),
+        contact.aiScore || ''
+      ];
+    });
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => 
+        // Handle cells with commas by wrapping in quotes
+        typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n')) 
+          ? `"${cell.replace(/"/g, '""')}"` 
+          : cell
+      ).join(','))
+    ].join('\n');
+    
+    // Create a blob and download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `contacts_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!isOpen) return null;
 
   const activeFilterLabel = filterOptions.find(f => f.value === activeFilter)?.label || 'All';
@@ -441,7 +515,10 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                       >
                         Re-analyze Selected
                       </button>
-                      <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
+                      <button 
+                        className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={handleExportContacts}
+                      >
                         Export Selected
                       </button>
                       <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
@@ -473,6 +550,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 variant="outline" 
                 size="sm" 
                 className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                onClick={handleExportContacts}
               >
                 <Download className="w-4 h-4" />
                 <span>Export</span>
