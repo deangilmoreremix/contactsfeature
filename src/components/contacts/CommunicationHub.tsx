@@ -40,7 +40,10 @@ import {
   RefreshCw,
   Link,
   ArrowUpRight,
-  Zap
+  Zap,
+  ExternalLink,
+  BarChart3,
+  TrendingUp
 } from 'lucide-react';
 
 interface CommunicationRecord {
