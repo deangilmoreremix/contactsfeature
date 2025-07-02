@@ -76,7 +76,7 @@ export interface ApiConfig {
 
 const config: ApiConfig = {
   contactsAPI: {
-    baseURL: process.env.VITE_CONTACTS_API_URL || 'http://localhost:3001/api',
+    baseURL: import.meta.env.VITE_CONTACTS_API_URL || 'http://localhost:3001/api',
     timeout: 30000,
     retries: 3,
     rateLimit: {
@@ -89,7 +89,7 @@ const config: ApiConfig = {
     openai: {
       name: 'OpenAI',
       enabled: true,
-      apiKey: process.env.VITE_OPENAI_API_KEY,
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY,
       endpoint: {
         baseURL: 'https://api.openai.com/v1',
         timeout: 45000,
@@ -141,7 +141,7 @@ const config: ApiConfig = {
     gemini: {
       name: 'Google Gemini & Gemma',
       enabled: true,
-      apiKey: process.env.VITE_GEMINI_API_KEY,
+      apiKey: import.meta.env.VITE_GEMINI_API_KEY,
       endpoint: {
         baseURL: 'https://generativelanguage.googleapis.com/v1beta',
         timeout: 45000,
@@ -243,7 +243,7 @@ const config: ApiConfig = {
     anthropic: {
       name: 'Anthropic Claude',
       enabled: false,
-      apiKey: process.env.VITE_ANTHROPIC_API_KEY,
+      apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
       endpoint: {
         baseURL: 'https://api.anthropic.com/v1',
         timeout: 45000,
@@ -287,7 +287,7 @@ const config: ApiConfig = {
   
   dataProcessing: {
     enrichment: {
-      baseURL: process.env.VITE_ENRICHMENT_API_URL || 'http://localhost:3002/api',
+      baseURL: import.meta.env.VITE_ENRICHMENT_API_URL || 'http://localhost:3002/api',
       timeout: 30000,
       retries: 2,
       rateLimit: {
@@ -296,7 +296,7 @@ const config: ApiConfig = {
       },
     },
     validation: {
-      baseURL: process.env.VITE_VALIDATION_API_URL || 'http://localhost:3003/api',
+      baseURL: import.meta.env.VITE_VALIDATION_API_URL || 'http://localhost:3003/api',
       timeout: 15000,
       retries: 1,
       rateLimit: {
@@ -305,7 +305,7 @@ const config: ApiConfig = {
       },
     },
     analytics: {
-      baseURL: process.env.VITE_ANALYTICS_API_URL || 'http://localhost:3004/api',
+      baseURL: import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:3004/api',
       timeout: 20000,
       retries: 2,
       rateLimit: {
@@ -317,7 +317,7 @@ const config: ApiConfig = {
   
   auth: {
     endpoint: {
-      baseURL: process.env.VITE_AUTH_API_URL || 'http://localhost:3000/auth',
+      baseURL: import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3000/auth',
       timeout: 10000,
       retries: 1,
       rateLimit: {
@@ -337,9 +337,9 @@ const config: ApiConfig = {
   },
   
   logging: {
-    level: (process.env.VITE_LOG_LEVEL as any) || 'info',
-    endpoint: process.env.VITE_LOGGING_ENDPOINT,
-    enableConsole: process.env.NODE_ENV === 'development',
+    level: (import.meta.env.VITE_LOG_LEVEL as any) || 'info',
+    endpoint: import.meta.env.VITE_LOGGING_ENDPOINT,
+    enableConsole: import.meta.env.MODE === 'development',
   },
 };
 
