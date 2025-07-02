@@ -1,176 +1,110 @@
 import { create } from 'zustand';
 import { Contact } from '../types/contact';
+import { contactAPI } from '../services/contact-api.service';
+import { logger } from '../services/logger.service';
 
 interface ContactStore {
   contacts: Contact[];
   isLoading: boolean;
   error: string | null;
   selectedContact: Contact | null;
+  totalCount: number;
+  hasMore: boolean;
   
   // Actions
-  fetchContacts: () => Promise<void>;
+  fetchContacts: (filters?: any) => Promise<void>;
   createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
   deleteContact: (id: string) => Promise<void>;
   selectContact: (contact: Contact | null) => void;
-  importContacts: (contacts: Contact[]) => Promise<void>;
+  importContacts: (contacts: any[]) => Promise<void>;
+  exportContacts: (format: 'csv' | 'json') => Promise<void>;
+  searchContacts: (query: string) => Promise<void>;
 }
 
-// Sample data
-const sampleContacts: Contact[] = [
-  {
-    id: '1',
-    firstName: 'Jane',
-    lastName: 'Doe',
-    name: 'Jane Doe',
-    email: 'jane.doe@microsoft.com',
-    phone: '+1 425 882 8080',
-    title: 'Marketing Director',
-    company: 'Microsoft',
-    industry: 'Technology',
-    avatarSrc: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    sources: ['LinkedIn', 'Email'],
-    interestLevel: 'hot',
-    status: 'prospect',
-    lastConnected: '2024-01-15 at 2:30 pm',
-    notes: 'Interested in enterprise solutions. Scheduled follow-up for next week.',
-    aiScore: 85,
-    tags: ['Enterprise', 'High Value'],
-    isFavorite: false,
-    socialProfiles: {
-      linkedin: 'https://linkedin.com/in/janedoe',
-      website: 'https://microsoft.com'
-    },
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-15T14:30:00Z'
-  },
-  {
-    id: '2',
-    firstName: 'Darlene',
-    lastName: 'Robertson',
-    name: 'Darlene Robertson',
-    email: 'darlene.robertson@ford.com',
-    phone: '+1 313 322 3000',
-    title: 'Financial Manager',
-    company: 'Ford',
-    industry: 'Automotive',
-    avatarSrc: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    sources: ['LinkedIn', 'Facebook'],
-    interestLevel: 'medium',
-    status: 'lead',
-    lastConnected: '2024-01-12 at 4:15 pm',
-    notes: 'Evaluating cost-effectiveness of our solutions.',
-    aiScore: 65,
-    tags: ['Finance', 'Cost-Conscious'],
-    isFavorite: true,
-    createdAt: '2024-01-02T00:00:00Z',
-    updatedAt: '2024-01-12T16:15:00Z'
-  },
-  {
-    id: '3',
-    firstName: 'Wade',
-    lastName: 'Warren',
-    name: 'Wade Warren',
-    email: 'wade.warren@zenith.com',
-    phone: '+1 555 0123',
-    title: 'Operations Manager',
-    company: 'Zenith',
-    industry: 'Manufacturing',
-    avatarSrc: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    sources: ['Website', 'Typeform'],
-    interestLevel: 'low',
-    status: 'lead',
-    lastConnected: '2024-01-08 at 11:00 am',
-    notes: 'Initial contact made. Waiting for response.',
-    aiScore: 35,
-    tags: ['Operations'],
-    isFavorite: false,
-    createdAt: '2024-01-03T00:00:00Z',
-    updatedAt: '2024-01-08T11:00:00Z'
-  },
-  {
-    id: '4',
-    firstName: 'Jonah',
-    lastName: 'Jude',
-    name: 'Jonah Jude',
-    email: 'jonah.jude@binarybytes.com',
-    phone: '+1 555 0456',
-    title: 'Web Developer',
-    company: 'Binary Bytes',
-    industry: 'Technology',
-    avatarSrc: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    sources: ['Referral'],
-    interestLevel: 'hot',
-    status: 'prospect',
-    lastConnected: '2024-01-16 at 9:45 am',
-    notes: 'Referred by John Smith. Very interested in our development tools.',
-    aiScore: 90,
-    tags: ['Developer', 'Referral'],
-    isFavorite: true,
-    createdAt: '2024-01-04T00:00:00Z',
-    updatedAt: '2024-01-16T09:45:00Z'
-  }
-];
-
 export const useContactStore = create<ContactStore>((set, get) => ({
-  contacts: sampleContacts,
+  contacts: [],
   isLoading: false,
   error: null,
   selectedContact: null,
+  totalCount: 0,
+  hasMore: false,
 
-  fetchContacts: async () => {
+  fetchContacts: async (filters = {}) => {
     set({ isLoading: true, error: null });
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // In real app, this would fetch from API
-      set({ isLoading: false });
+      const response = await contactAPI.getContacts(filters);
+      
+      set({
+        contacts: response.contacts,
+        isLoading: false,
+        totalCount: response.total,
+        hasMore: response.hasMore
+      });
+      
+      logger.info('Contacts fetched successfully', { count: response.contacts.length });
     } catch (error) {
-      set({ error: 'Failed to fetch contacts', isLoading: false });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch contacts';
+      set({ error: errorMessage, isLoading: false });
+      logger.error('Failed to fetch contacts', error as Error);
     }
   },
 
   createContact: async (contactData) => {
-    const newContact: Contact = {
-      ...contactData,
-      id: Date.now().toString(),
-      isFavorite: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    set({ isLoading: true, error: null });
     
-    set(state => ({
-      contacts: [...state.contacts, newContact]
-    }));
-    
-    return newContact;
+    try {
+      const contact = await contactAPI.createContact(contactData);
+      
+      set(state => ({
+        contacts: [contact, ...state.contacts],
+        isLoading: false,
+        totalCount: state.totalCount + 1
+      }));
+      
+      logger.info('Contact created successfully', { contactId: contact.id });
+      return contact;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create contact';
+      set({ error: errorMessage, isLoading: false });
+      logger.error('Failed to create contact', error as Error);
+      throw error;
+    }
   },
 
   updateContact: async (id, updates) => {
-    const currentContact = get().contacts.find(c => c.id === id);
-    if (!currentContact) {
-      throw new Error('Contact not found');
+    try {
+      const contact = await contactAPI.updateContact(id, updates);
+      
+      set(state => ({
+        contacts: state.contacts.map(c => c.id === id ? contact : c),
+        selectedContact: state.selectedContact?.id === id ? contact : state.selectedContact
+      }));
+      
+      logger.info('Contact updated successfully', { contactId: id });
+      return contact;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update contact';
+      logger.error('Failed to update contact', error as Error);
+      throw new Error(errorMessage);
     }
-
-    const updatedContact = {
-      ...currentContact,
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    set(state => ({
-      contacts: state.contacts.map(c => c.id === id ? updatedContact : c),
-      selectedContact: state.selectedContact?.id === id ? updatedContact : state.selectedContact
-    }));
-    
-    return updatedContact;
   },
 
   deleteContact: async (id) => {
-    set(state => ({
-      contacts: state.contacts.filter(c => c.id !== id),
-      selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
-    }));
+    try {
+      await contactAPI.deleteContact(id);
+      
+      set(state => ({
+        contacts: state.contacts.filter(c => c.id !== id),
+        totalCount: Math.max(0, state.totalCount - 1),
+        selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
+      }));
+      
+      logger.info('Contact deleted successfully', { contactId: id });
+    } catch (error) {
+      logger.error('Failed to delete contact', error as Error);
+      throw error;
+    }
   },
 
   selectContact: (contact) => {
@@ -178,16 +112,87 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   },
 
   importContacts: async (newContacts) => {
-    const contactsWithIds = newContacts.map(contact => ({
-      ...contact,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      isFavorite: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }));
+    set({ isLoading: true, error: null });
     
-    set(state => ({
-      contacts: [...state.contacts, ...contactsWithIds]
-    }));
+    try {
+      // Format contacts properly for API
+      const formattedContacts = newContacts.map(contact => ({
+        firstName: contact.firstName || '',
+        lastName: contact.lastName || '',
+        name: contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+        email: contact.email || '',
+        phone: contact.phone,
+        title: contact.title || '',
+        company: contact.company || '',
+        industry: contact.industry,
+        sources: contact.sources || ['Manual Import'],
+        interestLevel: contact.interestLevel || 'medium',
+        status: contact.status || 'lead',
+        notes: contact.notes,
+        tags: contact.tags
+      }));
+      
+      const createdContacts = await contactAPI.createContactsBatch(formattedContacts);
+      
+      set(state => ({
+        contacts: [...state.contacts, ...createdContacts],
+        isLoading: false,
+        totalCount: state.totalCount + createdContacts.length
+      }));
+      
+      logger.info('Contacts imported successfully', { count: createdContacts.length });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import contacts';
+      set({ error: errorMessage, isLoading: false });
+      logger.error('Failed to import contacts', error as Error);
+      throw error;
+    }
   },
+
+  exportContacts: async (format: 'csv' | 'json' = 'csv') => {
+    try {
+      // Get current filters from state (implement if needed)
+      const filters = {};
+      
+      const blob = await contactAPI.exportContacts(filters, format);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `contacts_export_${new Date().toISOString().slice(0, 10)}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      logger.info('Contacts exported successfully', { format });
+    } catch (error) {
+      logger.error('Failed to export contacts', error as Error);
+      throw error;
+    }
+  },
+
+  searchContacts: async (query: string) => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await contactAPI.searchContacts(query);
+      
+      set({
+        contacts: response.contacts,
+        isLoading: false,
+        totalCount: response.total,
+        hasMore: response.hasMore
+      });
+      
+      logger.info('Contacts search completed', { query, resultCount: response.contacts.length });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to search contacts';
+      set({ error: errorMessage, isLoading: false });
+      logger.error('Failed to search contacts', error as Error);
+    }
+  }
 }));
