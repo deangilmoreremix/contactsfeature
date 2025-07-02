@@ -1,6 +1,6 @@
 /**
  * AI Integration Service
- * Unified AI service orchestrating different AI providers for contact enrichment and analysis
+ * Enhanced with proper Gemma and Gemini 2.5 Flash model support
  */
 
 import { httpClient } from './http-client.service';
@@ -10,7 +10,7 @@ import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
 import { Contact } from '../types/contact';
 import { ContactEnrichmentData } from './aiEnrichmentService';
-import apiConfig from '../config/api.config';
+import apiConfig, { getDefaultModel, getBestModelForTask } from '../config/api.config';
 
 export interface AIAnalysisRequest {
   contactId: string;
@@ -19,6 +19,7 @@ export interface AIAnalysisRequest {
   options?: {
     forceRefresh?: boolean;
     provider?: 'openai' | 'gemini' | 'anthropic';
+    model?: string;
     includeConfidence?: boolean;
   };
 }
@@ -34,6 +35,7 @@ export interface AIAnalysisResponse {
   enrichmentData?: ContactEnrichmentData;
   relationships?: ContactRelationship[];
   provider: string;
+  model: string;
   timestamp: string;
   processingTime: number;
 }
@@ -103,13 +105,37 @@ class AIIntegrationService {
     return filteredProviders[0] || providers[0];
   }
   
+  private selectModel(provider: any, options?: AIAnalysisRequest['options'], capability?: string): string {
+    // Use specific model if requested
+    if (options?.model) {
+      const model = provider.config.models.find((m: any) => m.id === options.model);
+      if (model) {
+        return options.model;
+      }
+    }
+    
+    // Find best model for capability
+    if (capability) {
+      const capableModels = provider.config.models.filter((m: any) => 
+        m.capabilities.includes(capability)
+      );
+      if (capableModels.length > 0) {
+        return capableModels[0].id;
+      }
+    }
+    
+    // Use default model
+    return provider.config.defaultModel;
+  }
+  
   private async makeAIRequest<T>(
     provider: { name: string; config: any },
-    endpoint: string,
-    data: any,
+    model: string,
+    payload: any,
     timeout = 45000
   ): Promise<T> {
     const rateLimitKey = `ai_${provider.name}`;
+    const endpoint = this.getProviderEndpoint(provider.name, model);
     
     // Check rate limits
     const rateLimitResult = await rateLimiter.checkLimit(
@@ -126,7 +152,7 @@ class AIIntegrationService {
     const url = `${provider.config.endpoint.baseURL}${endpoint}`;
     
     try {
-      const response = await httpClient.post<T>(url, data, {
+      const response = await httpClient.post<T>(url, payload, {
         headers: {
           'Authorization': `Bearer ${provider.config.apiKey}`,
           'Content-Type': 'application/json',
@@ -146,6 +172,166 @@ class AIIntegrationService {
     }
   }
   
+  private getProviderEndpoint(providerName: string, model: string): string {
+    switch (providerName) {
+      case 'openai':
+        return '/chat/completions';
+      case 'gemini':
+        // Handle different model types for Gemini/Gemma
+        if (model.includes('gemma') || model.includes('codegemma')) {
+          return `/models/${model}:generateContent`;
+        } else {
+          return `/models/${model}:generateContent`;
+        }
+      case 'anthropic':
+        return '/messages';
+      default:
+        throw new Error(`Unsupported provider: ${providerName}`);
+    }
+  }
+  
+  private buildProviderPayload(
+    providerName: string,
+    model: string,
+    contact: Contact,
+    analysisTypes: string[],
+    options?: AIAnalysisRequest['options']
+  ): any {
+    const systemPrompt = this.buildSystemPrompt(analysisTypes);
+    const userPrompt = this.buildUserPrompt(contact, analysisTypes);
+    
+    switch (providerName) {
+      case 'openai':
+        return {
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          functions: [{
+            name: 'analyze_contact',
+            description: 'Analyze contact and provide structured insights',
+            parameters: {
+              type: 'object',
+              properties: {
+                score: { type: 'number', minimum: 0, maximum: 100 },
+                confidence: { type: 'number', minimum: 0, maximum: 100 },
+                insights: { type: 'array', items: { type: 'string' } },
+                recommendations: { type: 'array', items: { type: 'string' } },
+                categories: { type: 'array', items: { type: 'string' } },
+                tags: { type: 'array', items: { type: 'string' } },
+              },
+            },
+          }],
+          function_call: { name: 'analyze_contact' },
+          temperature: 0.3,
+        };
+        
+      case 'gemini':
+        // Enhanced payload for Gemini/Gemma models
+        if (model.includes('gemma') || model.includes('codegemma')) {
+          // Gemma models optimized payload
+          return {
+            contents: [{
+              parts: [{
+                text: `${systemPrompt}\n\n${userPrompt}\n\nProvide analysis in JSON format with fields: score, confidence, insights, recommendations, categories, tags.`
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.3,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 2048,
+              candidateCount: 1,
+            },
+            safetySettings: [
+              {
+                category: 'HARM_CATEGORY_HARASSMENT',
+                threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+              },
+              {
+                category: 'HARM_CATEGORY_HATE_SPEECH',
+                threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+              }
+            ]
+          };
+        } else {
+          // Gemini models payload
+          return {
+            contents: [{
+              parts: [{
+                text: `${systemPrompt}\n\n${userPrompt}\n\nProvide a detailed JSON analysis with the following structure:
+{
+  "score": number (0-100),
+  "confidence": number (0-100),
+  "insights": string[],
+  "recommendations": string[],
+  "categories": string[],
+  "tags": string[]
+}`
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.2,
+              topK: 32,
+              topP: 0.8,
+              maxOutputTokens: 4096,
+              candidateCount: 1,
+            }
+          };
+        }
+        
+      case 'anthropic':
+        return {
+          model,
+          max_tokens: 2048,
+          temperature: 0.3,
+          messages: [{
+            role: 'user',
+            content: `${systemPrompt}\n\n${userPrompt}\n\nProvide structured analysis in JSON format.`
+          }],
+        };
+        
+      default:
+        throw new Error(`Unsupported provider: ${providerName}`);
+    }
+  }
+  
+  private buildSystemPrompt(analysisTypes: string[]): string {
+    const basePrompt = "You are an expert CRM analyst with deep expertise in sales, marketing, and customer relationship management.";
+    
+    const typePrompts = {
+      scoring: "Analyze lead quality and provide a score from 0-100 based on engagement potential, company fit, and buying signals.",
+      enrichment: "Enhance contact data by inferring missing information from available context and industry patterns.",
+      categorization: "Classify contacts into relevant business categories based on their profile and company.",
+      tagging: "Generate relevant tags that help with contact management and segmentation.",
+      relationships: "Identify potential relationships and connections between contacts within the same industry or network."
+    };
+    
+    const activePrompts = analysisTypes.map(type => typePrompts[type as keyof typeof typePrompts]).filter(Boolean);
+    
+    return `${basePrompt}\n\nYour tasks:\n${activePrompts.map((p, i) => `${i + 1}. ${p}`).join('\n')}`;
+  }
+  
+  private buildUserPrompt(contact: Contact, analysisTypes: string[]): string {
+    return `Analyze this contact:
+
+Name: ${contact.name}
+Email: ${contact.email}
+Title: ${contact.title}
+Company: ${contact.company}
+Industry: ${contact.industry || 'Unknown'}
+Interest Level: ${contact.interestLevel}
+Status: ${contact.status}
+Sources: ${contact.sources.join(', ')}
+${contact.notes ? `Notes: ${contact.notes}` : ''}
+${contact.tags ? `Current Tags: ${contact.tags.join(', ')}` : ''}
+
+Analysis Types Requested: ${analysisTypes.join(', ')}
+
+Provide detailed insights and actionable recommendations based on this contact's profile.`;
+  }
+  
   async analyzeContact(request: AIAnalysisRequest): Promise<AIAnalysisResponse> {
     const startTime = Date.now();
     
@@ -159,7 +345,7 @@ class AIIntegrationService {
     }
     
     // Check cache first (unless force refresh)
-    const cacheKey = `${request.contactId}_${request.analysisTypes.join('_')}`;
+    const cacheKey = `${request.contactId}_${request.analysisTypes.join('_')}_${request.options?.model || 'default'}`;
     if (!request.options?.forceRefresh) {
       const cached = cacheService.getAIAnalysis(cacheKey);
       if (cached) {
@@ -175,116 +361,36 @@ class AIIntegrationService {
         request.analysisTypes[0] // Use first analysis type for capability matching
       );
       
-      logger.info(`Starting AI analysis with ${provider.name}`, {
+      // Select model
+      const model = this.selectModel(provider, request.options, request.analysisTypes[0]);
+      
+      logger.info(`Starting AI analysis with ${provider.name}/${model}`, {
         contactId: request.contactId,
         analysisTypes: request.analysisTypes,
         provider: provider.name,
+        model,
       });
       
-      // Prepare AI request payload
-      const aiPayload = {
-        contact: {
-          name: request.contact.name,
-          email: request.contact.email,
-          title: request.contact.title,
-          company: request.contact.company,
-          industry: request.contact.industry,
-          sources: request.contact.sources,
-          interestLevel: request.contact.interestLevel,
-          status: request.contact.status,
-          notes: request.contact.notes,
-          tags: request.contact.tags,
-          socialProfiles: request.contact.socialProfiles,
-        },
-        analysisTypes: request.analysisTypes,
-        options: {
-          includeConfidence: request.options?.includeConfidence !== false,
-          includeRecommendations: true,
-          includeEnrichment: request.analysisTypes.includes('enrichment'),
-          includeRelationships: request.analysisTypes.includes('relationships'),
-        },
-      };
+      // Build provider-specific payload
+      const payload = this.buildProviderPayload(
+        provider.name,
+        model,
+        request.contact,
+        request.analysisTypes,
+        request.options
+      );
       
-      // Make AI request based on provider
-      let response: any;
-      
-      switch (provider.name) {
-        case 'openai':
-          response = await this.makeAIRequest(
-            provider,
-            '/chat/completions',
-            {
-              model: 'gpt-4',
-              messages: [
-                {
-                  role: 'system',
-                  content: 'You are an expert CRM analyst. Analyze the provided contact and return structured insights.',
-                },
-                {
-                  role: 'user',
-                  content: `Analyze this contact: ${JSON.stringify(aiPayload)}`,
-                },
-              ],
-              functions: [{
-                name: 'analyze_contact',
-                description: 'Analyze contact and provide structured insights',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    score: { type: 'number', minimum: 0, maximum: 100 },
-                    confidence: { type: 'number', minimum: 0, maximum: 100 },
-                    insights: { type: 'array', items: { type: 'string' } },
-                    recommendations: { type: 'array', items: { type: 'string' } },
-                    categories: { type: 'array', items: { type: 'string' } },
-                    tags: { type: 'array', items: { type: 'string' } },
-                  },
-                },
-              }],
-              function_call: { name: 'analyze_contact' },
-            }
-          );
-          break;
-          
-        case 'gemini':
-          response = await this.makeAIRequest(
-            provider,
-            '/models/gemini-pro:generateContent',
-            {
-              contents: [{
-                parts: [{
-                  text: `Analyze this contact and provide structured insights in JSON format: ${JSON.stringify(aiPayload)}`,
-                }],
-              }],
-            }
-          );
-          break;
-          
-        case 'anthropic':
-          response = await this.makeAIRequest(
-            provider,
-            '/messages',
-            {
-              model: 'claude-3-sonnet-20240229',
-              max_tokens: 1000,
-              messages: [{
-                role: 'user',
-                content: `Analyze this contact and provide structured insights: ${JSON.stringify(aiPayload)}`,
-              }],
-            }
-          );
-          break;
-          
-        default:
-          throw new Error(`Unsupported AI provider: ${provider.name}`);
-      }
+      // Make AI request
+      const response = await this.makeAIRequest(provider, model, payload);
       
       // Parse and structure response
-      const analysisResult = this.parseAIResponse(response, provider.name);
+      const analysisResult = this.parseAIResponse(response, provider.name, model);
       
       const aiAnalysisResponse: AIAnalysisResponse = {
         contactId: request.contactId,
         ...analysisResult,
         provider: provider.name,
+        model,
         timestamp: new Date().toISOString(),
         processingTime: Date.now() - startTime,
       };
@@ -295,6 +401,7 @@ class AIIntegrationService {
       logger.info('AI analysis completed successfully', {
         contactId: request.contactId,
         provider: provider.name,
+        model,
         processingTime: aiAnalysisResponse.processingTime,
         score: aiAnalysisResponse.score,
       });
@@ -314,7 +421,7 @@ class AIIntegrationService {
     }
   }
   
-  private parseAIResponse(response: any, provider: string): Partial<AIAnalysisResponse> {
+  private parseAIResponse(response: any, provider: string, model: string): Partial<AIAnalysisResponse> {
     try {
       let parsedData: any;
       
@@ -322,6 +429,9 @@ class AIIntegrationService {
         case 'openai':
           if (response.choices?.[0]?.message?.function_call?.arguments) {
             parsedData = JSON.parse(response.choices[0].message.function_call.arguments);
+          } else if (response.choices?.[0]?.message?.content) {
+            const content = response.choices[0].message.content;
+            parsedData = this.extractJSONFromText(content);
           } else {
             throw new Error('Invalid OpenAI response format');
           }
@@ -330,15 +440,16 @@ class AIIntegrationService {
         case 'gemini':
           if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
             const textResponse = response.candidates[0].content.parts[0].text;
-            parsedData = JSON.parse(textResponse);
+            parsedData = this.extractJSONFromText(textResponse);
           } else {
-            throw new Error('Invalid Gemini response format');
+            throw new Error('Invalid Gemini/Gemma response format');
           }
           break;
           
         case 'anthropic':
           if (response.content?.[0]?.text) {
-            parsedData = JSON.parse(response.content[0].text);
+            const textResponse = response.content[0].text;
+            parsedData = this.extractJSONFromText(textResponse);
           } else {
             throw new Error('Invalid Anthropic response format');
           }
@@ -366,18 +477,38 @@ class AIIntegrationService {
       };
       
     } catch (error) {
-      logger.error('Failed to parse AI response', error as Error, { provider, response });
+      logger.error('Failed to parse AI response', error as Error, { provider, model, response });
       
       // Return default response on parse failure
       return {
         score: 0,
         confidence: 0,
-        insights: ['Analysis parsing failed'],
-        recommendations: ['Unable to provide recommendations'],
+        insights: [`Analysis parsing failed for ${provider}/${model}`],
+        recommendations: ['Unable to provide recommendations due to parsing error'],
         categories: [],
         tags: [],
       };
     }
+  }
+  
+  private extractJSONFromText(text: string): any {
+    // Try to find JSON in the text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        // If direct parsing fails, try cleaning the text
+        const cleaned = text
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .replace(/^[^{]*/, '')
+          .replace(/[^}]*$/, '');
+        return JSON.parse(cleaned);
+      }
+    }
+    
+    throw new Error('No valid JSON found in response');
   }
   
   async analyzeBulk(request: BulkAnalysisRequest): Promise<BulkAnalysisResponse> {
@@ -530,7 +661,7 @@ class AIIntegrationService {
   }
   
   // Utility methods
-  async getProviderStatus(): Promise<Array<{ name: string; status: 'available' | 'rate_limited' | 'error'; remaining?: number }>> {
+  async getProviderStatus(): Promise<Array<{ name: string; status: 'available' | 'rate_limited' | 'error'; remaining?: number; models?: string[] }>> {
     const providers = this.getAvailableProviders();
     const status = [];
     
@@ -547,11 +678,13 @@ class AIIntegrationService {
           name: provider.name,
           status: remaining > 0 ? 'available' : 'rate_limited',
           remaining,
+          models: provider.config.models.map((m: any) => m.id),
         });
       } catch (error) {
         status.push({
           name: provider.name,
           status: 'error',
+          models: [],
         });
       }
     }
@@ -569,6 +702,35 @@ class AIIntegrationService {
     }
     
     logger.info('AI cache cleared', { contactId });
+  }
+  
+  // Model information methods
+  getAvailableModels(capability?: string): Array<{ provider: string; model: string; name: string; capabilities: string[] }> {
+    const models: Array<{ provider: string; model: string; name: string; capabilities: string[] }> = [];
+    
+    Object.entries(apiConfig.aiProviders).forEach(([providerName, provider]) => {
+      if (provider.enabled) {
+        provider.models.forEach(model => {
+          if (!capability || model.capabilities.includes(capability)) {
+            models.push({
+              provider: providerName,
+              model: model.id,
+              name: model.name,
+              capabilities: model.capabilities,
+            });
+          }
+        });
+      }
+    });
+    
+    return models;
+  }
+  
+  getModelInfo(providerName: string, modelId: string): any {
+    const provider = apiConfig.aiProviders[providerName as keyof typeof apiConfig.aiProviders];
+    if (!provider) return null;
+    
+    return provider.models.find(m => m.id === modelId) || null;
   }
 }
 
