@@ -32,6 +32,7 @@ interface AIResearchButtonProps {
   variant?: 'primary' | 'secondary' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   showConfidence?: boolean;
+  disabled?: boolean;
 }
 
 export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
@@ -41,12 +42,17 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
   className = '',
   variant = 'primary',
   size = 'md',
-  showConfidence = true
+  showConfidence = true,
+  disabled = false
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<ContactEnrichmentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+
+  const hasMinimumData = searchQuery.email || searchQuery.firstName || 
+                         searchQuery.linkedinUrl || 
+                         (searchQuery.firstName && searchQuery.company);
 
   const handleSearch = async () => {
     setIsSearching(true);
@@ -58,28 +64,31 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
       switch (searchType) {
         case 'email':
-          if (!searchQuery.email) {
+          if (searchQuery.email) {
+            results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email);
+          } else {
             throw new Error('Email is required for search');
           }
-          results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email);
           break;
 
         case 'name':
-          if (!searchQuery.firstName) {
+          if (searchQuery.firstName) {
+            results = await aiEnrichmentService.enrichContactByName(
+              searchQuery.firstName,
+              searchQuery.lastName || '',
+              searchQuery.company
+            );
+          } else {
             throw new Error('First name is required for search');
           }
-          results = await aiEnrichmentService.enrichContactByName(
-            searchQuery.firstName,
-            searchQuery.lastName || '',
-            searchQuery.company
-          );
           break;
 
         case 'linkedin':
-          if (!searchQuery.linkedinUrl) {
+          if (searchQuery.linkedinUrl) {
+            results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl);
+          } else {
             throw new Error('LinkedIn URL is required for search');
           }
-          results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl);
           break;
 
         case 'auto':
@@ -167,13 +176,19 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
         variant={variant}
         size={size}
         onClick={handleSearch}
-        disabled={isSearching}
+        disabled={isSearching || (disabled && !hasMinimumData)}
         className={`flex items-center space-x-2 ${className}`}
       >
         <ButtonIcon className={`w-4 h-4 ${isSearching ? 'animate-spin' : ''}`} />
         <span>{getButtonLabel()}</span>
         {searchType === 'auto' && <Sparkles className="w-3 h-3 text-yellow-400" />}
       </ModernButton>
+
+      {!hasMinimumData && !disabled && (
+        <div className="mt-1 text-xs text-gray-500">
+          Enter email, name, or LinkedIn URL
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (

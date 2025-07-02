@@ -80,58 +80,48 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
     const searchQuery = getSearchQuery();
     const options = [];
 
-    if (searchQuery.email) {
-      options.push({
-        type: 'email' as const,
-        label: 'Research by Email',
-        icon: Mail,
-        description: `Find info for ${searchQuery.email}`
-      });
-    }
+    // Always provide email option - it will use whatever email is available
+    options.push({
+      type: 'email' as const,
+      label: 'Research by Email',
+      icon: Mail,
+      description: searchQuery.email ? `Find info for ${searchQuery.email}` : 'Enter an email to research'
+    });
 
-    if (searchQuery.firstName || searchQuery.lastName) {
-      options.push({
-        type: 'name' as const,
-        label: 'Research by Name',
-        icon: User,
-        description: `Find info for ${searchQuery.firstName} ${searchQuery.lastName}`.trim()
-      });
-    }
+    // Always provide name option - it will use whatever name fields are available
+    options.push({
+      type: 'name' as const,
+      label: 'Research by Name',
+      icon: User,
+      description: (searchQuery.firstName || searchQuery.lastName) ? 
+        `Find info for ${searchQuery.firstName} ${searchQuery.lastName}`.trim() : 
+        'Enter a name to research'
+    });
 
-    if (searchQuery.linkedinUrl) {
-      options.push({
-        type: 'linkedin' as const,
-        label: 'Research LinkedIn',
-        icon: Globe,
-        description: 'Extract from LinkedIn profile'
-      });
-    }
+    // Always provide LinkedIn option
+    options.push({
+      type: 'linkedin' as const,
+      label: 'Research LinkedIn',
+      icon: Globe,
+      description: searchQuery.linkedinUrl ? 
+        'Extract from LinkedIn profile' : 
+        'Enter a LinkedIn URL to research'
+    });
 
-    // Always add auto option if we have any data
-    if (options.length > 0) {
-      options.unshift({
-        type: 'auto' as const,
-        label: 'Smart Auto-Research',
-        icon: Brain,
-        description: 'AI chooses best research method'
-      });
-    }
+    // Always add auto option
+    options.unshift({
+      type: 'auto' as const,
+      label: 'Smart Auto-Research',
+      icon: Brain,
+      description: 'AI chooses best research method'
+    });
 
     return options;
   };
 
   const autoFillOptions = getAutoFillOptions();
-
-  if (autoFillOptions.length === 0) {
-    return (
-      <div className={`flex items-center space-x-2 p-3 bg-gray-50 rounded-lg ${className}`}>
-        <AlertCircle className="w-4 h-4 text-gray-400" />
-        <span className="text-sm text-gray-500">
-          Enter email, name, or LinkedIn URL to enable AI research
-        </span>
-      </div>
-    );
-  }
+  const hasMinimumData = formData.email || formData.firstName || formData.lastName || 
+                         formData.company || formData.socialProfiles?.linkedin;
 
   return (
     <div className={`relative ${className}`}>
@@ -141,6 +131,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
           variant="primary"
           size={size}
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          disabled={!hasMinimumData}
           className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
         >
           <Wand2 className="w-4 h-4" />
@@ -167,6 +158,12 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
           <span className="text-xs capitalize">{autoFillMode}</span>
         </ModernButton>
       </div>
+
+      {!hasMinimumData && (
+        <div className="mt-2 text-xs text-gray-500">
+          Enter email, name, or LinkedIn URL to enable AI research
+        </div>
+      )}
 
       {/* Dropdown Menu */}
       {isDropdownOpen && (
@@ -215,6 +212,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
                     size="sm"
                     className="w-full justify-start p-3 hover:bg-gray-50 border-0 hover:border-gray-200"
                     showConfidence={false}
+                    disabled={!hasMinimumData}
                   />
                   
                   {/* Option Description */}
@@ -227,6 +225,17 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
                 </div>
               );
             })}
+
+            {!hasMinimumData && (
+              <div className="p-3 bg-blue-50 rounded-lg mb-2">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-700">
+                    Add basic information like an email or name to enable AI research
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer */}
