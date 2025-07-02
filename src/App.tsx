@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Sidebar } from './components/layout/Sidebar';
-import { TopBar } from './components/layout/TopBar';
+import { Users } from 'lucide-react';
+import { GlassCard } from './components/ui/GlassCard';
 import { MetricsCards } from './components/dashboard/MetricsCards';
 import { NewLeadsSection } from './components/dashboard/NewLeadsSection';
 import { InteractionHistory } from './components/dashboard/InteractionHistory';
@@ -92,52 +92,33 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex space-x-6">
-          {/* Enhanced Sidebar with Navigation */}
+          {/* Only Contact Icon */}
           <div className="relative">
-            <Sidebar onContactsClick={() => setIsContactsModalOpen(true)} />
-            
-            {/* Navigation Pills */}
-            <div className="mt-6 w-16 space-y-2">
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className={`w-full p-2 rounded-lg transition-all duration-200 ${
-                  currentView === 'dashboard' 
-                    ? 'bg-blue-500/20 text-blue-600' 
-                    : 'text-gray-600 hover:bg-white/50'
-                }`}
-                title="Dashboard"
-              >
-                <div className="w-8 h-1 bg-current rounded mx-auto"></div>
-              </button>
-              <button
-                onClick={() => setCurrentView('analytics')}
-                className={`w-full p-2 rounded-lg transition-all duration-200 ${
-                  currentView === 'analytics' 
-                    ? 'bg-purple-500/20 text-purple-600' 
-                    : 'text-gray-600 hover:bg-white/50'
-                }`}
-                title="Analytics"
-              >
-                <div className="w-8 h-1 bg-current rounded mx-auto"></div>
-              </button>
-              <button
-                onClick={() => setCurrentView('contacts')}
-                className={`w-full p-2 rounded-lg transition-all duration-200 ${
-                  currentView === 'contacts' 
-                    ? 'bg-green-500/20 text-green-600' 
-                    : 'text-gray-600 hover:bg-white/50'
-                }`}
-                title="Contacts"
-              >
-                <div className="w-8 h-1 bg-current rounded mx-auto"></div>
-              </button>
+            <div className="w-16 h-full flex flex-col py-6">
+              <GlassCard className="flex-1 p-4">
+                <div className="flex flex-col items-center space-y-6">
+                  {/* Logo */}
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">S</span>
+                  </div>
+                  
+                  {/* Only Contact Icon */}
+                  <button
+                    onClick={() => setIsContactsModalOpen(true)}
+                    className="p-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-white/50 hover:text-gray-800 group relative"
+                  >
+                    <Users className="w-5 h-5" />
+                    <span className="absolute left-12 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      Contacts
+                    </span>
+                  </button>
+                </div>
+              </GlassCard>
             </div>
           </div>
           
           {/* Main Content */}
           <div className="flex-1">
-            <TopBar />
-            
             {/* Dynamic Content Based on Current View */}
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
