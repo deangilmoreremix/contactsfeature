@@ -58,8 +58,8 @@ class AIEnrichmentService {
       const response = await httpClient.post<ContactEnrichmentData>(
         `${this.apiUrl}/enrich`,
         { 
-          enrichmentRequest: { email },
-          provider: this.getAvailableProvider()
+          contactId: 'client-enrichment-request',
+          enrichmentRequest: { email }
         },
         {
           timeout: 30000,
@@ -89,8 +89,8 @@ class AIEnrichmentService {
       const response = await httpClient.post<ContactEnrichmentData>(
         `${this.apiUrl}/enrich`,
         { 
-          enrichmentRequest: { firstName, lastName, company },
-          provider: this.getAvailableProvider()
+          contactId: 'client-enrichment-request',
+          enrichmentRequest: { firstName, lastName, company }
         },
         {
           timeout: 30000,
@@ -120,8 +120,8 @@ class AIEnrichmentService {
       const response = await httpClient.post<ContactEnrichmentData>(
         `${this.apiUrl}/enrich`,
         { 
-          enrichmentRequest: { linkedinUrl },
-          provider: this.getAvailableProvider()
+          contactId: 'client-enrichment-request',
+          enrichmentRequest: { linkedinUrl }
         },
         {
           timeout: 30000,
@@ -152,9 +152,9 @@ class AIEnrichmentService {
       const response = await httpClient.post<{ imageUrl: string }>(
         `${this.apiUrl}/find-image`,
         { 
+          contactId: 'client-enrichment-request',
           name,
-          company,
-          provider: this.getAvailableProvider()
+          company
         },
         {
           timeout: 15000,
@@ -186,8 +186,8 @@ class AIEnrichmentService {
       const response = await httpClient.post<ContactEnrichmentData[]>(
         `${this.apiUrl}/enrich/bulk`,
         {
+          contactId: 'client-bulk-enrichment-request',
           contacts,
-          provider: this.getAvailableProvider(),
           options: {
             maxConcurrency: 5,
             timeout: 60000
