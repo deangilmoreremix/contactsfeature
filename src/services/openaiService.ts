@@ -1,5 +1,5 @@
 import { openaiConfig } from '../config/api.config';
-import { LoggerService } from './logger.service';
+import { logger } from './logger.service';
 import { Contact } from '../types/contact';
 
 interface OpenAIAnalysisResult {
@@ -67,7 +67,7 @@ class OpenAIService {
       const data = await response.json();
       const analysis = this.parseAnalysisResponse(data.choices[0]?.message?.content || '');
       
-      LoggerService.info('OpenAI analysis completed successfully', {
+      logger.info('OpenAI analysis completed successfully', {
         contactId: contact.id,
         leadScore: analysis.leadScore
       });
@@ -75,7 +75,7 @@ class OpenAIService {
       return analysis;
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error occurred during OpenAI analysis';
-      LoggerService.error('OpenAI analysis failed', {
+      logger.error('OpenAI analysis failed', {
         contactId: contact.id,
         error: errorMessage
       });
@@ -135,7 +135,7 @@ Please respond with a JSON object containing:
         };
       }
     } catch (error) {
-      LoggerService.warn('Failed to parse OpenAI analysis response', { content, error });
+      logger.warn('Failed to parse OpenAI analysis response', { content, error });
     }
 
     // Fallback parsing
@@ -186,7 +186,7 @@ Please respond with a JSON object containing:
       const data = await response.json();
       return data.choices[0]?.message?.content || this.getFallbackEmailTemplate(contact, purpose);
     } catch (error: any) {
-      LoggerService.error('Email template generation failed', {
+      logger.error('Email template generation failed', {
         contactId: contact.id,
         purpose,
         error: error.message

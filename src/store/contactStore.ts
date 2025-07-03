@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Contact } from '../types/contact';
-import { LoggerService } from '../services/logger.service';
+import { logger } from '../services/logger.service';
 
 interface ContactStore {
   contacts: Contact[];
@@ -99,7 +99,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       return { contacts: newContacts };
     });
     get().filterContacts();
-    LoggerService.info('Contact added successfully', { contactId: contact.id });
+    logger.info('Contact added successfully', { contactId: contact.id });
   },
 
   updateContact: async (id, updates) => {
@@ -109,7 +109,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       
       if (contactIndex === -1) {
         const errorMessage = `Contact with ID ${id} not found`;
-        LoggerService.error('Failed to update contact', { contactId: id, error: errorMessage });
+        logger.error('Failed to update contact', { contactId: id, error: errorMessage });
         throw new Error(errorMessage);
       }
 
@@ -125,13 +125,13 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       set({ contacts: newContacts });
       get().filterContacts();
       
-      LoggerService.info('Contact updated successfully', { 
+      logger.info('Contact updated successfully', { 
         contactId: id, 
         updatedFields: Object.keys(updates) 
       });
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error occurred while updating contact';
-      LoggerService.error('Failed to update contact', { 
+      logger.error('Failed to update contact', { 
         contactId: id, 
         error: errorMessage,
         updates 
@@ -148,7 +148,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       
       if (!contactExists) {
         const errorMessage = `Contact with ID ${id} not found`;
-        LoggerService.error('Failed to delete contact', { contactId: id, error: errorMessage });
+        logger.error('Failed to delete contact', { contactId: id, error: errorMessage });
         throw new Error(errorMessage);
       }
 
@@ -157,10 +157,10 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         selectedContacts: new Set([...state.selectedContacts].filter(selectedId => selectedId !== id))
       }));
       get().filterContacts();
-      LoggerService.info('Contact deleted successfully', { contactId: id });
+      logger.info('Contact deleted successfully', { contactId: id });
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error occurred while deleting contact';
-      LoggerService.error('Failed to delete contact', { contactId: id, error: errorMessage });
+      logger.error('Failed to delete contact', { contactId: id, error: errorMessage });
       set({ error: errorMessage });
     }
   },
@@ -263,10 +263,10 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       });
       
       get().filterContacts();
-      LoggerService.info('Contacts loaded successfully', { count: sampleContacts.length });
+      logger.info('Contacts loaded successfully', { count: sampleContacts.length });
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to load contacts';
-      LoggerService.error('Failed to load contacts', { error: errorMessage });
+      logger.error('Failed to load contacts', { error: errorMessage });
       set({ 
         error: errorMessage,
         isLoading: false 
