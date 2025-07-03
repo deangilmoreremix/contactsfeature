@@ -41,8 +41,24 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
-  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') as string;
+  // Validate required environment variables
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+  
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing required environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
+    return new Response(
+      JSON.stringify({ 
+        error: 'Server configuration error: Missing required environment variables',
+        details: 'SUPABASE_URL and SUPABASE_ANON_KEY must be configured'
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
@@ -57,7 +73,37 @@ Deno.serve(async (req) => {
     
     // POST /enrich - Enrich contact data
     if (req.method === 'POST' && (endpoint.length === 0 || endpoint[0] === 'enrich')) {
-      const { contactId, enrichmentRequest } = await req.json();
+      let requestData;
+      try {
+        requestData = await req.json();
+      } catch (parseError) {
+        console.error('Failed to parse request JSON:', parseError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid request format',
+            details: 'Request body must be valid JSON'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      const { contactId, enrichmentRequest } = requestData;
+      
+      if (!enrichmentRequest) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing enrichment request data',
+            details: 'enrichmentRequest field is required'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
       
       // If no AI providers are configured, return mock data
       if (!hasAiProvider) {
@@ -84,7 +130,37 @@ Deno.serve(async (req) => {
     
     // POST /analyze - Analyze contact
     if (req.method === 'POST' && endpoint.length === 1 && endpoint[0] === 'analyze') {
-      const { contactId, contact, analysisTypes, options } = await req.json();
+      let requestData;
+      try {
+        requestData = await req.json();
+      } catch (parseError) {
+        console.error('Failed to parse request JSON:', parseError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid request format',
+            details: 'Request body must be valid JSON'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      const { contactId, contact, analysisTypes, options } = requestData;
+      
+      if (!contact) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing contact data',
+            details: 'contact field is required'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
       
       // If no AI providers are configured, return mock data
       if (!hasAiProvider) {
@@ -133,7 +209,10 @@ Deno.serve(async (req) => {
     
     // Endpoint not found
     return new Response(
-      JSON.stringify({ error: 'Not found' }),
+      JSON.stringify({ 
+        error: 'Not found',
+        details: `Endpoint not found: ${req.method} ${url.pathname}`
+      }),
       {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -141,10 +220,14 @@ Deno.serve(async (req) => {
     );
     
   } catch (error) {
+    console.error('Unhandled error in ai-enrichment function:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message || 'An unexpected error occurred'
+      }),
       {
-        status: error.status || 500,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
