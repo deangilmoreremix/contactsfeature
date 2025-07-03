@@ -7,6 +7,7 @@ import apiConfig, { ApiEndpoint } from '../config/api.config';
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
 import { cacheService } from './cache.service';
+import { createClient } from '@supabase/supabase-js';
 
 export interface RequestConfig {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -55,9 +56,20 @@ class HttpClientService {
     resolve: (value?: any) => void;
     reject: (reason?: any) => void;
   }> = [];
+  private supabase: any = null;
   
   constructor() {
     this.loadTokens();
+    this.initSupabase();
+  }
+  
+  private initSupabase() {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (supabaseUrl && supabaseKey) {
+      this.supabase = createClient(supabaseUrl, supabaseKey);
+    }
   }
   
   private loadTokens(): void {
