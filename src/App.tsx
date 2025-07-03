@@ -89,52 +89,50 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex space-x-6">
-          {/* Only Contact Icon */}
-          <div className="relative">
-            <div className="w-16 h-full flex flex-col py-6">
-              <GlassCard className="flex-1 p-4">
-                <div className="flex flex-col items-center space-y-6">
-                  {/* Logo */}
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">S</span>
-                  </div>
-                  
-                  {/* Only Contact Icon */}
-                  <button
-                    onClick={() => setIsContactsModalOpen(true)}
-                    className="p-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-white/50 hover:text-gray-800 group relative"
-                  >
-                    <Users className="w-5 h-5" />
-                    <span className="absolute left-12 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                      Contacts
-                    </span>
-                  </button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="flex space-x-6">
+        {/* Only Contact Icon */}
+        <div className="relative">
+          <div className="w-16 h-full flex flex-col py-6">
+            <GlassCard className="flex-1 p-4">
+              <div className="flex flex-col items-center space-y-6">
+                {/* Logo */}
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">S</span>
                 </div>
-              </GlassCard>
-            </div>
+                
+                {/* Only Contact Icon */}
+                <button
+                  onClick={() => setIsContactsModalOpen(true)}
+                  className="p-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-white/50 hover:text-gray-800 group relative"
+                >
+                  <Users className="w-5 h-5" />
+                  <span className="absolute left-12 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                    Contacts
+                  </span>
+                </button>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+        
+        {/* Main Content */}
+        <div className="flex-1">
+          {/* Dynamic Content Based on Current View */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {currentView === 'dashboard' && 'Customer Information'}
+              {currentView === 'analytics' && 'Business Intelligence'}
+              {currentView === 'contacts' && 'Contact Management'}
+            </h1>
+            <p className="text-gray-600">
+              {currentView === 'dashboard' && 'Manage your customer relationships and track interactions'}
+              {currentView === 'analytics' && 'Advanced analytics and performance insights'}
+              {currentView === 'contacts' && 'Comprehensive contact management with AI insights'}
+            </p>
           </div>
           
-          {/* Main Content */}
-          <div className="flex-1">
-            {/* Dynamic Content Based on Current View */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {currentView === 'dashboard' && 'Customer Information'}
-                {currentView === 'analytics' && 'Business Intelligence'}
-                {currentView === 'contacts' && 'Contact Management'}
-              </h1>
-              <p className="text-gray-600">
-                {currentView === 'dashboard' && 'Manage your customer relationships and track interactions'}
-                {currentView === 'analytics' && 'Advanced analytics and performance insights'}
-                {currentView === 'contacts' && 'Comprehensive contact management with AI insights'}
-              </p>
-            </div>
-            
-            {renderCurrentView()}
-          </div>
+          {renderCurrentView()}
         </div>
       </div>
 
