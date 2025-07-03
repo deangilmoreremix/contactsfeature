@@ -44,6 +44,185 @@ export interface ContactStats {
 
 class ContactAPIService {
   private baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  private isBackendAvailable = false;
+  
+  // Check if we should use fallback mode
+  private shouldUseFallback(): boolean {
+    return !this.isBackendAvailable || import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
+  }
+  
+  // Initialize local storage with sample data if needed
+  private initializeLocalStorage(): Contact[] {
+    try {
+      const stored = localStorage.getItem('contacts');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      // If localStorage is corrupted, reset it
+    }
+    
+    // Default sample data
+    const sampleContacts: Contact[] = [
+      {
+        id: '1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        name: 'Jane Doe',
+        email: 'jane.doe@microsoft.com',
+        phone: '+1 425 882 8080',
+        title: 'Marketing Director',
+        company: 'Microsoft',
+        industry: 'Technology',
+        avatarSrc: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['LinkedIn', 'Email'],
+        interestLevel: 'hot',
+        status: 'prospect',
+        lastConnected: '2024-01-15',
+        aiScore: 85,
+        tags: ['Enterprise', 'High Value'],
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-15T14:30:00Z'
+      },
+      {
+        id: '2',
+        firstName: 'John',
+        lastName: 'Smith',
+        name: 'John Smith',
+        email: 'john.smith@example.com',
+        title: 'Developer',
+        company: 'Tech Company',
+        avatarSrc: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['Website'],
+        interestLevel: 'medium',
+        status: 'lead',
+        createdAt: '2024-01-02T00:00:00Z',
+        updatedAt: '2024-01-02T00:00:00Z'
+      },
+      {
+        id: '3',
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        name: 'Sarah Johnson',
+        email: 'sarah.johnson@salesforce.com',
+        phone: '+1 415 901 7000',
+        title: 'VP of Sales',
+        company: 'Salesforce',
+        industry: 'Technology',
+        avatarSrc: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['Conference', 'LinkedIn'],
+        interestLevel: 'hot',
+        status: 'qualified',
+        lastConnected: '2024-01-20',
+        aiScore: 92,
+        tags: ['Enterprise', 'Decision Maker'],
+        createdAt: '2024-01-03T00:00:00Z',
+        updatedAt: '2024-01-20T09:15:00Z'
+      },
+      {
+        id: '4',
+        firstName: 'Michael',
+        lastName: 'Chen',
+        name: 'Michael Chen',
+        email: 'michael.chen@startup.io',
+        title: 'Founder & CEO',
+        company: 'StartupIO',
+        industry: 'Technology',
+        avatarSrc: 'https://images.pexels.com/photos/834863/pexels-photo-834863.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['Referral'],
+        interestLevel: 'medium',
+        status: 'lead',
+        lastConnected: '2024-01-18',
+        aiScore: 78,
+        tags: ['Startup', 'Founder'],
+        createdAt: '2024-01-05T00:00:00Z',
+        updatedAt: '2024-01-18T16:45:00Z'
+      },
+      {
+        id: '5',
+        firstName: 'Emily',
+        lastName: 'Rodriguez',
+        name: 'Emily Rodriguez',
+        email: 'emily.rodriguez@enterprise.com',
+        phone: '+1 555 123 4567',
+        title: 'Operations Manager',
+        company: 'Enterprise Corp',
+        industry: 'Manufacturing',
+        avatarSrc: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['Cold Email'],
+        interestLevel: 'warm',
+        status: 'prospect',
+        lastConnected: '2024-01-22',
+        aiScore: 65,
+        tags: ['Manufacturing', 'Operations'],
+        createdAt: '2024-01-08T00:00:00Z',
+        updatedAt: '2024-01-22T11:30:00Z'
+      },
+      {
+        id: '6',
+        firstName: 'David',
+        lastName: 'Kim',
+        name: 'David Kim',
+        email: 'david.kim@consulting.com',
+        title: 'Senior Consultant',
+        company: 'Strategy Consulting',
+        industry: 'Consulting',
+        avatarSrc: 'https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['LinkedIn'],
+        interestLevel: 'cold',
+        status: 'lead',
+        lastConnected: '2024-01-10',
+        tags: ['Consulting'],
+        createdAt: '2024-01-10T00:00:00Z',
+        updatedAt: '2024-01-10T00:00:00Z'
+      },
+      {
+        id: '7',
+        firstName: 'Brooklyn',
+        lastName: 'Martinez',
+        name: 'Brooklyn Martinez',
+        email: 'brooklyn@acmeretail.com',
+        phone: '+1 555 987 6543',
+        title: 'Retail Manager',
+        company: 'ACME Retail',
+        industry: 'Retail',
+        avatarSrc: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+        sources: ['Website', 'Email'],
+        interestLevel: 'warm',
+        status: 'prospect',
+        lastConnected: '2024-01-25',
+        aiScore: 73,
+        tags: ['Retail', 'Manager'],
+        createdAt: '2024-01-12T00:00:00Z',
+        updatedAt: '2024-01-25T14:20:00Z'
+      }
+    ];
+    
+    localStorage.setItem('contacts', JSON.stringify(sampleContacts));
+    return sampleContacts;
+  }
+  
+  // Get all contacts from localStorage
+  private getLocalContacts(): Contact[] {
+    try {
+      const stored = localStorage.getItem('contacts');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      // If localStorage is corrupted, reinitialize
+    }
+    return this.initializeLocalStorage();
+  }
+  
+  // Save contacts to localStorage
+  private saveLocalContacts(contacts: Contact[]): void {
+    try {
+      localStorage.setItem('contacts', JSON.stringify(contacts));
+    } catch (e) {
+      logger.error('Failed to save contacts to localStorage', e as Error);
+    }
+  }
   
   // CRUD Operations
   async createContact(contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
@@ -58,44 +237,54 @@ class ContactAPIService {
       throw error;
     }
     
-    try {
-      const response = await httpClient.post<Contact>(
-        `${this.baseURL}/contacts`,
-        sanitized,
-        {
-          timeout: 15000,
-          retries: 2,
-        }
-      );
-      
-      const contact = response.data;
-      
-      // Cache the new contact
-      cacheService.setContact(contact.id, contact);
-      
-      // Invalidate contact lists
-      cacheService.deleteByTag('list');
-      
-      logger.info('Contact created successfully', { contactId: contact.id });
-      
-      return contact;
-    } catch (error) {
-      logger.error('Failed to create contact', error as Error, contactData);
-      
-      // For development fallback if API is not available
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback contact creation in development mode');
-        const fallbackContact: Contact = {
-          ...sanitized as any,
-          id: `local-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        return fallbackContact;
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.post<Contact>(
+          `${this.baseURL}/contacts`,
+          sanitized,
+          {
+            timeout: 15000,
+            retries: 2,
+          }
+        );
+        
+        const contact = response.data;
+        
+        // Cache the new contact
+        cacheService.setContact(contact.id, contact);
+        
+        // Invalidate contact lists
+        cacheService.deleteByTag('list');
+        
+        logger.info('Contact created successfully', { contactId: contact.id });
+        
+        this.isBackendAvailable = true;
+        return contact;
+      } catch (error) {
+        logger.error('Failed to create contact via API', error as Error, contactData);
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for contact creation');
+    const contacts = this.getLocalContacts();
+    const newContact: Contact = {
+      ...sanitized as any,
+      id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    contacts.push(newContact);
+    this.saveLocalContacts(contacts);
+    
+    // Cache the new contact
+    cacheService.setContact(newContact.id, newContact);
+    
+    return newContact;
   }
   
   async getContact(contactId: string): Promise<Contact> {
@@ -105,49 +294,50 @@ class ContactAPIService {
       return cached;
     }
     
-    try {
-      const response = await httpClient.get<Contact>(
-        `${this.baseURL}/contacts/${contactId}`,
-        undefined,
-        {
-          timeout: 10000,
-          retries: 2,
-          cache: {
-            key: `contact_${contactId}`,
-            ttl: 300000, // 5 minutes
-            tags: ['contact'],
-          },
-        }
-      );
-      
-      const contact = response.data;
-      
-      // Cache the contact
-      cacheService.setContact(contactId, contact);
-      
-      return contact;
-    } catch (error) {
-      logger.error('Failed to get contact', error as Error, { contactId });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        // Try to find contact in local storage as fallback in development
-        try {
-          const localContacts = localStorage.getItem('contacts');
-          if (localContacts) {
-            const contacts = JSON.parse(localContacts);
-            const contact = contacts.find((c: Contact) => c.id === contactId);
-            if (contact) {
-              return contact;
-            }
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.get<Contact>(
+          `${this.baseURL}/contacts/${contactId}`,
+          undefined,
+          {
+            timeout: 10000,
+            retries: 2,
+            cache: {
+              key: `contact_${contactId}`,
+              ttl: 300000, // 5 minutes
+              tags: ['contact'],
+            },
           }
-        } catch (e) {
-          // Ignore local storage errors
-        }
+        );
+        
+        const contact = response.data;
+        
+        // Cache the contact
+        cacheService.setContact(contactId, contact);
+        
+        this.isBackendAvailable = true;
+        return contact;
+      } catch (error) {
+        logger.error('Failed to get contact via API', error as Error, { contactId });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for contact retrieval');
+    const contacts = this.getLocalContacts();
+    const contact = contacts.find(c => c.id === contactId);
+    
+    if (!contact) {
+      throw new Error(`Contact with ID ${contactId} not found`);
+    }
+    
+    // Cache the contact
+    cacheService.setContact(contactId, contact);
+    
+    return contact;
   }
   
   async updateContact(contactId: string, updates: Partial<Contact>): Promise<Contact> {
@@ -158,104 +348,108 @@ class ContactAPIService {
     
     const sanitized = validationService.sanitizeContact(updates);
     
-    try {
-      const response = await httpClient.patch<Contact>(
-        `${this.baseURL}/contacts/${contactId}`,
-        sanitized,
-        {
-          timeout: 15000,
-          retries: 2,
-        }
-      );
-      
-      const contact = response.data;
-      
-      // Update cache
-      cacheService.setContact(contactId, contact);
-      
-      // Invalidate lists that might contain this contact
-      cacheService.deleteByTag('list');
-      
-      logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
-      
-      return contact;
-    } catch (error) {
-      logger.error('Failed to update contact', error as Error, { contactId, updates });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        try {
-          // Get existing contact (from cache or fallback)
-          let contact: Contact | null = null;
-          try {
-            contact = await this.getContact(contactId);
-          } catch (e) {
-            // If contact doesn't exist in cache or API, create a fallback
-            contact = {
-              id: contactId,
-              firstName: 'Fallback',
-              lastName: 'User',
-              name: 'Fallback User',
-              email: 'fallback@example.com',
-              title: 'Unknown',
-              company: 'Unknown Company',
-              status: 'lead' as any,
-              interestLevel: 'medium' as any,
-              sources: [],
-              avatarSrc: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            };
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.patch<Contact>(
+          `${this.baseURL}/contacts/${contactId}`,
+          sanitized,
+          {
+            timeout: 15000,
+            retries: 2,
           }
-          
-          // Apply updates
-          const updatedContact: Contact = {
-            ...contact,
-            ...sanitized as any,
-            updatedAt: new Date().toISOString()
-          };
-          
-          // Cache the updated contact
-          cacheService.setContact(contactId, updatedContact);
-          
-          logger.warn('Using fallback contact update in development mode');
-          return updatedContact;
-        } catch (fallbackError) {
-          logger.error('Fallback update failed', fallbackError as Error);
-        }
+        );
+        
+        const contact = response.data;
+        
+        // Update cache
+        cacheService.setContact(contactId, contact);
+        
+        // Invalidate lists that might contain this contact
+        cacheService.deleteByTag('list');
+        
+        logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
+        
+        this.isBackendAvailable = true;
+        return contact;
+      } catch (error) {
+        logger.error('Failed to update contact via API', error as Error, { contactId, updates });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for contact update');
+    const contacts = this.getLocalContacts();
+    const contactIndex = contacts.findIndex(c => c.id === contactId);
+    
+    if (contactIndex === -1) {
+      throw new Error(`Contact with ID ${contactId} not found`);
+    }
+    
+    // Apply updates
+    const updatedContact: Contact = {
+      ...contacts[contactIndex],
+      ...sanitized as any,
+      updatedAt: new Date().toISOString()
+    };
+    
+    contacts[contactIndex] = updatedContact;
+    this.saveLocalContacts(contacts);
+    
+    // Update cache
+    cacheService.setContact(contactId, updatedContact);
+    
+    // Invalidate lists
+    cacheService.deleteByTag('list');
+    
+    logger.info('Contact updated successfully via localStorage', { contactId, updates: Object.keys(updates) });
+    
+    return updatedContact;
   }
   
   async deleteContact(contactId: string): Promise<void> {
-    try {
-      await httpClient.delete(
-        `${this.baseURL}/contacts/${contactId}`,
-        {
-          timeout: 10000,
-          retries: 1,
-        }
-      );
-      
-      // Remove from cache
-      cacheService.invalidateContact(contactId);
-      
-      logger.info('Contact deleted successfully', { contactId });
-    } catch (error) {
-      logger.error('Failed to delete contact', error as Error, { contactId });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        // Remove from cache anyway
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        await httpClient.delete(
+          `${this.baseURL}/contacts/${contactId}`,
+          {
+            timeout: 10000,
+            retries: 1,
+          }
+        );
+        
+        // Remove from cache
         cacheService.invalidateContact(contactId);
-        logger.warn('Using fallback contact deletion in development mode');
+        
+        logger.info('Contact deleted successfully', { contactId });
+        
+        this.isBackendAvailable = true;
         return;
+      } catch (error) {
+        logger.error('Failed to delete contact via API', error as Error, { contactId });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for contact deletion');
+    const contacts = this.getLocalContacts();
+    const filteredContacts = contacts.filter(c => c.id !== contactId);
+    
+    if (filteredContacts.length === contacts.length) {
+      throw new Error(`Contact with ID ${contactId} not found`);
+    }
+    
+    this.saveLocalContacts(filteredContacts);
+    
+    // Remove from cache
+    cacheService.invalidateContact(contactId);
+    
+    logger.info('Contact deleted successfully via localStorage', { contactId });
   }
   
   // List and Search Operations
@@ -268,147 +462,105 @@ class ContactAPIService {
       return cached;
     }
     
-    try {
-      const response = await httpClient.get<ContactListResponse>(
-        `${this.baseURL}/contacts`,
-        filters,
-        {
-          timeout: 20000,
-          retries: 2,
-          cache: {
-            key: `contact_list_${cacheKey}`,
-            ttl: 180000, // 3 minutes
-            tags: ['contact', 'list'],
-          },
-        }
-      );
-      
-      const result = response.data;
-      
-      // Cache individual contacts
-      result.contacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact, 300000);
-      });
-      
-      // Cache the list
-      cacheService.setContactList(filters, result);
-      
-      return result;
-    } catch (error) {
-      logger.error('Failed to get contacts', error as Error, { filters });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        // Try to get contacts from local storage
-        try {
-          let contacts: Contact[] = [];
-          const storedContacts = localStorage.getItem('contacts');
-          
-          if (storedContacts) {
-            contacts = JSON.parse(storedContacts);
-          } else {
-            // Use sample fallback data
-            contacts = [
-              {
-                id: '1',
-                firstName: 'Jane',
-                lastName: 'Doe',
-                name: 'Jane Doe',
-                email: 'jane.doe@microsoft.com',
-                phone: '+1 425 882 8080',
-                title: 'Marketing Director',
-                company: 'Microsoft',
-                industry: 'Technology',
-                avatarSrc: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-                sources: ['LinkedIn', 'Email'],
-                interestLevel: 'hot',
-                status: 'prospect',
-                lastConnected: '2024-01-15',
-                aiScore: 85,
-                tags: ['Enterprise', 'High Value'],
-                createdAt: '2024-01-01T00:00:00Z',
-                updatedAt: '2024-01-15T14:30:00Z'
-              },
-              {
-                id: '2',
-                firstName: 'John',
-                lastName: 'Smith',
-                name: 'John Smith',
-                email: 'john.smith@example.com',
-                title: 'Developer',
-                company: 'Tech Company',
-                avatarSrc: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-                sources: ['Website'],
-                interestLevel: 'medium',
-                status: 'lead',
-                createdAt: '2024-01-02T00:00:00Z',
-                updatedAt: '2024-01-02T00:00:00Z'
-              }
-            ];
-            localStorage.setItem('contacts', JSON.stringify(contacts));
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.get<ContactListResponse>(
+          `${this.baseURL}/contacts`,
+          filters,
+          {
+            timeout: 20000,
+            retries: 2,
+            cache: {
+              key: `contact_list_${cacheKey}`,
+              ttl: 180000, // 3 minutes
+              tags: ['contact', 'list'],
+            },
           }
-          
-          // Apply filters
-          let filteredContacts = [...contacts];
-          
-          if (filters.search) {
-            const search = filters.search.toLowerCase();
-            filteredContacts = filteredContacts.filter(c => 
-              c.name.toLowerCase().includes(search) ||
-              c.email.toLowerCase().includes(search) ||
-              c.company.toLowerCase().includes(search)
-            );
-          }
-          
-          if (filters.interestLevel && filters.interestLevel !== 'all') {
-            filteredContacts = filteredContacts.filter(c => c.interestLevel === filters.interestLevel);
-          }
-          
-          if (filters.status && filters.status !== 'all') {
-            filteredContacts = filteredContacts.filter(c => c.status === filters.status);
-          }
-          
-          if (filters.hasAIScore !== undefined) {
-            filteredContacts = filteredContacts.filter(c => 
-              filters.hasAIScore ? !!c.aiScore : !c.aiScore
-            );
-          }
-          
-          // Apply sorting
-          if (filters.sortBy) {
-            filteredContacts.sort((a: any, b: any) => {
-              const aValue = a[filters.sortBy!];
-              const bValue = b[filters.sortBy!];
-              
-              if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
-              if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
-              return 0;
-            });
-          }
-          
-          // Apply pagination
-          const limit = filters.limit || 50;
-          const offset = filters.offset || 0;
-          
-          const paginatedContacts = filteredContacts.slice(offset, offset + limit);
-          
-          const result: ContactListResponse = {
-            contacts: paginatedContacts,
-            total: filteredContacts.length,
-            limit,
-            offset,
-            hasMore: offset + paginatedContacts.length < filteredContacts.length
-          };
-          
-          logger.warn('Using fallback contacts in development mode');
-          return result;
-        } catch (fallbackError) {
-          logger.error('Fallback contacts retrieval failed', fallbackError as Error);
-        }
+        );
+        
+        const result = response.data;
+        
+        // Cache individual contacts
+        result.contacts.forEach(contact => {
+          cacheService.setContact(contact.id, contact, 300000);
+        });
+        
+        // Cache the list
+        cacheService.setContactList(filters, result);
+        
+        this.isBackendAvailable = true;
+        return result;
+      } catch (error) {
+        logger.error('Failed to get contacts via API', error as Error, { filters });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for contacts list');
+    let contacts = this.getLocalContacts();
+    
+    // Apply filters
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      contacts = contacts.filter(c => 
+        c.name.toLowerCase().includes(search) ||
+        c.email.toLowerCase().includes(search) ||
+        c.company.toLowerCase().includes(search)
+      );
+    }
+    
+    if (filters.interestLevel && filters.interestLevel !== 'all') {
+      contacts = contacts.filter(c => c.interestLevel === filters.interestLevel);
+    }
+    
+    if (filters.status && filters.status !== 'all') {
+      contacts = contacts.filter(c => c.status === filters.status);
+    }
+    
+    if (filters.hasAIScore !== undefined) {
+      contacts = contacts.filter(c => 
+        filters.hasAIScore ? !!c.aiScore : !c.aiScore
+      );
+    }
+    
+    // Apply sorting
+    if (filters.sortBy) {
+      contacts.sort((a: any, b: any) => {
+        const aValue = a[filters.sortBy!];
+        const bValue = b[filters.sortBy!];
+        
+        if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
+        if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    // Apply pagination
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+    
+    const paginatedContacts = contacts.slice(offset, offset + limit);
+    
+    const result: ContactListResponse = {
+      contacts: paginatedContacts,
+      total: contacts.length,
+      limit,
+      offset,
+      hasMore: offset + paginatedContacts.length < contacts.length
+    };
+    
+    // Cache individual contacts
+    paginatedContacts.forEach(contact => {
+      cacheService.setContact(contact.id, contact, 300000);
+    });
+    
+    // Cache the list
+    cacheService.setContactList(filters, result);
+    
+    return result;
   }
   
   async searchContacts(query: string, filters: Partial<ContactFilters> = {}): Promise<ContactListResponse> {
@@ -452,58 +604,62 @@ class ContactAPIService {
       throw error;
     }
     
-    try {
-      const response = await httpClient.post<Contact[]>(
-        `${this.baseURL}/contacts/batch`,
-        { contacts: validatedContacts },
-        {
-          timeout: 60000, // 1 minute for batch operations
-          retries: 1,
-        }
-      );
-      
-      const createdContacts = response.data;
-      
-      // Cache created contacts
-      createdContacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact);
-      });
-      
-      // Invalidate lists
-      cacheService.deleteByTag('list');
-      
-      logger.info('Batch contact creation successful', { count: createdContacts.length });
-      
-      return createdContacts;
-    } catch (error) {
-      logger.error('Failed to create contacts batch', error as Error, { count: validatedContacts.length });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback batch contact creation in development mode');
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.post<Contact[]>(
+          `${this.baseURL}/contacts/batch`,
+          { contacts: validatedContacts },
+          {
+            timeout: 60000, // 1 minute for batch operations
+            retries: 1,
+          }
+        );
         
-        const createdContacts: Contact[] = validatedContacts.map((contact, index) => ({
-          ...contact,
-          id: `batch-${Date.now()}-${index}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }));
+        const createdContacts = response.data;
         
-        // Store in local storage
-        try {
-          const storedContacts = localStorage.getItem('contacts');
-          const existingContacts = storedContacts ? JSON.parse(storedContacts) : [];
-          const allContacts = [...existingContacts, ...createdContacts];
-          localStorage.setItem('contacts', JSON.stringify(allContacts));
-        } catch (e) {
-          // Ignore local storage errors
-        }
+        // Cache created contacts
+        createdContacts.forEach(contact => {
+          cacheService.setContact(contact.id, contact);
+        });
         
+        // Invalidate lists
+        cacheService.deleteByTag('list');
+        
+        logger.info('Batch contact creation successful', { count: createdContacts.length });
+        
+        this.isBackendAvailable = true;
         return createdContacts;
+      } catch (error) {
+        logger.error('Failed to create contacts batch via API', error as Error, { count: validatedContacts.length });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for batch contact creation');
+    const existingContacts = this.getLocalContacts();
+    
+    const createdContacts: Contact[] = validatedContacts.map((contact, index) => ({
+      ...contact,
+      id: `batch-${Date.now()}-${index}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+    
+    const allContacts = [...existingContacts, ...createdContacts];
+    this.saveLocalContacts(allContacts);
+    
+    // Cache created contacts
+    createdContacts.forEach(contact => {
+      cacheService.setContact(contact.id, contact);
+    });
+    
+    // Invalidate lists
+    cacheService.deleteByTag('list');
+    
+    return createdContacts;
   }
   
   async updateContactsBatch(updates: Array<{ id: string; data: Partial<Contact> }>): Promise<Contact[]> {
@@ -515,117 +671,126 @@ class ContactAPIService {
       throw new Error('Batch update size cannot exceed 50 contacts');
     }
     
-    try {
-      const response = await httpClient.patch<Contact[]>(
-        `${this.baseURL}/contacts/batch`,
-        { updates },
-        {
-          timeout: 45000,
-          retries: 1,
-        }
-      );
-      
-      const updatedContacts = response.data;
-      
-      // Update cache
-      updatedContacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact);
-      });
-      
-      // Invalidate lists
-      cacheService.deleteByTag('list');
-      
-      logger.info('Batch contact update successful', { count: updatedContacts.length });
-      
-      return updatedContacts;
-    } catch (error) {
-      logger.error('Failed to update contacts batch', error as Error, { count: updates.length });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback batch contact update in development mode');
-        
-        const updatedContacts: Contact[] = [];
-        
-        for (const update of updates) {
-          try {
-            // Get the contact
-            const contact = await this.getContact(update.id);
-            // Apply updates
-            const updatedContact: Contact = {
-              ...contact,
-              ...update.data,
-              updatedAt: new Date().toISOString()
-            };
-            // Cache the updated contact
-            cacheService.setContact(updatedContact.id, updatedContact);
-            updatedContacts.push(updatedContact);
-          } catch (e) {
-            // Skip failed updates
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.patch<Contact[]>(
+          `${this.baseURL}/contacts/batch`,
+          { updates },
+          {
+            timeout: 45000,
+            retries: 1,
           }
-        }
+        );
         
+        const updatedContacts = response.data;
+        
+        // Update cache
+        updatedContacts.forEach(contact => {
+          cacheService.setContact(contact.id, contact);
+        });
+        
+        // Invalidate lists
+        cacheService.deleteByTag('list');
+        
+        logger.info('Batch contact update successful', { count: updatedContacts.length });
+        
+        this.isBackendAvailable = true;
         return updatedContacts;
+      } catch (error) {
+        logger.error('Failed to update contacts batch via API', error as Error, { count: updates.length });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
-      
-      throw error;
     }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for batch contact update');
+    const contacts = this.getLocalContacts();
+    const updatedContacts: Contact[] = [];
+    
+    for (const update of updates) {
+      const contactIndex = contacts.findIndex(c => c.id === update.id);
+      if (contactIndex !== -1) {
+        // Apply updates
+        const updatedContact: Contact = {
+          ...contacts[contactIndex],
+          ...update.data,
+          updatedAt: new Date().toISOString()
+        };
+        
+        contacts[contactIndex] = updatedContact;
+        updatedContacts.push(updatedContact);
+        
+        // Update cache
+        cacheService.setContact(updatedContact.id, updatedContact);
+      }
+    }
+    
+    this.saveLocalContacts(contacts);
+    
+    // Invalidate lists
+    cacheService.deleteByTag('list');
+    
+    return updatedContacts;
   }
   
   // Export Operations
   async exportContacts(filters: ContactFilters = {}, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
-    try {
-      const response = await httpClient.get<ArrayBuffer>(
-        `${this.baseURL}/contacts/export`,
-        { ...filters, format },
-        {
-          timeout: 120000, // 2 minutes for exports
-          retries: 1,
-          headers: {
-            'Accept': format === 'csv' ? 'text/csv' : 'application/json',
-          },
-        }
-      );
-      
-      const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
-      return new Blob([response.data], { type: mimeType });
-    } catch (error) {
-      logger.error('Failed to export contacts', error as Error, { filters, format });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback contact export in development mode');
+    // Try API first if we think backend is available
+    if (!this.shouldUseFallback()) {
+      try {
+        const response = await httpClient.get<ArrayBuffer>(
+          `${this.baseURL}/contacts/export`,
+          { ...filters, format },
+          {
+            timeout: 120000, // 2 minutes for exports
+            retries: 1,
+            headers: {
+              'Accept': format === 'csv' ? 'text/csv' : 'application/json',
+            },
+          }
+        );
         
-        // Get contacts
-        const result = await this.getContacts(filters);
-        
-        if (format === 'json') {
-          const jsonString = JSON.stringify(result.contacts, null, 2);
-          return new Blob([jsonString], { type: 'application/json' });
-        } else {
-          // CSV export
-          const headers = [
-            'id', 'firstName', 'lastName', 'email', 'phone', 'title', 
-            'company', 'industry', 'interestLevel', 'status', 'aiScore'
-          ];
-          
-          const rows = result.contacts.map(contact => {
-            return headers.map(header => {
-              const value = (contact as any)[header];
-              // Handle values that might contain commas or quotes
-              if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                return `"${value.replace(/"/g, '""')}"`;
-              }
-              return value !== undefined && value !== null ? value : '';
-            }).join(',');
-          });
-          
-          const csvContent = [headers.join(','), ...rows].join('\n');
-          return new Blob([csvContent], { type: 'text/csv' });
-        }
+        const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
+        this.isBackendAvailable = true;
+        return new Blob([response.data], { type: mimeType });
+      } catch (error) {
+        logger.error('Failed to export contacts via API', error as Error, { filters, format });
+        this.isBackendAvailable = false;
+        // Fall through to local storage fallback
       }
+    }
+    
+    // Local storage fallback
+    logger.warn('Using local storage fallback for contact export');
+    
+    // Get contacts
+    const result = await this.getContacts(filters);
+    
+    if (format === 'json') {
+      const jsonString = JSON.stringify(result.contacts, null, 2);
+      return new Blob([jsonString], { type: 'application/json' });
+    } else {
+      // CSV export
+      const headers = [
+        'id', 'firstName', 'lastName', 'email', 'phone', 'title', 
+        'company', 'industry', 'interestLevel', 'status', 'aiScore'
+      ];
       
-      throw error;
+      const rows = result.contacts.map(contact => {
+        return headers.map(header => {
+          const value = (contact as any)[header];
+          // Handle values that might contain commas or quotes
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value !== undefined && value !== null ? value : '';
+        }).join(',');
+      });
+      
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      return new Blob([csvContent], { type: 'text/csv' });
     }
   }
 }
