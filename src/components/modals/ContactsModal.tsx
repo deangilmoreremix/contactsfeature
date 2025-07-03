@@ -4,7 +4,7 @@ import { useContactStore } from '../../store/contactStore';
 import { Contact } from '../../types/contact';
 import OpenAIService from '../../services/openaiService';
 import { geminiService } from '../../services/geminiService';
-import { LoggerService } from '../../services/logger.service';
+import { logger } from '../../services/logger.service';
 import NewContactModal from './NewContactModal';
 import { ContactDetailView } from './ContactDetailView';
 import ImportContactsModal from './ImportContactsModal';
@@ -75,24 +75,24 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
   const handleAnalyzeContact = async (contact: Contact) => {
     try {
       setIsAnalyzing(true);
-      LoggerService.info('Starting contact analysis', { contactId: contact.id });
+      logger.info('Starting contact analysis', { contactId: contact.id });
 
       // Try OpenAI first, fallback to Gemini
       let analysisResult;
       try {
         analysisResult = await OpenAIService.analyzeContact(contact);
-        LoggerService.info('OpenAI analysis successful', { contactId: contact.id });
+        logger.info('OpenAI analysis successful', { contactId: contact.id });
       } catch (openaiError: any) {
-        LoggerService.warn('OpenAI analysis failed, trying Gemini', { 
+        logger.warn('OpenAI analysis failed, trying Gemini', { 
           contactId: contact.id, 
           error: openaiError.message 
         });
         
         try {
           analysisResult = await geminiService.analyzeContact(contact);
-          LoggerService.info('Gemini analysis successful', { contactId: contact.id });
+          logger.info('Gemini analysis successful', { contactId: contact.id });
         } catch (geminiError: any) {
-          LoggerService.error('Both AI services failed', { 
+          logger.error('Both AI services failed', undefined, { 
             contactId: contact.id, 
             openaiError: openaiError.message,
             geminiError: geminiError.message 
@@ -116,15 +116,14 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
           success: prev.success + 1 
         }));
 
-        LoggerService.info('Contact analysis completed successfully', { 
+        logger.info('Contact analysis completed successfully', { 
           contactId: contact.id,
           leadScore: analysisResult.leadScore 
         });
 
       } catch (updateError: any) {
-        LoggerService.error('Failed to update contact with analysis results', { 
-          contactId: contact.id, 
-          error: updateError.message 
+        logger.error('Failed to update contact with analysis results', updateError, { 
+          contactId: contact.id 
         });
         
         setAnalysisStatus(prev => ({ 
@@ -136,9 +135,8 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
 
     } catch (error: any) {
       const errorMessage = error.message || 'Analysis failed for unknown reasons';
-      LoggerService.error('Contact analysis failed', { 
-        contactId: contact.id, 
-        error: errorMessage 
+      logger.error('Contact analysis failed', error, { 
+        contactId: contact.id 
       });
       
       setAnalysisStatus(prev => ({ 
@@ -151,7 +149,7 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
 
   const handleAnalyzeSelected = async () => {
     if (selectedContacts.size === 0) {
-      LoggerService.warn('No contacts selected for analysis');
+      logger.warn('No contacts selected for analysis');
       return;
     }
 
@@ -162,7 +160,7 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
       selectedContacts.has(contact.id)
     );
 
-    LoggerService.info('Starting batch analysis', { 
+    logger.info('Starting batch analysis', { 
       contactCount: contactsToAnalyze.length 
     });
 
@@ -187,7 +185,7 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
     // Show results summary
     const { success, failed, errors } = analysisStatus;
     if (success > 0) {
-      LoggerService.info('Batch analysis completed', { 
+      logger.info('Batch analysis completed', { 
         successful: success, 
         failed: failed,
         total: contactsToAnalyze.length 
@@ -225,7 +223,7 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    LoggerService.info('Contacts exported', { count: contactsToExport.length });
+    logger.info('Contacts exported', { count: contactsToExport.length });
   };
 
   if (!isOpen) return null;

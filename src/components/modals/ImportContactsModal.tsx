@@ -124,7 +124,7 @@ const validateContact = (data: Record<string, string>): string[] => {
   return errors;
 };
 
-export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen, onClose }) => {
+const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen, onClose }) => {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<string[][]>([]);
@@ -588,3 +588,5 @@ Sarah,Johnson,Sarah Johnson,sarah@startup.io,+1-555-0456,CEO,Startup Inc,Softwar
     </div>
   );
 };
+
+export default ImportContactsModal;

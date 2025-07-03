@@ -82,7 +82,7 @@ const socialPlatforms = [
   { key: 'website', name: 'Website', icon: Globe, color: 'bg-purple-500', placeholder: 'https://company.com' }
 ];
 
-export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClose }) => {
+const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
     // Basic Information
     firstName: '',
@@ -1045,3 +1045,5 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
     </div>
   );
 };
+
+export default NewContactModal;
