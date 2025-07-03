@@ -6,7 +6,7 @@ import OpenAIService from '../../services/openaiService';
 import GeminiService from '../../services/geminiService';
 import { LoggerService } from '../../services/logger.service';
 import NewContactModal from './NewContactModal';
-import ContactDetailView from './ContactDetailView';
+import { ContactDetailView } from './ContactDetailView';
 import ImportContactsModal from './ImportContactsModal';
 
 interface ContactsModalProps {
