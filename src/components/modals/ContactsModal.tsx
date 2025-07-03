@@ -3,7 +3,7 @@ import { X, Search, Filter, Users, Mail, Phone, Building, Target, UserPlus, Uplo
 import { useContactStore } from '../../store/contactStore';
 import { Contact } from '../../types/contact';
 import OpenAIService from '../../services/openaiService';
-import GeminiService from '../../services/geminiService';
+import { geminiService } from '../../services/geminiService';
 import { LoggerService } from '../../services/logger.service';
 import NewContactModal from './NewContactModal';
 import { ContactDetailView } from './ContactDetailView';
@@ -89,7 +89,7 @@ const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
         });
         
         try {
-          analysisResult = await GeminiService.analyzeContact(contact);
+          analysisResult = await geminiService.analyzeContact(contact);
           LoggerService.info('Gemini analysis successful', { contactId: contact.id });
         } catch (geminiError: any) {
           LoggerService.error('Both AI services failed', { 
