@@ -112,8 +112,15 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
           throw new Error('Invalid search type');
       }
 
-      setSearchResults(results);
-      setShowPreview(true);
+      // Check if we got valid results with more than just a confidence score
+      const hasRealData = results && Object.keys(results).length > 2;
+      
+      if (hasRealData) {
+        setSearchResults(results);
+        setShowPreview(true);
+      } else {
+        setError('No meaningful information found. Try with more specific details.');
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
@@ -169,6 +176,9 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
   const ButtonIcon = getButtonIcon();
 
+  // Check if any API keys are configured
+  const noApiKeysConfigured = !import.meta.env.VITE_OPENAI_API_KEY && !import.meta.env.VITE_GEMINI_API_KEY;
+
   return (
     <div className="relative">
       {/* Main Research Button */}
@@ -176,13 +186,20 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
         variant={variant}
         size={size}
         onClick={handleSearch}
-        disabled={isSearching || (disabled && !hasMinimumData)}
+        disabled={isSearching || disabled || !hasMinimumData || noApiKeysConfigured}
         className={`flex items-center space-x-2 ${className}`}
       >
         <ButtonIcon className={`w-4 h-4 ${isSearching ? 'animate-spin' : ''}`} />
         <span>{getButtonLabel()}</span>
         {searchType === 'auto' && <Sparkles className="w-3 h-3 text-yellow-400" />}
       </ModernButton>
+
+      {/* API Key Configuration Warning */}
+      {noApiKeysConfigured && (
+        <div className="mt-1 text-xs text-yellow-600">
+          No AI API keys configured. Set up OpenAI or Gemini keys for full functionality.
+        </div>
+      )}
 
       {!hasMinimumData && !disabled && (
         <div className="mt-1 text-xs text-gray-500">
@@ -299,6 +316,13 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
           {searchResults.bio && (
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-700">{searchResults.bio}</p>
+            </div>
+          )}
+
+          {/* Notes */}
+          {searchResults.notes && (
+            <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-100">
+              <p className="text-sm text-yellow-800">{searchResults.notes}</p>
             </div>
           )}
 

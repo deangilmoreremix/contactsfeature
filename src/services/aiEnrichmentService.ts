@@ -47,6 +47,12 @@ class AIEnrichmentService {
   async enrichContactByEmail(email: string): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by email: ${email}`);
     
+    // Check if any providers are configured before making the request
+    if (!this.hasConfiguredProviders()) {
+      logger.warn(`No AI providers configured for email enrichment: ${email}`);
+      return this.generateMockData({ email });
+    }
+    
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
         `${this.apiUrl}/ai/enrich`,
@@ -64,12 +70,19 @@ class AIEnrichmentService {
       return response.data;
     } catch (error) {
       logger.error('Contact enrichment by email failed', error as Error);
-      throw error;
+      // Return graceful fallback data instead of throwing error
+      return this.generateMockData({ email });
     }
   }
 
   async enrichContactByName(firstName: string, lastName: string, company?: string): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by name: ${firstName} ${lastName} ${company ? `at ${company}` : ''}`);
+    
+    // Check if any providers are configured before making the request
+    if (!this.hasConfiguredProviders()) {
+      logger.warn(`No AI providers configured for name enrichment: ${firstName} ${lastName}`);
+      return this.generateMockData({ firstName, lastName, company });
+    }
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
@@ -88,12 +101,19 @@ class AIEnrichmentService {
       return response.data;
     } catch (error) {
       logger.error('Contact enrichment by name failed', error as Error);
-      throw error;
+      // Return graceful fallback data instead of throwing error
+      return this.generateMockData({ firstName, lastName, company });
     }
   }
 
   async enrichContactByLinkedIn(linkedinUrl: string): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by LinkedIn URL: ${linkedinUrl}`);
+    
+    // Check if any providers are configured before making the request
+    if (!this.hasConfiguredProviders()) {
+      logger.warn(`No AI providers configured for LinkedIn enrichment: ${linkedinUrl}`);
+      return this.generateMockData({ linkedinUrl });
+    }
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
@@ -112,12 +132,20 @@ class AIEnrichmentService {
       return response.data;
     } catch (error) {
       logger.error('Contact enrichment by LinkedIn failed', error as Error);
-      throw error;
+      // Return graceful fallback data instead of throwing error
+      return this.generateMockData({ linkedinUrl });
     }
   }
 
   async findContactImage(name: string, company?: string): Promise<string> {
     logger.info(`Finding contact image for: ${name}${company ? ` at ${company}` : ''}`);
+    
+    // Check if any providers are configured before making the request
+    if (!this.hasConfiguredProviders()) {
+      logger.warn(`No AI providers configured for image search: ${name}`);
+      // Return a default avatar
+      return 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
+    }
     
     try {
       const response = await httpClient.post<{ imageUrl: string }>(
@@ -146,6 +174,13 @@ class AIEnrichmentService {
   async bulkEnrichContacts(contacts: Array<{email?: string, name?: string, company?: string}>): Promise<ContactEnrichmentData[]> {
     logger.info(`Bulk enriching ${contacts.length} contacts`);
     
+    // Check if any providers are configured before making the request
+    if (!this.hasConfiguredProviders()) {
+      logger.warn(`No AI providers configured for bulk enrichment of ${contacts.length} contacts`);
+      // Generate mock data for each contact
+      return contacts.map(contact => this.generateMockData(contact));
+    }
+    
     try {
       const response = await httpClient.post<ContactEnrichmentData[]>(
         `${this.apiUrl}/ai/enrich/bulk`,
@@ -167,21 +202,86 @@ class AIEnrichmentService {
       return response.data;
     } catch (error) {
       logger.error('Bulk contact enrichment failed', error as Error);
-      throw error;
+      // Generate mock data for each contact
+      return contacts.map(contact => this.generateMockData(contact));
     }
   }
 
+  // Check if there are any configured providers
+  private hasConfiguredProviders(): boolean {
+    return this.providers.some(p => p.enabled);
+  }
+
+  // Get an available provider, or return a default if none are configured
   private getAvailableProvider(): string {
     const enabledProviders = this.providers.filter(p => p.enabled);
     
     if (enabledProviders.length === 0) {
-      throw new Error('No AI providers are configured. Please set up API keys for OpenAI or Gemini.');
+      logger.warn('No AI providers are configured. Using fallback mode.');
+      return 'fallback';
     }
     
     return enabledProviders[0].name;
   }
 
-  // For backward compatibility during transition
+  // Generate mock data when API enrichment is not available
+  private generateMockData(data: any): ContactEnrichmentData {
+    logger.info('Generating mock enrichment data for fallback');
+    
+    let mockData: ContactEnrichmentData = {
+      confidence: 30,
+      notes: 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.'
+    };
+    
+    if (data.email) {
+      // Extract data from email
+      const [username, domain] = data.email.split('@');
+      const nameParts = username.split('.');
+      
+      mockData = {
+        ...mockData,
+        firstName: nameParts[0] ? this.capitalize(nameParts[0]) : '',
+        lastName: nameParts[1] ? this.capitalize(nameParts[1]) : '',
+        email: data.email,
+        company: domain && domain.split('.')[0] ? this.capitalize(domain.split('.')[0]) : '',
+        socialProfiles: {
+          linkedin: data.linkedinUrl || `https://linkedin.com/in/${username.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          website: `https://${domain}`
+        }
+      };
+    } else if (data.firstName || data.lastName) {
+      // Use provided name data
+      mockData = {
+        ...mockData,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),
+        company: data.company || 'Unknown Company',
+        email: data.email || this.generateMockEmail(data.firstName, data.lastName, data.company),
+        socialProfiles: {
+          linkedin: data.linkedinUrl || `https://linkedin.com/in/${(data.firstName || '').toLowerCase().replace(/[^a-z0-9]/g, '-')}${
+            data.lastName ? `-${(data.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '-')}` : ''}`,
+        }
+      };
+    } else if (data.linkedinUrl) {
+      // Extract name from LinkedIn URL if possible
+      const urlPath = data.linkedinUrl.split('/in/')[1] || '';
+      const nameParts = urlPath.split('-');
+      
+      mockData = {
+        ...mockData,
+        firstName: nameParts[0] ? this.capitalize(nameParts[0]) : 'Unknown',
+        lastName: nameParts[1] ? this.capitalize(nameParts[1]) : '',
+        socialProfiles: {
+          linkedin: data.linkedinUrl
+        }
+      };
+    }
+    
+    return mockData;
+  }
+
+  // Utility functions for mock data generation
   private capitalize(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   }
@@ -191,10 +291,6 @@ class AIEnrichmentService {
     const last = lastName || 'person';
     const domain = company ? `${company.toLowerCase().replace(/\s+/g, '')}.com` : 'company.com';
     return `${first.toLowerCase()}.${last.toLowerCase()}@${domain}`;
-  }
-  
-  private generateMockPhone(): string {
-    return `+1-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`;
   }
 }
 
