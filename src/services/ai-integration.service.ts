@@ -68,7 +68,7 @@ export interface BulkAnalysisResponse {
 }
 
 class AIIntegrationService {
-  private apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  private apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
   
   async analyzeContact(request: AIAnalysisRequest): Promise<AIAnalysisResponse> {
     const startTime = Date.now();
@@ -100,13 +100,8 @@ class AIIntegrationService {
       });
       
       const response = await httpClient.post<AIAnalysisResponse>(
-        `${this.apiUrl}/ai/analyze`,
-        {
-          contactId: request.contactId,
-          analysisTypes: request.analysisTypes,
-          options: request.options,
-          contact: request.contact
-        },
+        `${this.apiUrl}/analyze`,
+        request,
         {
           timeout: 60000, // 1 minute for analysis
           retries: 2
@@ -187,12 +182,8 @@ class AIIntegrationService {
     
     try {
       const response = await httpClient.post<BulkAnalysisResponse>(
-        `${this.apiUrl}/ai/analyze/bulk`,
-        {
-          contactIds: request.contactIds,
-          analysisTypes: request.analysisTypes,
-          options: request.options
-        },
+        `${this.apiUrl}/analyze/bulk`,
+        request,
         {
           timeout: 300000, // 5 minutes for bulk operations
           retries: 1
@@ -296,7 +287,7 @@ class AIIntegrationService {
       logger.info(`Starting contact enrichment for ${contactId}`);
       
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/ai/enrich`,
+        `${this.apiUrl}/enrich`,
         {
           contactId,
           enrichmentRequest
@@ -375,7 +366,7 @@ class AIIntegrationService {
   async getProviderStatus(): Promise<Array<{ name: string; status: 'available' | 'rate_limited' | 'error'; remaining?: number }>> {
     try {
       const response = await httpClient.get<any>(
-        `${this.apiUrl}/ai/providers/status`,
+        `${this.apiUrl}/providers/status`,
         undefined,
         {
           timeout: 10000,

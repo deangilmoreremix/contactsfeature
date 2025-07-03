@@ -1,0 +1,258 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+interface Contact {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  email: string;
+  phone?: string;
+  title: string;
+  company: string;
+  industry?: string;
+  avatarSrc?: string;
+  sources?: string[];
+  interestLevel?: 'hot' | 'medium' | 'low' | 'cold';
+  status?: 'active' | 'pending' | 'inactive' | 'lead' | 'prospect' | 'customer' | 'churned';
+  notes?: string;
+  aiScore?: number;
+  tags?: string[];
+  socialProfiles?: Record<string, string>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight request
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+  
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') as string;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const url = new URL(req.url);
+  const path = url.pathname.split('/').filter(Boolean);
+  // Remove 'functions', 'v1', and 'contacts' from the path
+  const endpoint = path.slice(3);
+
+  try {
+    // GET /contacts - List contacts with filters
+    if (req.method === 'GET' && endpoint.length === 0) {
+      const params = Object.fromEntries(url.searchParams.entries());
+      const { 
+        search, 
+        interestLevel, 
+        status, 
+        limit = '50', 
+        offset = '0', 
+        sortBy = 'name', 
+        sortOrder = 'asc' 
+      } = params;
+
+      let query = supabase.from('contacts').select('*');
+      
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
+      }
+      
+      if (interestLevel && interestLevel !== 'all') {
+        query = query.eq('interestLevel', interestLevel);
+      }
+      
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      // Count total
+      const { count } = await supabase
+        .from('contacts')
+        .select('*', { count: 'exact', head: true });
+      
+      // Apply pagination
+      query = query
+        .order(sortBy, { ascending: sortOrder === 'asc' })
+        .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+      const { data: contacts, error } = await query;
+      
+      if (error) throw error;
+      
+      return new Response(
+        JSON.stringify({
+          contacts: contacts || [],
+          total: count || 0,
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          hasMore: count ? parseInt(offset) + contacts.length < count : false
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    // GET /contacts/:id - Get single contact
+    if (req.method === 'GET' && endpoint.length === 1) {
+      const contactId = endpoint[0];
+      
+      const { data: contact, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', contactId)
+        .single();
+      
+      if (error) throw error;
+      
+      return new Response(
+        JSON.stringify(contact),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    // POST /contacts - Create contact
+    if (req.method === 'POST' && endpoint.length === 0) {
+      const contactData: Contact = await req.json();
+      
+      // Set timestamps
+      contactData.createdAt = new Date().toISOString();
+      contactData.updatedAt = new Date().toISOString();
+      
+      // Set default values
+      contactData.interestLevel = contactData.interestLevel || 'medium';
+      contactData.status = contactData.status || 'lead';
+      contactData.sources = contactData.sources || ['Manual Entry'];
+      contactData.avatarSrc = contactData.avatarSrc || 
+        'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
+      
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert([contactData])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      return new Response(
+        JSON.stringify(data),
+        {
+          status: 201,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    // PATCH /contacts/:id - Update contact
+    if (req.method === 'PATCH' && endpoint.length === 1) {
+      const contactId = endpoint[0];
+      const updates: Partial<Contact> = await req.json();
+      
+      // Set updated timestamp
+      updates.updatedAt = new Date().toISOString();
+      
+      // First get the current contact
+      const { data: existingContact, error: getError } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', contactId)
+        .single();
+        
+      if (getError) throw getError;
+      
+      // Apply updates
+      const { data, error } = await supabase
+        .from('contacts')
+        .update(updates)
+        .eq('id', contactId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      return new Response(
+        JSON.stringify(data),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    // DELETE /contacts/:id - Delete contact
+    if (req.method === 'DELETE' && endpoint.length === 1) {
+      const contactId = endpoint[0];
+      
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', contactId);
+      
+      if (error) throw error;
+      
+      return new Response(
+        null,
+        {
+          status: 204,
+          headers: corsHeaders,
+        }
+      );
+    }
+    
+    // POST /contacts/batch - Batch create contacts
+    if (req.method === 'POST' && endpoint.length === 1 && endpoint[0] === 'batch') {
+      const { contacts } = await req.json();
+      
+      // Prepare contacts with timestamps
+      const now = new Date().toISOString();
+      const contactsToInsert = contacts.map((contact: Contact) => ({
+        ...contact,
+        createdAt: now,
+        updatedAt: now
+      }));
+      
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert(contactsToInsert)
+        .select();
+      
+      if (error) throw error;
+      
+      return new Response(
+        JSON.stringify(data),
+        {
+          status: 201,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    // Endpoint not found
+    return new Response(
+      JSON.stringify({ error: 'Not found' }),
+      {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+    
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      {
+        status: error.status || 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});

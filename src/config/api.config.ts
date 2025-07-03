@@ -74,9 +74,16 @@ export interface ApiConfig {
   };
 }
 
+// Get Supabase URL and anon key from environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Updated base URL for API endpoints to use Supabase Edge Functions
+const apiBaseUrl = supabaseUrl ? `${supabaseUrl}/functions/v1` : 'http://localhost:3001/api';
+
 const config: ApiConfig = {
   contactsAPI: {
-    baseURL: import.meta.env.VITE_CONTACTS_API_URL || 'http://localhost:3001/api',
+    baseURL: apiBaseUrl,
     timeout: 30000,
     retries: 3,
     rateLimit: {
@@ -88,7 +95,7 @@ const config: ApiConfig = {
   aiProviders: {
     openai: {
       name: 'OpenAI',
-      enabled: true,
+      enabled: !!import.meta.env.VITE_OPENAI_API_KEY,
       apiKey: import.meta.env.VITE_OPENAI_API_KEY,
       endpoint: {
         baseURL: 'https://api.openai.com/v1',
@@ -140,7 +147,7 @@ const config: ApiConfig = {
     
     gemini: {
       name: 'Google Gemini & Gemma',
-      enabled: true,
+      enabled: !!import.meta.env.VITE_GEMINI_API_KEY,
       apiKey: import.meta.env.VITE_GEMINI_API_KEY,
       endpoint: {
         baseURL: 'https://generativelanguage.googleapis.com/v1beta',
@@ -287,7 +294,7 @@ const config: ApiConfig = {
   
   dataProcessing: {
     enrichment: {
-      baseURL: import.meta.env.VITE_ENRICHMENT_API_URL || 'http://localhost:3002/api',
+      baseURL: `${apiBaseUrl}/ai-enrichment`,
       timeout: 30000,
       retries: 2,
       rateLimit: {
@@ -296,7 +303,7 @@ const config: ApiConfig = {
       },
     },
     validation: {
-      baseURL: import.meta.env.VITE_VALIDATION_API_URL || 'http://localhost:3003/api',
+      baseURL: `${apiBaseUrl}/validation`,
       timeout: 15000,
       retries: 1,
       rateLimit: {
@@ -305,7 +312,7 @@ const config: ApiConfig = {
       },
     },
     analytics: {
-      baseURL: import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:3004/api',
+      baseURL: `${apiBaseUrl}/analytics`,
       timeout: 20000,
       retries: 2,
       rateLimit: {
@@ -317,7 +324,7 @@ const config: ApiConfig = {
   
   auth: {
     endpoint: {
-      baseURL: import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3000/auth',
+      baseURL: import.meta.env.VITE_AUTH_API_URL || `${apiBaseUrl}/auth`,
       timeout: 10000,
       retries: 1,
       rateLimit: {

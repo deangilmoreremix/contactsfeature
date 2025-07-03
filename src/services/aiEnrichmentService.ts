@@ -1,6 +1,7 @@
 // AI Contact Enrichment Service - OpenAI & Gemini Integration
 import { httpClient } from './http-client.service';
 import { logger } from './logger.service';
+import apiConfig from '../config/api.config';
 
 export interface ContactEnrichmentData {
   firstName?: string;
@@ -35,7 +36,7 @@ export interface AIProvider {
 }
 
 class AIEnrichmentService {
-  private apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  private apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
   private openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
   private geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -55,7 +56,7 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/ai/enrich`,
+        `${this.apiUrl}/enrich`,
         { 
           enrichmentRequest: { email },
           provider: this.getAvailableProvider()
@@ -86,7 +87,7 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/ai/enrich`,
+        `${this.apiUrl}/enrich`,
         { 
           enrichmentRequest: { firstName, lastName, company },
           provider: this.getAvailableProvider()
@@ -117,7 +118,7 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/ai/enrich`,
+        `${this.apiUrl}/enrich`,
         { 
           enrichmentRequest: { linkedinUrl },
           provider: this.getAvailableProvider()
@@ -149,7 +150,7 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<{ imageUrl: string }>(
-        `${this.apiUrl}/ai/find-image`,
+        `${this.apiUrl}/find-image`,
         { 
           name,
           company,
@@ -183,7 +184,7 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData[]>(
-        `${this.apiUrl}/ai/enrich/bulk`,
+        `${this.apiUrl}/enrich/bulk`,
         {
           contacts,
           provider: this.getAvailableProvider(),

@@ -8,6 +8,7 @@ import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
 import { Contact } from '../types/contact';
+import apiConfig from '../config/api.config';
 
 export interface ContactFilters {
   search?: string;
@@ -43,8 +44,8 @@ export interface ContactStats {
 }
 
 class ContactAPIService {
-  private baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-  private isBackendAvailable = false;
+  private baseURL = apiConfig.contactsAPI.baseURL;
+  private isBackendAvailable = true;
   
   // Check if we should use fallback mode
   private shouldUseFallback(): boolean {
@@ -237,35 +238,32 @@ class ContactAPIService {
       throw error;
     }
     
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.post<Contact>(
-          `${this.baseURL}/contacts`,
-          sanitized,
-          {
-            timeout: 15000,
-            retries: 2,
-          }
-        );
-        
-        const contact = response.data;
-        
-        // Cache the new contact
-        cacheService.setContact(contact.id, contact);
-        
-        // Invalidate contact lists
-        cacheService.deleteByTag('list');
-        
-        logger.info('Contact created successfully', { contactId: contact.id });
-        
-        this.isBackendAvailable = true;
-        return contact;
-      } catch (error) {
-        logger.error('Failed to create contact via API', error as Error, contactData);
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.post<Contact>(
+        `${this.baseURL}/contacts`,
+        sanitized,
+        {
+          timeout: 15000,
+          retries: 2,
+        }
+      );
+      
+      const contact = response.data;
+      
+      // Cache the new contact
+      cacheService.setContact(contact.id, contact);
+      
+      // Invalidate contact lists
+      cacheService.deleteByTag('list');
+      
+      logger.info('Contact created successfully', { contactId: contact.id });
+      
+      this.isBackendAvailable = true;
+      return contact;
+    } catch (error) {
+      logger.error('Failed to create contact via API', error as Error, contactData);
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -294,35 +292,32 @@ class ContactAPIService {
       return cached;
     }
     
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.get<Contact>(
-          `${this.baseURL}/contacts/${contactId}`,
-          undefined,
-          {
-            timeout: 10000,
-            retries: 2,
-            cache: {
-              key: `contact_${contactId}`,
-              ttl: 300000, // 5 minutes
-              tags: ['contact'],
-            },
-          }
-        );
-        
-        const contact = response.data;
-        
-        // Cache the contact
-        cacheService.setContact(contactId, contact);
-        
-        this.isBackendAvailable = true;
-        return contact;
-      } catch (error) {
-        logger.error('Failed to get contact via API', error as Error, { contactId });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.get<Contact>(
+        `${this.baseURL}/contacts/${contactId}`,
+        undefined,
+        {
+          timeout: 10000,
+          retries: 2,
+          cache: {
+            key: `contact_${contactId}`,
+            ttl: 300000, // 5 minutes
+            tags: ['contact'],
+          },
+        }
+      );
+      
+      const contact = response.data;
+      
+      // Cache the contact
+      cacheService.setContact(contactId, contact);
+      
+      this.isBackendAvailable = true;
+      return contact;
+    } catch (error) {
+      logger.error('Failed to get contact via API', error as Error, { contactId });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -348,35 +343,32 @@ class ContactAPIService {
     
     const sanitized = validationService.sanitizeContact(updates);
     
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.patch<Contact>(
-          `${this.baseURL}/contacts/${contactId}`,
-          sanitized,
-          {
-            timeout: 15000,
-            retries: 2,
-          }
-        );
-        
-        const contact = response.data;
-        
-        // Update cache
-        cacheService.setContact(contactId, contact);
-        
-        // Invalidate lists that might contain this contact
-        cacheService.deleteByTag('list');
-        
-        logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
-        
-        this.isBackendAvailable = true;
-        return contact;
-      } catch (error) {
-        logger.error('Failed to update contact via API', error as Error, { contactId, updates });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.patch<Contact>(
+        `${this.baseURL}/contacts/${contactId}`,
+        sanitized,
+        {
+          timeout: 15000,
+          retries: 2,
+        }
+      );
+      
+      const contact = response.data;
+      
+      // Update cache
+      cacheService.setContact(contactId, contact);
+      
+      // Invalidate lists that might contain this contact
+      cacheService.deleteByTag('list');
+      
+      logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
+      
+      this.isBackendAvailable = true;
+      return contact;
+    } catch (error) {
+      logger.error('Failed to update contact via API', error as Error, { contactId, updates });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -410,29 +402,26 @@ class ContactAPIService {
   }
   
   async deleteContact(contactId: string): Promise<void> {
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        await httpClient.delete(
-          `${this.baseURL}/contacts/${contactId}`,
-          {
-            timeout: 10000,
-            retries: 1,
-          }
-        );
-        
-        // Remove from cache
-        cacheService.invalidateContact(contactId);
-        
-        logger.info('Contact deleted successfully', { contactId });
-        
-        this.isBackendAvailable = true;
-        return;
-      } catch (error) {
-        logger.error('Failed to delete contact via API', error as Error, { contactId });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      await httpClient.delete(
+        `${this.baseURL}/contacts/${contactId}`,
+        {
+          timeout: 10000,
+          retries: 1,
+        }
+      );
+      
+      // Remove from cache
+      cacheService.invalidateContact(contactId);
+      
+      logger.info('Contact deleted successfully', { contactId });
+      
+      this.isBackendAvailable = true;
+      return;
+    } catch (error) {
+      logger.error('Failed to delete contact via API', error as Error, { contactId });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -462,40 +451,37 @@ class ContactAPIService {
       return cached;
     }
     
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.get<ContactListResponse>(
-          `${this.baseURL}/contacts`,
-          filters,
-          {
-            timeout: 20000,
-            retries: 2,
-            cache: {
-              key: `contact_list_${cacheKey}`,
-              ttl: 180000, // 3 minutes
-              tags: ['contact', 'list'],
-            },
-          }
-        );
-        
-        const result = response.data;
-        
-        // Cache individual contacts
-        result.contacts.forEach(contact => {
-          cacheService.setContact(contact.id, contact, 300000);
-        });
-        
-        // Cache the list
-        cacheService.setContactList(filters, result);
-        
-        this.isBackendAvailable = true;
-        return result;
-      } catch (error) {
-        logger.error('Failed to get contacts via API', error as Error, { filters });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.get<ContactListResponse>(
+        `${this.baseURL}/contacts`,
+        filters,
+        {
+          timeout: 20000,
+          retries: 2,
+          cache: {
+            key: `contact_list_${cacheKey}`,
+            ttl: 180000, // 3 minutes
+            tags: ['contact', 'list'],
+          },
+        }
+      );
+      
+      const result = response.data;
+      
+      // Cache individual contacts
+      result.contacts.forEach(contact => {
+        cacheService.setContact(contact.id, contact, 300000);
+      });
+      
+      // Cache the list
+      cacheService.setContactList(filters, result);
+      
+      this.isBackendAvailable = true;
+      return result;
+    } catch (error) {
+      logger.error('Failed to get contacts via API', error as Error, { filters });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -604,37 +590,34 @@ class ContactAPIService {
       throw error;
     }
     
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.post<Contact[]>(
-          `${this.baseURL}/contacts/batch`,
-          { contacts: validatedContacts },
-          {
-            timeout: 60000, // 1 minute for batch operations
-            retries: 1,
-          }
-        );
-        
-        const createdContacts = response.data;
-        
-        // Cache created contacts
-        createdContacts.forEach(contact => {
-          cacheService.setContact(contact.id, contact);
-        });
-        
-        // Invalidate lists
-        cacheService.deleteByTag('list');
-        
-        logger.info('Batch contact creation successful', { count: createdContacts.length });
-        
-        this.isBackendAvailable = true;
-        return createdContacts;
-      } catch (error) {
-        logger.error('Failed to create contacts batch via API', error as Error, { count: validatedContacts.length });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.post<Contact[]>(
+        `${this.baseURL}/contacts/batch`,
+        { contacts: validatedContacts },
+        {
+          timeout: 60000, // 1 minute for batch operations
+          retries: 1,
+        }
+      );
+      
+      const createdContacts = response.data;
+      
+      // Cache created contacts
+      createdContacts.forEach(contact => {
+        cacheService.setContact(contact.id, contact);
+      });
+      
+      // Invalidate lists
+      cacheService.deleteByTag('list');
+      
+      logger.info('Batch contact creation successful', { count: createdContacts.length });
+      
+      this.isBackendAvailable = true;
+      return createdContacts;
+    } catch (error) {
+      logger.error('Failed to create contacts batch via API', error as Error, { count: validatedContacts.length });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -671,37 +654,34 @@ class ContactAPIService {
       throw new Error('Batch update size cannot exceed 50 contacts');
     }
     
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.patch<Contact[]>(
-          `${this.baseURL}/contacts/batch`,
-          { updates },
-          {
-            timeout: 45000,
-            retries: 1,
-          }
-        );
-        
-        const updatedContacts = response.data;
-        
-        // Update cache
-        updatedContacts.forEach(contact => {
-          cacheService.setContact(contact.id, contact);
-        });
-        
-        // Invalidate lists
-        cacheService.deleteByTag('list');
-        
-        logger.info('Batch contact update successful', { count: updatedContacts.length });
-        
-        this.isBackendAvailable = true;
-        return updatedContacts;
-      } catch (error) {
-        logger.error('Failed to update contacts batch via API', error as Error, { count: updates.length });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.patch<Contact[]>(
+        `${this.baseURL}/contacts/batch`,
+        { updates },
+        {
+          timeout: 45000,
+          retries: 1,
+        }
+      );
+      
+      const updatedContacts = response.data;
+      
+      // Update cache
+      updatedContacts.forEach(contact => {
+        cacheService.setContact(contact.id, contact);
+      });
+      
+      // Invalidate lists
+      cacheService.deleteByTag('list');
+      
+      logger.info('Batch contact update successful', { count: updatedContacts.length });
+      
+      this.isBackendAvailable = true;
+      return updatedContacts;
+    } catch (error) {
+      logger.error('Failed to update contacts batch via API', error as Error, { count: updates.length });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
@@ -737,29 +717,26 @@ class ContactAPIService {
   
   // Export Operations
   async exportContacts(filters: ContactFilters = {}, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
-    // Try API first if we think backend is available
-    if (!this.shouldUseFallback()) {
-      try {
-        const response = await httpClient.get<ArrayBuffer>(
-          `${this.baseURL}/contacts/export`,
-          { ...filters, format },
-          {
-            timeout: 120000, // 2 minutes for exports
-            retries: 1,
-            headers: {
-              'Accept': format === 'csv' ? 'text/csv' : 'application/json',
-            },
-          }
-        );
-        
-        const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
-        this.isBackendAvailable = true;
-        return new Blob([response.data], { type: mimeType });
-      } catch (error) {
-        logger.error('Failed to export contacts via API', error as Error, { filters, format });
-        this.isBackendAvailable = false;
-        // Fall through to local storage fallback
-      }
+    try {
+      const response = await httpClient.get<ArrayBuffer>(
+        `${this.baseURL}/contacts/export`,
+        { ...filters, format },
+        {
+          timeout: 120000, // 2 minutes for exports
+          retries: 1,
+          headers: {
+            'Accept': format === 'csv' ? 'text/csv' : 'application/json',
+          },
+        }
+      );
+      
+      const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
+      this.isBackendAvailable = true;
+      return new Blob([response.data], { type: mimeType });
+    } catch (error) {
+      logger.error('Failed to export contacts via API', error as Error, { filters, format });
+      this.isBackendAvailable = false;
+      // Fall through to local storage fallback
     }
     
     // Local storage fallback
