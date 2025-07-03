@@ -7,7 +7,7 @@ import { InteractionHistory } from './components/dashboard/InteractionHistory';
 import { TasksAndFunnel } from './components/dashboard/TasksAndFunnel';
 import { CustomerProfile } from './components/dashboard/CustomerProfile';
 import { RecentActivity } from './components/dashboard/RecentActivity';
-import ContactsModal from './components/modals/ContactsModal';
+import { ContactsModal } from './components/modals/ContactsModal';
 import { AIInsightsPanel } from './components/dashboard/AIInsightsPanel';
 import { ChartsSection } from './components/dashboard/ChartsSection';
 import { QuickActions } from './components/dashboard/QuickActions';
