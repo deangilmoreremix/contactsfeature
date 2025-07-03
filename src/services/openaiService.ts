@@ -1,4 +1,4 @@
-import { apiConfig } from '../config/api.config';
+import apiConfig from '../config/api.config';
 import { logger } from './logger.service';
 import { Contact } from '../types/contact';
 
