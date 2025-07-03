@@ -1,4 +1,4 @@
-import { openaiConfig } from '../config/api.config';
+import { apiConfig } from '../config/api.config';
 import { logger } from './logger.service';
 import { Contact } from '../types/contact';
 
@@ -15,8 +15,8 @@ class OpenAIService {
   private baseUrl: string;
 
   constructor() {
-    this.apiKey = openaiConfig.apiKey;
-    this.baseUrl = openaiConfig.baseUrl;
+    this.apiKey = apiConfig.aiProviders.openai.apiKey;
+    this.baseUrl = apiConfig.aiProviders.openai.endpoint.baseURL;
   }
 
   private validateApiKey(): boolean {
