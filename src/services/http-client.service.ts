@@ -7,7 +7,6 @@ import apiConfig, { ApiEndpoint } from '../config/api.config';
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
 import { cacheService } from './cache.service';
-import { createClient } from '@supabase/supabase-js';
 
 export interface RequestConfig {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -56,20 +55,9 @@ class HttpClientService {
     resolve: (value?: any) => void;
     reject: (reason?: any) => void;
   }> = [];
-  private supabase: any = null;
   
   constructor() {
     this.loadTokens();
-    this.initSupabase();
-  }
-  
-  private initSupabase() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (supabaseUrl && supabaseKey) {
-      this.supabase = createClient(supabaseUrl, supabaseKey);
-    }
   }
   
   private loadTokens(): void {
@@ -144,7 +132,7 @@ class HttpClientService {
   
   private buildUrl(baseURL: string, url: string, params?: Record<string, any>): string {
     // If URL is already absolute, use it as-is
-    if (url.startsWith('http') || url.startsWith('https')) {
+    if (url.startsWith('http')) {
       const fullUrl = url;
       if (params) {
         const urlParams = new URLSearchParams();
@@ -202,9 +190,9 @@ class HttpClientService {
       // Rate limiting check
       if (config.rateLimit) {
         const rateLimitResult = await rateLimiter.checkLimit(
-          'api',
+          config.rateLimit.endpoint || 'api',
           config.rateLimit.identifier || 'default',
-          config.rateLimit.endpoint || config.url,
+          config.url,
           { maxRequests: 100, windowMs: 60000 }
         );
         
@@ -230,12 +218,12 @@ class HttpClientService {
       // Log request
       logger.apiRequest(config.method, config.url, config.data, { requestId });
       
-      // Make HTTP request using fetch
+      // Make HTTP request using fetch with full URL
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), config.timeout || 30000);
       
-      const response = await fetch(this.buildUrl('', config.url, config.params), {
-        method: config.method,
+      const fetchUrl = this.buildUrl('', config.url, config.params);
+      const response = await fetch(fetchUrl, {
         headers,
         body: config.data ? JSON.stringify(config.data) : undefined,
         signal: controller.signal,
