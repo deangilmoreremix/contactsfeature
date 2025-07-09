@@ -44,8 +44,14 @@ export interface ContactStats {
 }
 
 class ContactAPIService {
-  private baseURL = apiConfig.contactsAPI.baseURL;
+  private baseURL: string;
   private isBackendAvailable = true;
+  
+  constructor() {
+    // Use Supabase Edge Function URL directly
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    this.baseURL = supabaseUrl ? `${supabaseUrl}/functions/v1/contacts` : apiConfig.contactsAPI.baseURL;
+  }
   
   // Check if we should use fallback mode
   private shouldUseFallback(): boolean {
@@ -240,7 +246,7 @@ class ContactAPIService {
     
     try {
       const response = await httpClient.post<Contact>(
-        `${this.baseURL}/contacts`,
+        this.baseURL,
         sanitized,
         {
           timeout: 15000,
@@ -294,7 +300,7 @@ class ContactAPIService {
     
     try {
       const response = await httpClient.get<Contact>(
-        `${this.baseURL}/contacts/${contactId}`,
+        `${this.baseURL}/${contactId}`,
         undefined,
         {
           timeout: 10000,
@@ -345,7 +351,7 @@ class ContactAPIService {
     
     try {
       const response = await httpClient.patch<Contact>(
-        `${this.baseURL}/contacts/${contactId}`,
+        `${this.baseURL}/${contactId}`,
         sanitized,
         {
           timeout: 15000,
@@ -404,7 +410,7 @@ class ContactAPIService {
   async deleteContact(contactId: string): Promise<void> {
     try {
       await httpClient.delete(
-        `${this.baseURL}/contacts/${contactId}`,
+        `${this.baseURL}/${contactId}`,
         {
           timeout: 10000,
           retries: 1,
@@ -453,7 +459,7 @@ class ContactAPIService {
     
     try {
       const response = await httpClient.get<ContactListResponse>(
-        `${this.baseURL}/contacts`,
+        this.baseURL,
         filters,
         {
           timeout: 20000,
@@ -592,7 +598,7 @@ class ContactAPIService {
     
     try {
       const response = await httpClient.post<Contact[]>(
-        `${this.baseURL}/contacts/batch`,
+        `${this.baseURL}/batch`,
         { contacts: validatedContacts },
         {
           timeout: 60000, // 1 minute for batch operations
@@ -656,7 +662,7 @@ class ContactAPIService {
     
     try {
       const response = await httpClient.patch<Contact[]>(
-        `${this.baseURL}/contacts/batch`,
+        `${this.baseURL}/batch`,
         { updates },
         {
           timeout: 45000,
@@ -719,7 +725,7 @@ class ContactAPIService {
   async exportContacts(filters: ContactFilters = {}, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
     try {
       const response = await httpClient.get<ArrayBuffer>(
-        `${this.baseURL}/contacts/export`,
+        `${this.baseURL}/export`,
         { ...filters, format },
         {
           timeout: 120000, // 2 minutes for exports

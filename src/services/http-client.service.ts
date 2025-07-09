@@ -143,7 +143,27 @@ class HttpClientService {
   }
   
   private buildUrl(baseURL: string, url: string, params?: Record<string, any>): string {
-    const fullUrl = url.startsWith('http') ? url : `${baseURL}${url}`;
+    // If URL is already absolute, use it as-is
+    if (url.startsWith('http')) {
+      const fullUrl = url;
+      if (params) {
+        const urlParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== null && value !== undefined) {
+            urlParams.append(key, String(value));
+          }
+        });
+        
+        const paramString = urlParams.toString();
+        if (paramString) {
+          return `${fullUrl}${fullUrl.includes('?') ? '&' : '?'}${paramString}`;
+        }
+      }
+      return fullUrl;
+    }
+    
+    // For relative URLs, combine with baseURL
+    const fullUrl = baseURL ? `${baseURL}${url}` : url;
     
     if (params) {
       const urlParams = new URLSearchParams();

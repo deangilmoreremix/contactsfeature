@@ -36,9 +36,15 @@ export interface AIProvider {
 }
 
 class AIEnrichmentService {
-  private apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
+  private apiUrl: string;
   private openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
   private geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  constructor() {
+    // Use Supabase Edge Function URL directly
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    this.apiUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/ai-enrichment` : apiConfig.dataProcessing.enrichment.baseURL;
+  }
 
   private providers: AIProvider[] = [
     { name: 'openai', enabled: !!this.openaiApiKey, apiKey: this.openaiApiKey },
