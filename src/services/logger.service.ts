@@ -139,8 +139,13 @@ class LoggerService {
   apiError(method: string, url: string, error: Error, context?: LogEntry['context']): void {
     this.error(`API Error: ${method} ${url}`, error, undefined, {
       ...context,
-      operation: 'api_error',
+      operation: 'api_error'
     });
+    
+    // In development mode, also log to console for better visibility
+    if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
+      console.error(`API Error: ${method} ${url}`, error);
+    }
   }
   
   // Get logs for debugging

@@ -144,7 +144,7 @@ class HttpClientService {
   
   private buildUrl(baseURL: string, url: string, params?: Record<string, any>): string {
     // If URL is already absolute, use it as-is
-    if (url.startsWith('http')) {
+    if (url.startsWith('http') || url.startsWith('https')) {
       const fullUrl = url;
       if (params) {
         const urlParams = new URLSearchParams();
@@ -326,64 +326,64 @@ class HttpClientService {
   
   // Public API methods
   async get<T>(
-    url: string,
+    endpoint: string,
     params?: Record<string, any>,
     options?: Partial<RequestConfig>
   ): Promise<ApiResponse<T>> {
     return this.makeRequest({
       method: 'GET',
-      url,
+      url: endpoint,
       params,
       ...options,
     });
   }
   
   async post<T>(
-    url: string,
+    endpoint: string,
     data?: any,
     options?: Partial<RequestConfig>
   ): Promise<ApiResponse<T>> {
     return this.makeRequest({
       method: 'POST',
-      url,
+      url: endpoint,
       data,
       ...options,
     });
   }
   
   async put<T>(
-    url: string,
+    endpoint: string,
     data?: any,
     options?: Partial<RequestConfig>
   ): Promise<ApiResponse<T>> {
     return this.makeRequest({
       method: 'PUT',
-      url,
+      url: endpoint,
       data,
       ...options,
     });
   }
   
   async patch<T>(
-    url: string,
+    endpoint: string,
     data?: any,
     options?: Partial<RequestConfig>
   ): Promise<ApiResponse<T>> {
     return this.makeRequest({
       method: 'PATCH',
-      url,
+      url: endpoint,
       data,
       ...options,
     });
   }
   
   async delete<T>(
-    url: string,
+    endpoint: string,
     options?: Partial<RequestConfig>
   ): Promise<ApiResponse<T>> {
     return this.makeRequest({
       method: 'DELETE',
-      url,
+      url: endpoint,
       ...options,
     });
   }

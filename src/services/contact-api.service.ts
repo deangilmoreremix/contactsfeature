@@ -46,16 +46,24 @@ export interface ContactStats {
 class ContactAPIService {
   private baseURL: string;
   private isBackendAvailable = true;
+  private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
   
   constructor() {
     // Use Supabase Edge Function URL directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    this.baseURL = supabaseUrl ? `${supabaseUrl}/functions/v1/contacts` : apiConfig.contactsAPI.baseURL;
+    
+    if (!supabaseUrl) {
+      console.warn('VITE_SUPABASE_URL is not defined, using fallback mode');
+      this.baseURL = apiConfig.contactsAPI.baseURL;
+    } else {
+      this.baseURL = `${supabaseUrl}/functions/v1/contacts`;
+      console.log('Using Edge Function URL:', this.baseURL);
+    }
   }
   
   // Check if we should use fallback mode
   private shouldUseFallback(): boolean {
-    return !this.isBackendAvailable || import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
+    return !this.isBackendAvailable || this.isMockMode;
   }
   
   // Initialize local storage with sample data if needed

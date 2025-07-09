@@ -67,7 +67,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   onClick,
   onAnalyze,
   isAnalyzing = false
-}) => {
+}: AIEnhancedContactCardProps) => {
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [localAnalyzing, setLocalAnalyzing] = useState(false);
 
@@ -81,10 +81,11 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   const handleAnalyzeClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onAnalyze || isAnalyzing || localAnalyzing) return;
-    
+
     setLocalAnalyzing(true);
     try {
-      await onAnalyze(contact);
+      const result = await onAnalyze(contact);
+      console.log('Analysis result:', result);
     } catch (error) {
       console.error('Analysis failed:', error);
     } finally {

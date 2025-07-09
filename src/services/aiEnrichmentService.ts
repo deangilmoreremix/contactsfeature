@@ -37,13 +37,21 @@ export interface AIProvider {
 
 class AIEnrichmentService {
   private apiUrl: string;
+  private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
   private openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
   private geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
   constructor() {
     // Use Supabase Edge Function URL directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    this.apiUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/ai-enrichment` : apiConfig.dataProcessing.enrichment.baseURL;
+    
+    if (!supabaseUrl) {
+      console.warn('VITE_SUPABASE_URL is not defined, using fallback mode');
+      this.apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
+    } else {
+      this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`;
+      console.log('Using AI Enrichment Edge Function URL:', this.apiUrl);
+    }
   }
 
   private providers: AIProvider[] = [
