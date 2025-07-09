@@ -28,6 +28,12 @@ interface Contact {
   updatedAt?: string;
 }
 
+// UUID validation helper function
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -122,13 +128,41 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && endpoint.length === 1) {
       const contactId = endpoint[0];
       
+      // Validate UUID format
+      if (!isValidUUID(contactId)) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid contact ID format',
+            details: 'Contact ID must be a valid UUID'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      
       const { data: contact, error } = await supabase
         .from('contacts')
         .select('*')
         .eq('id', contactId)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Contact not found',
+              details: `No contact found with ID: ${contactId}`
+            }),
+            {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
+        throw error;
+      }
       
       return new Response(
         JSON.stringify(contact),
@@ -173,19 +207,48 @@ Deno.serve(async (req) => {
     // PATCH /contacts/:id - Update contact
     if (req.method === 'PATCH' && endpoint.length === 1) {
       const contactId = endpoint[0];
+      
+      // Validate UUID format
+      if (!isValidUUID(contactId)) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid contact ID format',
+            details: 'Contact ID must be a valid UUID'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      
       const updates: Partial<Contact> = await req.json();
       
       // Set updated timestamp
       updates.updatedAt = new Date().toISOString();
       
-      // First get the current contact
+      // First get the current contact to ensure it exists
       const { data: existingContact, error: getError } = await supabase
         .from('contacts')
         .select('*')
         .eq('id', contactId)
         .single();
         
-      if (getError) throw getError;
+      if (getError) {
+        if (getError.code === 'PGRST116') {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Contact not found',
+              details: `No contact found with ID: ${contactId}`
+            }),
+            {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
+        throw getError;
+      }
       
       // Apply updates
       const { data, error } = await supabase
@@ -208,6 +271,20 @@ Deno.serve(async (req) => {
     // DELETE /contacts/:id - Delete contact
     if (req.method === 'DELETE' && endpoint.length === 1) {
       const contactId = endpoint[0];
+      
+      // Validate UUID format
+      if (!isValidUUID(contactId)) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid contact ID format',
+            details: 'Contact ID must be a valid UUID'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
       
       const { error } = await supabase
         .from('contacts')
