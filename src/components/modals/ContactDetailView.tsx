@@ -9,6 +9,7 @@ import { AIInsightsPanel } from '../contacts/AIInsightsPanel';
 import { CommunicationHub } from '../contacts/CommunicationHub';
 import { AutomationPanel } from '../contacts/AutomationPanel';
 import { ContactAnalytics } from '../contacts/ContactAnalytics';
+import { ContactEmailPanel } from '../contacts/ContactEmailPanel';
 import { Contact } from '../../types/contact';
 import { 
   X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar, MoreHorizontal, 
@@ -95,6 +96,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     { id: 'communication', label: 'Communication', icon: MessageSquare },
     { id: 'automation', label: 'Automation', icon: Zap },
     { id: 'ai-insights', label: 'AI Insights', icon: Brain },
+    { id: 'email', label: 'Email', icon: Mail },
   ];
 
   const handleSave = async () => {
@@ -1438,6 +1440,12 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
             {activeTab === 'ai-insights' && (
               <div className="p-6">
                 <AIInsightsPanel contact={editedContact} />
+              </div>
+            )}
+
+            {activeTab === 'email' && (
+              <div className="p-6">
+                <ContactEmailPanel contact={editedContact} />
               </div>
             )}
           </div>
