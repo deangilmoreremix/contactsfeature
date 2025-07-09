@@ -8,6 +8,13 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
+    host: true,
+    port: 5173,
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      clientPort: 5173,
+    },
     watch: {
       ignored: ['**/.env**']
     }
