@@ -36,9 +36,25 @@ Deno.serve(async (req) => {
       headers: corsHeaders,
     });
   }
+
+  // Validate required environment variables
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
   
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
-  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') as string;
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing required environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
+    return new Response(
+      JSON.stringify({ 
+        error: 'Server configuration error: Missing required environment variables',
+        details: 'SUPABASE_URL and SUPABASE_ANON_KEY must be configured'
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const url = new URL(req.url);
@@ -239,7 +255,10 @@ Deno.serve(async (req) => {
     
     // Endpoint not found
     return new Response(
-      JSON.stringify({ error: 'Not found' }),
+      JSON.stringify({ 
+        error: 'Not found',
+        details: `Endpoint not found: ${req.method} ${url.pathname}`
+      }),
       {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -247,8 +266,12 @@ Deno.serve(async (req) => {
     );
     
   } catch (error) {
+    console.error('Unhandled error in contacts function:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message || 'An unexpected error occurred'
+      }),
       {
         status: error.status || 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
