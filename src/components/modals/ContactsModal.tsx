@@ -5,7 +5,7 @@ import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { useContactStore } from '../../store/contactStore';
-import { useOpenAI } from '../../services/openaiService';
+import { useSmartAI } from '../../hooks/useSmartAI';
 import { Contact } from '../../types/contact';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
 import Fuse from 'fuse.js';
@@ -84,7 +84,7 @@ const statusOptions = [
 
 export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
   const { contacts, isLoading, updateContact, createContact } = useContactStore();
-  const openai = useOpenAI();
+  const { smartScoreContact } = useSmartAI();
   
   // UI State
   const [activeFilter, setActiveFilter] = useState('all');
@@ -199,7 +199,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const handleAnalyzeContact = async (contact: Contact) => {
     setAnalyzingContactIds(prev => [...prev, contact.id]);
     try {
-      const analysis = await openai.analyzeContact(contact);
+      const analysis = await smartScoreContact(contact.id, contact, 'medium');
       await updateContact(contact.id, { 
         aiScore: Math.round(analysis.score),
         notes: contact.notes ? 
