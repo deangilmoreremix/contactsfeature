@@ -44,10 +44,12 @@ class AIEnrichmentService {
   constructor() {
     // Use Supabase Edge Function URL directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    if (!supabaseUrl) {
-      console.warn('VITE_SUPABASE_URL is not defined, using fallback mode');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn('Supabase environment variables not defined, using fallback mode');
       this.apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
+      this.isMockMode = true;
     } else {
       this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`;
       console.log('Using AI Enrichment Edge Function URL:', this.apiUrl);

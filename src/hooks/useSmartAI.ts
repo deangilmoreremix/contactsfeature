@@ -33,11 +33,44 @@ export const useSmartAI = () => {
     contactId: string,
     contact: Contact,
     urgency: 'low' | 'medium' | 'high' = 'medium'
-  ) => {
+  ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true, errors: { ...prev.errors, [contactId]: '' } }));
     
     try {
-      const result = await enhancedAI.scoreContact(contactId, contact, urgency);
+      // Call the Supabase Edge Function directly
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn('Supabase environment variables not defined, using fallback mode');
+        // Fall back to enhancedAI service
+        const result = await enhancedAI.scoreContact(contactId, contact, urgency);
+        setState(prev => ({
+          ...prev,
+          analyzing: false,
+          results: { ...prev.results, [`score_${contactId}`]: result }
+        }));
+        return result;
+      }
+
+      const endpoint = `${supabaseUrl}/functions/v1/smart-score`;
+      console.log(`Calling Edge Function: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({ contactId, contact, urgency })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       setState(prev => ({
         ...prev,
@@ -66,11 +99,44 @@ export const useSmartAI = () => {
     contactId: string,
     contact: Contact,
     priority: 'standard' | 'premium' = 'standard'
-  ) => {
+  ): Promise<any> => {
     setState(prev => ({ ...prev, enriching: true, errors: { ...prev.errors, [`enrich_${contactId}`]: '' } }));
     
     try {
-      const result = await enhancedAI.enrichContact(contactId, contact, priority);
+      // Call the Supabase Edge Function directly
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn('Supabase environment variables not defined, using fallback mode');
+        // Fall back to enhancedAI service
+        const result = await enhancedAI.enrichContact(contactId, contact, priority);
+        setState(prev => ({
+          ...prev,
+          enriching: false,
+          results: { ...prev.results, [`enrich_${contactId}`]: result }
+        }));
+        return result;
+      }
+
+      const endpoint = `${supabaseUrl}/functions/v1/smart-enrichment`;
+      console.log(`Calling Edge Function: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({ contactId, contact, priority })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       setState(prev => ({
         ...prev,
@@ -98,11 +164,44 @@ export const useSmartAI = () => {
   const smartCategorizeAndTag = useCallback(async (
     contactId: string,
     contact: Contact
-  ) => {
+  ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true }));
     
     try {
-      const result = await enhancedAI.categorizeAndTag(contactId, contact);
+      // Call the Supabase Edge Function directly
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn('Supabase environment variables not defined, using fallback mode');
+        // Fall back to enhancedAI service
+        const result = await enhancedAI.categorizeAndTag(contactId, contact);
+        setState(prev => ({
+          ...prev,
+          analyzing: false,
+          results: { ...prev.results, [`categorize_${contactId}`]: result }
+        }));
+        return result;
+      }
+
+      const endpoint = `${supabaseUrl}/functions/v1/smart-categorize`;
+      console.log(`Calling Edge Function: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({ contactId, contact })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       setState(prev => ({
         ...prev,
@@ -123,11 +222,44 @@ export const useSmartAI = () => {
     contactId: string,
     contact: Contact,
     businessContext?: string
-  ) => {
+  ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true }));
     
     try {
-      const result = await enhancedAI.qualifyLead(contactId, contact, businessContext);
+      // Call the Supabase Edge Function directly
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn('Supabase environment variables not defined, using fallback mode');
+        // Fall back to enhancedAI service
+        const result = await enhancedAI.qualifyLead(contactId, contact, businessContext);
+        setState(prev => ({
+          ...prev,
+          analyzing: false,
+          results: { ...prev.results, [`qualify_${contactId}`]: result }
+        }));
+        return result;
+      }
+
+      const endpoint = `${supabaseUrl}/functions/v1/smart-qualify`;
+      console.log(`Calling Edge Function: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({ contactId, contact, businessContext })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       setState(prev => ({
         ...prev,
@@ -152,19 +284,58 @@ export const useSmartAI = () => {
       costLimit?: number;
       timeLimit?: number;
     }
-  ) => {
+  ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true }));
     
     try {
-      const request: SmartBulkRequest = {
-        contacts,
-        analysisType,
-        urgency: options?.urgency,
-        costLimit: options?.costLimit,
-        timeLimit: options?.timeLimit
-      };
+      // Call the Supabase Edge Function directly
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      const result = await enhancedAI.smartBulkAnalysis(request);
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn('Supabase environment variables not defined, using fallback mode');
+        // Fall back to enhancedAI service
+        const request: SmartBulkRequest = {
+          contacts,
+          analysisType,
+          urgency: options?.urgency,
+          costLimit: options?.costLimit,
+          timeLimit: options?.timeLimit
+        };
+        
+        const result = await enhancedAI.smartBulkAnalysis(request);
+        setState(prev => ({
+          ...prev,
+          analyzing: false,
+          results: { ...prev.results, [`bulk_${analysisType}`]: result }
+        }));
+        return result;
+      }
+
+      const endpoint = `${supabaseUrl}/functions/v1/smart-bulk`;
+      console.log(`Calling Edge Function: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({ 
+          contacts, 
+          analysisType,
+          urgency: options?.urgency,
+          costLimit: options?.costLimit,
+          timeLimit: options?.timeLimit
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       setState(prev => ({
         ...prev,

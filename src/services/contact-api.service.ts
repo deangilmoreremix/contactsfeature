@@ -51,10 +51,12 @@ class ContactAPIService {
   constructor() {
     // Use Supabase Edge Function URL directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    if (!supabaseUrl) {
-      console.warn('VITE_SUPABASE_URL is not defined, using fallback mode');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn('Supabase environment variables not defined, using fallback mode');
       this.baseURL = apiConfig.contactsAPI.baseURL;
+      this.isMockMode = true;
     } else {
       this.baseURL = `${supabaseUrl}/functions/v1/contacts`;
       console.log('Using Edge Function URL:', this.baseURL);
