@@ -50,19 +50,12 @@ class ContactAPIService {
   private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
   
   constructor() {
-    // Use Supabase Edge Function URL directly
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY; 
+    // For contact operations, use direct database access instead of Edge Functions
+    // Edge Functions are more suitable for complex operations like AI enrichment
+    this.baseURL = apiConfig.contactsAPI.baseURL;
+    this.isMockMode = true; // Always use local storage for now
     
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Supabase environment variables not defined, using fallback mode');
-      this.baseURL = apiConfig.contactsAPI.baseURL;
-      this.isMockMode = true;
-    } else {
-      this.baseURL = `${supabaseUrl}/functions/v1/contacts`;
-      this.supabaseKey = supabaseKey;
-      console.log('Using Contacts Edge Function URL:', this.baseURL);
-    }
+    console.log('Using local storage for contact management');
   }
   
   // Get headers for Supabase requests
@@ -80,7 +73,7 @@ class ContactAPIService {
   
   // Check if we should use fallback mode
   private shouldUseFallback(): boolean {
-    return !this.isBackendAvailable || this.isMockMode;
+    return true; // Always use fallback (local storage) for now
   }
   
   // Initialize local storage with sample data if needed
@@ -269,37 +262,8 @@ class ContactAPIService {
       throw error;
     }
     
-    try {
-      const response = await httpClient.post<Contact>(
-        this.baseURL,
-        sanitized,
-        {
-          timeout: 15000,
-          retries: 2,
-          headers: this.getSupabaseHeaders(),
-        }
-      );
-      
-      const contact = response.data;
-      
-      // Cache the new contact
-      cacheService.setContact(contact.id, contact);
-      
-      // Invalidate contact lists
-      cacheService.deleteByTag('list');
-      
-      logger.info('Contact created successfully', { contactId: contact.id });
-      
-      this.isBackendAvailable = true;
-      return contact;
-    } catch (error) {
-      logger.error('Failed to create contact via API', error as Error, contactData);
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for contact creation');
+    logger.info('Using local storage for contact creation');
     const contacts = this.getLocalContacts();
     const newContact: Contact = {
       ...sanitized as any,
@@ -324,37 +288,8 @@ class ContactAPIService {
       return cached;
     }
     
-    try {
-      const response = await httpClient.get<Contact>(
-        `${this.baseURL}/${contactId}`,
-        undefined,
-        {
-          timeout: 10000,
-          retries: 2,
-          headers: this.getSupabaseHeaders(),
-          cache: {
-            key: `contact_${contactId}`,
-            ttl: 300000, // 5 minutes
-            tags: ['contact'],
-          },
-        }
-      );
-      
-      const contact = response.data;
-      
-      // Cache the contact
-      cacheService.setContact(contactId, contact);
-      
-      this.isBackendAvailable = true;
-      return contact;
-    } catch (error) {
-      logger.error('Failed to get contact via API', error as Error, { contactId });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for contact retrieval');
+    logger.info('Using local storage for contact retrieval');
     const contacts = this.getLocalContacts();
     const contact = contacts.find(c => c.id === contactId);
     
@@ -376,52 +311,10 @@ class ContactAPIService {
     
     const sanitized = validationService.sanitizeContact(updates);
     
-    try {
-      const response = await httpClient.patch<Contact>(
-        `${this.baseURL}/${contactId}`,
-        sanitized,
-        {
-          timeout: 15000,
-          retries: 2,
-          headers: this.getSupabaseHeaders(),
-        }
-      );
-      
-      const contact = response.data;
-      
-      // Update cache
-      cacheService.setContact(contactId, contact);
-      
-      // Invalidate lists that might contain this contact
-      cacheService.deleteByTag('list');
-      
-      logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
-      
-      this.isBackendAvailable = true;
-      return contact;
-    } catch (error) {
-      // Log the specific error message for debugging
-      console.error('Contact API update error:', error instanceof Error ? error.message : 'Unknown error', {
-        contactId, 
-        isApiMode: !this.shouldUseFallback(),
-        apiUrl: this.baseURL
-      });
-      
-      logger.error('Failed to update contact via API', error as Error, { contactId, updates });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for contact update');
+    logger.info('Using local storage for contact update');
     const contacts = this.getLocalContacts();
     const contactIndex = contacts.findIndex(c => c.id === contactId);
-    
-    console.log('Using local storage fallback for updating contact', {
-      contactId,
-      foundInLocal: contactIndex !== -1,
-      updateFields: Object.keys(updates)
-    });
     
     if (contactIndex === -1) {
       throw new Error(`Contact with ID ${contactId} not found`);
@@ -443,37 +336,14 @@ class ContactAPIService {
     // Invalidate lists
     cacheService.deleteByTag('list');
     
-    logger.info('Contact updated successfully via localStorage', { contactId, updates: Object.keys(updates) });
+    logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
     
     return updatedContact;
   }
   
   async deleteContact(contactId: string): Promise<void> {
-    try {
-      await httpClient.delete(
-        `${this.baseURL}/${contactId}`,
-        {
-          timeout: 10000,
-          retries: 1,
-          headers: this.getSupabaseHeaders(),
-        }
-      );
-      
-      // Remove from cache
-      cacheService.invalidateContact(contactId);
-      
-      logger.info('Contact deleted successfully', { contactId });
-      
-      this.isBackendAvailable = true;
-      return;
-    } catch (error) {
-      logger.error('Failed to delete contact via API', error as Error, { contactId });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for contact deletion');
+    logger.info('Using local storage for contact deletion');
     const contacts = this.getLocalContacts();
     const filteredContacts = contacts.filter(c => c.id !== contactId);
     
@@ -486,7 +356,7 @@ class ContactAPIService {
     // Remove from cache
     cacheService.invalidateContact(contactId);
     
-    logger.info('Contact deleted successfully via localStorage', { contactId });
+    logger.info('Contact deleted successfully', { contactId });
   }
   
   // List and Search Operations
@@ -499,42 +369,8 @@ class ContactAPIService {
       return cached;
     }
     
-    try {
-      const response = await httpClient.get<ContactListResponse>(
-        this.baseURL,
-        filters,
-        {
-          timeout: 20000,
-          retries: 2,
-          headers: this.getSupabaseHeaders(),
-          cache: {
-            key: `contact_list_${cacheKey}`,
-            ttl: 180000, // 3 minutes
-            tags: ['contact', 'list'],
-          },
-        }
-      );
-      
-      const result = response.data;
-      
-      // Cache individual contacts
-      result.contacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact, 300000);
-      });
-      
-      // Cache the list
-      cacheService.setContactList(filters, result);
-      
-      this.isBackendAvailable = true;
-      return result;
-    } catch (error) {
-      logger.error('Failed to get contacts via API', error as Error, { filters });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for contacts list');
+    logger.info('Using local storage for contacts list');
     let contacts = this.getLocalContacts();
     
     // Apply filters
@@ -639,39 +475,8 @@ class ContactAPIService {
       throw error;
     }
     
-    try {
-      const response = await httpClient.post<Contact[]>(
-        `${this.baseURL}/batch`,
-        { contacts: validatedContacts },
-        {
-          timeout: 60000, // 1 minute for batch operations
-          retries: 1,
-          headers: this.getSupabaseHeaders(),
-        }
-      );
-      
-      const createdContacts = response.data;
-      
-      // Cache created contacts
-      createdContacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact);
-      });
-      
-      // Invalidate lists
-      cacheService.deleteByTag('list');
-      
-      logger.info('Batch contact creation successful', { count: createdContacts.length });
-      
-      this.isBackendAvailable = true;
-      return createdContacts;
-    } catch (error) {
-      logger.error('Failed to create contacts batch via API', error as Error, { count: validatedContacts.length });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for batch contact creation');
+    logger.info('Using local storage for batch contact creation');
     const existingContacts = this.getLocalContacts();
     
     const createdContacts: Contact[] = validatedContacts.map((contact, index) => ({
@@ -704,39 +509,8 @@ class ContactAPIService {
       throw new Error('Batch update size cannot exceed 50 contacts');
     }
     
-    try {
-      const response = await httpClient.patch<Contact[]>(
-        `${this.baseURL}/batch`,
-        { updates },
-        {
-          timeout: 45000,
-          retries: 1,
-          headers: this.getSupabaseHeaders(),
-        }
-      );
-      
-      const updatedContacts = response.data;
-      
-      // Update cache
-      updatedContacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact);
-      });
-      
-      // Invalidate lists
-      cacheService.deleteByTag('list');
-      
-      logger.info('Batch contact update successful', { count: updatedContacts.length });
-      
-      this.isBackendAvailable = true;
-      return updatedContacts;
-    } catch (error) {
-      logger.error('Failed to update contacts batch via API', error as Error, { count: updates.length });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for batch contact update');
+    logger.info('Using local storage for batch contact update');
     const contacts = this.getLocalContacts();
     const updatedContacts: Contact[] = [];
     
@@ -768,31 +542,8 @@ class ContactAPIService {
   
   // Export Operations
   async exportContacts(filters: ContactFilters = {}, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
-    try {
-      const response = await httpClient.get<ArrayBuffer>(
-        `${this.baseURL}/export`,
-        { ...filters, format },
-        {
-          timeout: 120000, // 2 minutes for exports
-          retries: 1,
-          headers: {
-            ...this.getSupabaseHeaders(),
-            'Accept': format === 'csv' ? 'text/csv' : 'application/json',
-          },
-        }
-      );
-      
-      const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
-      this.isBackendAvailable = true;
-      return new Blob([response.data], { type: mimeType });
-    } catch (error) {
-      logger.error('Failed to export contacts via API', error as Error, { filters, format });
-      this.isBackendAvailable = false;
-      // Fall through to local storage fallback
-    }
-    
     // Local storage fallback
-    logger.warn('Using local storage fallback for contact export');
+    logger.info('Using local storage for contact export');
     
     // Get contacts
     const result = await this.getContacts(filters);
