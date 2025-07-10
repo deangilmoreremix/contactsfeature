@@ -78,11 +78,12 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/enrich`,
+        this.apiUrl,
         { 
           authorization: 'anon-key',
           contactId: 'client-enrichment-request',
-          enrichmentRequest: { email }
+          enrichmentRequest: { email },
+          type: 'email'
         },
         {
           timeout: 30000,
@@ -113,10 +114,11 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/enrich`,
+        this.apiUrl,
         { 
           contactId: 'client-enrichment-request',
-          enrichmentRequest: { firstName, lastName, company }
+          enrichmentRequest: { firstName, lastName, company },
+          type: 'name'
         },
         {
           timeout: 30000,
@@ -144,10 +146,11 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/enrich`,
+        this.apiUrl,
         { 
           contactId: 'client-enrichment-request',
-          enrichmentRequest: { linkedinUrl }
+          enrichmentRequest: { linkedinUrl },
+          type: 'linkedin'
         },
         {
           timeout: 30000,
@@ -176,11 +179,12 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<{ imageUrl: string }>(
-        `${this.apiUrl}/find-image`,
+        this.apiUrl,
         { 
           contactId: 'client-enrichment-request',
           name,
-          company
+          company,
+          type: 'image'
         },
         {
           timeout: 15000,
@@ -210,10 +214,11 @@ class AIEnrichmentService {
     
     try {
       const response = await httpClient.post<ContactEnrichmentData[]>(
-        `${this.apiUrl}/enrich/bulk`,
+        this.apiUrl,
         {
           contactId: 'client-bulk-enrichment-request',
           contacts,
+          type: 'bulk',
           options: {
             maxConcurrency: 5,
             timeout: 60000
