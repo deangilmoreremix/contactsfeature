@@ -42,9 +42,9 @@ class AIEnrichmentService {
   private geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
   constructor() {
-    // Use Supabase Edge Function URL directly
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    // Get Supabase URL and anon key from environment
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
     const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
@@ -52,13 +52,13 @@ class AIEnrichmentService {
     console.log('OpenAI API Key:', openaiApiKey ? `${openaiApiKey.substring(0, 4)}...${openaiApiKey.substring(openaiApiKey.length - 4)}` : 'Not configured');
     console.log('Gemini API Key:', geminiApiKey ? `${geminiApiKey.substring(0, 4)}...${geminiApiKey.substring(geminiApiKey.length - 4)}` : 'Not configured');
     
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseKey) {
       console.warn('Supabase environment variables not defined, using fallback mode');
       this.apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
       this.isMockMode = true;
     } else {
-      this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`;
-      console.log('Using AI Enrichment Edge Function URL:', this.apiUrl);
+      this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`; 
+      console.log('Using AI Enrichment Edge Function URL:', this.apiUrl); 
     }
   }
 

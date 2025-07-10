@@ -38,8 +38,8 @@ export const useSmartAI = () => {
     
     try {
       // Call the Supabase Edge Function directly
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
       const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -132,8 +132,8 @@ export const useSmartAI = () => {
     
     try {
       // Call the Supabase Edge Function directly
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -197,8 +197,8 @@ export const useSmartAI = () => {
     
     try {
       // Call the Supabase Edge Function directly
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -255,8 +255,8 @@ export const useSmartAI = () => {
     
     try {
       // Call the Supabase Edge Function directly
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -317,8 +317,8 @@ export const useSmartAI = () => {
     
     try {
       // Call the Supabase Edge Function directly
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');

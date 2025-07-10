@@ -92,8 +92,9 @@ export const useEmailAI = () => {
     
     try {
       // Get Supabase URL and key from environment
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      // Use environment variables or fallback
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -173,8 +174,8 @@ export const useEmailAI = () => {
     
     try {
       // Get Supabase URL and key from environment
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -253,8 +254,8 @@ export const useEmailAI = () => {
     
     try {
       // Get Supabase URL and key from environment
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -365,8 +366,14 @@ export const useEmailAI = () => {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch email templates: ${errorText}`);
+        let errorData = { error: `HTTP error ${response.status}` };
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          // If we can't parse JSON, use status text
+          errorData = { error: response.statusText };
+        }
+        throw new Error(`Failed to fetch email templates: ${errorData}`);
       }
       
       const result = await response.json();

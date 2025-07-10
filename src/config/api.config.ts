@@ -76,12 +76,12 @@ export interface ApiConfig {
 
 // Get Supabase URL and anon key from environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const isDevMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
 
 // Updated base URL for API endpoints to use Supabase Edge Functions
 // Use a safe fallback for development mode to prevent unnecessary errors
-const apiBaseUrl = !isDevMode && supabaseUrl ? 
+const apiBaseUrl = supabaseUrl ? 
   `${supabaseUrl}/functions/v1` : 
   'http://localhost:3001/api';
 
