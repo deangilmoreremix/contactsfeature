@@ -52,7 +52,7 @@ class ContactAPIService {
   constructor() {
     // Use Supabase Edge Function URL directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY; 
     
     if (!supabaseUrl || !supabaseKey) {
       console.warn('Supabase environment variables not defined, using fallback mode');
@@ -400,6 +400,13 @@ class ContactAPIService {
       this.isBackendAvailable = true;
       return contact;
     } catch (error) {
+      // Log the specific error message for debugging
+      console.error('Contact API update error:', error instanceof Error ? error.message : 'Unknown error', {
+        contactId, 
+        isApiMode: !this.shouldUseFallback(),
+        apiUrl: this.baseURL
+      });
+      
       logger.error('Failed to update contact via API', error as Error, { contactId, updates });
       this.isBackendAvailable = false;
       // Fall through to local storage fallback
@@ -409,6 +416,12 @@ class ContactAPIService {
     logger.warn('Using local storage fallback for contact update');
     const contacts = this.getLocalContacts();
     const contactIndex = contacts.findIndex(c => c.id === contactId);
+    
+    console.log('Using local storage fallback for updating contact', {
+      contactId,
+      foundInLocal: contactIndex !== -1,
+      updateFields: Object.keys(updates)
+    });
     
     if (contactIndex === -1) {
       throw new Error(`Contact with ID ${contactId} not found`);

@@ -172,7 +172,7 @@ class HttpClientService {
   
   private async makeRequest<T>(
     config: RequestConfig,
-    useAuth = true,
+    useAuth = true, 
     attempt = 1
   ): Promise<ApiResponse<T>> {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -217,17 +217,17 @@ class HttpClientService {
       
       // Log request
       logger.apiRequest(config.method, config.url, config.data, { requestId });
-      
-      console.log(`Making ${config.method} request to: ${fetchUrl}`);
-      if (headers.Authorization) {
-        console.log('Request includes Authorization header');
-      }
+      const fetchUrl = this.buildUrl('', config.url, config.params);
+
+      console.log(`Making ${config.method} request to: ${fetchUrl}`, {
+        hasAuth: !!headers.Authorization,
+        method: config.method
+      });
       
       // Make HTTP request using fetch with full URL
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), config.timeout || 30000);
       
-      const fetchUrl = this.buildUrl('', config.url, config.params);
       const response = await fetch(fetchUrl, {
         method: config.method,
         headers: { ...headers },
@@ -301,7 +301,18 @@ class HttpClientService {
       return apiResponse;
       
     } catch (error) {
-      const apiError = error as ApiError;
+      // Properly handle and transform the error
+      let apiError: ApiError;
+      
+      if (error instanceof Error) {
+        apiError = error as ApiError;
+        apiError.isRetryable = error.message.includes('Failed to fetch') || 
+                              error.message.includes('Network error') ||
+                              error.message.includes('timeout');
+      } else {
+        apiError = new Error('Unknown error') as ApiError;
+        apiError.isRetryable = true;
+      }
       
       logger.apiError(config.method, config.url, apiError, { requestId, attempt });
       
@@ -310,7 +321,7 @@ class HttpClientService {
       if (attempt <= maxRetries && apiError.isRetryable) {
         const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff
         logger.info(`Retrying request in ${delay}ms`, { requestId, attempt });
-        
+
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.makeRequest(config, useAuth, attempt + 1);
       }
