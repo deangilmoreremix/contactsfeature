@@ -1,11 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    exclude: ['lucide-react']
+  },
+  resolve: {
+    alias: {
+      // Disable Node.js built-in module polyfills
+      timers: false,
+      'timers/promises': false,
+      buffer: false,
+      crypto: false,
+      stream: false,
+      os: false,
+      fs: false,
+      path: false,
+      util: false
+    }
   },
   server: {
     host: true,
