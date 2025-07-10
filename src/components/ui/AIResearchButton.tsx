@@ -195,6 +195,9 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
   // Check if any API keys are configured
   const noApiKeysConfigured = !import.meta.env.VITE_OPENAI_API_KEY && !import.meta.env.VITE_GEMINI_API_KEY;
 
+  // Only show warning in development mode
+  const showApiWarning = noApiKeysConfigured && import.meta.env.DEV;
+
   return (
     <div className="relative">
       {/* Main Research Button */}
@@ -211,13 +214,13 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
       </ModernButton>
 
       {/* API Key Configuration Warning */}
-      {noApiKeysConfigured && (
+      {showApiWarning && (
         <div className="mt-1 text-xs text-yellow-600">
           No AI API keys configured. Set up OpenAI or Gemini keys for full functionality.
         </div>
       )}
 
-      {!hasMinimumData && !disabled && (
+      {!hasMinimumData && !disabled && !noApiKeysConfigured && (
         <div className="mt-1 text-xs text-gray-500">
           Enter email, name, or LinkedIn URL
         </div>
