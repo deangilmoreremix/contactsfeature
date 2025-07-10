@@ -12,6 +12,21 @@ A full-featured AI-powered CRM dashboard built with React, TypeScript, and Supab
 
 ## Getting Started
 
+### ⚠️ IMPORTANT: Connect to Supabase First
+
+Before running any commands or deploying functions, you MUST connect to your Supabase project:
+
+```bash
+# 1. Login to Supabase (this will open a browser)
+npx supabase login
+
+# 2. Link to your project (replace YOUR_PROJECT_REF with your actual project reference)
+npx supabase link --project-ref YOUR_PROJECT_REF
+```
+
+You can find your project reference ID in your Supabase dashboard URL:
+`https://supabase.com/dashboard/project/YOUR_PROJECT_REF`
+
 ### Prerequisites
 
 - Node.js v18+
@@ -42,35 +57,27 @@ VITE_OPENAI_API_KEY=sk-your-openai-key
 VITE_GEMINI_API_KEY=your-gemini-key
 ```
 
-5. Connect to your Supabase project
-
-This is a critical step to ensure your Edge Functions work correctly.
-
-```bash
-npx supabase login
-npx supabase link --project-ref your-project-ref-id
-```
-
 ### Deploying Edge Functions
+
+⚠️ **Make sure you've completed the Supabase connection setup above before deploying functions!**
 
 Deploy all required Edge Functions to your Supabase project:
 
 ```bash
 # Deploy individual functions
-npx supabase functions deploy ai-enrichment
-npx supabase functions deploy contacts
-npx supabase functions deploy email-composer
-npx supabase functions deploy email-analyzer
-npx supabase functions deploy email-templates
-npx supabase functions deploy personalized-messages
-npx supabase functions deploy smart-bulk
-npx supabase functions deploy smart-categorize
-npx supabase functions deploy smart-enrichment
-npx supabase functions deploy smart-qualify
-npx supabase functions deploy smart-score
+npx supabase functions deploy ai-enrichment --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy contacts --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy email-composer --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy email-analyzer --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy email-templates --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy personalized-messages --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy smart-bulk --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy smart-categorize --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy smart-enrichment --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy smart-qualify --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy smart-score --project-ref YOUR_PROJECT_REF
 
-# Or deploy all functions at once
-npm run deploy:all-functions
+# Replace YOUR_PROJECT_REF with your actual project reference ID
 ```
 
 ### Setting Environment Variables in Supabase
@@ -94,12 +101,18 @@ npm run dev
 
 ### Edge Function Connection Issues
 
-If your Edge Functions are failing with "Failed to fetch" or "Supabase project not connected" errors:
+If your Edge Functions are failing with "Failed to deploy" or "Supabase project not connected" errors:
 
-1. Check if your Supabase Edge Functions are deployed correctly
-2. Ensure your `.env` file has the correct Supabase URL and anon key
-3. Make sure your Supabase project has the required environment variables set
-4. Check CORS settings in your Supabase project
+1. **First, ensure you're connected to Supabase:**
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   ```
+
+2. Check if your Supabase Edge Functions are deployed correctly
+3. Ensure your `.env` file has the correct Supabase URL and anon key
+4. Make sure your Supabase project has the required environment variables set
+5. Check CORS settings in your Supabase project
 
 ### AI Features Not Working
 
