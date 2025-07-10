@@ -45,6 +45,12 @@ class AIEnrichmentService {
     // Use Supabase Edge Function URL directly
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    
+    // Log API keys for debugging (without revealing full keys)
+    console.log('OpenAI API Key:', openaiApiKey ? `${openaiApiKey.substring(0, 4)}...${openaiApiKey.substring(openaiApiKey.length - 4)}` : 'Not configured');
+    console.log('Gemini API Key:', geminiApiKey ? `${geminiApiKey.substring(0, 4)}...${geminiApiKey.substring(geminiApiKey.length - 4)}` : 'Not configured');
     
     if (!supabaseUrl || !supabaseAnonKey) {
       console.warn('Supabase environment variables not defined, using fallback mode');
@@ -58,7 +64,7 @@ class AIEnrichmentService {
 
   private providers: AIProvider[] = [
     { name: 'openai', enabled: !!this.openaiApiKey, apiKey: this.openaiApiKey },
-    { name: 'gemini', enabled: !!this.geminiApiKey, apiKey: this.geminiApiKey }
+    { name: 'gemini', enabled: !!this.geminiApiKey, apiKey: this.geminiApiKey },
   ];
 
   async enrichContactByEmail(email: string): Promise<ContactEnrichmentData> {
@@ -74,12 +80,16 @@ class AIEnrichmentService {
       const response = await httpClient.post<ContactEnrichmentData>(
         `${this.apiUrl}/enrich`,
         { 
+          authorization: 'anon-key',
           contactId: 'client-enrichment-request',
           enrichmentRequest: { email }
         },
         {
           timeout: 30000,
-          retries: 2
+          retries: 2,
+          headers: {
+            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
         }
       );
       

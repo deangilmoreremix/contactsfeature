@@ -218,6 +218,11 @@ class HttpClientService {
       // Log request
       logger.apiRequest(config.method, config.url, config.data, { requestId });
       
+      console.log(`Making ${config.method} request to: ${fetchUrl}`);
+      if (headers.Authorization) {
+        console.log('Request includes Authorization header');
+      }
+      
       // Make HTTP request using fetch with full URL
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), config.timeout || 30000);
@@ -226,10 +231,11 @@ class HttpClientService {
       const response = await fetch(fetchUrl, {
         method: config.method,
         headers: { ...headers },
-        body: config.method !== 'GET' && config.method !== 'HEAD' && config.data ? JSON.stringify(config.data) : undefined,
+        body: ['GET', 'HEAD'].includes(config.method) ? undefined : config.data ? JSON.stringify(config.data) : undefined,
         signal: controller.signal,
       });
       
+      console.log(`Response status: ${response.status} ${response.statusText}`);
       clearTimeout(timeoutId);
       
       // Parse response
