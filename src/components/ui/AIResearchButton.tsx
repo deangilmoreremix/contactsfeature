@@ -54,6 +54,15 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
                          searchQuery.linkedinUrl || 
                          (searchQuery.firstName && searchQuery.company);
 
+  // Log available API keys for debugging
+  React.useEffect(() => {
+    if (disabled) return;
+    
+    console.log("AI Research Button - Environment variables check:");
+    console.log("- VITE_OPENAI_API_KEY present:", !!import.meta.env.VITE_OPENAI_API_KEY);
+    console.log("- VITE_GEMINI_API_KEY present:", !!import.meta.env.VITE_GEMINI_API_KEY);
+  }, [disabled]);
+
   const handleSearch = async () => {
     setIsSearching(true);
     setError(null);

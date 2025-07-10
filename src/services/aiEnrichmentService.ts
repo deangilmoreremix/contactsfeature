@@ -226,7 +226,19 @@ class AIEnrichmentService {
 
   // Check if there are any configured providers
   private hasConfiguredProviders(): boolean {
-    return this.providers.some(p => p.enabled);
+    // More verbose checking to help debug
+    const hasProviders = this.providers.some(p => p.enabled && p.apiKey && p.apiKey.length > 0);
+    
+    if (!hasProviders) {
+      console.warn("No AI providers are properly configured:");
+      this.providers.forEach(p => {
+        console.warn(`- ${p.name}: enabled=${p.enabled}, apiKey=${p.apiKey ? 'present' : 'missing'}`);
+      });
+    } else {
+      console.log("AI providers configured successfully");
+    }
+    
+    return hasProviders;
   }
 
   // Get an available provider, or return a default if none are configured

@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
   // Validate required environment variables
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
   
   if (!supabaseUrl || !supabaseKey) {
     console.error('Missing required environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
@@ -58,9 +60,6 @@ Deno.serve(async (req) => {
       }
     );
   }
-
-  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
   // Check if AI providers are configured
   const hasAiProvider = openaiApiKey || geminiApiKey;

@@ -225,8 +225,8 @@ class HttpClientService {
       const fetchUrl = this.buildUrl('', config.url, config.params);
       const response = await fetch(fetchUrl, {
         method: config.method,
-        headers,
-        body: config.data ? JSON.stringify(config.data) : undefined,
+        headers: { ...headers },
+        body: config.method !== 'GET' && config.method !== 'HEAD' && config.data ? JSON.stringify(config.data) : undefined,
         signal: controller.signal,
       });
       
