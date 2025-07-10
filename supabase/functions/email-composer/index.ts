@@ -19,6 +19,8 @@ Deno.serve(async (req: Request) => {
     // Validate environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     
     if (!supabaseUrl || !supabaseKey) {
       console.error('Missing required environment variables');
@@ -37,10 +39,10 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Check if AI providers are configured
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const hasOpenAI = !!openaiApiKey;
+    const hasGemini = !!geminiApiKey;
     
-    if (!openaiApiKey && !geminiApiKey) {
+    if (!hasOpenAI && !hasGemini) {
       console.warn('No AI provider API keys configured, using fallback mode');
     }
 
@@ -60,8 +62,26 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Generate email content based on contact data
-      const result = await generateEmail(contact, purpose, tone, length, includeSignature, openaiApiKey, geminiApiKey);
+      let result;
+      
+      // Use real AI providers if available
+      if (hasOpenAI || hasGemini) {
+        try {
+          // Prefer OpenAI for email composition if available (better formatting), otherwise use Gemini
+          if (hasOpenAI) {
+            result = await generateEmailWithOpenAI(contact, purpose, tone, length, includeSignature, openaiApiKey!);
+          } else {
+            result = await generateEmailWithGemini(contact, purpose, tone, length, includeSignature, geminiApiKey!);
+          }
+        } catch (error) {
+          console.error('AI email generation failed:', error);
+          // Fall back to template-based generation
+          result = generateTemplateEmail(contact, purpose, tone, length, includeSignature);
+        }
+      } else {
+        // Use template-based generation when no AI providers are available
+        result = generateTemplateEmail(contact, purpose, tone, length, includeSignature);
+      }
 
       return new Response(
         JSON.stringify(result),
@@ -96,18 +116,192 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function generateEmail(
-  contact: any, 
-  purpose: string, 
-  tone: string, 
-  length: string, 
+// Generate email using OpenAI API
+async function generateEmailWithOpenAI(
+  contact: any,
+  purpose: string,
+  tone: string,
+  length: string,
   includeSignature: boolean,
-  openaiApiKey?: string,
-  geminiApiKey?: string
+  apiKey: string
 ): Promise<any> {
-  // If we have API keys, we could make a real API call to OpenAI/Gemini
-  // For now, we'll simulate the response with template-based generation
+  // Select model based on complexity
+  const model = 'gpt-4o-mini'; // Could use gpt-4o for more important emails
   
+  // Determine target length
+  const wordCountTarget = length === 'short' ? 75 : length === 'medium' ? 150 : 300;
+  
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert email composer for sales and business development professionals. 
+          Create personalized, professional emails that are engaging and effective.
+          Use appropriate tone, length, and structure based on the purpose and recipient.
+          For signatures, use placeholders like [Your Name], [Your Title], [Company Name].`
+        },
+        {
+          role: 'user',
+          content: `Write a professional email to ${contact.name} who works as ${contact.title || 'a professional'} at ${contact.company}.
+          
+          Purpose: ${purpose}
+          Tone: ${tone}
+          Length: ${wordCountTarget} words approximate
+          Include signature: ${includeSignature ? 'Yes' : 'No'}
+          
+          Additional context about the recipient:
+          - Industry: ${contact.industry || 'Not specified'}
+          - Interest level: ${contact.interestLevel || 'medium'}
+          - Status: ${contact.status || 'lead'}
+          
+          Return a JSON object with:
+          - subject: The email subject line
+          - body: The complete email body${includeSignature ? ', including signature' : ''}
+          `
+        }
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" }
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('Empty response from OpenAI API');
+  }
+  
+  try {
+    const emailData = JSON.parse(content);
+    
+    return {
+      subject: emailData.subject,
+      body: emailData.body,
+      tone,
+      purpose,
+      targetWordCount: wordCountTarget,
+      actualWordCount: {
+        subject: emailData.subject.split(' ').length,
+        body: emailData.body.split(' ').length
+      },
+      confidence: 90,
+      model,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse OpenAI response: ${error.message}`);
+  }
+}
+
+// Generate email using Gemini API
+async function generateEmailWithGemini(
+  contact: any,
+  purpose: string,
+  tone: string,
+  length: string,
+  includeSignature: boolean,
+  apiKey: string
+): Promise<any> {
+  // Determine target length
+  const wordCountTarget = length === 'short' ? 75 : length === 'medium' ? 150 : 300;
+  
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: `Write a professional email to ${contact.name} who works as ${contact.title || 'a professional'} at ${contact.company}.
+          
+          Purpose: ${purpose}
+          Tone: ${tone}
+          Length: ${wordCountTarget} words approximate
+          Include signature: ${includeSignature ? 'Yes' : 'No'}
+          
+          Additional context about the recipient:
+          - Industry: ${contact.industry || 'Not specified'}
+          - Interest level: ${contact.interestLevel || 'medium'}
+          - Status: ${contact.status || 'lead'}
+          
+          Return a JSON object with:
+          - subject: The email subject line
+          - body: The complete email body${includeSignature ? ', including signature' : ''}
+          
+          Only return the JSON object, nothing else.`
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024
+      }
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  if (!content) {
+    throw new Error('Empty response from Gemini API');
+  }
+  
+  try {
+    // Extract JSON from text (Gemini might return markdown code blocks)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response');
+    }
+    
+    const emailData = JSON.parse(jsonMatch[0]);
+    
+    return {
+      subject: emailData.subject,
+      body: emailData.body,
+      tone,
+      purpose,
+      targetWordCount: wordCountTarget,
+      actualWordCount: {
+        subject: emailData.subject.split(' ').length,
+        body: emailData.body.split(' ').length
+      },
+      confidence: 85,
+      model: 'gemini-1.5-flash',
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse Gemini response: ${error.message}`);
+  }
+}
+
+// Fallback template-based email generation
+function generateTemplateEmail(
+  contact: any,
+  purpose: string,
+  tone: string,
+  length: string,
+  includeSignature: boolean
+): any {
   // Determine word count based on length parameter
   const wordCounts = {
     short: { subject: 5, body: 50 },
@@ -164,9 +358,6 @@ async function generateEmail(
     body += '\nBest regards,\n\n[Your Name]\n[Your Title]\n[Your Company]\n[Your Contact Information]';
   }
   
-  // Generate confidence level - higher if we have real AI available
-  const confidence = (openaiApiKey || geminiApiKey) ? 90 : 75;
-  
   return {
     subject,
     body,
@@ -177,8 +368,8 @@ async function generateEmail(
       subject: subject.split(' ').length,
       body: body.split(' ').length
     },
-    confidence,
-    model: openaiApiKey ? 'gpt-4o-mini' : geminiApiKey ? 'gemini-1.5-flash' : 'mock-model',
+    confidence: 75,
+    model: 'template-based',
     timestamp: new Date().toISOString()
   };
 }

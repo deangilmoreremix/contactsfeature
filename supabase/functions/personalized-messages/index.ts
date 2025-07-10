@@ -19,6 +19,8 @@ Deno.serve(async (req: Request) => {
     // Validate environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     
     if (!supabaseUrl || !supabaseKey) {
       console.error('Missing required environment variables');
@@ -37,10 +39,10 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Check if AI providers are configured
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const hasOpenAI = !!openaiApiKey;
+    const hasGemini = !!geminiApiKey;
     
-    if (!openaiApiKey && !geminiApiKey) {
+    if (!hasOpenAI && !hasGemini) {
       console.warn('No AI provider API keys configured, using fallback mode');
     }
 
@@ -60,16 +62,26 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Generate personalized message based on contact data
-      const result = await generatePersonalizedMessage(
-        contact, 
-        platform, 
-        purpose || 'introduction', 
-        tone, 
-        length, 
-        openaiApiKey, 
-        geminiApiKey
-      );
+      let result;
+      
+      // Use real AI providers if available
+      if (hasOpenAI || hasGemini) {
+        try {
+          // Prefer OpenAI if available, otherwise use Gemini
+          if (hasOpenAI) {
+            result = await generateMessageWithOpenAI(contact, platform, purpose, tone, length, openaiApiKey!);
+          } else {
+            result = await generateMessageWithGemini(contact, platform, purpose, tone, length, geminiApiKey!);
+          }
+        } catch (error) {
+          console.error('AI message generation failed:', error);
+          // Fall back to template-based generation
+          result = generateTemplateMessage(contact, platform, purpose, tone, length);
+        }
+      } else {
+        // Use template-based generation when no AI providers are available
+        result = generateTemplateMessage(contact, platform, purpose, tone, length);
+      }
 
       return new Response(
         JSON.stringify(result),
@@ -104,70 +116,154 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function generatePersonalizedMessage(
-  contact: any, 
+// Generate personalized message using OpenAI API
+async function generateMessageWithOpenAI(
+  contact: any,
   platform: string,
   purpose: string,
   tone: string,
   length: string,
-  openaiApiKey?: string,
-  geminiApiKey?: string
+  apiKey: string
 ): Promise<any> {
-  // Determine character limits based on platform and length
+  // Get character limits for the platform
   const characterLimits = getCharacterLimits(platform, length);
   
-  // Generate appropriate message
-  let message = '';
+  // Select model - using GPT-4o Mini is sufficient for short messages
+  const model = 'gpt-4o-mini';
   
-  // Generate greeting
-  const greeting = platform === 'linkedin' || platform === 'email' 
-    ? `Hi ${contact.firstName || contact.name.split(' ')[0]},` 
-    : platform === 'sms' 
-      ? `Hey ${contact.firstName || contact.name.split(' ')[0]},` 
-      : '';
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert at writing personalized messages for various social and communication platforms.
+          Create concise, effective messages that are appropriate for the specified platform and purpose.
+          Adhere strictly to character limits and tone guidelines.`
+        },
+        {
+          role: 'user',
+          content: `Write a personalized ${platform} message for ${contact.name}, who works as ${contact.title || 'a professional'} at ${contact.company || 'their company'}.
+          
+          Platform: ${platform}
+          Purpose: ${purpose || 'introduction'}
+          Tone: ${tone}
+          
+          Character limits for ${platform}:
+          Minimum: ${characterLimits.min}
+          Maximum: ${characterLimits.max}
+          Ideal: ${characterLimits.ideal}
+          
+          Additional context about the recipient:
+          ${JSON.stringify(contact, null, 2)}
+          
+          Return only the message text, without any explanations or formatting.`
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    })
+  });
 
-  // Generate message body based on purpose
-  switch (purpose) {
-    case 'introduction':
-      message = generateIntroductionMessage(contact, platform, greeting);
-      break;
-    case 'follow-up':
-      message = generateFollowUpMessage(contact, platform, greeting);
-      break;
-    case 'meeting-request':
-      message = generateMeetingRequestMessage(contact, platform, greeting);
-      break;
-    case 'thank-you':
-      message = generateThankYouMessage(contact, platform, greeting);
-      break;
-    case 'check-in':
-      message = generateCheckInMessage(contact, platform, greeting);
-      break;
-    default:
-      message = generateGenericMessage(contact, platform, greeting);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
   }
+
+  const data = await response.json();
+  const message = data.choices[0]?.message?.content?.trim();
   
-  // Adjust tone
-  message = adjustTone(message, tone);
-  
-  // Ensure message is within character limits
-  if (message.length > characterLimits.max) {
-    message = message.substring(0, characterLimits.max - 3) + '...';
+  if (!message) {
+    throw new Error('Empty response from OpenAI API');
   }
-  
-  // Generate confidence level - higher if we have real AI available
-  const confidence = (openaiApiKey || geminiApiKey) ? 90 : 75;
   
   return {
     message,
     platform,
-    purpose,
+    purpose: purpose || 'introduction',
     tone,
     length,
     characterCount: message.length,
     characterLimit: characterLimits,
-    confidence,
-    model: openaiApiKey ? 'gpt-4o-mini' : geminiApiKey ? 'gemini-1.5-flash' : 'mock-model',
+    confidence: 90,
+    model,
+    timestamp: new Date().toISOString()
+  };
+}
+
+// Generate personalized message using Gemini API
+async function generateMessageWithGemini(
+  contact: any,
+  platform: string,
+  purpose: string,
+  tone: string,
+  length: string,
+  apiKey: string
+): Promise<any> {
+  // Get character limits for the platform
+  const characterLimits = getCharacterLimits(platform, length);
+  
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: `Write a personalized ${platform} message for ${contact.name}, who works as ${contact.title || 'a professional'} at ${contact.company || 'their company'}.
+          
+          Platform: ${platform}
+          Purpose: ${purpose || 'introduction'}
+          Tone: ${tone}
+          
+          Character limits for ${platform}:
+          Minimum: ${characterLimits.min}
+          Maximum: ${characterLimits.max}
+          Ideal: ${characterLimits.ideal}
+          
+          Additional context about the recipient:
+          ${JSON.stringify(contact, null, 2)}
+          
+          Return only the message text, without any explanations or formatting.`
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: characterLimits.max + 100
+      }
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const message = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  
+  if (!message) {
+    throw new Error('Empty response from Gemini API');
+  }
+  
+  return {
+    message,
+    platform,
+    purpose: purpose || 'introduction',
+    tone,
+    length,
+    characterCount: message.length,
+    characterLimit: characterLimits,
+    confidence: 85,
+    model: 'gemini-1.5-flash',
     timestamp: new Date().toISOString()
   };
 }
@@ -193,88 +289,77 @@ function getCharacterLimits(platform: string, length: string): { min: number; ma
   }
 }
 
-function generateIntroductionMessage(contact: any, platform: string, greeting: string): string {
-  if (platform === 'linkedin') {
-    return `${greeting}\n\nI noticed your profile and was impressed by your work at ${contact.company} as ${contact.title}. I work with professionals in the ${contact.industry || 'industry'} to help them solve ${generatePainPoint(contact.industry)}.\n\nWould you be open to connecting? I'd love to learn more about your work and share insights that might be valuable for you.\n\nLooking forward to connecting,\n[Your Name]`;
-  } else if (platform === 'email') {
-    return `${greeting}\n\nI hope this email finds you well. I'm reaching out because I noticed your work at ${contact.company} and thought there might be an opportunity for us to collaborate.\n\nAt [Company Name], we help professionals like you in the ${contact.industry || 'industry'} to overcome challenges such as ${generatePainPoint(contact.industry)}.\n\nI'd love to learn more about your current initiatives and explore how we might be able to support your goals. Would you be open to a brief 15-minute call next week?\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
-  } else if (platform === 'sms' || platform === 'whatsapp') {
-    return `${greeting} I'm [Your Name] from [Company Name]. We help ${contact.industry || 'companies'} address ${generatePainPoint(contact.industry)}. Would you be open to a quick chat about how we might support your work at ${contact.company}?`;
-  } else if (platform === 'twitter') {
-    return `Hi, I'm [Name] from [Company]. Noticed your work at ${contact.company}. We help with ${generatePainPoint(contact.industry)}. Open to connecting?`;
-  }
+// Fallback template-based message generation
+function generateTemplateMessage(
+  contact: any,
+  platform: string,
+  purpose: string = 'introduction',
+  tone: string = 'professional',
+  length: string = 'medium'
+): any {
+  // Get character limits
+  const characterLimits = getCharacterLimits(platform, length);
   
-  return `${greeting}\n\nI'd like to introduce myself and learn more about your work at ${contact.company}. Would you be open to connecting?\n\n[Your Name]`;
-}
+  // Generate appropriate message
+  let message = '';
+  
+  // Generate greeting
+  const greeting = platform === 'linkedin' || platform === 'email' 
+    ? `Hi ${contact.firstName || contact.name.split(' ')[0]},` 
+    : platform === 'sms' 
+      ? `Hey ${contact.firstName || contact.name.split(' ')[0]},` 
+      : '';
 
-function generateFollowUpMessage(contact: any, platform: string, greeting: string): string {
-  if (platform === 'linkedin') {
-    return `${greeting}\n\nI wanted to follow up on our recent conversation about ${generateIndustrySpecificPhrase(contact.industry)}. I thought you might find this resource helpful: [Resource Link]\n\nWould you be interested in discussing this further? I'm available next week if you'd like to connect.\n\nBest,\n[Your Name]`;
-  } else if (platform === 'email') {
-    return `${greeting}\n\nI hope you're doing well. I wanted to follow up on our recent conversation about how we could help ${contact.company} with ${generatePainPoint(contact.industry)}.\n\nAs discussed, I've attached the information about our solution that helps companies like yours ${generateBenefit(contact.industry)}.\n\nDo you have any questions I can address? I'm happy to schedule a call to discuss this further.\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
-  } else if (platform === 'sms' || platform === 'whatsapp') {
-    return `${greeting} Following up on our conversation about ${generateIndustrySpecificPhrase(contact.industry)}. I'd be happy to provide more info or schedule a call. Let me know what works for you.`;
-  } else if (platform === 'twitter') {
-    return `Thanks for our chat about ${generateIndustrySpecificPhrase(contact.industry)}. Thought you might like this resource: [Link]. Open to discussing further?`;
+  // Generate message body based on purpose
+  switch (purpose) {
+    case 'introduction':
+      if (platform === 'linkedin') {
+        message = `${greeting}\n\nI noticed your profile and was impressed by your work at ${contact.company} as ${contact.title}. I work with professionals in the ${contact.industry || 'industry'} to help them solve ${generatePainPoint(contact.industry)}.\n\nWould you be open to connecting? I'd love to learn more about your work and share insights that might be valuable for you.\n\nLooking forward to connecting,\n[Your Name]`;
+      } else if (platform === 'email') {
+        message = `${greeting}\n\nI hope this email finds you well. I'm reaching out because I noticed your work at ${contact.company} and thought there might be an opportunity for us to collaborate.\n\nAt [Company Name], we help professionals like you in the ${contact.industry || 'industry'} to overcome challenges such as ${generatePainPoint(contact.industry)}.\n\nI'd love to learn more about your current initiatives and explore how we might be able to support your goals. Would you be open to a brief 15-minute call next week?\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
+      } else if (platform === 'sms' || platform === 'whatsapp') {
+        message = `${greeting} I'm [Your Name] from [Company Name]. We help ${contact.industry || 'companies'} address ${generatePainPoint(contact.industry)}. Would you be open to a quick chat about how we might support your work at ${contact.company}?`;
+      } else if (platform === 'twitter') {
+        message = `Hi, I'm [Name] from [Company]. Noticed your work at ${contact.company}. We help with ${generatePainPoint(contact.industry)}. Open to connecting?`;
+      }
+      break;
+      
+    case 'follow-up':
+      if (platform === 'linkedin') {
+        message = `${greeting}\n\nI wanted to follow up on our recent conversation about ${generateIndustrySpecificPhrase(contact.industry)}. I thought you might find this resource helpful: [Resource Link]\n\nWould you be interested in discussing this further? I'm available next week if you'd like to connect.\n\nBest,\n[Your Name]`;
+      } else if (platform === 'email') {
+        message = `${greeting}\n\nI hope you're doing well. I wanted to follow up on our recent conversation about how we could help ${contact.company} with ${generatePainPoint(contact.industry)}.\n\nAs discussed, I've attached the information about our solution that helps companies like yours ${generateBenefit(contact.industry)}.\n\nDo you have any questions I can address? I'm happy to schedule a call to discuss this further.\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
+      } else if (platform === 'sms' || platform === 'whatsapp') {
+        message = `${greeting} Following up on our conversation about ${generateIndustrySpecificPhrase(contact.industry)}. I'd be happy to provide more info or schedule a call. Let me know what works for you.`;
+      } else if (platform === 'twitter') {
+        message = `Thanks for our chat about ${generateIndustrySpecificPhrase(contact.industry)}. Thought you might like this resource: [Link]. Open to discussing further?`;
+      }
+      break;
+      
+    default:
+      message = `${greeting}\n\nI hope you're doing well. I wanted to reach out about ${generateIndustrySpecificPhrase(contact.industry)}. Let me know if you'd like to discuss this further.\n\n[Your Name]`;
   }
   
-  return `${greeting}\n\nJust following up on our previous conversation. Let me know if you'd like to discuss further.\n\n[Your Name]`;
-}
-
-function generateMeetingRequestMessage(contact: any, platform: string, greeting: string): string {
-  if (platform === 'linkedin') {
-    return `${greeting}\n\nI'd like to schedule a meeting to discuss how we could help ${contact.company} with ${generatePainPoint(contact.industry)}.\n\nWould you be available for a 30-minute call next Tuesday or Thursday afternoon? If not, please let me know what times work best for you.\n\nLooking forward to speaking with you,\n[Your Name]`;
-  } else if (platform === 'email') {
-    return `${greeting}\n\nI hope this email finds you well. I'd like to schedule a meeting to discuss how [Company Name] can help ${contact.company} with ${generatePainPoint(contact.industry)}.\n\nOur team has worked with several companies in the ${contact.industry || 'industry'} to help them ${generateBenefit(contact.industry)}.\n\nWould you be available for a 30-minute call next Tuesday at 10am or Thursday at 2pm? If those times don't work, please let me know your availability and I'll be happy to accommodate your schedule.\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]\n[Phone Number]`;
-  } else if (platform === 'sms' || platform === 'whatsapp') {
-    return `${greeting} Would you be available for a quick call next week to discuss how we could help with ${generatePainPoint(contact.industry)}? I'm free Tuesday 10-12 or Thursday 2-4. Let me know what works for you.`;
-  } else if (platform === 'twitter') {
-    return `Hi ${contact.firstName || contact.name.split(' ')[0]}! Would love to schedule a quick call about ${generateIndustrySpecificPhrase(contact.industry)}. Available next Tues/Thurs?`;
+  // Adjust tone
+  message = adjustTone(message, tone);
+  
+  // Ensure message is within character limits
+  if (message.length > characterLimits.max) {
+    message = message.substring(0, characterLimits.max - 3) + '...';
   }
   
-  return `${greeting}\n\nI'd like to schedule a meeting with you. Would you be available next week?\n\n[Your Name]`;
-}
-
-function generateThankYouMessage(contact: any, platform: string, greeting: string): string {
-  if (platform === 'linkedin') {
-    return `${greeting}\n\nThank you for taking the time to meet with me today. I really enjoyed our conversation about ${generateIndustrySpecificPhrase(contact.industry)} and learning more about your work at ${contact.company}.\n\nI'll follow up with the additional information we discussed. Looking forward to our next conversation!\n\nBest,\n[Your Name]`;
-  } else if (platform === 'email') {
-    return `${greeting}\n\nThank you for taking the time to meet with me today. I really enjoyed our conversation and learning more about your current initiatives at ${contact.company}.\n\nAs promised, I'll send over the additional information about how our solutions can help you ${generateBenefit(contact.industry)} by the end of the week.\n\nPlease don't hesitate to reach out if you have any questions in the meantime.\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
-  } else if (platform === 'sms' || platform === 'whatsapp') {
-    return `${greeting} Thanks for your time today! I enjoyed learning about your work at ${contact.company}. I'll send the information we discussed shortly. Feel free to reach out with any questions!`;
-  } else if (platform === 'twitter') {
-    return `Thanks for the great conversation today, ${contact.firstName || contact.name.split(' ')[0]}! Looking forward to our next steps. Will follow up soon.`;
-  }
-  
-  return `${greeting}\n\nThank you for your time. I really appreciate it and look forward to our next conversation.\n\n[Your Name]`;
-}
-
-function generateCheckInMessage(contact: any, platform: string, greeting: string): string {
-  if (platform === 'linkedin') {
-    return `${greeting}\n\nI hope you're doing well! I wanted to check in and see how things are going with ${generateIndustrySpecificPhrase(contact.industry)} at ${contact.company}.\n\nHave you had a chance to consider the solution we discussed for addressing ${generatePainPoint(contact.industry)}?\n\nI'm happy to answer any questions or provide additional information.\n\nBest,\n[Your Name]`;
-  } else if (platform === 'email') {
-    return `${greeting}\n\nI hope you've been well since we last connected. I wanted to check in and see how things are progressing with your initiatives at ${contact.company}.\n\nHave you had a chance to review the information I sent regarding how our solutions can help you ${generateBenefit(contact.industry)}?\n\nI'm available to discuss any questions you might have or to provide any additional information that would be helpful.\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
-  } else if (platform === 'sms' || platform === 'whatsapp') {
-    return `${greeting} Just checking in to see how things are going at ${contact.company}. Have you had a chance to consider our discussion about ${generateIndustrySpecificPhrase(contact.industry)}? Happy to provide more info if needed.`;
-  } else if (platform === 'twitter') {
-    return `Hi ${contact.firstName || contact.name.split(' ')[0]}! Hope all is well. Any thoughts on our discussion about ${generateIndustrySpecificPhrase(contact.industry)}? Happy to help further!`;
-  }
-  
-  return `${greeting}\n\nJust checking in to see how things are going. Let me know if there's anything I can help with.\n\n[Your Name]`;
-}
-
-function generateGenericMessage(contact: any, platform: string, greeting: string): string {
-  if (platform === 'linkedin') {
-    return `${greeting}\n\nI hope you're doing well. I wanted to connect regarding ${generateIndustrySpecificPhrase(contact.industry)} and how it relates to your work at ${contact.company}.\n\nWould you be open to continuing this conversation?\n\nBest,\n[Your Name]`;
-  } else if (platform === 'email') {
-    return `${greeting}\n\nI hope this email finds you well. I wanted to reach out regarding ${generateIndustrySpecificPhrase(contact.industry)} and how it might apply to your current initiatives at ${contact.company}.\n\nI'd welcome the opportunity to learn more about your specific needs and share how we've helped similar companies in the ${contact.industry || 'industry'}.\n\nWould you be open to a brief conversation in the coming weeks?\n\nBest regards,\n[Your Name]\n[Your Title]\n[Company Name]`;
-  } else if (platform === 'sms' || platform === 'whatsapp') {
-    return `${greeting} I wanted to touch base about ${generateIndustrySpecificPhrase(contact.industry)}. Would you be interested in discussing how this applies to your work at ${contact.company}?`;
-  } else if (platform === 'twitter') {
-    return `Hi ${contact.firstName || contact.name.split(' ')[0]}! Reaching out about ${generateIndustrySpecificPhrase(contact.industry)}. Would love to discuss how it applies to ${contact.company}.`;
-  }
-  
-  return `${greeting}\n\nI hope you're doing well. I wanted to reach out about ${generateIndustrySpecificPhrase(contact.industry)}. Let me know if you'd like to discuss this further.\n\n[Your Name]`;
+  return {
+    message,
+    platform,
+    purpose: purpose || 'introduction',
+    tone,
+    length,
+    characterCount: message.length,
+    characterLimit: characterLimits,
+    confidence: 75,
+    model: 'template-based',
+    timestamp: new Date().toISOString()
+  };
 }
 
 function adjustTone(message: string, tone: string): string {
@@ -315,7 +400,7 @@ function adjustTone(message: string, tone: string): string {
   return adjustedMessage;
 }
 
-// Reusing helper functions from email-composer
+// Helper function for industry-specific phrases
 function generateIndustrySpecificPhrase(industry?: string): string {
   const phrases: Record<string, string[]> = {
     'Technology': ['digital transformation', 'cloud migration', 'IT infrastructure optimization', 'cybersecurity enhancement', 'data analytics solutions'],
@@ -336,6 +421,7 @@ function generateIndustrySpecificPhrase(industry?: string): string {
   return defaultPhrases[Math.floor(Math.random() * defaultPhrases.length)];
 }
 
+// Helper function for pain points
 function generatePainPoint(industry?: string): string {
   const painPoints: Record<string, string[]> = {
     'Technology': ['legacy system integration challenges', 'cybersecurity vulnerabilities', 'technical debt', 'siloed data systems', 'scaling limitations'],
@@ -356,6 +442,7 @@ function generatePainPoint(industry?: string): string {
   return defaultPains[Math.floor(Math.random() * defaultPains.length)];
 }
 
+// Helper function for benefits
 function generateBenefit(industry?: string): string {
   const benefits: Record<string, string[]> = {
     'Technology': ['streamline your development process', 'enhance system security', 'improve data integration', 'accelerate digital transformation', 'optimize IT infrastructure'],

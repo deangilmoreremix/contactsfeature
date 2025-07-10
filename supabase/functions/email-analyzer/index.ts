@@ -19,6 +19,8 @@ Deno.serve(async (req: Request) => {
     // Validate environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     
     if (!supabaseUrl || !supabaseKey) {
       console.error('Missing required environment variables');
@@ -37,10 +39,10 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Check if AI providers are configured
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const hasOpenAI = !!openaiApiKey;
+    const hasGemini = !!geminiApiKey;
     
-    if (!openaiApiKey && !geminiApiKey) {
+    if (!hasOpenAI && !hasGemini) {
       console.warn('No AI provider API keys configured, using fallback mode');
     }
 
@@ -60,8 +62,26 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Analyze email content
-      const analysis = await analyzeEmail(emailSubject, emailBody, context, recipient, openaiApiKey, geminiApiKey);
+      let analysis;
+      
+      // Use real AI providers if available
+      if (hasOpenAI || hasGemini) {
+        try {
+          // Prefer OpenAI for email analysis if available (better analysis capability)
+          if (hasOpenAI) {
+            analysis = await analyzeEmailWithOpenAI(emailSubject, emailBody, context, recipient, openaiApiKey!);
+          } else {
+            analysis = await analyzeEmailWithGemini(emailSubject, emailBody, context, recipient, geminiApiKey!);
+          }
+        } catch (error) {
+          console.error('AI email analysis failed:', error);
+          // Fall back to mock analysis
+          analysis = generateMockAnalysis(emailSubject, emailBody);
+        }
+      } else {
+        // Use mock analysis when no AI providers are available
+        analysis = generateMockAnalysis(emailSubject, emailBody);
+      }
 
       return new Response(
         JSON.stringify(analysis),
@@ -96,116 +116,257 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function analyzeEmail(
+// Analyze email using OpenAI API
+async function analyzeEmailWithOpenAI(
   subject: string,
   body: string,
   context?: string,
   recipient?: any,
-  openaiApiKey?: string,
-  geminiApiKey?: string
+  apiKey?: string
 ): Promise<any> {
-  // In a real implementation, this would call OpenAI or Gemini API
-  // For now, we'll generate a simulated analysis
+  // Use GPT-4 Mini for analysis
+  const model = 'gpt-4o-mini';
+  
+  // Build the prompt with additional context if provided
+  let prompt = `Analyze this email for quality, effectiveness, and likelihood of receiving a response:
 
-  // Calculate various metrics
+Subject: ${subject}
+
+Body:
+${body}
+
+`;
+
+  if (context) {
+    prompt += `Additional context:
+${context}
+
+`;
+  }
+
+  if (recipient) {
+    prompt += `Recipient information:
+${JSON.stringify(recipient, null, 2)}
+
+`;
+  }
+
+  prompt += `Provide a comprehensive analysis with the following:
+1. Basic metrics (word count, sentence count, average sentence length, paragraph count)
+2. Tone analysis (percentage breakdown of formal, friendly, persuasive, urgent, informative)
+3. Dominant tone
+4. Quality score (0-100)
+5. Response likelihood score (0-100)
+6. List of improvements needed (issues, suggestions, structural problems)
+7. Overall assessment
+
+Return your analysis as a JSON object only, with no additional text.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: 'You are an expert email analyst who helps professionals improve their email writing. Provide detailed, actionable feedback.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" }
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('Empty response from OpenAI API');
+  }
+  
+  try {
+    const analysis = JSON.parse(content);
+    
+    // Ensure the response has the expected structure
+    return {
+      metrics: analysis.metrics || {
+        wordCount: body.split(/\s+/).length,
+        sentenceCount: body.split(/[.!?]+/).filter(Boolean).length,
+        avgSentenceLength: Math.round(body.split(/\s+/).length / Math.max(1, body.split(/[.!?]+/).filter(Boolean).length)),
+        paragraphCount: body.split(/\n\s*\n/).filter(Boolean).length,
+        subjectLength: subject.length
+      },
+      toneAnalysis: analysis.toneAnalysis || {},
+      dominantTone: analysis.dominantTone || 'neutral',
+      qualityScore: analysis.qualityScore || 70,
+      responseLikelihood: analysis.responseLikelihood || 65,
+      improvements: analysis.improvements || [],
+      assessment: analysis.assessment || 'This is a standard professional email with some room for improvement.',
+      model: model,
+      confidence: 90,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse OpenAI response: ${error.message}`);
+  }
+}
+
+// Analyze email using Gemini API
+async function analyzeEmailWithGemini(
+  subject: string,
+  body: string,
+  context?: string,
+  recipient?: any,
+  apiKey?: string
+): Promise<any> {
+  // Build the prompt with additional context if provided
+  let prompt = `Analyze this email for quality, effectiveness, and likelihood of receiving a response:
+
+Subject: ${subject}
+
+Body:
+${body}
+
+`;
+
+  if (context) {
+    prompt += `Additional context:
+${context}
+
+`;
+  }
+
+  if (recipient) {
+    prompt += `Recipient information:
+${JSON.stringify(recipient, null, 2)}
+
+`;
+  }
+
+  prompt += `Provide a comprehensive analysis with the following:
+1. Basic metrics (word count, sentence count, average sentence length, paragraph count)
+2. Tone analysis (percentage breakdown of formal, friendly, persuasive, urgent, informative)
+3. Dominant tone
+4. Quality score (0-100)
+5. Response likelihood score (0-100)
+6. List of improvements needed (issues, suggestions, structural problems)
+7. Overall assessment
+
+Return your analysis as a JSON object with these fields:
+- metrics: an object with wordCount, sentenceCount, avgSentenceLength, paragraphCount, subjectLength
+- toneAnalysis: an object with percentages for formal, friendly, persuasive, urgent, informative tones
+- dominantTone: the predominant tone of the email
+- qualityScore: a score from 0-100
+- responseLikelihood: a score from 0-100
+- improvements: an array of objects with type (issue/suggestion/structural) and description
+- assessment: an overall evaluation
+
+Return only the JSON object, nothing else.`;
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.2,
+        topK: 32,
+        topP: 0.8,
+        maxOutputTokens: 1024
+      }
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  if (!content) {
+    throw new Error('Empty response from Gemini API');
+  }
+  
+  try {
+    // Extract JSON from text (Gemini might return markdown code blocks)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response');
+    }
+    
+    const analysis = JSON.parse(jsonMatch[0]);
+    
+    // Ensure the response has the expected structure
+    return {
+      metrics: analysis.metrics || {
+        wordCount: body.split(/\s+/).length,
+        sentenceCount: body.split(/[.!?]+/).filter(Boolean).length,
+        avgSentenceLength: Math.round(body.split(/\s+/).length / Math.max(1, body.split(/[.!?]+/).filter(Boolean).length)),
+        paragraphCount: body.split(/\n\s*\n/).filter(Boolean).length,
+        subjectLength: subject.length
+      },
+      toneAnalysis: analysis.toneAnalysis || {},
+      dominantTone: analysis.dominantTone || 'neutral',
+      qualityScore: analysis.qualityScore || 70,
+      responseLikelihood: analysis.responseLikelihood || 65,
+      improvements: analysis.improvements || [],
+      assessment: analysis.assessment || 'This is a standard professional email with some room for improvement.',
+      model: 'gemini-1.5-flash',
+      confidence: 85,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse Gemini response: ${error.message}`);
+  }
+}
+
+// Generate mock email analysis when AI APIs are unavailable
+function generateMockAnalysis(subject: string, body: string): any {
+  // Simple analysis calculations
   const wordCount = body.split(/\s+/).length;
   const sentenceCount = body.split(/[.!?]+/).filter(Boolean).length;
   const avgSentenceLength = Math.round(wordCount / Math.max(1, sentenceCount));
   const paragraphCount = body.split(/\n\s*\n/).filter(Boolean).length;
   
-  // Check for common issues
-  const issues = [];
-  
-  if (wordCount > 300) issues.push('Email is too long (over 300 words)');
-  if (avgSentenceLength > 25) issues.push('Sentences are too long (over 25 words on average)');
-  if (paragraphCount < 2) issues.push('Email should have multiple paragraphs for readability');
-  if (body.includes('!!!!')) issues.push('Avoid excessive punctuation');
-  if (body.includes('URGENT') || body.includes('IMPORTANT')) issues.push('Avoid using all caps for emphasis');
-  
-  // Check for potential improvements
-  const suggestions = [];
-  
-  if (!body.includes('?')) suggestions.push('Consider adding a question to encourage response');
-  if (wordCount < 75) suggestions.push('Email may be too brief - consider adding more context');
-  if (!body.includes(recipient?.firstName || 'recipient')) suggestions.push('Personalize email with recipient\'s name');
-  if (!body.toLowerCase().includes('thank')) suggestions.push('Consider including a thank you');
-  if (!body.toLowerCase().includes('call') && !body.toLowerCase().includes('meet')) suggestions.push('Consider adding a call-to-action');
-  
-  // Calculate tone percentages
-  const toneScores = {
-    formal: calculateToneScore(body, ['Dear', 'Sincerely', 'regarding', 'request', 'inform']),
-    friendly: calculateToneScore(body, ['Hi', 'Thanks', 'Great', 'Looking forward', 'chat']),
-    persuasive: calculateToneScore(body, ['opportunity', 'benefit', 'value', 'advantage', 'recommend']),
-    urgent: calculateToneScore(body, ['soon', 'quickly', 'urgent', 'immediate', 'deadline']),
-    informative: calculateToneScore(body, ['inform', 'details', 'information', 'update', 'summary'])
+  // Simple tone analysis
+  const toneAnalysis = {
+    formal: 25,
+    friendly: 40,
+    persuasive: 20,
+    urgent: 5,
+    informative: 10
   };
   
-  // Normalize tone scores
-  const totalToneScore = Object.values(toneScores).reduce((a, b) => a + b, 0);
-  const normalizedTones: Record<string, number> = {};
+  // Basic improvements
+  const improvements = [];
   
-  for (const [tone, score] of Object.entries(toneScores)) {
-    normalizedTones[tone] = Math.round((score / Math.max(1, totalToneScore)) * 100);
-  }
+  if (wordCount > 300) improvements.push({ type: 'issue', description: 'Email is too long (over 300 words)' });
+  if (avgSentenceLength > 25) improvements.push({ type: 'issue', description: 'Sentences are too long' });
+  if (paragraphCount < 3) improvements.push({ type: 'suggestion', description: 'Consider adding more paragraphs for readability' });
+  if (!body.includes('?')) improvements.push({ type: 'suggestion', description: 'Consider adding a question to encourage response' });
   
-  // Calculate overall quality score (0-100)
+  // Simple quality score
   let qualityScore = 70; // Base score
-  
-  // Adjust for issues and suggestions
-  qualityScore -= issues.length * 5;
-  qualityScore -= suggestions.length * 3;
-  
-  // Adjust for email length
-  if (wordCount >= 75 && wordCount <= 200) qualityScore += 10;
-  else if (wordCount < 50 || wordCount > 300) qualityScore -= 10;
-  
-  // Adjust for sentence length
-  if (avgSentenceLength >= 10 && avgSentenceLength <= 20) qualityScore += 5;
-  else if (avgSentenceLength > 25) qualityScore -= 5;
-  
-  // Ensure score is within 0-100 range
+  qualityScore -= improvements.length * 5;
   qualityScore = Math.max(0, Math.min(100, qualityScore));
   
-  // Calculate response likelihood
-  const responseLikelihood = calculateResponseLikelihood(qualityScore, body, issues.length);
-  
-  // Generate improvement recommendations
-  const improvements = [
-    ...issues.map(issue => ({ type: 'issue', description: issue })),
-    ...suggestions.map(suggestion => ({ type: 'suggestion', description: suggestion }))
-  ];
-  
-  // Add more specific improvements if needed
-  if (qualityScore < 70) {
-    improvements.push({
-      type: 'structural',
-      description: 'Consider restructuring your email for better clarity and impact'
-    });
-  }
-  
-  if (subject.length > 50) {
-    improvements.push({
-      type: 'subject',
-      description: 'Subject line is too long - consider shortening to under 50 characters'
-    });
-  } else if (subject.length < 20) {
-    improvements.push({
-      type: 'subject',
-      description: 'Subject line may be too short - consider adding more context'
-    });
-  }
-  
-  // Generate overall assessment
-  let assessment;
-  if (qualityScore >= 90) {
-    assessment = 'Excellent email - well-structured, clear, and persuasive';
-  } else if (qualityScore >= 75) {
-    assessment = 'Good email with minor areas for improvement';
-  } else if (qualityScore >= 60) {
-    assessment = 'Average email that could benefit from several improvements';
-  } else {
-    assessment = 'Email needs significant improvement for maximum effectiveness';
-  }
+  // Response likelihood (simple calculation)
+  const responseLikelihood = Math.min(90, Math.max(40, qualityScore + 10));
   
   return {
     metrics: {
@@ -215,53 +376,16 @@ async function analyzeEmail(
       paragraphCount,
       subjectLength: subject.length
     },
-    toneAnalysis: normalizedTones,
-    dominantTone: Object.entries(normalizedTones).sort((a, b) => b[1] - a[1])[0][0],
+    toneAnalysis,
+    dominantTone: 'friendly',
     qualityScore,
     responseLikelihood,
     improvements,
-    assessment,
-    model: openaiApiKey ? 'gpt-4o-mini' : geminiApiKey ? 'gemini-1.5-flash' : 'mock-model',
-    confidence: (openaiApiKey || geminiApiKey) ? 85 : 65,
+    assessment: qualityScore >= 75 
+      ? 'Good email with minor areas for improvement' 
+      : 'Email could benefit from several improvements for maximum effectiveness',
+    model: 'mock-model',
+    confidence: 60,
     timestamp: new Date().toISOString()
   };
-}
-
-function calculateToneScore(text: string, keywords: string[]): number {
-  const lowerText = text.toLowerCase();
-  let score = 0;
-  
-  keywords.forEach(keyword => {
-    const regex = new RegExp(keyword.toLowerCase(), 'gi');
-    const matches = lowerText.match(regex);
-    if (matches) {
-      score += matches.length;
-    }
-  });
-  
-  return score;
-}
-
-function calculateResponseLikelihood(qualityScore: number, body: string, issueCount: number): number {
-  let likelihood = qualityScore * 0.7; // Base on quality score
-  
-  // Adjust based on call to action presence
-  const ctaKeywords = ['call', 'meet', 'discuss', 'schedule', 'available', 'thoughts', 'feedback', 'let me know', 'what do you think'];
-  const hasCallToAction = ctaKeywords.some(keyword => body.toLowerCase().includes(keyword));
-  
-  if (hasCallToAction) {
-    likelihood += 10;
-  } else {
-    likelihood -= 15;
-  }
-  
-  // Adjust based on questions
-  const questionCount = (body.match(/\?/g) || []).length;
-  likelihood += questionCount * 5;
-  
-  // Adjust based on issues
-  likelihood -= issueCount * 5;
-  
-  // Cap between 0-100
-  return Math.max(0, Math.min(100, Math.round(likelihood)));
 }

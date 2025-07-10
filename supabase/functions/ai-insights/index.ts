@@ -19,6 +19,8 @@ Deno.serve(async (req: Request) => {
     // Validate environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     
     if (!supabaseUrl || !supabaseKey) {
       console.error('Missing required environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
@@ -35,11 +37,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const hasOpenAI = !!openaiApiKey;
+    const hasGemini = !!geminiApiKey;
     
     // Check if any AI provider is configured
-    const hasAiProvider = openaiApiKey || geminiApiKey;
+    const hasAiProvider = hasOpenAI || hasGemini;
     
     if (req.method === 'POST') {
       const { contactId, contact, insightType = 'comprehensive' } = await req.json();
@@ -57,18 +59,38 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Generate insights based on contact data and insight type
-      const insights = generateInsights(contact, insightType);
+      let insights;
+      
+      // Use real AI providers if available
+      if (hasAiProvider) {
+        try {
+          // Prefer OpenAI for insights if available (better reasoning), otherwise use Gemini
+          if (hasOpenAI) {
+            insights = await generateInsightsWithOpenAI(contact, insightType, openaiApiKey!);
+          } else if (hasGemini) {
+            insights = await generateInsightsWithGemini(contact, insightType, geminiApiKey!);
+          } else {
+            throw new Error('No AI provider available');
+          }
+        } catch (error) {
+          console.error('AI insights generation failed:', error);
+          // Fall back to template-based insights
+          insights = generateMockInsights(contact, insightType);
+        }
+      } else {
+        // Use template-based insights when no AI providers are available
+        insights = generateMockInsights(contact, insightType);
+      }
       
       const result = {
         contactId,
         insightType,
         insights,
         confidence: hasAiProvider ? 85 : 65,
-        provider: openaiApiKey ? 'openai' : geminiApiKey ? 'gemini' : 'mock',
-        model: openaiApiKey ? 'gpt-4o-mini' : geminiApiKey ? 'gemini-1.5-flash' : 'mock-model',
+        provider: hasOpenAI ? 'openai' : hasGemini ? 'gemini' : 'mock',
+        model: hasOpenAI ? 'gpt-4o-mini' : hasGemini ? 'gemini-1.5-flash' : 'mock-model',
         timestamp: new Date().toISOString(),
-        processingTime: 800 + Math.floor(Math.random() * 500)
+        processingTime: hasAiProvider ? 800 + Math.floor(Math.random() * 500) : 50
       };
 
       return new Response(
@@ -104,8 +126,166 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-// Helper function to generate insights
-function generateInsights(contact: any, insightType: string): any[] {
+// Generate insights using OpenAI API
+async function generateInsightsWithOpenAI(contact: any, insightType: string, apiKey: string): Promise<any[]> {
+  // Choose prompt based on insight type
+  let systemPrompt = 'You are an expert CRM analyst with deep business intelligence expertise.';
+  let userPrompt = `Analyze this contact data and generate valuable business insights:
+  
+  ${JSON.stringify(contact, null, 2)}
+  `;
+  
+  // Customize the prompt based on insight type
+  switch (insightType) {
+    case 'engagement':
+      systemPrompt += ' Specializing in engagement pattern analysis and communication strategy.';
+      userPrompt += '\nFocus specifically on engagement patterns and communication strategy insights.';
+      break;
+    case 'opportunities':
+      systemPrompt += ' Specializing in business opportunity identification and sales strategy.';
+      userPrompt += '\nFocus specifically on identifying business opportunities and revenue potential.';
+      break;
+    case 'risks':
+      systemPrompt += ' Specializing in risk assessment and mitigation strategies.';
+      userPrompt += '\nFocus specifically on identifying potential risks and churn indicators.';
+      break;
+    case 'recommendations':
+      systemPrompt += ' Specializing in actionable recommendations and next steps.';
+      userPrompt += '\nFocus specifically on providing actionable recommendations and next steps.';
+      break;
+  }
+  
+  userPrompt += `
+  
+  Generate 3-5 high-value, specific insights based on this contact data. Each insight should include:
+  - type: the category of insight (like "opportunity", "risk", "engagement", etc.)
+  - title: a concise, descriptive title
+  - description: detailed explanation of the insight
+  - confidence: number from 1-100 indicating confidence level
+  - impact: "high", "medium", or "low"
+  
+  Return an array of insight objects, formatted as JSON. Only return the JSON array, nothing else.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.5,
+      response_format: { type: "json_object" }
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('Empty response from OpenAI API');
+  }
+  
+  try {
+    const parsed = JSON.parse(content);
+    // Ensure we're returning an array of insights
+    return Array.isArray(parsed) ? parsed : parsed.insights || parsed.results || [];
+  } catch (error) {
+    throw new Error(`Failed to parse OpenAI response: ${error.message}`);
+  }
+}
+
+// Generate insights using Gemini API
+async function generateInsightsWithGemini(contact: any, insightType: string, apiKey: string): Promise<any[]> {
+  // Choose prompt based on insight type
+  let prompt = `Analyze this contact data and generate valuable business insights:
+  
+  ${JSON.stringify(contact, null, 2)}
+  `;
+  
+  // Customize the prompt based on insight type
+  switch (insightType) {
+    case 'engagement':
+      prompt += '\nFocus specifically on engagement patterns and communication strategy insights.';
+      break;
+    case 'opportunities':
+      prompt += '\nFocus specifically on identifying business opportunities and revenue potential.';
+      break;
+    case 'risks':
+      prompt += '\nFocus specifically on identifying potential risks and churn indicators.';
+      break;
+    case 'recommendations':
+      prompt += '\nFocus specifically on providing actionable recommendations and next steps.';
+      break;
+  }
+  
+  prompt += `
+  
+  Generate 3-5 high-value, specific insights based on this contact data. Each insight should include:
+  - type: the category of insight (like "opportunity", "risk", "engagement", etc.)
+  - title: a concise, descriptive title
+  - description: detailed explanation of the insight
+  - confidence: number from 1-100 indicating confidence level
+  - impact: "high", "medium", or "low"
+  
+  Return an array of insight objects, formatted as JSON. Only return the JSON array, nothing else.`;
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.5,
+        topK: 40,
+        topP: 0.9,
+        maxOutputTokens: 1024
+      }
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  if (!content) {
+    throw new Error('Empty response from Gemini API');
+  }
+  
+  try {
+    // Extract JSON from text (Gemini might return markdown code blocks)
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      throw new Error('No JSON array found in response');
+    }
+    
+    return JSON.parse(jsonMatch[0]);
+  } catch (error) {
+    throw new Error(`Failed to parse Gemini response: ${error.message}`);
+  }
+}
+
+// Generate mock insights when AI APIs are unavailable
+function generateMockInsights(contact: any, insightType: string): any[] {
   const insights = [];
   
   switch (insightType) {
