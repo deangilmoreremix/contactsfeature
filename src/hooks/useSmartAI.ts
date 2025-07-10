@@ -40,6 +40,15 @@ export const useSmartAI = () => {
       // Call the Supabase Edge Function directly
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+      // Debug logging
+      console.log('Smart scoring - Environment check:');
+      console.log('- VITE_SUPABASE_URL:', supabaseUrl ? 'present' : 'missing');
+      console.log('- VITE_SUPABASE_ANON_KEY:', supabaseKey ? 'present (truncated)' : 'missing');
+      console.log('- VITE_OPENAI_API_KEY:', openaiApiKey ? 'present (truncated)' : 'missing');
+      console.log('- VITE_GEMINI_API_KEY:', geminiApiKey ? 'present (truncated)' : 'missing');
       
       if (!supabaseUrl || !supabaseKey) {
         console.warn('Supabase environment variables not defined, using fallback mode');
@@ -56,18 +65,37 @@ export const useSmartAI = () => {
       const endpoint = `${supabaseUrl}/functions/v1/smart-score`;
       console.log(`Calling Edge Function: ${endpoint}`);
       
+      // Log the request body (excluding any sensitive data)
+      console.log('Request payload:', { contactId, urgency });
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseKey}`
         },
-        body: JSON.stringify({ contactId, contact, urgency })
+        body: JSON.stringify({ 
+          contactId, 
+          contact, 
+          urgency,
+          clientInfo: { 
+            hasOpenAI: !!openaiApiKey, 
+            hasGemini: !!geminiApiKey 
+          }
+        })
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error ${response.status}`);
+        let errorText = 'Unknown error';
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error || `HTTP error ${response.status}`;
+        } catch (e) {
+          // If we can't parse the JSON, just use the status text
+          errorText = `HTTP error ${response.status} ${response.statusText}`;
+        }
+        console.error('Edge function error:', errorText);
+        throw new Error(errorText);
       }
       
       const result = await response.json();

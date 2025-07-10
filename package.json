@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:login": "npx supabase login",
+    "supabase:link": "npx supabase link",
+    "supabase:deploy": "npx supabase functions deploy --project-ref your-project-ref",
+    "deploy:all-functions": "npm run supabase:deploy ai-enrichment && npm run supabase:deploy contacts && npm run supabase:deploy email-composer && npm run supabase:deploy email-analyzer && npm run supabase:deploy email-templates && npm run supabase:deploy personalized-messages && npm run supabase:deploy smart-bulk && npm run supabase:deploy smart-categorize && npm run supabase:deploy smart-enrichment && npm run supabase:deploy smart-qualify && npm run supabase:deploy smart-score"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",

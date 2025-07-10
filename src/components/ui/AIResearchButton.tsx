@@ -68,6 +68,8 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
     setError(null);
     setSearchResults(null);
 
+    console.log('AIResearchButton - starting search', { searchType, searchQuery });
+
     try {
       let results: ContactEnrichmentData;
 
@@ -123,6 +125,11 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
       // Check if we got valid results with more than just a confidence score
       const hasRealData = results && Object.keys(results).length > 2;
+      
+      console.log('AIResearchButton - search results:', { 
+        hasRealData, 
+        resultKeys: Object.keys(results || {})
+      });
       
       if (hasRealData) {
         setSearchResults(results);

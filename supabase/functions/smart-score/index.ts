@@ -41,6 +41,27 @@ Deno.serve(async (req: Request) => {
     // Check if any AI provider is configured
     if (!openaiApiKey && !geminiApiKey) {
       console.warn('No AI provider configured, using fallback mode');
+      
+      // Log the client info if provided
+      const { clientInfo } = await req.json();
+      if (clientInfo) {
+        console.log('Client reports API keys:', clientInfo);
+      }
+    }
+    
+    // Log the environment variables (without showing full keys)
+    console.log('Edge function environment variables:');
+    console.log('- SUPABASE_URL:', supabaseUrl ? 'present' : 'missing');
+    console.log('- SUPABASE_ANON_KEY:', supabaseKey ? 'present (truncated)' : 'missing');
+    console.log('- OPENAI_API_KEY:', openaiApiKey ? `present (starts with: ${openaiApiKey.substring(0, 3)}...)` : 'missing');
+    console.log('- GEMINI_API_KEY:', geminiApiKey ? `present (starts with: ${geminiApiKey.substring(0, 3)}...)` : 'missing');
+
+    // Create a sample response to test connectivity
+    if (req.method === 'OPTIONS') {
+      return new Response("Edge function is responsive to OPTIONS", {
+        status: 200,
+        headers: corsHeaders
+      });
     }
     
     if (req.method === 'POST') {

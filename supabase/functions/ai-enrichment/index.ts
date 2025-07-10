@@ -64,6 +64,13 @@ Deno.serve(async (req) => {
   // Check if AI providers are configured
   const hasAiProvider = openaiApiKey || geminiApiKey;
 
+  // Log environment variables for debugging (without revealing full keys)
+  console.log('Function environment variables:');
+  console.log('- SUPABASE_URL:', supabaseUrl ? 'present' : 'missing');
+  console.log('- SUPABASE_ANON_KEY:', supabaseKey ? 'present (length: ' + supabaseKey.length + ')' : 'missing');
+  console.log('- OPENAI_API_KEY:', openaiApiKey ? `present (starts with: ${openaiApiKey.substring(0, 3)}...)` : 'missing');
+  console.log('- GEMINI_API_KEY:', geminiApiKey ? `present (starts with: ${geminiApiKey.substring(0, 3)}...)` : 'missing');
+
   try {
     const url = new URL(req.url);
     const path = url.pathname.split('/').filter(Boolean);
