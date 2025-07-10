@@ -45,6 +45,7 @@ export interface ContactStats {
 
 class ContactAPIService {
   private baseURL: string;
+  private supabaseKey: string | null = null;
   private isBackendAvailable = true;
   private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
   
@@ -59,8 +60,22 @@ class ContactAPIService {
       this.isMockMode = true;
     } else {
       this.baseURL = `${supabaseUrl}/functions/v1/contacts`;
+      this.supabaseKey = supabaseKey;
       console.log('Using Contacts Edge Function URL:', this.baseURL);
     }
+  }
+  
+  // Get headers for Supabase requests
+  private getSupabaseHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (this.supabaseKey) {
+      headers['Authorization'] = `Bearer ${this.supabaseKey}`;
+    }
+    
+    return headers;
   }
   
   // Check if we should use fallback mode
@@ -261,6 +276,7 @@ class ContactAPIService {
         {
           timeout: 15000,
           retries: 2,
+          headers: this.getSupabaseHeaders(),
         }
       );
       
@@ -315,6 +331,7 @@ class ContactAPIService {
         {
           timeout: 10000,
           retries: 2,
+          headers: this.getSupabaseHeaders(),
           cache: {
             key: `contact_${contactId}`,
             ttl: 300000, // 5 minutes
@@ -366,6 +383,7 @@ class ContactAPIService {
         {
           timeout: 15000,
           retries: 2,
+          headers: this.getSupabaseHeaders(),
         }
       );
       
@@ -424,6 +442,7 @@ class ContactAPIService {
         {
           timeout: 10000,
           retries: 1,
+          headers: this.getSupabaseHeaders(),
         }
       );
       
@@ -474,6 +493,7 @@ class ContactAPIService {
         {
           timeout: 20000,
           retries: 2,
+          headers: this.getSupabaseHeaders(),
           cache: {
             key: `contact_list_${cacheKey}`,
             ttl: 180000, // 3 minutes
@@ -613,6 +633,7 @@ class ContactAPIService {
         {
           timeout: 60000, // 1 minute for batch operations
           retries: 1,
+          headers: this.getSupabaseHeaders(),
         }
       );
       
@@ -677,6 +698,7 @@ class ContactAPIService {
         {
           timeout: 45000,
           retries: 1,
+          headers: this.getSupabaseHeaders(),
         }
       );
       
@@ -741,6 +763,7 @@ class ContactAPIService {
           timeout: 120000, // 2 minutes for exports
           retries: 1,
           headers: {
+            ...this.getSupabaseHeaders(),
             'Accept': format === 'csv' ? 'text/csv' : 'application/json',
           },
         }
