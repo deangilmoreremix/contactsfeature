@@ -19,10 +19,8 @@ function App() {
   // Initialize dark mode (this will apply the theme class to body)
   useDarkMode();
 
-  // Always show contacts modal
-
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="h-screen">
       {/* Always show ContactsModal with isOpen={true} */}
       <ContactsModal 
         isOpen={true} 
