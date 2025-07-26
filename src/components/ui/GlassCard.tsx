@@ -17,8 +17,9 @@ export const GlassCard: React.FC<GlassCardProps> = ({
     <div
       className={`
         glass-card rounded-xl
-        ${hover ? 'hover:bg-white/90 hover:shadow-xl transition-all duration-300 hover:scale-[1.02]' : ''}
+        ${hover ? 'hover:shadow-xl transition-all duration-300 hover:scale-[1.02]' : ''}
         ${onClick ? 'cursor-pointer' : ''}
+        text-gray-900
         ${className}
       `}
       onClick={onClick}

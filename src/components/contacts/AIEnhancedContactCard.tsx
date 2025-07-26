@@ -98,7 +98,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   return (
     <div
       onClick={handleCardClick}
-      className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden"
+      className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden text-gray-900"
     >
       {/* Selection Checkbox */}
       <div className="absolute top-4 left-4 z-10">

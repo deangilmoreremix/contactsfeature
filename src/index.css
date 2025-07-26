@@ -8,6 +8,7 @@
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
   --bg-tertiary: #f1f5f9;
+  --bg-app: linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #faf5ff 100%);
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-tertiary: #64748b;
@@ -28,6 +29,7 @@ body.dark-mode {
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
   --bg-tertiary: #334155;
+  --bg-app: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-tertiary: #94a3b8;
@@ -52,6 +54,7 @@ body.dark-mode {
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  min-height: 100vh;
 }
 
 /* Update existing utility classes to use CSS variables */
@@ -67,6 +70,14 @@ body {
   background-color: var(--bg-tertiary) !important;
 }
 
+.bg-gray-200 {
+  background-color: var(--border-primary) !important;
+}
+
+.bg-gray-300 {
+  background-color: var(--border-secondary) !important;
+}
+
 .text-gray-900 {
   color: var(--text-primary) !important;
 }
@@ -79,12 +90,28 @@ body {
   color: var(--text-tertiary) !important;
 }
 
+.text-gray-800 {
+  color: var(--text-primary) !important;
+}
+
+.text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+.text-gray-400 {
+  color: var(--border-secondary) !important;
+}
+
 .border-gray-200 {
   border-color: var(--border-primary) !important;
 }
 
 .border-gray-300 {
   border-color: var(--border-secondary) !important;
+}
+
+.border-gray-100 {
+  border-color: var(--bg-tertiary) !important;
 }
 
 /* Glass morphism with theme support */
@@ -106,6 +133,23 @@ body {
   background-color: var(--accent-secondary);
 }
 
+/* Form elements with theme support */
+input, textarea, select {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Placeholder text */
+::placeholder {
+  color: var(--text-tertiary) !important;
+}
+
 /* Focus styles for accessibility */
 button:focus,
 input:focus,
@@ -113,6 +157,23 @@ select:focus,
 textarea:focus {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
+}
+
+/* Table styles for dark mode */
+table {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+th, td {
+  border-color: var(--border-primary) !important;
+}
+
+/* Dropdown and select styles */
+.dropdown-menu {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-primary) !important;
+  box-shadow: 0 4px 6px var(--shadow-color) !important;
 }
 
 /* High contrast mode support */
