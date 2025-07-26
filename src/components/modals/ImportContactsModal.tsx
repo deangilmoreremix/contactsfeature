@@ -22,50 +22,20 @@ interface ImportContactsModalProps {
 
 const CSV_TEMPLATE_HEADERS = [
   'firstName',
-  'lastName', 
-  'name',
-  'email',
-  'phone',
-  'title',
-  'company',
-  'industry',
-  'sources',
-  'interestLevel',
-  'status',
-  'notes',
-  'tags'
+  'lastName',
+  'email'
 ];
 
 const SAMPLE_CSV_DATA = [
   [
     'John',
-    'Smith', 
-    'John Smith',
-    'john.smith@company.com',
-    '+1-555-0123',
-    'Marketing Director',
-    'Tech Corp',
-    'Technology',
-    'LinkedIn,Email',
-    'hot',
-    'prospect',
-    'Interested in enterprise solutions',
-    'Enterprise,High Value'
+    'Smith',
+    'john.smith@company.com'
   ],
   [
     'Sarah',
     'Johnson',
-    'Sarah Johnson', 
-    'sarah.j@startup.io',
-    '+1-555-0456',
-    'CEO',
-    'Startup Inc',
-    'Software',
-    'Referral',
-    'medium',
-    'lead',
-    'Referred by existing client',
-    'Startup,Referral'
+    'sarah.j@startup.io'
   ]
 ];
 
@@ -99,25 +69,26 @@ const parseCSV = (text: string): string[][] => {
 const validateContact = (data: Record<string, string>): string[] => {
   const errors = [];
   
+  if (!data.firstName) {
+    errors.push('First name is required');
+  }
+  
+  if (!data.lastName) {
+    errors.push('Last name is required');
+  }
+  
   if (!data.email) {
     errors.push('Email is required');
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     errors.push('Invalid email format');
   }
   
-  if (!data.name && (!data.firstName || !data.lastName)) {
-    errors.push('Name or firstName + lastName is required');
-  }
-  
-  if (!data.company) {
-    errors.push('Company is required');
-  }
-  
-  if (data.interestLevel && !['hot', 'medium', 'low', 'cold'].includes(data.interestLevel)) {
+  // Optional field validations - only validate if present
+  if (data.interestLevel && data.interestLevel !== '' && !['hot', 'medium', 'low', 'cold'].includes(data.interestLevel)) {
     errors.push('Interest level must be: hot, medium, low, or cold');
   }
   
-  if (data.status && !['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(data.status)) {
+  if (data.status && data.status !== '' && !['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(data.status)) {
     errors.push('Status must be: lead, prospect, customer, churned, active, pending, or inactive');
   }
   
@@ -220,12 +191,16 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
       // Generate full name if not provided
       if (!contact.name && contact.firstname && contact.lastname) {
         contact.name = `${contact.firstname} ${contact.lastname}`;
+      } else if (!contact.name && contact.firstName && contact.lastName) {
+        contact.name = `${contact.firstName} ${contact.lastName}`;
       }
       
       // Default values
       contact.sources = contact.sources ? contact.sources.split(',').map((s: string) => s.trim()) : ['Manual Import'];
       contact.interestLevel = contact.interestlevel || 'medium';
       contact.status = contact.status || 'lead';
+      contact.company = contact.company || 'Unknown Company';
+      contact.title = contact.title || 'Professional';
       contact.avatarSrc = `https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2`;
       contact.tags = contact.tags ? contact.tags.split(',').map((t: string) => t.trim()) : [];
       
@@ -337,14 +312,13 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                   <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
-                  Required Fields
+                  Required Fields (Minimum)
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { field: 'email', description: 'Valid email address (e.g., john@company.com)' },
-                    { field: 'name', description: 'Full name OR firstName + lastName' },
-                    { field: 'company', description: 'Company name' },
-                    { field: 'title', description: 'Job title or position' }
+                    { field: 'firstName', description: 'Contact\'s first name' },
+                    { field: 'lastName', description: 'Contact\'s last name' },
+                    { field: 'email', description: 'Valid email address (e.g., john@company.com)' }
                   ].map((item, index) => (
                     <div key={index} className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg">
                       <div className="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
@@ -363,8 +337,14 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
                   <CheckCircle className="w-5 h-5 mr-2 text-green-500" />
                   Optional Fields
                 </h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  You can include any of these additional fields in your CSV. They are all optional and will be processed if present.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
+                    { field: 'name', description: 'Full name (auto-generated from firstName + lastName if not provided)' },
+                    { field: 'title', description: 'Job title or position' },
+                    { field: 'company', description: 'Company name' },
                     { field: 'phone', description: 'Phone number with country code' },
                     { field: 'industry', description: 'Industry category' },
                     { field: 'sources', description: 'Comma-separated (LinkedIn,Email,Website)' },
@@ -392,9 +372,14 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
                 </h4>
                 <div className="bg-gray-50 rounded-lg p-4 overflow-x-auto">
                   <pre className="text-sm text-gray-800 whitespace-pre">
-{`firstName,lastName,name,email,phone,title,company,industry,sources,interestLevel,status,notes,tags
-John,Smith,John Smith,john@company.com,+1-555-0123,Marketing Director,Tech Corp,Technology,LinkedIn;Email,hot,prospect,Interested in enterprise,Enterprise;VIP
-Sarah,Johnson,Sarah Johnson,sarah@startup.io,+1-555-0456,CEO,Startup Inc,Software,Referral,medium,lead,Referred by client,Startup;Referral`}
+{`firstName,lastName,email
+John,Smith,john.smith@company.com
+Sarah,Johnson,sarah.j@startup.io
+
+For additional fields, you can add columns like:
+firstName,lastName,email,company,title,phone
+John,Smith,john.smith@company.com,Tech Corp,Marketing Director,+1-555-0123
+Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                   </pre>
                 </div>
               </div>
