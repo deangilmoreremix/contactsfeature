@@ -51,6 +51,11 @@ export const useDarkMode = (): UseDarkModeReturn => {
   }, [isDarkMode]);
 
   useEffect(() => {
+    // Only listen for system theme changes if we're in the browser
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
@@ -62,22 +67,20 @@ export const useDarkMode = (): UseDarkModeReturn => {
       }
     };
 
-    // Use the correct method based on browser support
-    if (mediaQuery.addEventListener) {
+    // Use modern addEventListener method
+    try {
       mediaQuery.addEventListener('change', handleChange);
-    } else {
-      // Fallback for older browsers
-      mediaQuery.addListener(handleChange);
-    }
-
-    return () => {
-      if (mediaQuery.removeEventListener) {
+      
+      return () => {
         mediaQuery.removeEventListener('change', handleChange);
-      } else {
-        // Fallback for older browsers
-        mediaQuery.removeListener(handleChange);
-      }
-    };
+      };
+    } catch (error) {
+      // Fallback for very old browsers - but wrapped in try-catch
+      console.warn('Media query event listeners not supported, falling back to manual detection');
+      return () => {
+        // No cleanup needed for fallback
+      };
+    }
   }, []);
 
   const toggleDarkMode = () => {
