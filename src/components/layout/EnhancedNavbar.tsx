@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
+import { DarkModeToggle } from '../ui/DarkModeToggle';
 import { 
   Search, 
   Bell, 
@@ -178,6 +179,8 @@ export const EnhancedNavbar: React.FC = () => {
           <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
             <Settings className="w-5 h-5" />
           </button>
+          
+          <DarkModeToggle size="sm" />
           
           <div className="flex items-center space-x-2 cursor-pointer">
             <AvatarWithStatus

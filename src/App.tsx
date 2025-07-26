@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDarkMode } from './hooks/useDarkMode';
 import { MetricsCards } from './components/dashboard/MetricsCards';
 import { NewLeadsSection } from './components/dashboard/NewLeadsSection';
 import { InteractionHistory } from './components/dashboard/InteractionHistory';
@@ -15,6 +16,9 @@ import { ConnectedApps } from './components/dashboard/ConnectedApps';
 import './styles/design-system.css';
 
 function App() {
+  // Initialize dark mode (this will apply the theme class to body)
+  useDarkMode();
+
   // Always show contacts modal
 
   return (
