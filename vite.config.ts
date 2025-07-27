@@ -4,30 +4,40 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['lucide-react']
+    exclude: ['lucide-react'],
+    include: ['react', 'react-dom']
+  },
+  define: {
+    global: 'globalThis',
   },
   resolve: {
     alias: {
-      // Disable Node.js built-in module polyfills
-      buffer: false,
-      crypto: false,
-      stream: false,
-      os: false,
-      fs: false,
-      path: false,
-      util: false
+      // Use proper polyfills for Node.js modules
+      buffer: 'buffer',
+      process: 'process/browser',
+      util: 'util'
+    }
+  },
+  build: {
+    rollupOptions: {
+      external: [],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM'
+        }
+      }
     }
   },
   server: {
     host: true,
     port: 5173,
     hmr: {
-      protocol: 'ws',
-      host: 'localhost',
-      clientPort: 5173,
+      port: 5173
     },
     watch: {
-      ignored: ['**/.env**']
+      ignored: ['**/.env**'],
+      usePolling: false
     }
   }
 });

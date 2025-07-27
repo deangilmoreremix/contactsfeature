@@ -503,7 +503,10 @@ class AITaskQueueService {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => {
+      const timer = globalThis.setTimeout ? globalThis.setTimeout : setTimeout;
+      timer(resolve, ms);
+    });
   }
 
   // Mock data generators for development
