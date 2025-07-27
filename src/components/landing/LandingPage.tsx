@@ -299,6 +299,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
             })}
           </div>
         </div>
+      </section>
+
       {/* Contact Management Deep Dive */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -611,8 +613,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 </div>
               </div>
             </GlassCard>
-          </div>
-      </section>
+
             {/* Contact Analytics */}
             <GlassCard className="p-6">
               <div className="flex items-center justify-between mb-4">
