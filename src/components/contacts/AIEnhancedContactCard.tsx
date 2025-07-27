@@ -282,6 +282,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
               </div>
             </div>
             <p className="text-xs text-gray-700">
+            <p className="text-xs text-gray-900">
               {contact.aiScore >= 80 ? 'High conversion potential - prioritize for immediate follow-up.' :
                contact.aiScore >= 60 ? 'Good engagement potential - schedule follow-up within 48 hours.' :
                contact.aiScore >= 40 ? 'Moderate interest - nurture with valuable content.' :

@@ -121,7 +121,7 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
   const sizeClasses = size === 'sm' ? 'p-2 text-xs' : 'p-3 text-sm';
   const variantClasses = variant === 'primary' 
     ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700' 
-    : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200';
+    : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900 hover:from-gray-100 hover:to-gray-200';
 
   return (
     <button
