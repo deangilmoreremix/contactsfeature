@@ -21,16 +21,19 @@ export const InteractiveContactScorer: React.FC = () => {
     company: '',
     email: '',
     industry: '',
-    interestLevel: 'medium'
+    interestLevel: 'medium',
+    sources: ''
   });
   const [isScoring, setIsScoring] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   const [insights, setInsights] = useState<string[]>([]);
+  const [breakdown, setBreakdown] = useState<{fitScore: number, engagementScore: number, conversionProbability: number, urgencyScore: number} | null>(null);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setScore(null);
     setInsights([]);
+    setBreakdown(null);
   };
 
   const calculateScore = () => {
@@ -63,7 +66,19 @@ export const InteractiveContactScorer: React.FC = () => {
         calculatedScore += 10;
       }
       
+      // Score based on sources
+      if (formData.sources.toLowerCase().includes('referral')) calculatedScore += 15;
+      else if (formData.sources.toLowerCase().includes('linkedin')) calculatedScore += 10;
+      
       calculatedScore = Math.max(0, Math.min(100, calculatedScore));
+      
+      // Generate breakdown scores
+      const generatedBreakdown = {
+        fitScore: Math.max(0, Math.min(100, calculatedScore + Math.random() * 20 - 10)),
+        engagementScore: Math.max(0, Math.min(100, calculatedScore + Math.random() * 30 - 15)),
+        conversionProbability: Math.max(0, Math.min(100, calculatedScore + Math.random() * 25 - 12)),
+        urgencyScore: Math.max(0, Math.min(100, calculatedScore + Math.random() * 35 - 17))
+      };
       
       // Generate insights
       const generatedInsights = [];
@@ -71,16 +86,20 @@ export const InteractiveContactScorer: React.FC = () => {
         generatedInsights.push('High conversion potential - prioritize immediate follow-up');
         generatedInsights.push('Decision-making authority detected');
         generatedInsights.push('Strong industry alignment');
+        generatedInsights.push('Optimal engagement window identified');
       } else if (calculatedScore >= 60) {
         generatedInsights.push('Good engagement potential - schedule follow-up within 48 hours');
         generatedInsights.push('Moderate influence in decision process');
+        generatedInsights.push('Consider personalized approach');
       } else {
         generatedInsights.push('Lower priority - consider nurturing campaign');
         generatedInsights.push('May require additional qualification');
+        generatedInsights.push('Focus on relationship building');
       }
       
       setScore(calculatedScore);
       setInsights(generatedInsights);
+      setBreakdown(generatedBreakdown);
       setIsScoring(false);
     }, 2000);
   };
@@ -179,6 +198,19 @@ export const InteractiveContactScorer: React.FC = () => {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Lead Sources
+            </label>
+            <input
+              type="text"
+              value={formData.sources}
+              onChange={(e) => handleInputChange('sources', e.target.value)}
+              placeholder="LinkedIn, Referral, Website"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Separate multiple sources with commas</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Interest Level
@@ -286,6 +318,30 @@ export const InteractiveContactScorer: React.FC = () => {
             </div>
           )}
         </div>
+          {/* Score Breakdown */}
+          {breakdown && (
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <h5 className="font-semibold text-gray-900 mb-3">Score Breakdown</h5>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-blue-600">{Math.round(breakdown.fitScore)}</div>
+                  <div className="text-xs text-gray-600">Fit Score</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-green-600">{Math.round(breakdown.engagementScore)}</div>
+                  <div className="text-xs text-gray-600">Engagement</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-purple-600">{Math.round(breakdown.conversionProbability)}</div>
+                  <div className="text-xs text-gray-600">Conversion</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-orange-600">{Math.round(breakdown.urgencyScore)}</div>
+                  <div className="text-xs text-gray-600">Urgency</div>
+                </div>
+              </div>
+            </div>
+          )}
       </div>
 
       {/* Demo Notice */}
@@ -295,7 +351,7 @@ export const InteractiveContactScorer: React.FC = () => {
           <span className="text-sm font-medium text-blue-900">Interactive Demo</span>
         </div>
         <p className="text-sm text-blue-800 mt-1">
-          This is a simplified version of our AI scoring engine. The real application uses advanced machine learning models from OpenAI and Google Gemini for even more accurate predictions.
+          This is a simplified version of our AI scoring engine. The real application uses advanced machine learning models from OpenAI and Google Gemini for even more accurate predictions, with detailed breakdown scores and confidence levels.
         </p>
       </div>
     </GlassCard>

@@ -108,7 +108,8 @@ export const InteractiveFilterDemo: React.FC = () => {
   const [interestFilter, setInterestFilter] = useState('all');
   const [industryFilter, setIndustryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [aiScoreFilter, setAiScoreFilter] = useState('all');
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
 
   const filteredContacts = useMemo(() => {
     return sampleContacts.filter(contact => {
@@ -137,18 +138,43 @@ export const InteractiveFilterDemo: React.FC = () => {
         return false;
       }
 
+      // AI Score filter
+      if (aiScoreFilter !== 'all') {
+        if (aiScoreFilter === 'high' && contact.aiScore < 80) return false;
+        if (aiScoreFilter === 'medium' && (contact.aiScore < 60 || contact.aiScore >= 80)) return false;
+        if (aiScoreFilter === 'low' && contact.aiScore >= 60) return false;
+      }
+
       return true;
     });
-  }, [searchTerm, interestFilter, industryFilter, statusFilter]);
+  }, [searchTerm, interestFilter, industryFilter, statusFilter, aiScoreFilter]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setInterestFilter('all');
     setIndustryFilter('all');
     setStatusFilter('all');
+    setAiScoreFilter('all');
+    setSelectedContacts([]);
   };
 
-  const hasActiveFilters = searchTerm || interestFilter !== 'all' || industryFilter !== 'all' || statusFilter !== 'all';
+  const hasActiveFilters = searchTerm || interestFilter !== 'all' || industryFilter !== 'all' || statusFilter !== 'all' || aiScoreFilter !== 'all';
+
+  const handleContactSelect = (contactId: string) => {
+    setSelectedContacts(prev => 
+      prev.includes(contactId) 
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedContacts.length === filteredContacts.length) {
+      setSelectedContacts([]);
+    } else {
+      setSelectedContacts(filteredContacts.map(c => c.id));
+    }
+  };
 
   return (
     <GlassCard className="p-8">
@@ -216,6 +242,17 @@ export const InteractiveFilterDemo: React.FC = () => {
             <option value="customer">Customer</option>
           </select>
 
+          {/* AI Score Filter */}
+          <select
+            value={aiScoreFilter}
+            onChange={(e) => setAiScoreFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All AI Scores</option>
+            <option value="high">High Score (80+)</option>
+            <option value="medium">Medium Score (60-79)</option>
+            <option value="low">Low Score (&lt;60)</option>
+          </select>
           {/* Clear Filters */}
           {hasActiveFilters && (
             <ModernButton
@@ -234,18 +271,27 @@ export const InteractiveFilterDemo: React.FC = () => {
           <p className="text-sm text-gray-600">
             Showing {filteredContacts.length} of {sampleContacts.length} contacts
             {hasActiveFilters && ' (filtered)'}
+            {selectedContacts.length > 0 && ` • ${selectedContacts.length} selected`}
           </p>
-          <div className="flex items-center space-x-2">
-            <Users className="w-4 h-4 text-blue-500" />
-            <span className="text-sm font-medium text-blue-600">
-              {filteredContacts.filter(c => c.aiScore >= 80).length} high-priority
-            </span>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleSelectAll}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              {selectedContacts.length === filteredContacts.length ? 'Deselect All' : 'Select All'}
+            </button>
+            <div className="flex items-center space-x-2">
+              <Users className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium text-blue-600">
+                {filteredContacts.filter(c => c.aiScore >= 80).length} high-priority
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Contacts List */}
-      <div className="space-y-3 max-h-96 overflow-y-auto">
+      <div className="space-y-3 max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
         {filteredContacts.length === 0 ? (
           <div className="text-center py-12">
             <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -254,7 +300,20 @@ export const InteractiveFilterDemo: React.FC = () => {
           </div>
         ) : (
           filteredContacts.map((contact) => (
-            <div key={contact.id} className="flex items-center space-x-4 p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+            <div key={contact.id} className={`flex items-center space-x-4 p-4 bg-white border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer ${
+              selectedContacts.includes(contact.id) ? 'bg-blue-50 border-blue-200' : ''
+            }`}
+            onClick={() => handleContactSelect(contact.id)}
+            >
+              {/* Selection Checkbox */}
+              <input
+                type="checkbox"
+                checked={selectedContacts.includes(contact.id)}
+                onChange={() => handleContactSelect(contact.id)}
+                className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                onClick={(e) => e.stopPropagation()}
+              />
+
               {/* Avatar */}
               <AvatarWithStatus
                 src={contact.avatar}
@@ -311,15 +370,17 @@ export const InteractiveFilterDemo: React.FC = () => {
       <div className="mt-6 flex flex-wrap gap-2">
         <button
           onClick={() => setInterestFilter('hot')}
-          className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium hover:bg-red-200 transition-colors"
+          className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium hover:bg-red-200 transition-colors flex items-center space-x-1"
         >
-          Hot Leads ({sampleContacts.filter(c => c.interestLevel === 'hot').length})
+          <Target className="w-3 h-3" />
+          <span>Hot Leads ({sampleContacts.filter(c => c.interestLevel === 'hot').length})</span>
         </button>
         <button
           onClick={() => setIndustryFilter('Technology')}
-          className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors"
+          className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors flex items-center space-x-1"
         >
-          Technology ({sampleContacts.filter(c => c.industry === 'Technology').length})
+          <Building className="w-3 h-3" />
+          <span>Technology ({sampleContacts.filter(c => c.industry === 'Technology').length})</span>
         </button>
         <button
           onClick={() => {
@@ -328,19 +389,53 @@ export const InteractiveFilterDemo: React.FC = () => {
             setIndustryFilter('all');
             setStatusFilter('prospect');
           }}
-          className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium hover:bg-purple-200 transition-colors"
+          className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium hover:bg-purple-200 transition-colors flex items-center space-x-1"
         >
-          Prospects Only ({sampleContacts.filter(c => c.status === 'prospect').length})
+          <Users className="w-3 h-3" />
+          <span>Prospects Only ({sampleContacts.filter(c => c.status === 'prospect').length})</span>
+        </button>
+        <button
+          onClick={() => setAiScoreFilter('high')}
+          className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium hover:bg-green-200 transition-colors flex items-center space-x-1"
+        >
+          <Star className="w-3 h-3" />
+          <span>High AI Score ({sampleContacts.filter(c => c.aiScore >= 80).length})</span>
         </button>
         <button
           onClick={() => {
+            setSearchTerm('');
+            setInterestFilter('all');
+            setIndustryFilter('all');
+            setStatusFilter('all');
+            setAiScoreFilter('all');
             setSearchTerm('CEO');
           }}
-          className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium hover:bg-yellow-200 transition-colors"
+          className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium hover:bg-yellow-200 transition-colors flex items-center space-x-1"
         >
-          Decision Makers ({sampleContacts.filter(c => c.title.includes('CEO') || c.title.includes('VP') || c.title.includes('CTO')).length})
+          <Award className="w-3 h-3" />
+          <span>Decision Makers ({sampleContacts.filter(c => c.title.includes('CEO') || c.title.includes('VP') || c.title.includes('CTO')).length})</span>
         </button>
       </div>
+
+      {/* Bulk Actions Demo */}
+      {selectedContacts.length > 0 && (
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="w-5 h-5 text-blue-600" />
+              <span className="font-medium text-blue-900">{selectedContacts.length} contacts selected</span>
+            </div>
+            <div className="flex space-x-2">
+              <ModernButton variant="outline" size="sm" className="text-blue-700 border-blue-300">
+                Export Selected
+              </ModernButton>
+              <ModernButton variant="primary" size="sm" className="bg-blue-600">
+                AI Analyze Selected
+              </ModernButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Demo Notice */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -349,7 +444,7 @@ export const InteractiveFilterDemo: React.FC = () => {
           <span className="text-sm font-medium text-blue-900">Interactive Demo</span>
         </div>
         <p className="text-sm text-blue-800 mt-1">
-          This demo showcases our search and filtering capabilities. The real application includes advanced filters, saved searches, fuzzy search, and much more.
+          This demo showcases our search, filtering, and selection capabilities. The real application includes advanced filters, saved searches, fuzzy search, bulk operations, and much more.
         </p>
       </div>
     </GlassCard>
