@@ -9,8 +9,6 @@ export default defineConfig({
   resolve: {
     alias: {
       // Disable Node.js built-in module polyfills
-      timers: false,
-      'timers/promises': false,
       buffer: false,
       crypto: false,
       stream: false,
