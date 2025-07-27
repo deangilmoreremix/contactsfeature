@@ -35,7 +35,8 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -539,6 +540,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               >
                 <Plus className="w-4 h-4" />
                 <span>New Contact</span>
+              </ModernButton>
+              
+              <ModernButton 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  console.log('Learn More clicked - will navigate to features page once implemented');
+                  // TODO: Navigate to landing page when implemented
+                }}
+                className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+              >
+                <Info className="w-4 h-4" />
+                <span>Learn More</span>
               </ModernButton>
               
               {/* Dark Mode Toggle */}
