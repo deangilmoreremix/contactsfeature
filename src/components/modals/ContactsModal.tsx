@@ -8,6 +8,7 @@ import { useContactStore } from '../../store/contactStore';
 import { useSmartAI } from '../../hooks/useSmartAI';
 import { Contact } from '../../types/contact';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
+import { DarkModeToggle } from '../ui/DarkModeToggle';
 import Fuse from 'fuse.js';
 import { 
   X, 
@@ -565,6 +566,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <Plus className="w-4 h-4" />
                 <span>New Contact</span>
               </ModernButton>
+              
+              {/* Dark Mode Toggle */}
+              <DarkModeToggle size="sm" />
               
               <button
                 onClick={onClose}
