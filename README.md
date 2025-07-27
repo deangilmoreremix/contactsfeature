@@ -116,11 +116,25 @@ If your Edge Functions are failing with "Failed to deploy" or "Supabase project 
 
 ### AI Features Not Working
 
-If you see "API enrichment unavailable. Using estimated data":
+If you see errors like "Failed to fetch" or "AI provider not configured":
 
-1. Ensure you have set valid API keys for either OpenAI or Gemini
-2. Make sure these API keys are configured in your Supabase project secrets
-3. Check the Edge Function logs in your Supabase dashboard for specific errors
+1. **Get Valid API Keys**: 
+   - OpenAI: https://platform.openai.com/api-keys (requires billing setup)
+   - Gemini: https://aistudio.google.com/app/apikey (free tier available)
+
+2. **Set Supabase Secrets**:
+   ```bash
+   npx supabase secrets set OPENAI_API_KEY=sk-your-actual-key
+   # OR
+   npx supabase secrets set GEMINI_API_KEY=your-actual-key
+   ```
+
+3. **Redeploy Edge Functions** (CRITICAL STEP):
+   ```bash
+   npx supabase functions deploy ai-enrichment --project-ref YOUR_PROJECT_REF
+   ```
+
+4. Check the Edge Function logs in your Supabase dashboard for specific errors
 
 ## Development
 

@@ -66,12 +66,24 @@ Deno.serve(async (req) => {
   const hasGemini = !!geminiApiKey;
   const hasAiProvider = hasOpenAI || hasGemini;
 
-  // Log environment variables for debugging (without revealing full keys)
-  console.log('Function environment variables:');
-  console.log('- SUPABASE_URL:', supabaseUrl ? 'present' : 'missing');
-  console.log('- SUPABASE_ANON_KEY:', supabaseKey ? 'present (length: ' + supabaseKey.length + ')' : 'missing');
-  console.log('- OPENAI_API_KEY:', openaiApiKey ? `present (starts with: ${openaiApiKey.substring(0, 3)}...)` : 'missing');
-  console.log('- GEMINI_API_KEY:', geminiApiKey ? `present (starts with: ${geminiApiKey.substring(0, 3)}...)` : 'missing');
+  // If no AI providers are configured, return proper error
+  if (!hasAiProvider) {
+    console.error('No AI provider API keys configured');
+    return new Response(
+      JSON.stringify({ 
+        error: 'AI provider not configured',
+        details: 'No valid API keys found for OpenAI or Gemini. Please set OPENAI_API_KEY or GEMINI_API_KEY as Supabase secrets and redeploy the function.',
+        setup_instructions: {
+          step1: 'Set API key: npx supabase secrets set OPENAI_API_KEY=sk-your-key',
+          step2: 'Redeploy function: npx supabase functions deploy ai-enrichment --project-ref YOUR_PROJECT_REF'
+        }
+      }),
+      {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
 
   try {
     if (req.method === 'POST') {
@@ -86,18 +98,6 @@ Deno.serve(async (req) => {
           }),
           {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-      
-      // If no AI providers are configured, return mock data
-      if (!hasAiProvider) {
-        console.warn('No AI providers configured, using mock data');
-        const mockData = generateMockEnrichment(enrichmentRequest);
-        return new Response(
-          JSON.stringify(mockData),
-          {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           }
         );
@@ -289,117 +289,127 @@ async function enrichContactByEmail(
 }
 
 async function enrichContactByEmailWithOpenAI(email: string, apiKey: string): Promise<ContactEnrichmentData> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a contact enrichment assistant that can infer information about a person from their email address.
-          Extract and infer as much information as possible about the user, but do NOT make up specific details that aren't reasonably inferable.
-          When you're uncertain, indicate lower confidence rather than inventing details.
-          Analyze email format, domain, and any patterns to infer role, company, industry, and contact details.`
-        },
-        {
-          role: 'user',
-          content: `Enrich this email address with contact information: ${email}
-          
-          Return a JSON object with these fields:
-          - firstName: first name if identifiable from email
-          - lastName: last name if identifiable from email 
-          - email: the provided email
-          - company: company name based on email domain
-          - title: likely job title based on the domain and naming patterns
-          - industry: likely industry based on the company domain
-          - socialProfiles: likely social profile URLs including linkedin and website
-          - confidence: number from 1-100 indicating confidence level in these inferences
-          - notes: any notes about the enrichment process
-          
-          ONLY return the JSON object, nothing else.`
-        }
-      ],
-      temperature: 0.2,
-      response_format: { type: "json_object" }
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
-  }
-
-  const result = await response.json();
-  const content = result.choices[0]?.message?.content;
-  
-  if (!content) {
-    throw new Error('Empty response from OpenAI API');
-  }
-  
   try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a contact enrichment assistant that can infer information about a person from their email address.
+            Extract and infer as much information as possible about the user, but do NOT make up specific details that aren't reasonably inferable.
+            When you're uncertain, indicate lower confidence rather than inventing details.
+            Analyze email format, domain, and any patterns to infer role, company, industry, and contact details.`
+          },
+          {
+            role: 'user',
+            content: `Enrich this email address with contact information: ${email}
+            
+            Return a JSON object with these fields:
+            - firstName: first name if identifiable from email
+            - lastName: last name if identifiable from email 
+            - email: the provided email
+            - company: company name based on email domain
+            - title: likely job title based on the domain and naming patterns
+            - industry: likely industry based on the company domain
+            - socialProfiles: likely social profile URLs including linkedin and website
+            - confidence: number from 1-100 indicating confidence level in these inferences
+            - notes: any notes about the enrichment process
+            
+            ONLY return the JSON object, nothing else.`
+          }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+    }
+
+    const result = await response.json();
+    const content = result.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('Empty response from OpenAI API');
+    }
+    
     return JSON.parse(content);
+  } catch (networkError) {
+    if (networkError.name === 'TypeError' && networkError.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to OpenAI API. Check your internet connection and API key validity.');
+    }
+    throw networkError;
   } catch (error) {
     throw new Error(`Failed to parse OpenAI response: ${error.message}`);
   }
 }
 
 async function enrichContactByEmailWithGemini(email: string, apiKey: string): Promise<ContactEnrichmentData> {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{
-          text: `Analyze this email address and infer as much contact information as possible: ${email}
-          
-          Return a JSON object with these fields:
-          - firstName: first name if identifiable from email
-          - lastName: last name if identifiable from email 
-          - email: the provided email
-          - company: company name based on email domain
-          - title: likely job title based on the domain and naming patterns
-          - industry: likely industry based on the company domain
-          - socialProfiles: likely social profile URLs including linkedin and website
-          - confidence: number from 1-100 indicating confidence level in these inferences
-          - notes: any notes about the enrichment process
-          
-          ONLY return the JSON object, nothing else.`
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.2,
-        topK: 32,
-        topP: 0.8,
-        maxOutputTokens: 1024
-      }
-    })
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
-  }
-
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  
-  if (!content) {
-    throw new Error('Empty response from Gemini API');
-  }
-  
   try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Analyze this email address and infer as much contact information as possible: ${email}
+            
+            Return a JSON object with these fields:
+            - firstName: first name if identifiable from email
+            - lastName: last name if identifiable from email 
+            - email: the provided email
+            - company: company name based on email domain
+            - title: likely job title based on the domain and naming patterns
+            - industry: likely industry based on the company domain
+            - socialProfiles: likely social profile URLs including linkedin and website
+            - confidence: number from 1-100 indicating confidence level in these inferences
+            - notes: any notes about the enrichment process
+            
+            ONLY return the JSON object, nothing else.`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          topK: 32,
+          topP: 0.8,
+          maxOutputTokens: 1024
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!content) {
+      throw new Error('Empty response from Gemini API');
+    }
+    
     // Extract JSON from text (Gemini might return markdown code blocks)
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response');
     }
     return JSON.parse(jsonMatch[0]);
+  } catch (networkError) {
+    if (networkError.name === 'TypeError' && networkError.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to Gemini API. Check your internet connection and API key validity.');
+    }
+    throw networkError;
   } catch (error) {
     throw new Error(`Failed to parse Gemini response: ${error.message}`);
   }
