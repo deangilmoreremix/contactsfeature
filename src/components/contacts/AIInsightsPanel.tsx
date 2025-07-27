@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useContactAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
@@ -20,18 +21,6 @@ import {
   Eye,
   CheckCircle
 } from 'lucide-react';
-
-interface AIInsight {
-  id: string;
-  type: 'prediction' | 'recommendation' | 'risk' | 'opportunity';
-  title: string;
-  description: string;
-  confidence: number;
-  impact: 'high' | 'medium' | 'low';
-  category: string;
-  actionable: boolean;
-  suggestedActions?: string[];
-}
 
 interface AIInsightsPanelProps {
   contact: Contact;
@@ -132,25 +121,38 @@ const generateInsights = (contact: Contact): AIInsight[] => [
 ];
 
 export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => {
-  const [insights, setInsights] = useState<AIInsight[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'positive' | 'negative'>>({});
+  
+  // Connect to AI services
+  const { 
+    generateInsights, 
+    scoreContact, 
+    contactScore, 
+    contactInsights, 
+    isContactProcessing 
+  } = useContactAI(contact.id);
 
+  // Load insights when component mounts
   useEffect(() => {
-    setInsights(generateInsights(contact));
-  }, [contact]);
+    if (!contactInsights || contactInsights.length === 0) {
+      handleGenerateInsights();
+    }
+  }, [contact.id]);
 
-  const handleRegenerateInsights = async () => {
-    setIsGenerating(true);
+  const handleGenerateInsights = async () => {
     try {
-      // Simulate AI processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setInsights(generateInsights(contact));
+      await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction']);
     } catch (error) {
       console.error('Failed to generate insights:', error);
-    } finally {
-      setIsGenerating(false);
+    }
+  };
+
+  const handleRefreshScore = async () => {
+    try {
+      await scoreContact(contact);
+    } catch (error) {
+      console.error('Failed to refresh score:', error);
     }
   };
 
@@ -158,12 +160,18 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
     setFeedbackGiven(prev => ({ ...prev, [insightId]: feedback }));
   };
 
+  // Use real insights from AI Context
+  const insights = contactInsights || [];
+  const score = contactScore || { overall: contact.aiScore || 0 };
+  
   const categories = ['all', ...Array.from(new Set(insights.map(insight => insight.category)))];
   const filteredInsights = selectedCategory === 'all' 
     ? insights 
     : insights.filter(insight => insight.category === selectedCategory);
 
-  const avgConfidence = Math.round(insights.reduce((sum, insight) => sum + insight.confidence, 0) / insights.length);
+  const avgConfidence = insights.length > 0 
+    ? Math.round(insights.reduce((sum, insight) => sum + insight.confidence, 0) / insights.length)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -191,13 +199,13 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           <ModernButton
             variant="outline"
             size="sm"
-            onClick={handleRegenerateInsights}
-            loading={isGenerating}
+          onClick={handleGenerateInsights}
+          loading={isContactProcessing}
             className="flex items-center space-x-2"
           >
             <RefreshCw className="w-4 h-4" />
             <span>{isGenerating ? 'Analyzing...' : 'Refresh Insights'}</span>
-          </ModernButton>
+          <span>{isContactProcessing ? 'Analyzing...' : 'Refresh Insights'}</span>
         </div>
       </div>
 
@@ -207,6 +215,18 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-100 rounded-lg">
               <Brain className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{score.overall || contact.aiScore || 0}</p>
+              <p className="text-sm text-gray-600">AI Score</p>
+            </div>
+          </div>
+        </GlassCard>
+        
+        <GlassCard className="p-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{avgConfidence}%</p>
@@ -229,7 +249,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           </div>
         </GlassCard>
         
-        <GlassCard className="p-4">
+        <GlassCard className="p-4" onClick={handleRefreshScore}>
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-red-100 rounded-lg">
               <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -242,30 +262,33 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
             </div>
           </div>
         </GlassCard>
-        
-        <GlassCard className="p-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Lightbulb className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {insights.filter(i => i.actionable).length}
-              </p>
-              <p className="text-sm text-gray-600">Actionable</p>
-            </div>
-          </div>
-        </GlassCard>
       </div>
 
       {/* Insights List */}
       <div className="space-y-4">
-        {isGenerating ? (
+        {isContactProcessing ? (
           <GlassCard className="p-8">
             <div className="flex items-center justify-center">
               <div className="text-center">
                 <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                 <p className="text-gray-600">AI is analyzing contact data and generating insights...</p>
+              </div>
+            </div>
+          </GlassCard>
+        ) : insights.length === 0 ? (
+          <GlassCard className="p-8">
+            <div className="flex items-center justify-center">
+              <div className="text-center">
+                <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">No AI insights available yet</p>
+                <ModernButton
+                  variant="primary"
+                  onClick={handleGenerateInsights}
+                  className="flex items-center space-x-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Generate AI Insights</span>
+                </ModernButton>
               </div>
             </div>
           </GlassCard>

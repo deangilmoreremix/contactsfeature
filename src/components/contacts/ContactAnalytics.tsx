@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useContactAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
@@ -64,6 +65,19 @@ const dealProgressData = [
 export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) => {
   const [timeRange, setTimeRange] = useState('6m');
   const [selectedMetric, setSelectedMetric] = useState('engagement');
+  
+  // Connect to AI services for predictive analytics
+  const { generateInsights, contactInsights, isContactProcessing } = useContactAI(contact.id);
+  
+  const handleGeneratePredictions = async () => {
+    try {
+      await generateInsights(contact, ['prediction', 'opportunity'], {
+        timeframe: timeRange
+      });
+    } catch (error) {
+      console.error('Failed to generate predictions:', error);
+    }
+  };
 
   const timeRanges = [
     { value: '1m', label: 'Last Month' },
@@ -105,8 +119,46 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
             <RefreshCw className="w-4 h-4" />
             <span>Refresh</span>
           </ModernButton>
+          <ModernButton 
+            variant="primary" 
+            size="sm" 
+            className="flex items-center space-x-2"
+            onClick={handleGeneratePredictions}
+            loading={isContactProcessing}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>AI Predictions</span>
+          </ModernButton>
         </div>
       </div>
+
+      {/* AI Predictions Panel */}
+      {contactInsights && contactInsights.length > 0 && (
+        <GlassCard className="p-6 mb-6 bg-gradient-to-r from-purple-50 to-blue-50">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Brain className="w-5 h-5 mr-2 text-purple-600" />
+            AI Predictions & Insights
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {contactInsights.slice(0, 4).map((insight, index) => (
+              <div key={index} className="p-4 bg-white rounded-lg border border-purple-200">
+                <h5 className="font-medium text-gray-900 mb-2">{insight.title}</h5>
+                <p className="text-sm text-gray-600 mb-2">{insight.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                    insight.impact === 'high' ? 'bg-red-100 text-red-800' :
+                    insight.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {insight.impact.toUpperCase()} IMPACT
+                  </span>
+                  <span className="text-xs text-gray-500">{insight.confidence}% confidence</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

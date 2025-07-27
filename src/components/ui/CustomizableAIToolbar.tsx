@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useContactAI, useCommunicationAI } from '../../contexts/AIContext';
 import { 
   BarChart3, 
   Mail, 
@@ -24,7 +25,9 @@ import {
   Plus,
   Brain,
   Target,
-  Phone
+  Phone,
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 
 interface QuickAIButtonProps {
@@ -109,32 +112,103 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
   className = '',
   onClick
 }) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
+  
+  // Connect to AI services based on entity type
+  const contactAI = entityType === 'contact' ? useContactAI(entityId) : null;
+  const communicationAI = useCommunicationAI();
+
   const handleClick = () => {
     if (onClick) {
       onClick();
     } else {
-      // Handle AI tool execution
-      console.log(`Executing ${toolName} for ${entityType} ${entityId}`, entityData);
+      executeAITool();
+    }
+  };
+
+  const executeAITool = async () => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      let result;
+      
+      switch (toolName) {
+        case 'leadScoring':
+          if (contactAI) {
+            result = await contactAI.scoreContact(entityData);
+            setLastResult({ type: 'score', value: result.overall });
+          }
+          break;
+          
+        case 'emailPersonalization':
+          result = await communicationAI.generateEmail(entityData, 'introduction');
+          setLastResult({ type: 'email', value: 'Generated' });
+          break;
+          
+        case 'contactEnrichment':
+          if (contactAI) {
+            result = await contactAI.enrichContact(entityData);
+            setLastResult({ type: 'enrichment', value: 'Enhanced' });
+          }
+          break;
+          
+        case 'businessIntelligence':
+          if (contactAI) {
+            result = await contactAI.generateInsights(entityData, ['opportunity', 'prediction']);
+            setLastResult({ type: 'insights', value: result.length });
+          }
+          break;
+          
+        default:
+          console.log(`Executing ${toolName} for ${entityType} ${entityId}`);
+      }
+      
+      // Clear result after 3 seconds
+      setTimeout(() => setLastResult(null), 3000);
+      
+    } catch (error) {
+      console.error(`AI tool execution failed for ${toolName}:`, error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const sizeClasses = size === 'sm' ? 'p-2 text-xs' : 'p-3 text-sm';
-  const variantClasses = variant === 'primary' 
-    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700' 
-    : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900 hover:from-gray-100 hover:to-gray-200';
+  
+  let variantClasses;
+  if (lastResult) {
+    variantClasses = 'bg-gradient-to-r from-green-50 to-green-100 text-green-700 border-green-200';
+  } else if (isProcessing) {
+    variantClasses = 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200';
+  } else if (variant === 'primary') {
+    variantClasses = 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700';
+  } else {
+    variantClasses = 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900 hover:from-gray-100 hover:to-gray-200';
+  }
 
   return (
     <button
       onClick={handleClick}
+      disabled={isProcessing}
       className={`
         ${sizeClasses} ${variantClasses} ${className}
         flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 
-        border shadow-sm hover:shadow-md hover:scale-105 min-h-[3rem]
+        border shadow-sm hover:shadow-md hover:scale-105 min-h-[3rem] disabled:opacity-50 disabled:cursor-not-allowed
         ${variant === 'primary' ? 'border-blue-300/50' : 'border-gray-200/50'}
       `}
     >
-      <IconComponent size={size === 'sm' ? 12 : 16} className="mb-1" />
-      <span className="leading-tight text-center">{label}</span>
+      {isProcessing ? (
+        <Loader2 size={size === 'sm' ? 12 : 16} className="mb-1 animate-spin" />
+      ) : lastResult ? (
+        <CheckCircle size={size === 'sm' ? 12 : 16} className="mb-1" />
+      ) : (
+        <IconComponent size={size === 'sm' ? 12 : 16} className="mb-1" />
+      )}
+      <span className="leading-tight text-center">
+        {isProcessing ? 'Processing...' : lastResult ? 'Done!' : label}
+      </span>
     </button>
   );
 };

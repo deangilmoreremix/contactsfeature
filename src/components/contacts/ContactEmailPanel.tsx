@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useCommunicationAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
@@ -16,7 +17,9 @@ import {
   Send,
   Copy,
   Save,
-  Trash2
+  Trash2,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 
 interface ContactEmailPanelProps {
@@ -30,6 +33,9 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [isDrafting, setIsDrafting] = useState(false);
+  
+  // Connect to Communication AI
+  const { generateEmail, analyzeEmail, isProcessing } = useCommunicationAI();
 
   const handleSelectTemplate = (subject: string, body: string) => {
     setEmailSubject(subject);
@@ -44,6 +50,23 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
     setIsDrafting(true);
   };
 
+  const handleQuickGenerate = async (purpose: 'introduction' | 'follow-up' | 'proposal') => {
+    try {
+      const emailData = await generateEmail(contact, purpose, {
+        tone: 'professional',
+        urgency: 'medium'
+      });
+      
+      if (emailData) {
+        setEmailSubject(emailData.subject);
+        setEmailBody(emailData.body);
+        setIsDrafting(true);
+        setActiveTab('compose');
+      }
+    } catch (error) {
+      console.error('Quick email generation failed:', error);
+    }
+  };
   const handleSendEmail = () => {
     // In a real implementation, this would send the email via API
     console.log('Sending email:', { subject: emailSubject, body: emailBody });
@@ -80,6 +103,30 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
           <p className="text-gray-600">Advanced AI-powered email tools for {contact.name}</p>
         </div>
         
+        {/* Quick AI Actions */}
+        <div className="flex items-center space-x-2">
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={() => handleQuickGenerate('introduction')}
+            loading={isProcessing}
+            className="flex items-center space-x-1 bg-blue-50 text-blue-700"
+          >
+            <Brain className="w-4 h-4" />
+            <span>AI Intro</span>
+          </ModernButton>
+          
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={() => handleQuickGenerate('follow-up')}
+            loading={isProcessing}
+            className="flex items-center space-x-1 bg-green-50 text-green-700"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>AI Follow-up</span>
+          </ModernButton>
+
         {isDrafting && (
           <div className="flex items-center space-x-3">
             <ModernButton
@@ -117,6 +164,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
             </ModernButton>
           </div>
         )}
+        </div>
       </div>
       
       {/* Tabs */}

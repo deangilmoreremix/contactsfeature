@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useCommunicationAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
@@ -117,6 +118,9 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
   const [isComposing, setIsComposing] = useState(false);
   const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
   const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
+  
+  // Connect to Communication AI
+  const { generateEmail, analyzeEmail, getCommunicationStrategy, isProcessing } = useCommunicationAI();
 
   const tabs = [
     { id: 'timeline', label: 'Timeline', icon: Clock },
@@ -133,6 +137,33 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
     { value: 'video', label: 'Video Calls' },
     { value: 'social', label: 'Social Media' }
   ];
+  const handleQuickCompose = async (type: 'email' | 'call' | 'sms') => {
+    try {
+      if (type === 'email') {
+        const emailData = await generateEmail(contact, 'follow-up', {
+          tone: 'professional',
+          urgency: 'medium'
+        });
+        setIsComposing(true);
+        console.log('Generated email:', emailData);
+      } else {
+        // For non-email types, we'll implement later
+        console.log(`${type} composition coming soon...`);
+      }
+    } catch (error) {
+      console.error(`Failed to generate ${type}:`, error);
+    }
+  };
+
+  const handleGetCommunicationStrategy = async () => {
+    try {
+      const strategy = await getCommunicationStrategy(contact);
+      console.log('Communication strategy:', strategy);
+      // You could show this in a modal or dedicated section
+    } catch (error) {
+      console.error('Failed to get communication strategy:', error);
+    }
+  };
 
   const filteredCommunications = selectedType === 'all' 
     ? communications 
@@ -263,17 +294,30 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
           <GlassCard className="p-6">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h4>
             <div className="space-y-3">
-              <ModernButton variant="primary" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton 
+                variant="primary" 
+                className="w-full flex items-center justify-center space-x-2"
+                onClick={() => handleQuickCompose('email')}
+                loading={isProcessing}
+              >
                 <Mail className="w-4 h-4" />
-                <span>Send Email</span>
+                <span>AI Email</span>
               </ModernButton>
-              <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton 
+                variant="outline" 
+                className="w-full flex items-center justify-center space-x-2"
+                onClick={() => handleQuickCompose('call')}
+              >
                 <Phone className="w-4 h-4" />
                 <span>Start Call</span>
               </ModernButton>
-              <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton 
+                variant="outline" 
+                className="w-full flex items-center justify-center space-x-2"
+                onClick={() => handleQuickCompose('sms')}
+              >
                 <MessageSquare className="w-4 h-4" />
-                <span>Send SMS</span>
+                <span>AI SMS</span>
               </ModernButton>
               <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
                 <Video className="w-4 h-4" />
@@ -290,7 +334,10 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
           <GlassCard className="p-6">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">AI Writing Assistant</h4>
             <div className="space-y-3">
-              <button className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+              <button 
+                className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                onClick={() => handleQuickCompose('email')}
+              >
                 <p className="font-medium text-blue-900 text-sm">Follow-up Email</p>
                 <p className="text-blue-700 text-xs">AI-generated follow-up based on last interaction</p>
               </button>
@@ -301,6 +348,13 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
               <button className="w-full text-left p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
                 <p className="font-medium text-purple-900 text-sm">Proposal Email</p>
                 <p className="text-purple-700 text-xs">Personalized proposal based on contact profile</p>
+              </button>
+              <button 
+                className="w-full text-left p-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
+                onClick={handleGetCommunicationStrategy}
+              >
+                <p className="font-medium text-orange-900 text-sm">AI Strategy</p>
+                <p className="text-orange-700 text-xs">Get optimal communication strategy for this contact</p>
               </button>
             </div>
           </GlassCard>
@@ -324,6 +378,18 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-700">Avg Response Time</span>
                 <span className="text-sm font-medium text-gray-900">4.2 hours</span>
+              </div>
+              <div className="pt-3 border-t border-gray-200">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGetCommunicationStrategy}
+                  className="w-full"
+                  loading={isProcessing}
+                >
+                  <Brain className="w-4 h-4 mr-2" />
+                  Get AI Strategy
+                </ModernButton>
               </div>
             </div>
           </GlassCard>

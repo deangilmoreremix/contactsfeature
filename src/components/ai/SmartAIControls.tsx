@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSmartAI, useTaskOptimization } from '../../hooks/useSmartAI';
+import { useAI, useContactAI } from '../../contexts/AIContext';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
 import { Contact } from '../../types/contact';
@@ -31,19 +31,16 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   contacts = [],
   onAnalysisComplete
 }) => {
-  const {
-    smartScoreContact,
-    smartEnrichContact,
-    smartCategorizeAndTag,
-    smartQualifyLead,
-    smartBulkAnalysis,
-    analyzing,
-    enriching,
-    results,
-    errors
-  } = useSmartAI();
-
-  const { getRecommendations, getInsights, performance } = useTaskOptimization();
+  // Connect to new AI services
+  const { 
+    scoreBulkContacts, 
+    generateBulkInsights, 
+    isProcessing, 
+    providerStatus, 
+    performanceMetrics 
+  } = useAI();
+  
+  const contactAI = contact ? useContactAI(contact.id) : null;
 
   const [selectedOperation, setSelectedOperation] = useState<string>('score');
   const [urgency, setUrgency] = useState<'low' | 'medium' | 'high'>('medium');
@@ -61,16 +58,16 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
       
       switch (selectedOperation) {
         case 'score':
-          result = await smartScoreContact(contact.id, contact, urgency);
+          result = await contactAI.scoreContact(contact);
           break;
         case 'enrich':
-          result = await smartEnrichContact(contact.id, contact, urgency === 'high' ? 'premium' : 'standard');
+          result = await contactAI.enrichContact(contact);
           break;
         case 'categorize':
-          result = await smartCategorizeAndTag(contact.id, contact);
+          result = await contactAI.generateInsights(contact, ['recommendation']);
           break;
         case 'qualify':
-          result = await smartQualifyLead(contact.id, contact);
+          result = await contactAI.generateInsights(contact, ['opportunity']);
           break;
       }
       
@@ -86,13 +83,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
     if (contacts.length === 0) return;
 
     try {
-      const contactData = contacts.map(c => ({ contactId: c.id, contact: c }));
-      
-      const result = await smartBulkAnalysis(contactData, bulkSettings.analysisType, {
-        urgency,
-        costLimit: bulkSettings.costLimit,
-        timeLimit: bulkSettings.timeLimit
-      });
+      const result = await scoreBulkContacts(contacts);
       
       if (onAnalysisComplete) {
         onAnalysisComplete(result);
@@ -102,10 +93,6 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
     }
   };
 
-  const getRecommendationsForTask = (taskType: string) => {
-    const recommendations = getRecommendations(taskType);
-    return recommendations;
-  };
 
   const operations = [
     {
@@ -149,7 +136,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   return (
     <div className="space-y-6">
       {/* AI Model Performance Overview */}
-      {performance && (
+      {performanceMetrics && (
         <GlassCard className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
@@ -158,24 +145,24 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{performance.totalTasks}</div>
+              <div className="text-2xl font-bold text-gray-900">{performanceMetrics.totalRequests || 0}</div>
               <div className="text-sm text-gray-600">Total Tasks</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {Math.round(performance.overallSuccessRate * 100)}%
+                {Math.round((performanceMetrics.successRate || 0) * 100)}%
               </div>
               <div className="text-sm text-gray-600">Success Rate</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {Math.round(performance.avgResponseTime)}ms
+                {Math.round(performanceMetrics.avgResponseTime || 0)}ms
               </div>
               <div className="text-sm text-gray-600">Avg Response</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {performance.modelPerformance.length}
+                {providerStatus.length}
               </div>
               <div className="text-sm text-gray-600">Active Models</div>
             </div>
@@ -195,7 +182,6 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {operations.map((op) => {
               const Icon = op.icon;
-              const recommendations = getRecommendationsForTask(op.id.replace('score', 'contact_scoring'));
               
               return (
                 <div
@@ -227,12 +213,6 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
                       <span>{op.bestModel}</span>
                     </div>
                   </div>
-                  
-                  {recommendations && (
-                    <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                      <strong>Recommended:</strong> {recommendations.recommendedProvider}/{recommendations.recommendedModel}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -268,52 +248,47 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
           {/* Execute Button */}
           <ModernButton
             onClick={handleSingleAnalysis}
-            loading={analyzing || enriching}
+            loading={isProcessing || (contactAI?.isContactProcessing)}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600"
           >
             <Zap className="w-4 h-4" />
             <span>
-              {analyzing || enriching 
+              {isProcessing || (contactAI?.isContactProcessing)
                 ? 'Analyzing with optimal model...' 
                 : `Run ${operations.find(op => op.id === selectedOperation)?.name}`}
             </span>
           </ModernButton>
 
           {/* Results Display */}
-          {Object.keys(results).length > 0 && (
+          {contactAI?.contactScore && (
             <div className="mt-6 p-4 bg-green-50 rounded-lg">
               <h4 className="font-semibold text-green-900 mb-2 flex items-center">
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Analysis Complete
               </h4>
               <div className="space-y-2">
-                {Object.entries(results).map(([key, result]: [string, any]) => (
-                  <div key={key} className="text-sm">
-                    <span className="font-medium text-green-800">{key}:</span>
-                    <span className="text-green-700 ml-2">
-                      {result.modelUsed && `Used ${result.modelUsed}`}
-                      {result.results && Object.keys(result.results).length > 0 && ` - ${Object.keys(result.results).length} tasks completed`}
-                    </span>
+                <div className="text-sm">
+                  <span className="font-medium text-green-800">Score:</span>
+                  <span className="text-green-700 ml-2">{contactAI.contactScore.overall}/100</span>
+                </div>
+                {contactAI.contactInsights && (
+                  <div className="text-sm">
+                    <span className="font-medium text-green-800">Insights:</span>
+                    <span className="text-green-700 ml-2">{contactAI.contactInsights.length} generated</span>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}
 
           {/* Errors Display */}
-          {Object.keys(errors).length > 0 && (
+          {contactAI?.contactError && (
             <div className="mt-6 p-4 bg-red-50 rounded-lg">
               <h4 className="font-semibold text-red-900 mb-2 flex items-center">
                 <AlertCircle className="w-4 h-4 mr-2" />
                 Analysis Errors
               </h4>
-              <div className="space-y-1">
-                {Object.entries(errors).map(([key, error]) => (
-                  <div key={key} className="text-sm text-red-700">
-                    <span className="font-medium">{key}:</span> {error}
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-red-700">{contactAI.contactError}</p>
             </div>
           )}
         </GlassCard>
@@ -382,12 +357,12 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
 
           <ModernButton
             onClick={handleBulkAnalysis}
-            loading={analyzing}
+            loading={isProcessing}
             className="w-full mt-6 flex items-center justify-center space-x-2 bg-gradient-to-r from-green-600 to-blue-600"
           >
             <Layers className="w-4 h-4" />
             <span>
-              {analyzing 
+              {isProcessing 
                 ? `Processing ${contacts.length} contacts...` 
                 : `Analyze ${contacts.length} Contacts`}
             </span>
@@ -396,7 +371,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
       )}
 
       {/* Model Performance Stats */}
-      {performance?.modelPerformance && performance.modelPerformance.length > 0 && (
+      {providerStatus && providerStatus.length > 0 && (
         <GlassCard className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
@@ -404,19 +379,18 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
           </h3>
           
           <div className="space-y-3">
-            {performance.modelPerformance.slice(0, 5).map((model: any, index: number) => (
+            {providerStatus.slice(0, 5).map((provider: any, index: number) => (
               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
-                  <div className="font-medium text-gray-900">{model.model}</div>
+                  <div className="font-medium text-gray-900">{provider.name}</div>
                   <div className="text-sm text-gray-600">
-                    {Math.round(model.successRate * 100)}% success • {Math.round(model.avgTime)}ms avg
+                    Status: {provider.available ? 'Available' : 'Unavailable'}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium text-gray-900">
-                    ${model.avgCost.toFixed(4)}
+                  <div className={`text-sm font-medium ${provider.available ? 'text-green-600' : 'text-red-600'}`}>
+                    {provider.available ? 'Ready' : 'Offline'}
                   </div>
-                  <div className="text-xs text-gray-500">avg cost</div>
                 </div>
               </div>
             ))}

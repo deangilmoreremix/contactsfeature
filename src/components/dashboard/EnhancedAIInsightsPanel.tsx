@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartAIControls } from '../ai/SmartAIControls';
-import { useSmartAI, useTaskOptimization } from '../../hooks/useSmartAI';
 import { 
   Brain, 
   TrendingUp, 
@@ -27,7 +27,15 @@ import {
 export const EnhancedAIInsightsPanel: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedView, setSelectedView] = useState<'insights' | 'controls' | 'performance'>('insights');
-  const { getRecommendations, getInsights, performance } = useTaskOptimization();
+  
+  // Connect to AI services
+  const { 
+    providerStatus, 
+    performanceMetrics, 
+    isProcessing, 
+    clearAllCache 
+  } = useAI();
+  
   const [taskRecommendations, setTaskRecommendations] = useState<Record<string, any>>({});
 
   const generateInsights = () => {
@@ -38,20 +46,6 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
     }, 3000);
   };
 
-  useEffect(() => {
-    // Load recommendations for common tasks
-    const tasks = ['contact_scoring', 'categorization', 'contact_enrichment', 'lead_qualification'];
-    const recommendations: Record<string, any> = {};
-    
-    tasks.forEach(task => {
-      const rec = getRecommendations(task);
-      if (rec) {
-        recommendations[task] = rec;
-      }
-    });
-    
-    setTaskRecommendations(recommendations);
-  }, [getRecommendations]);
 
   const insights = [
     {
@@ -152,16 +146,19 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
       <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 rounded-lg border border-blue-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-gray-700">Gemma Models</span>
-              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-md">Active</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-gray-700">OpenAI Models</span>
-              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-md">Active</span>
-            </div>
+            {providerStatus.map((provider, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full animate-pulse ${provider.available ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm font-medium text-gray-700">{provider.name}</span>
+                <span className={`text-xs px-2 py-1 rounded-md ${
+                  provider.available 
+                    ? 'text-green-600 bg-green-100' 
+                    : 'text-red-600 bg-red-100'
+                }`}>
+                  {provider.available ? 'Active' : 'Offline'}
+                </span>
+              </div>
+            ))}
             <div className="flex items-center space-x-2">
               <Zap className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-medium text-purple-700">Smart Routing</span>
@@ -227,33 +224,6 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
             </div>
           )}
 
-          {/* Task Recommendations */}
-          {Object.keys(taskRecommendations).length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Target className="w-5 h-5 mr-2 text-orange-500" />
-                Recommended Models by Task
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(taskRecommendations).map(([task, rec]: [string, any]) => (
-                  <div key={task} className="p-4 bg-gray-50 rounded-lg">
-                    <h5 className="font-medium text-gray-900 mb-2 capitalize">
-                      {task.replace('_', ' ')}
-                    </h5>
-                    <div className="text-sm text-gray-700">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <Star className="w-3 h-3 text-yellow-500" />
-                        <span className="font-medium">{rec.recommendedProvider}</span>
-                        <span className="text-gray-500">•</span>
-                        <span>{rec.recommendedModel}</span>
-                      </div>
-                      <p className="text-xs text-gray-600">{rec.reasoning}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -261,80 +231,80 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
         <SmartAIControls />
       )}
 
-      {selectedView === 'performance' && performance && (
+      {selectedView === 'performance' && performanceMetrics && (
         <div className="space-y-6">
           {/* Performance Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <Activity className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-blue-900">{performance.totalTasks}</div>
+              <div className="text-2xl font-bold text-blue-900">{performanceMetrics.totalRequests || 0}</div>
               <div className="text-sm text-blue-700">Total Tasks</div>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-2" />
               <div className="text-2xl font-bold text-green-900">
-                {Math.round(performance.overallSuccessRate * 100)}%
+                {Math.round((performanceMetrics.successRate || 0) * 100)}%
               </div>
               <div className="text-sm text-green-700">Success Rate</div>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <Clock className="w-6 h-6 text-purple-600 mx-auto mb-2" />
               <div className="text-2xl font-bold text-purple-900">
-                {Math.round(performance.avgResponseTime)}ms
+                {Math.round(performanceMetrics.avgResponseTime || 0)}ms
               </div>
               <div className="text-sm text-purple-700">Avg Response</div>
             </div>
             <div className="text-center p-4 bg-orange-50 rounded-lg">
               <Layers className="w-6 h-6 text-orange-600 mx-auto mb-2" />
               <div className="text-2xl font-bold text-orange-900">
-                {performance.modelPerformance.length}
+                {providerStatus.length}
               </div>
               <div className="text-sm text-orange-700">Active Models</div>
             </div>
           </div>
 
-          {/* Model Performance Details */}
+          {/* Provider Status Details */}
           <div>
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Model Performance Breakdown</h4>
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">Provider Status</h4>
             <div className="space-y-3">
-              {performance.modelPerformance.map((model: any, index: number) => (
+              {providerStatus.map((provider: any, index: number) => (
                 <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
                   <div className="flex items-center space-x-3">
                     <div className={`w-3 h-3 rounded-full ${
-                      model.model.includes('gemma') || model.model.includes('gemini') 
+                      provider.name.includes('gemini') 
                         ? 'bg-green-500' 
                         : 'bg-blue-500'
                     }`}></div>
                     <div>
-                      <div className="font-medium text-gray-900">{model.model}</div>
+                      <div className="font-medium text-gray-900">{provider.name}</div>
                       <div className="text-sm text-gray-600">
-                        {model.model.includes('gemma') || model.model.includes('gemini') ? 'Google' : 'OpenAI'}
+                        {provider.name.includes('gemini') ? 'Google' : 'OpenAI'}
                       </div>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-6 text-sm">
                     <div className="text-center">
-                      <div className="font-medium text-gray-900">
-                        {Math.round(model.successRate * 100)}%
+                      <div className={`font-medium ${provider.available ? 'text-green-600' : 'text-red-600'}`}>
+                        {provider.available ? 'Available' : 'Offline'}
                       </div>
-                      <div className="text-gray-500">Success</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium text-gray-900">
-                        {Math.round(model.avgTime)}ms
-                      </div>
-                      <div className="text-gray-500">Avg Time</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium text-gray-900">
-                        ${model.avgCost.toFixed(4)}
-                      </div>
-                      <div className="text-gray-500">Avg Cost</div>
+                      <div className="text-gray-500">Status</div>
                     </div>
                   </div>
                 </div>
               ))}
+            </div>
+            
+            <div className="mt-4 flex justify-end">
+              <ModernButton
+                variant="outline"
+                size="sm"
+                onClick={clearAllCache}
+                className="flex items-center space-x-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Clear AI Cache</span>
+              </ModernButton>
             </div>
           </div>
         </div>
