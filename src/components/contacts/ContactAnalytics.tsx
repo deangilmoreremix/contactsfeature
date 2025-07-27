@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useContactAI } from '../../contexts/AIContext';
+import { usePredictiveAnalytics } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
@@ -19,7 +20,11 @@ import {
   AlertTriangle,
   Filter,
   Download,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  Brain,
+  Layers,
+  CheckCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Area, AreaChart } from 'recharts';
 
@@ -65,15 +70,28 @@ const dealProgressData = [
 export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) => {
   const [timeRange, setTimeRange] = useState('6m');
   const [selectedMetric, setSelectedMetric] = useState('engagement');
+  const [showPredictive, setShowPredictive] = useState(false);
   
   // Connect to AI services for predictive analytics
   const { generateInsights, contactInsights, isContactProcessing } = useContactAI(contact.id);
   
+  // Connect to Advanced Predictive Analytics
+  const {
+    generatePredictions,
+    analyzeTrends,
+    assessRisk,
+    predictions,
+    trendAnalysis,
+    riskAssessment,
+    isPredicting
+  } = usePredictiveAnalytics(contact.id);
+  
   const handleGeneratePredictions = async () => {
     try {
-      await generateInsights(contact, ['prediction', 'opportunity'], {
-        timeframe: timeRange
-      });
+      await generatePredictions(contact, ['conversion', 'response_time', 'engagement']);
+      await analyzeTrends(contact, timeRange as any);
+      await assessRisk(contact);
+      setShowPredictive(true);
     } catch (error) {
       console.error('Failed to generate predictions:', error);
     }
@@ -124,40 +142,204 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
             size="sm" 
             className="flex items-center space-x-2"
             onClick={handleGeneratePredictions}
-            loading={isContactProcessing}
+            loading={isContactProcessing || isPredicting}
           >
-            <BarChart3 className="w-4 h-4" />
-            <span>AI Predictions</span>
+            <Brain className="w-4 h-4" />
+            <span>{isPredicting ? 'Analyzing...' : 'AI Predictions'}</span>
+            <Sparkles className="w-3 h-3 text-yellow-300" />
           </ModernButton>
         </div>
       </div>
 
-      {/* AI Predictions Panel */}
-      {contactInsights && contactInsights.length > 0 && (
-        <GlassCard className="p-6 mb-6 bg-gradient-to-r from-purple-50 to-blue-50">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Brain className="w-5 h-5 mr-2 text-purple-600" />
-            AI Predictions & Insights
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {contactInsights.slice(0, 4).map((insight, index) => (
-              <div key={index} className="p-4 bg-white rounded-lg border border-purple-200">
-                <h5 className="font-medium text-gray-900 mb-2">{insight.title}</h5>
-                <p className="text-sm text-gray-600 mb-2">{insight.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                    insight.impact === 'high' ? 'bg-red-100 text-red-800' :
-                    insight.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {insight.impact.toUpperCase()} IMPACT
-                  </span>
-                  <span className="text-xs text-gray-500">{insight.confidence}% confidence</span>
+      {/* Advanced Predictive Analytics Panel */}
+      {(showPredictive && (predictions.length > 0 || riskAssessment)) && (
+        <div className="space-y-6">
+          {/* Predictions Overview */}
+          {predictions.length > 0 && (
+            <GlassCard className="p-6 bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 border-blue-200">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Brain className="w-5 h-5 mr-2 text-purple-600" />
+                Predictive Intelligence
+                <Sparkles className="w-4 h-4 ml-2 text-yellow-500" />
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {predictions.map((prediction, index) => (
+                  <div key={index} className="p-4 bg-white rounded-lg border border-purple-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-gray-900 capitalize">
+                        {prediction.predictionType.replace('_', ' ')}
+                      </h5>
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                        {prediction.confidence}% confident
+                      </span>
+                    </div>
+                    <div className="mb-3">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {prediction.predictionType === 'conversion' ? `${prediction.value}%` :
+                         prediction.predictionType === 'response_time' ? `${prediction.value.toFixed(1)}h` :
+                         `${prediction.value}`}
+                      </div>
+                      <div className="text-sm text-gray-600">{prediction.timeframe}</div>
+                    </div>
+                    <div className="space-y-1">
+                      {prediction.reasoning.slice(0, 2).map((reason, idx) => (
+                        <div key={idx} className="text-xs text-gray-500 flex items-start">
+                          <span className="text-purple-500 mr-1">•</span>
+                          <span>{reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Risk Assessment */}
+          {riskAssessment && (
+            <GlassCard className="p-6 border-orange-200 bg-gradient-to-r from-orange-50 to-red-50">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
+                Risk Assessment
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white ${
+                      riskAssessment.overallRisk === 'low' ? 'bg-green-500' :
+                      riskAssessment.overallRisk === 'medium' ? 'bg-yellow-500' :
+                      riskAssessment.overallRisk === 'high' ? 'bg-orange-500' :
+                      'bg-red-500'
+                    }`}>
+                      {riskAssessment.riskScore}
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold capitalize">{riskAssessment.overallRisk} Risk</div>
+                      <div className="text-sm text-gray-600">Overall Risk Level</div>
+                    </div>
+                  </div>
+                  
+                  {riskAssessment.riskFactors.length > 0 && (
+                    <div>
+                      <h5 className="font-medium text-gray-900 mb-2">Risk Factors:</h5>
+                      <div className="space-y-2">
+                        {riskAssessment.riskFactors.map((factor, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded border-l-4 border-red-400">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-900">{factor.factor}</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                factor.impact === 'high' ? 'bg-red-100 text-red-800' :
+                                factor.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {factor.impact}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">{factor.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  {riskAssessment.opportunities.length > 0 && (
+                    <div>
+                      <h5 className="font-medium text-gray-900 mb-2 flex items-center">
+                        <Target className="w-4 h-4 mr-1 text-green-600" />
+                        Opportunities:
+                      </h5>
+                      <div className="space-y-2">
+                        {riskAssessment.opportunities.map((opp, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded border-l-4 border-green-400">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-900">{opp.opportunity}</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                opp.potential === 'high' ? 'bg-green-100 text-green-800' :
+                                opp.potential === 'medium' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {opp.potential}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">{opp.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {riskAssessment.recommendations.length > 0 && (
+                    <div className="mt-4">
+                      <h5 className="font-medium text-gray-900 mb-2">AI Recommendations:</h5>
+                      <ul className="space-y-1">
+                        {riskAssessment.recommendations.map((rec, idx) => (
+                          <li key={idx} className="text-sm text-gray-600 flex items-start">
+                            <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 mr-2 flex-shrink-0" />
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        </GlassCard>
+            </GlassCard>
+          )}
+
+          {/* Trend Analysis */}
+          {trendAnalysis && (
+            <GlassCard className="p-6">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+                Trend Analysis & Forecast
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {trendAnalysis.trends.map((trend, idx) => (
+                  <div key={idx} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="font-medium text-gray-900 capitalize">{trend.metric.replace('_', ' ')}</h5>
+                      <div className={`flex items-center space-x-1 ${
+                        trend.direction === 'increasing' ? 'text-green-600' :
+                        trend.direction === 'decreasing' ? 'text-red-600' :
+                        'text-gray-600'
+                      }`}>
+                        {trend.direction === 'increasing' ? <TrendingUp className="w-4 h-4" /> :
+                         trend.direction === 'decreasing' ? <TrendingUp className="w-4 h-4 transform rotate-180" /> :
+                         <Activity className="w-4 h-4" />}
+                        <span className="text-sm font-medium capitalize">{trend.direction}</span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2">
+                      Strength: {(trend.strength * 100).toFixed(1)}%
+                    </div>
+                    <div className={`text-xs px-2 py-1 rounded ${
+                      trend.significance === 'high' ? 'bg-red-100 text-red-800' :
+                      trend.significance === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {trend.significance.toUpperCase()} SIGNIFICANCE
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {trendAnalysis.seasonality.detected && (
+                <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Layers className="w-4 h-4 text-purple-600" />
+                    <span className="font-medium text-purple-900">Seasonality Detected</span>
+                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                      {trendAnalysis.seasonality.confidence}% confident
+                    </span>
+                  </div>
+                  <p className="text-sm text-purple-800">{trendAnalysis.seasonality.pattern}</p>
+                </div>
+              )}
+            </GlassCard>
+          )}
+        </div>
       )}
 
       {/* Key Metrics */}
@@ -172,7 +354,12 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
           <div>
             <p className="text-2xl font-bold text-gray-900">85%</p>
             <p className="text-sm text-gray-600">Engagement Score</p>
-            <p className="text-xs text-green-600 mt-1">+12% from last month</p>
+            <p className="text-xs text-green-600 mt-1">
+              {predictions.find(p => p.predictionType === 'engagement') ? 
+                `AI Predicted: ${predictions.find(p => p.predictionType === 'engagement')?.value}%` :
+                '+12% from last month'
+              }
+            </p>
           </div>
         </GlassCard>
         
@@ -186,7 +373,12 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
           <div>
             <p className="text-2xl font-bold text-gray-900">78%</p>
             <p className="text-sm text-gray-600">Response Rate</p>
-            <p className="text-xs text-green-600 mt-1">+5% from last month</p>
+            <p className="text-xs text-green-600 mt-1">
+              {predictions.find(p => p.predictionType === 'conversion') ? 
+                `AI Predicted: ${predictions.find(p => p.predictionType === 'conversion')?.value}%` :
+                '+5% from last month'
+              }
+            </p>
           </div>
         </GlassCard>
         
@@ -200,7 +392,12 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
           <div>
             <p className="text-2xl font-bold text-gray-900">3.2h</p>
             <p className="text-sm text-gray-600">Avg Response Time</p>
-            <p className="text-xs text-red-600 mt-1">+0.8h from last month</p>
+            <p className="text-xs text-red-600 mt-1">
+              {predictions.find(p => p.predictionType === 'response_time') ? 
+                `AI Predicted: ${predictions.find(p => p.predictionType === 'response_time')?.value.toFixed(1)}h` :
+                '+0.8h from last month'
+              }
+            </p>
           </div>
         </GlassCard>
         
@@ -214,7 +411,12 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
           <div>
             <p className="text-2xl font-bold text-gray-900">$85K</p>
             <p className="text-sm text-gray-600">Pipeline Value</p>
-            <p className="text-xs text-green-600 mt-1">+$15K from last month</p>
+            <p className="text-xs text-green-600 mt-1">
+              {riskAssessment ? 
+                `Risk Level: ${riskAssessment.overallRisk}` :
+                '+$15K from last month'
+              }
+            </p>
           </div>
         </GlassCard>
       </div>

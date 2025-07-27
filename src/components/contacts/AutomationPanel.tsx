@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAutomationEngine } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
@@ -22,7 +23,10 @@ import {
   Filter,
   ArrowRight,
   Bell,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  Brain,
+  Award
 } from 'lucide-react';
 
 interface AutomationRule {
@@ -144,9 +148,19 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  
+  // Connect to Advanced Automation Engine
+  const {
+    generateSuggestions,
+    optimizeRule,
+    suggestions,
+    rules,
+    isOptimizing
+  } = useAutomationEngine();
 
   const tabs = [
     { id: 'active', label: 'Active Rules', icon: Play },
+    { id: 'suggestions', label: 'AI Suggestions', icon: Brain },
     { id: 'templates', label: 'Templates', icon: Settings },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 }
   ];
@@ -157,6 +171,13 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     ));
   };
 
+  const handleGenerateSuggestions = async () => {
+    try {
+      await generateSuggestions([contact]); // Pass single contact for context
+    } catch (error) {
+      console.error('Failed to generate automation suggestions:', error);
+    }
+  };
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -184,6 +205,17 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
           <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
             <Filter className="w-4 h-4" />
             <span>Filter</span>
+            <ModernButton 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGenerateSuggestions}
+              loading={isOptimizing}
+              className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
+            >
+              <Brain className="w-4 h-4" />
+              <span>{isOptimizing ? 'Analyzing...' : 'AI Suggestions'}</span>
+              <Sparkles className="w-3 h-3 text-yellow-500" />
+            </ModernButton>
           </ModernButton>
           <ModernButton 
             variant="primary" 
@@ -227,14 +259,14 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         
         <GlassCard className="p-4">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <RefreshCw className="w-5 h-5 text-purple-600" />
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <Award className="w-5 h-5 text-orange-600" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {automations.reduce((sum, a) => sum + a.triggerCount, 0)}
+                {suggestions.length}
               </p>
-              <p className="text-sm text-gray-600">Total Triggers</p>
+              <p className="text-sm text-gray-600">AI Suggestions</p>
             </div>
           </div>
         </GlassCard>
@@ -357,6 +389,125 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         </div>
       )}
 
+      {activeTab === 'suggestions' && (
+        <div className="space-y-4">
+          {suggestions.length === 0 ? (
+            <GlassCard className="p-8">
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">No AI suggestions available</p>
+                  <ModernButton
+                    variant="primary"
+                    onClick={handleGenerateSuggestions}
+                    loading={isOptimizing}
+                    className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Generate AI Suggestions</span>
+                  </ModernButton>
+                </div>
+              </div>
+            </GlassCard>
+          ) : (
+            suggestions.map((suggestion) => (
+              <GlassCard key={suggestion.id} className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+                <div className="flex items-start space-x-4">
+                  <div className={`p-3 rounded-lg ${
+                    suggestion.type === 'new_rule' ? 'bg-green-500' :
+                    suggestion.type === 'optimize_existing' ? 'bg-blue-500' :
+                    suggestion.type === 'merge_rules' ? 'bg-purple-500' :
+                    'bg-orange-500'
+                  }`}>
+                    <Brain className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">{suggestion.title}</h4>
+                        <div className="flex items-center space-x-3 mt-1">
+                          <span className="text-sm text-gray-500 capitalize">{suggestion.type.replace('_', ' ')}</span>
+                          <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                            suggestion.priority === 'high' ? 'bg-red-100 text-red-800' :
+                            suggestion.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {suggestion.priority.toUpperCase()} PRIORITY
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-purple-600">{suggestion.confidence}%</div>
+                        <p className="text-xs text-gray-500">Confidence</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-gray-700 mb-4">{suggestion.description}</p>
+                    
+                    <div className="bg-white p-3 rounded-lg mb-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Expected Impact:</h5>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Efficiency:</span>
+                          <span className="font-medium text-green-600 ml-1">+{suggestion.estimatedImpact.efficiency}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Coverage:</span>
+                          <span className="font-medium text-blue-600 ml-1">{suggestion.estimatedImpact.coverage} contacts</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Time Saved:</span>
+                          <span className="font-medium text-purple-600 ml-1">{suggestion.estimatedImpact.timesSaved}h/week</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                      <h5 className="font-medium text-blue-900 mb-2">AI Reasoning:</h5>
+                      <ul className="space-y-1">
+                        {suggestion.reasoning.map((reason, idx) => (
+                          <li key={idx} className="text-sm text-blue-800 flex items-start">
+                            <span className="text-blue-500 mr-2">•</span>
+                            <span>{reason}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-4 h-4" />
+                          <span>Created: {new Date(suggestion.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <ModernButton
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center space-x-1"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Review</span>
+                        </ModernButton>
+                        <ModernButton
+                          variant="primary"
+                          size="sm"
+                          className="flex items-center space-x-1 bg-gradient-to-r from-purple-600 to-blue-600"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Implement</span>
+                        </ModernButton>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            ))
+          )}
+        </div>
+      )}
+
       {activeTab === 'templates' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {automationTemplates.map((template, index) => (
@@ -386,7 +537,10 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           <GlassCard className="p-6">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Automation Performance</h4>
+            <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
+              Automation Performance Analytics
+            </h4>
             <div className="space-y-4">
               {automations.map((automation) => (
                 <div key={automation.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -405,6 +559,16 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                         style={{ width: `${automation.successRate}%` }}
                       />
                     </div>
+                    <ModernButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => optimizeRule(automation.id, [])}
+                      loading={isOptimizing}
+                      className="flex items-center space-x-1"
+                    >
+                      <Brain className="w-3 h-3" />
+                      <span>Optimize</span>
+                    </ModernButton>
                   </div>
                 </div>
               ))}
