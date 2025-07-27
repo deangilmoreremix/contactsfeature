@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { DarkModeToggle } from '../ui/DarkModeToggle';
+         CheckCircle, Star, Award, Trophy, Lightbulb, Heart, User } from 'lucide-react';
 import { InteractiveContactScorer } from './InteractiveContactScorer';
 import { InteractiveEmailComposer } from './InteractiveEmailComposer';
 import { InteractiveFilterDemo } from './InteractiveFilterDemo';
