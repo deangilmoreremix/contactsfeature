@@ -1,5 +1,6 @@
 import React from 'react';
 import { useDarkMode } from './hooks/useDarkMode';
+import { AIProvider } from './contexts/AIContext';
 import { MetricsCards } from './components/dashboard/MetricsCards';
 import { NewLeadsSection } from './components/dashboard/NewLeadsSection';
 import { InteractionHistory } from './components/dashboard/InteractionHistory';
@@ -20,13 +21,15 @@ function App() {
   useDarkMode();
 
   return (
-    <div className="h-screen">
-      {/* Always show ContactsModal with isOpen={true} */}
-      <ContactsModal 
-        isOpen={true} 
-        onClose={() => {/* Do nothing to prevent closing */}} 
-      />
-    </div>
+    <AIProvider>
+      <div className="h-screen">
+        {/* Always show ContactsModal with isOpen={true} */}
+        <ContactsModal 
+          isOpen={true} 
+          onClose={() => {/* Do nothing to prevent closing */}} 
+        />
+      </div>
+    </AIProvider>
   );
 }
 
