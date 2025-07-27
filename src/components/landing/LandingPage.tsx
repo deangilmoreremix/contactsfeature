@@ -611,6 +611,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 </div>
               </div>
             </GlassCard>
+          </div>
       </section>
             {/* Contact Analytics */}
             <GlassCard className="p-6">
