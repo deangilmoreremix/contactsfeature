@@ -1,33 +1,36 @@
 import React from 'react';
+import { useState } from 'react';
 import { useDarkMode } from './hooks/useDarkMode';
 import { AIProvider } from './contexts/AIContext';
-import { MetricsCards } from './components/dashboard/MetricsCards';
-import { NewLeadsSection } from './components/dashboard/NewLeadsSection';
-import { InteractionHistory } from './components/dashboard/InteractionHistory';
-import { TasksAndFunnel } from './components/dashboard/TasksAndFunnel';
-import { CustomerProfile } from './components/dashboard/CustomerProfile';
-import { RecentActivity } from './components/dashboard/RecentActivity';
 import { ContactsModal } from './components/modals/ContactsModal';
-import { AIInsightsPanel } from './components/dashboard/AIInsightsPanel';
-import { ChartsSection } from './components/dashboard/ChartsSection';
-import { QuickActions } from './components/dashboard/QuickActions';
-import { KPICards } from './components/dashboard/KPICards';
-import { DashboardHeader } from './components/dashboard/DashboardHeader';
-import { ConnectedApps } from './components/dashboard/ConnectedApps';
+import { LandingPage } from './components/landing/LandingPage';
 import './styles/design-system.css';
 
 function App() {
+  const [currentView, setCurrentView] = useState<'app' | 'landing'>('app');
+  
   // Initialize dark mode (this will apply the theme class to body)
   useDarkMode();
+
+  const handleShowLanding = () => {
+    setCurrentView('landing');
+  };
+
+  const handleCloseLanding = () => {
+    setCurrentView('app');
+  };
 
   return (
     <AIProvider>
       <div className="h-screen">
-        {/* Always show ContactsModal with isOpen={true} */}
-        <ContactsModal 
-          isOpen={true} 
-          onClose={() => {/* Do nothing to prevent closing */}} 
-        />
+        {currentView === 'app' ? (
+          <ContactsModal 
+            isOpen={true} 
+            onClose={handleShowLanding}
+          />
+        ) : (
+          <LandingPage onClose={handleCloseLanding} />
+        )}
       </div>
     </AIProvider>
   );

@@ -545,10 +545,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               <ModernButton 
                 variant="outline" 
                 size="sm" 
-                onClick={() => {
-                  console.log('Learn More clicked - will navigate to features page once implemented');
-                  // TODO: Navigate to landing page when implemented
-                }}
+                onClick={onClose}
                 className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
               >
                 <Info className="w-4 h-4" />
