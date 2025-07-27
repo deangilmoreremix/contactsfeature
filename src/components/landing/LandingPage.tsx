@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-         CheckCircle, Star, Award, Trophy, Lightbulb, Heart, User } from 'lucide-react';
+import { DarkModeToggle } from '../ui/DarkModeToggle';
+import { UserPlus, CheckCheck } from 'lucide-react';
+import { 
+  CheckCircle, Star, Award, Trophy, Lightbulb, Heart, User } from 'lucide-react';
 import { InteractiveContactScorer } from './InteractiveContactScorer';
 import { InteractiveEmailComposer } from './InteractiveEmailComposer';
 import { InteractiveFilterDemo } from './InteractiveFilterDemo';
@@ -656,7 +659,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
       </section>
 
       {/* Interactive Demos Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-50 to-purple-50">
+      <section id="interactive-demos" className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-50 to-purple-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Try It Yourself</h2>
@@ -700,41 +703,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
               >
                 <Search className="w-4 h-4" />
                 <span>Smart Filter</span>
-              </button>
-            </div>
-          </div>
-          {/* Demo Selector */}
-          <div className="flex justify-center mb-8">
-            <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
-              <button
-                onClick={() => setActiveDemo('scorer')}
-                className={`px-6 py-3 text-sm font-medium transition-colors ${
-                  activeDemo === 'scorer'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                AI Contact Scorer
-              </button>
-              <button
-                onClick={() => setActiveDemo('email')}
-                className={`px-6 py-3 text-sm font-medium border-l border-gray-300 transition-colors ${
-                  activeDemo === 'email'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Email Composer
-              </button>
-              <button
-                onClick={() => setActiveDemo('filter')}
-                className={`px-6 py-3 text-sm font-medium border-l border-gray-300 transition-colors ${
-                  activeDemo === 'filter'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Smart Filter
               </button>
             </div>
           </div>
