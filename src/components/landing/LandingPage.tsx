@@ -42,7 +42,6 @@ import {
   Upload,
   Download,
   Eye,
-  Heart,
   Star
 } from 'lucide-react';
 
