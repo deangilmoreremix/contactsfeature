@@ -22,7 +22,6 @@ import {
   Target,
   Clock,
   DollarSign,
-  CheckCircle,
   ArrowRight,
   Play,
   Pause,
