@@ -33,7 +33,6 @@ import {
   FileText,
   Phone,
   Calendar,
-  Award,
   Layers,
   Activity,
   PieChart,
