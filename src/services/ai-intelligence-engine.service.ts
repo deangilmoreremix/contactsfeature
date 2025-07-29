@@ -5,7 +5,7 @@
 
 import { logger } from './logger.service';
 import { cacheService } from './cache.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 import { contactAI, ContactInsight, ContactScore } from './contact-ai.service';
 import { communicationAI } from './communication-ai.service';
 

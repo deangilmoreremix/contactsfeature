@@ -8,7 +8,7 @@ import { integrationManager } from '../services/integration-manager.service';
 import { contactAPI, ContactFilters } from '../services/contact-api.service';
 import { aiIntegration, AIAnalysisRequest } from '../services/ai-integration.service';
 import { logger } from '../services/logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 import { ContactEnrichmentData } from '../services/aiEnrichmentService';
 
 export interface IntegrationState {

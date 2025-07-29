@@ -1,4 +1,4 @@
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 // Enhanced sample contacts with more variety and data to showcase different UI states
 export const sampleContacts: Contact[] = [

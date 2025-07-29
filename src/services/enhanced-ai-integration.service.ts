@@ -6,7 +6,7 @@
 import { aiIntegration as baseAIIntegration } from './ai-integration.service';
 import { taskRouter, TaskContext, TaskPerformanceMetrics } from './task-router.service';
 import { logger } from './logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 export interface EnhancedAIAnalysisRequest {
   contactId: string;

@@ -3,7 +3,7 @@ import { useContactAI } from '../../contexts/AIContext';
 import { useAdvancedAI, useIntelligenceEngine } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Contact } from '../../types/contact';
+import { Contact } from '../../types';
 import { 
   Brain, 
   TrendingUp, 

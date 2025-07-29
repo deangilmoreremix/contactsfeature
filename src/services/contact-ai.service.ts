@@ -5,7 +5,7 @@
 
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
 import { logger } from './logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 export interface ContactInsight {
   id: string;
@@ -32,6 +32,9 @@ export interface ContactScore {
   reasoning: string[];
   recommendations: string[];
   nextBestActions: string[];
+  provider?: string;
+  model?: string;
+  timestamp?: string;
 }
 
 export interface RelationshipMap {

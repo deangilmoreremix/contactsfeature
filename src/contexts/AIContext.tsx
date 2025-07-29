@@ -8,7 +8,7 @@ import { aiOrchestrator, AIRequest, AIResponse } from '../services/ai-orchestrat
 import { contactAI, ContactInsight, ContactScore } from '../services/contact-ai.service';
 import { communicationAI } from '../services/communication-ai.service';
 import { logger } from '../services/logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 interface AIState {
   // Processing states

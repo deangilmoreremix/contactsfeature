@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 import { logger } from '../services/logger.service';
 import { 
   aiIntelligenceEngine, 

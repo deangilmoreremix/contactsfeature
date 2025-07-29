@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import { enhancedAI, EnhancedAIAnalysisRequest, SmartBulkRequest } from '../services/enhanced-ai-integration.service';
 import { taskRouter } from '../services/task-router.service';
 import { logger } from '../services/logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 export interface SmartAIState {
   analyzing: boolean;

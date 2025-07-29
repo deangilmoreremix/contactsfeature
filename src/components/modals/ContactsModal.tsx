@@ -6,7 +6,7 @@ import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { useContactStore } from '../../store/contactStore';
-import { Contact } from '../../types/contact';
+import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import Fuse from 'fuse.js';

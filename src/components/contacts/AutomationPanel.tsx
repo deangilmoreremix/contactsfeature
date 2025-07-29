@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAutomationEngine } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Contact } from '../../types/contact';
+import { Contact } from '../../types';
 import { 
   Zap, 
   Play, 

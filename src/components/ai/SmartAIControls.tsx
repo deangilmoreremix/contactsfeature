@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAI, useContactAI } from '../../contexts/AIContext';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
-import { Contact } from '../../types/contact';
+import { Contact } from '../../types';
 import {
   Brain,
   Zap,

@@ -8,7 +8,7 @@ import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 import { ContactEnrichmentData } from './aiEnrichmentService';
 import apiConfig, { getDefaultModel, getBestModelForTask } from '../config/api.config';
 

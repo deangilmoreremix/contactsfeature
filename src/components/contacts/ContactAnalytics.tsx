@@ -3,7 +3,7 @@ import { useContactAI } from '../../contexts/AIContext';
 import { usePredictiveAnalytics } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Contact } from '../../types/contact';
+import { Contact } from '../../types';
 import { 
   BarChart3, 
   TrendingUp, 

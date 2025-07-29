@@ -4,7 +4,7 @@
  */
 
 import { logger } from './logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 import { aiIntelligenceEngine, SmartRecommendation } from './ai-intelligence-engine.service';
 
 export interface AutomationRule {

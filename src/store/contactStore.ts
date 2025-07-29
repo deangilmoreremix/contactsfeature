@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 import { contactAPI } from '../services/contact-api.service';
 import { logger } from '../services/logger.service';
 

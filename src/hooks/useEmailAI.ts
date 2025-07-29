@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { logger } from '../services/logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 interface EmailComposition {
   subject: string;

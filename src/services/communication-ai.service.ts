@@ -5,7 +5,7 @@
 
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
 import { logger } from './logger.service';
-import { Contact } from '../types/contact';
+import { Contact } from '../types';
 
 export interface EmailGeneration {
   subject: string;
