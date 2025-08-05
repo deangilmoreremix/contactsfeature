@@ -178,22 +178,40 @@ class AIEnrichmentService {
     }
     
     try {
-      const response = await httpClient.post<{ imageUrl: string }>(
-        this.apiUrl,
-        { 
-          contactId: 'client-enrichment-request',
-          name,
-          company,
-          type: 'image'
+      // For Supabase Edge Functions, construct the full URL
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Supabase configuration missing');
+      }
+      
+      const url = `${supabaseUrl}/functions/v1/ai-enrichment`;
+      console.log('Calling image search function:', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
         },
-        {
-          timeout: 15000,
-          retries: 1
-        }
-      );
+        body: JSON.stringify({
+          contactId: 'client-enrichment-request',
+          enrichmentRequest: { name, company },
+          type: 'image'
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Edge function error:', response.status, errorText);
+        throw new Error(`Edge function error: ${response.status} ${errorText}`);
+      }
+      
+      const result = await response.json();
       
       logger.info(`Found contact image successfully`);
-      return response.data.imageUrl;
+      return result.imageUrl || result.avatar || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
     } catch (error) {
       logger.error('Finding contact image failed', error as Error);
       
