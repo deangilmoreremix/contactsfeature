@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useContactAI } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
@@ -7,6 +7,8 @@ import { useContactStore } from '../../store/contactStore';
 import { aiEnrichmentService } from '../../services/aiEnrichmentService';
 import { 
   Edit, 
+  AlertCircle,
+  Loader2,
   MoreHorizontal, 
   Mail, 
   Phone, 
@@ -76,6 +78,11 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [localAnalyzing, setLocalAnalyzing] = useState(false);
   const [isMultimodalEnriching, setIsMultimodalEnriching] = useState(false);
+  // State for AI Score Explanation Tooltip
+  const [showScoreExplanation, setShowScoreExplanation] = useState(false);
+  const [scoreExplanation, setScoreExplanation] = useState<string | null>(null);
+  const [isFetchingExplanation, setIsFetchingExplanation] = useState(false);
+  const [explanationError, setExplanationError] = useState<string | null>(null);
   
   // Connect to AI services
   const { scoreContact, generateInsights, contactScore, contactInsights, isContactProcessing } = useContactAI(contact.id);
@@ -115,6 +122,74 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
       setLocalAnalyzing(false);
     }
   };
+
+  // Function to fetch AI Score Explanation
+  const fetchScoreExplanation = useCallback(async () => {
+    if (!contact.aiScore) return; // Only fetch if there's an AI score
+
+    const cacheKey = `score_explanation_${contact.id}_${contact.aiScore}`;
+    const cachedExplanation = cacheService.get<string>('ai_score_explanation', cacheKey);
+
+    if (cachedExplanation) {
+      setScoreExplanation(cachedExplanation);
+      setExplanationError(null);
+      return;
+    }
+
+    setIsFetchingExplanation(true);
+    setExplanationError(null);
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase environment variables not configured.');
+      }
+
+      const response = await httpClient.post(
+        `${supabaseUrl}/functions/v1/ai-reasoning`,
+        {
+          contact: {
+            id: contact.id,
+            name: contact.name,
+            title: contact.title,
+            company: contact.company,
+            industry: contact.industry,
+            interestLevel: contact.interestLevel,
+            status: contact.status,
+            aiScore: contact.aiScore,
+            inferredPersonalityTraits: contact.inferredPersonalityTraits,
+            communicationStyle: contact.communicationStyle,
+            professionalDemeanor: contact.professionalDemeanor,
+            imageAnalysisNotes: contact.imageAnalysisNotes,
+          },
+          type: 'score-explanation',
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000, // 30 seconds timeout
+        }
+      );
+
+      const result = response.data;
+      if (result && result.reasons && Array.isArray(result.reasons)) {
+        const explanationText = result.reasons.join(' '); // Join bullet points
+        setScoreExplanation(explanationText);
+        cacheService.set('ai_score_explanation', cacheKey, explanationText, 3600000); // Cache for 1 hour
+      } else {
+        setExplanationError('Invalid response format from AI.');
+      }
+    } catch (err) {
+      console.error('Failed to fetch score explanation:', err);
+      setExplanationError(err instanceof Error ? err.message : 'Failed to fetch explanation.');
+    } finally {
+      setIsFetchingExplanation(false);
+    }
+  }, [contact]); // Dependency array for useCallback
 
   // New handler for multimodal enrichment
   const handleMultimodalEnrichment = async (e: React.MouseEvent) => {
@@ -271,6 +346,30 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 <Sparkles className="absolute -top-1 -right-1 w-3 h-3 text-yellow-300" />
               </div>
             ) : (
+
+            {/* Score Explanation Tooltip */}
+            {showScoreExplanation && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg z-20">
+                {isFetchingExplanation ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span>Generating explanation...</span>
+                  </div>
+                ) : explanationError ? (
+                  <div className="flex items-center">
+                    <AlertCircle className="w-4 h-4 text-red-400 mr-2" />
+                    <span>{explanationError}</span>
+                  </div>
+                ) : scoreExplanation ? (
+                  <p>{scoreExplanation}</p>
+                ) : (
+                  <p>Hover to see AI explanation for this score.</p>
+                )}
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
+              </div>
+            )}
+
+
               <button
                 onClick={handleAnalyzeClick}
                 disabled={analyzing}
