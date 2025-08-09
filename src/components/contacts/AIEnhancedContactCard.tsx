@@ -19,7 +19,6 @@ import {
   ExternalLink,
   Star,
   Brain,
-  Loader2,
   Sparkles,
   Target,
   Zap,
