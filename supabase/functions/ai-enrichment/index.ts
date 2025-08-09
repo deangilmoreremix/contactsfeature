@@ -40,6 +40,11 @@ interface ContactEnrichmentData {
   bio?: string;
   notes?: string;
   confidence?: number;
+  // New Multimodal fields
+  inferredPersonalityTraits?: Record<string, string>;
+  communicationStyle?: string;
+  professionalDemeanor?: string;
+  imageAnalysisNotes?: string;
 }
 
 Deno.serve(async (req) => {
@@ -168,6 +173,15 @@ Deno.serve(async (req) => {
           console.log('Processing LinkedIn enrichment');
           enrichedData = await enrichContactByLinkedIn(
             enrichmentRequest.linkedinUrl,
+            hasOpenAI ? openaiApiKey : undefined,
+            hasGemini ? geminiApiKey : undefined
+          );
+          break;
+        case 'multimodal':
+          console.log('Processing multimodal enrichment');
+          enrichedData = await enrichContactMultimodal(
+            enrichmentRequest.contact, // Pass the full contact object
+            enrichmentRequest.imageUrl, // Pass the image URL
             hasOpenAI ? openaiApiKey : undefined,
             hasGemini ? geminiApiKey : undefined
           );
@@ -823,6 +837,210 @@ async function findContactImage(
     const fallbackUrl = 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
     console.log('Using fallback image URL:', fallbackUrl);
     return fallbackUrl;
+  }
+}
+
+// New function for multimodal enrichment
+async function enrichContactMultimodal(
+  contact: any, // Full contact object with avatarSrc
+  imageUrl: string,
+  openaiApiKey?: string,
+  geminiApiKey?: string
+): Promise<ContactEnrichmentData> {
+  console.log(`Enriching contact multimodal: ${contact.name}, Image: ${imageUrl}`);
+
+  try {
+    if (openaiApiKey) {
+      return await enrichContactMultimodalWithOpenAI(contact, imageUrl, openaiApiKey);
+    } else if (geminiApiKey) {
+      return await enrichContactMultimodalWithGemini(contact, imageUrl, geminiApiKey);
+    } else {
+      throw new Error('No AI provider API key available for multimodal enrichment');
+    }
+  } catch (error) {
+    console.error('Error enriching contact multimodal:', error);
+    return {
+      ...contact,
+      confidence: 20,
+      imageAnalysisNotes: `Multimodal AI enrichment failed: ${error.message}.`
+    };
+  }
+}
+
+async function enrichContactMultimodalWithOpenAI(contact: any, imageUrl: string, apiKey: string): Promise<ContactEnrichmentData> {
+  const textContent = `Analyze this contact's professional profile picture and the provided textual information.
+  Infer personality traits, communication style, and professional demeanor from the image.
+  Combine this with the textual information to provide a comprehensive personality assessment, communication recommendations, and any subtle insights about their professional brand.
+
+  Contact Textual Data:
+  ${JSON.stringify({
+    name: contact.name,
+    title: contact.title,
+    company: contact.company,
+    email: contact.email,
+    industry: contact.industry,
+    notes: contact.notes,
+    socialProfiles: contact.socialProfiles
+  }, null, 2)}
+
+  Return a JSON object with the following fields:
+  - inferredPersonalityTraits: object with traits like "extroversion", "conscientiousness", "openness", "agreeableness", "neuroticism" (values: "low", "medium", "high")
+  - communicationStyle: string (e.g., "direct and confident", "approachable and collaborative")
+  - professionalDemeanor: string (e.g., "formal and serious", "casual and friendly")
+  - imageAnalysisNotes: brief notes on what was inferred from the image
+  - confidence: number from 1-100 indicating confidence level in these inferences
+  - notes: any additional general notes
+
+  ONLY return the JSON object, nothing else.`;
+
+  const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o', // Using gpt-4o as placeholder for gpt-5 vision
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: textContent },
+            { type: 'image_url', image_url: { url: imageUrl } }
+          ]
+        }
+      ],
+      temperature: 0.2,
+      response_format: { type: "json_object" }
+    }),
+  }, 60000); // Increased timeout for multimodal
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('OpenAI Multimodal API error:', error);
+    throw new Error(`OpenAI Multimodal API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const result = await response.json();
+  const content = result.choices[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('Empty response from OpenAI Multimodal API');
+  }
+
+  try {
+    const multimodalData = JSON.parse(content);
+    return {
+      ...contact, // Keep existing contact data
+      inferredPersonalityTraits: multimodalData.inferredPersonalityTraits,
+      communicationStyle: multimodalData.communicationStyle,
+      professionalDemeanor: multimodalData.professionalDemeanor,
+      imageAnalysisNotes: multimodalData.imageAnalysisNotes,
+      confidence: multimodalData.confidence,
+      notes: multimodalData.notes || contact.notes // Merge notes
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse OpenAI Multimodal response: ${error.message}`);
+  }
+}
+
+async function enrichContactMultimodalWithGemini(contact: any, imageUrl: string, apiKey: string): Promise<ContactEnrichmentData> {
+  const textContent = `Analyze this contact's professional profile picture and the provided textual information.
+  Infer personality traits, communication style, and professional demeanor from the image.
+  Combine this with the textual information to provide a comprehensive personality assessment, communication recommendations, and any subtle insights about their professional brand.
+
+  Contact Textual Data:
+  ${JSON.stringify({
+    name: contact.name,
+    title: contact.title,
+    company: contact.company,
+    email: contact.email,
+    industry: contact.industry,
+    notes: contact.notes,
+    socialProfiles: contact.socialProfiles
+  }, null, 2)}
+
+  Return a JSON object with the following fields:
+  - inferredPersonalityTraits: object with traits like "extroversion", "conscientiousness", "openness", "agreeableness", "neuroticism" (values: "low", "medium", "high")
+  - communicationStyle: string (e.g., "direct and confident", "approachable and collaborative")
+  - professionalDemeanor: string (e.g., "formal and serious", "casual and friendly")
+  - imageAnalysisNotes: brief notes on what was inferred from the image
+  - confidence: number from 1-100 indicating confidence level in these inferences
+  - notes: any additional general notes
+
+  ONLY return the JSON object, nothing else.`;
+
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, { // Gemini 1.5 Pro for multimodal
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: textContent },
+            { 
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: await convertImageUrlToBase64(imageUrl) // We'll need to implement this helper
+              }
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        response_mime_type: "application/json"
+      }
+    }),
+  }, 60000); // Increased timeout for multimodal
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('Gemini Multimodal API error:', error);
+    throw new Error(`Gemini Multimodal API error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!content) {
+    throw new Error('Empty response from Gemini Multimodal API');
+  }
+
+  try {
+    const multimodalData = JSON.parse(content);
+    return {
+      ...contact, // Keep existing contact data
+      inferredPersonalityTraits: multimodalData.inferredPersonalityTraits,
+      communicationStyle: multimodalData.communicationStyle,
+      professionalDemeanor: multimodalData.professionalDemeanor,
+      imageAnalysisNotes: multimodalData.imageAnalysisNotes,
+      confidence: multimodalData.confidence,
+      notes: multimodalData.notes || contact.notes // Merge notes
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse Gemini Multimodal response: ${error.message}`);
+  }
+}
+
+// Helper function to convert image URL to base64 for Gemini
+async function convertImageUrlToBase64(imageUrl: string): Promise<string> {
+  try {
+    const response = await fetch(imageUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < uint8Array.byteLength; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binary);
+  } catch (error) {
+    console.error('Failed to convert image URL to base64:', error);
+    throw new Error('Image conversion failed');
   }
 }
 

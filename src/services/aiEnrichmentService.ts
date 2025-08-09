@@ -27,6 +27,11 @@ export interface ContactEnrichmentData {
   bio?: string;
   notes?: string;
   confidence?: number;
+  // New Multimodal fields
+  inferredPersonalityTraits?: Record<string, string>;
+  communicationStyle?: string;
+  professionalDemeanor?: string;
+  imageAnalysisNotes?: string;
 }
 
 export interface AIProvider {
@@ -164,6 +169,41 @@ class AIEnrichmentService {
       logger.error('Contact enrichment by LinkedIn failed', error as Error);
       // Return graceful fallback data instead of throwing error
       return this.generateMockData({ linkedinUrl });
+    }
+  }
+
+  // New method for multimodal enrichment
+  async enrichContactMultimodal(contact: any, imageUrl: string): Promise<ContactEnrichmentData> {
+    logger.info(`Enriching contact multimodal: ${contact.name}, Image: ${imageUrl}`);
+
+    if (!this.hasConfiguredProviders()) {
+      logger.warn(`No AI providers configured for multimodal enrichment: ${contact.name}`);
+      return this.generateMockMultimodalData(contact);
+    }
+
+    if (!imageUrl) {
+      throw new Error('Image URL is required for multimodal enrichment');
+    }
+
+    try {
+      const response = await httpClient.post<ContactEnrichmentData>(
+        this.apiUrl,
+        {
+          contactId: contact.id,
+          enrichmentRequest: { contact, imageUrl },
+          type: 'multimodal'
+        },
+        {
+          timeout: 60000, // Increased timeout for multimodal
+          retries: 1 // Multimodal can be complex, less aggressive retries
+        }
+      );
+
+      logger.info(`Contact enriched successfully with multimodal data`);
+      return response.data;
+    } catch (error) {
+      logger.error('Contact multimodal enrichment failed', error as Error);
+      return this.generateMockMultimodalData(contact); // Fallback
     }
   }
 
@@ -341,6 +381,61 @@ class AIEnrichmentService {
     }
     
     return mockData;
+  }
+
+  // Generate mock multimodal data when API enrichment is not available
+  private generateMockMultimodalData(contact: any): ContactEnrichmentData {
+    logger.info('Generating mock multimodal enrichment data for fallback');
+
+    // Generate realistic personality traits based on title and industry
+    const personalityTraits: Record<string, string> = {};
+    
+    if (contact.title) {
+      const title = contact.title.toLowerCase();
+      if (title.includes('ceo') || title.includes('founder')) {
+        personalityTraits.extroversion = 'high';
+        personalityTraits.conscientiousness = 'high';
+        personalityTraits.openness = 'high';
+      } else if (title.includes('director') || title.includes('vp')) {
+        personalityTraits.extroversion = 'medium';
+        personalityTraits.conscientiousness = 'high';
+        personalityTraits.openness = 'medium';
+      } else if (title.includes('engineer') || title.includes('developer')) {
+        personalityTraits.extroversion = 'medium';
+        personalityTraits.conscientiousness = 'high';
+        personalityTraits.openness = 'high';
+      } else {
+        personalityTraits.extroversion = 'medium';
+        personalityTraits.conscientiousness = 'medium';
+        personalityTraits.openness = 'medium';
+      }
+    }
+
+    // Generate communication style based on inferred traits
+    let communicationStyle = 'Professional and collaborative';
+    if (personalityTraits.extroversion === 'high') {
+      communicationStyle = 'Direct and confident';
+    } else if (personalityTraits.extroversion === 'low') {
+      communicationStyle = 'Thoughtful and reserved';
+    }
+
+    // Generate professional demeanor
+    let professionalDemeanor = 'Approachable and business-focused';
+    if (contact.industry === 'Technology') {
+      professionalDemeanor = 'Innovation-oriented and detail-focused';
+    } else if (contact.industry === 'Finance') {
+      professionalDemeanor = 'Analytical and results-driven';
+    }
+
+    return {
+      ...contact,
+      inferredPersonalityTraits: personalityTraits,
+      communicationStyle,
+      professionalDemeanor,
+      imageAnalysisNotes: 'Mock analysis: Professional appearance with confident posture. Suggests good communication skills and leadership qualities.',
+      confidence: 45,
+      notes: (contact.notes || '') + '\n\nMultimodal AI enrichment completed (mock data). To enable real multimodal analysis, please configure OpenAI or Gemini API keys.'
+    };
   }
 
   // Utility functions for mock data generation

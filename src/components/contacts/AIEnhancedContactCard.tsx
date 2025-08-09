@@ -4,6 +4,7 @@ import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { Contact } from '../../types';
 import { useContactStore } from '../../store/contactStore';
+import { aiEnrichmentService } from '../../services/aiEnrichmentService';
 import { 
   Edit, 
   MoreHorizontal, 
@@ -19,7 +20,9 @@ import {
   Loader2,
   Sparkles,
   Target,
-  Zap
+  Zap,
+  Camera,
+  MessageSquare
 } from 'lucide-react';
 
 interface AIEnhancedContactCardProps {
@@ -72,6 +75,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 }) => {
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [localAnalyzing, setLocalAnalyzing] = useState(false);
+  const [isMultimodalEnriching, setIsMultimodalEnriching] = useState(false);
   
   // Connect to AI services
   const { scoreContact, generateInsights, contactScore, contactInsights, isContactProcessing } = useContactAI(contact.id);
@@ -112,7 +116,33 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
     }
   };
 
+  // New handler for multimodal enrichment
+  const handleMultimodalEnrichment = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isMultimodalEnriching) return;
+
+    setIsMultimodalEnriching(true);
+    console.log('Starting multimodal enrichment for contact:', contact.id);
+    try {
+      if (contact.avatarSrc) {
+        const enrichedData = await aiEnrichmentService.enrichContactMultimodal(contact, contact.avatarSrc);
+        // Update the contact with the new multimodal fields
+        await updateContact(contact.id, enrichedData);
+        console.log('Multimodal enrichment completed:', enrichedData);
+      } else {
+        console.warn('No avatar source found for multimodal enrichment.');
+      }
+    } catch (error) {
+      console.error('Multimodal enrichment failed:', error);
+    } finally {
+      setIsMultimodalEnriching(false);
+    }
+  };
+
   const analyzing = isAnalyzing || localAnalyzing || isContactProcessing;
+
+  // Check if multimodal data is present
+  const hasMultimodalData = contact.inferredPersonalityTraits || contact.communicationStyle || contact.professionalDemeanor || contact.imageAnalysisNotes;
 
   return (
     <div
@@ -157,6 +187,29 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
           </button>
         )}
         
+        {/* Multimodal Enrichment Button */}
+        {contact.avatarSrc && (
+          <button
+            onClick={handleMultimodalEnrichment}
+            disabled={isMultimodalEnriching}
+            className={`p-2 rounded-lg transition-all duration-200 relative ${
+              hasMultimodalData
+                ? 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                : 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white hover:from-pink-600 hover:to-indigo-600 shadow-lg'
+            }`}
+            title={hasMultimodalData ? 'Re-enrich Multimodal' : 'Multimodal AI Enrichment'}
+          >
+            {isMultimodalEnriching ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Camera className="w-4 h-4" />
+            )}
+            {!hasMultimodalData && !isMultimodalEnriching && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+            )}
+          </button>
+        )}
+
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -196,6 +249,13 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 </div>
               )}
             </div>
+            {/* Multimodal Data Indicator */}
+            {hasMultimodalData && (
+              <div className="mt-2 flex items-center space-x-1">
+                <MessageSquare className="w-3 h-3 text-indigo-500" />
+                <span className="text-xs text-indigo-700 font-medium">Multimodal insights available</span>
+              </div>
+            )}
             <h3 className="text-gray-900 font-semibold text-lg mb-1 group-hover:text-blue-600 transition-colors">
               {contact.name}
             </h3>
