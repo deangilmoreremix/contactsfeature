@@ -885,7 +885,8 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                   Social Profiles & Contact Methods
                 </h3>
                 {formData.socialProfiles.linkedin && (
-                  <AIResearchButton
+                  <>
+                    <AIResearchButton
                     searchType="linkedin"
                     searchQuery={{ linkedinUrl: formData.socialProfiles.linkedin }}
                     onDataFound={handleAIAutoFill}
@@ -906,6 +907,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                       {isMultimodalEnriching ? 'Analyzing Image...' : 'Multimodal AI'}
                     </ModernButton>
                   )}
+                  </>
                 )}
               </div>
               
