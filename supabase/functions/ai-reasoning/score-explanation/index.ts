@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       } else {
         // Fallback if somehow no AI is available (should be caught by earlier check)
         explanationResult = {
-          explanation: `The AI score of ${contact.aiScore} indicates a good potential.`,
+          explanation: \`The AI score of ${contact.aiScore} indicates a good potential.`,
           confidence: 50,
           model: 'fallback'
         };
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
 });
 
 async function generateExplanationWithOpenAI(contact: any, apiKey: string): Promise<any> {
-  const prompt = `Given the following contact information and their AI score, provide a concise, 2-3 sentence explanation for why they received this score. Focus on key factors from their profile.
+  const prompt = \`Given the following contact information and their AI score, provide a concise, 2-3 sentence explanation for why they received this score. Focus on key factors from their profile.
 
 Contact:
 ${JSON.stringify(contact, null, 2)}
@@ -134,7 +134,7 @@ Explanation:`;
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': \`Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini', // Using gpt-4o-mini for cost-effectiveness in explanations
@@ -155,21 +155,21 @@ Explanation:`;
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
+    throw new Error(\`OpenAI API error: ${errorData.error?.message || response.statusText}`);
   }
 
   const result = await response.json();
   const explanation = result.choices[0]?.message?.content?.trim();
 
   return {
-    explanation: explanation || `Could not generate a detailed explanation for score ${contact.aiScore}.`,
+    explanation: explanation || \`Could not generate a detailed explanation for score ${contact.aiScore}.`,
     confidence: 80, // Assume high confidence for explanation generation
     model: 'gpt-4o-mini'
   };
 }
 
 async function generateExplanationWithGemini(contact: any, apiKey: string): Promise<any> {
-  const prompt = `Given the following contact information and their AI score, provide a concise, 2-3 sentence explanation for why they received this score. Focus on key factors from their profile.
+  const prompt = \`Given the following contact information and their AI score, provide a concise, 2-3 sentence explanation for why they received this score. Focus on key factors from their profile.
 
 Contact:
 ${JSON.stringify(contact, null, 2)}
@@ -178,7 +178,7 @@ AI Score: ${contact.aiScore}
 
 Explanation:`;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+  const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -198,14 +198,14 @@ Explanation:`;
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+    throw new Error(\`Gemini API error: ${errorData.error?.message || response.statusText}`);
   }
 
   const data = await response.json();
   const explanation = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
   return {
-    explanation: explanation || `Could not generate a detailed explanation for score ${contact.aiScore}.`,
+    explanation: explanation || \`Could not generate a detailed explanation for score ${contact.aiScore}.`,
     confidence: 75, // Slightly lower confidence for Gemini in this specific task
     model: 'gemini-1.5-flash'
   };
