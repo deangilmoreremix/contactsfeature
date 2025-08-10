@@ -72,7 +72,12 @@ export const useDarkMode = (): UseDarkModeReturn => {
       mediaQuery.addEventListener('change', handleChange);
       
       return () => {
-        mediaQuery.removeEventListener('change', handleChange);
+        try {
+          mediaQuery.removeEventListener('change', handleChange);
+        } catch (error) {
+          // Ignore cleanup errors in WebContainer
+          console.warn('Media query cleanup failed:', error);
+        }
       };
     } catch (error) {
       // Fallback for very old browsers - but wrapped in try-catch
