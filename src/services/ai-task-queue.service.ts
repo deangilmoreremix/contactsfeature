@@ -504,9 +504,24 @@ class AITaskQueueService {
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => {
-      const timer = globalThis.setTimeout ? globalThis.setTimeout : setTimeout;
-      timer(resolve, ms);
+      const timer = setTimeout(resolve, ms);
+      // Store timer reference for potential cleanup
+      if (this.currentTimers) {
+        this.currentTimers.add(timer);
+        timer.addEventListener && timer.addEventListener('timeout', () => {
+          this.currentTimers?.delete(timer);
+        });
+      }
     });
+  }
+  
+  private currentTimers: Set<NodeJS.Timeout> = new Set();
+  
+  destroy(): void {
+    this.isRunning = false;
+    // Clear all pending timers
+    this.currentTimers.forEach(timer => clearTimeout(timer));
+    this.currentTimers.clear();
   }
 
   // Mock data generators for development

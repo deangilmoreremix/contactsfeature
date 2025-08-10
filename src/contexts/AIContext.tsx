@@ -253,8 +253,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     };
 
     loadSystemStatus();
-    const cleanupInterval = globalThis.setInterval ? globalThis.setInterval : setInterval;
-    const interval = cleanupInterval(loadSystemStatus, 30000); // Every 30 seconds
+    const interval = setInterval(loadSystemStatus, 30000); // Every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
