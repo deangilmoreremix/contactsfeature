@@ -81,6 +81,9 @@ Deno.serve(async (req) => {
         case 'engagement-status':
           result = await generateEngagementStatus(contact, openaiApiKey, geminiApiKey);
           break;
+        case 'communication-strategy':
+          result = await generateCommunicationStrategy(contact, openaiApiKey, geminiApiKey);
+          break;
         default:
           return new Response(
             JSON.stringify({
@@ -213,6 +216,52 @@ Return a JSON object with:
 - reasoning: brief explanation (15-25 words)
 - recommendation: suggested action based on the status
 - confidence: number from 1-100
+
+ONLY return the JSON object, nothing else.`;
+
+  if (openaiApiKey) {
+    return await callOpenAI(prompt, openaiApiKey);
+  } else if (geminiApiKey) {
+    return await callGemini(prompt, geminiApiKey);
+  }
+
+  throw new Error('No AI provider available');
+}
+
+async function generateCommunicationStrategy(contact: any, openaiApiKey?: string, geminiApiKey?: string) {
+  const prompt = `As a sales communication expert, create a comprehensive communication strategy for this contact.
+
+Contact Profile:
+- Name: ${contact.name}
+- Title: ${contact.title}
+- Company: ${contact.company}
+- Industry: ${contact.industry || 'Unknown'}
+- Interest Level: ${contact.interestLevel}
+- Status: ${contact.status}
+- Last Connected: ${contact.lastConnected || 'Never'}
+- AI Score: ${contact.aiScore || 'Not scored'}
+- Lead Score: ${contact.leadScore || 0}
+- Engagement Score: ${contact.engagementScore || 0}
+${contact.communicationStyle ? `- Communication Style: ${contact.communicationStyle}` : ''}
+${contact.professionalDemeanor ? `- Professional Demeanor: ${contact.professionalDemeanor}` : ''}
+
+Create a strategic communication plan that includes:
+
+Return a JSON object with:
+- strategy: object containing:
+  - primaryChannel: preferred communication method ("email", "phone", "linkedin")
+  - tone: recommended tone ("professional", "casual", "consultative")  
+  - timing: best time to contact ("morning", "afternoon", "evening")
+  - frequency: contact frequency ("daily", "weekly", "bi-weekly", "monthly")
+- messaging: object containing:
+  - keyPoints: array of 3-4 main talking points
+  - valueProposition: personalized value proposition (20-30 words)
+  - callToAction: specific next step to propose
+- tactics: object containing:
+  - followUpSequence: array of 3 follow-up touchpoints with timing
+  - personalizedElements: ways to personalize the outreach
+  - objectionHandling: anticipated objections and responses
+- confidence: number from 1-100 indicating strategy confidence
 
 ONLY return the JSON object, nothing else.`;
 
