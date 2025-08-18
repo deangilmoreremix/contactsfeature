@@ -50,12 +50,6 @@ class AIEnrichmentService {
     // Get Supabase URL and anon key from environment
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-    const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    
-    // Log API keys for debugging (without revealing full keys)
-    console.log('OpenAI API Key:', openaiApiKey ? `${openaiApiKey.substring(0, 4)}...${openaiApiKey.substring(openaiApiKey.length - 4)}` : 'Not configured');
-    console.log('Gemini API Key:', geminiApiKey ? `${geminiApiKey.substring(0, 4)}...${geminiApiKey.substring(geminiApiKey.length - 4)}` : 'Not configured');
     
     if (!supabaseUrl || !supabaseKey) {
       console.warn('Supabase environment variables not defined, using fallback mode');
@@ -64,6 +58,9 @@ class AIEnrichmentService {
     } else {
       this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`; 
       console.log('Using AI Enrichment Edge Function URL:', this.apiUrl); 
+      // When using Supabase Edge Functions, we don't need client-side API keys
+      // The Edge Functions handle the AI provider keys server-side
+      this.isMockMode = false;
     }
   }
 
@@ -299,19 +296,14 @@ class AIEnrichmentService {
 
   // Check if there are any configured providers
   private hasConfiguredProviders(): boolean {
-    // More verbose checking to help debug
-    const hasProviders = this.providers.some(p => p.enabled && p.apiKey && p.apiKey.length > 0);
-    
-    if (!hasProviders) {
-      console.warn("No AI providers are properly configured:");
-      this.providers.forEach(p => {
-        console.warn(`- ${p.name}: enabled=${p.enabled}, apiKey=${p.apiKey ? 'present' : 'missing'}`);
-      });
-    } else {
-      console.log("AI providers configured successfully");
+    // When using Supabase Edge Functions, we don't check client-side API keys
+    // The Edge Functions handle AI provider authentication server-side
+    if (!this.isMockMode) {
+      return true; // Assume providers are configured in Edge Functions
     }
     
-    return hasProviders;
+    // Only check client-side API keys when in mock mode
+    return this.providers.some(p => p.enabled && p.apiKey && p.apiKey.length > 0);
   }
 
   // Get an available provider, or return a default if none are configured
@@ -328,11 +320,13 @@ class AIEnrichmentService {
 
   // Generate mock data when API enrichment is not available
   private generateMockData(data: any): ContactEnrichmentData {
-    logger.info('Generating mock enrichment data for fallback');
+    logger.info('Generating mock enrichment data for fallback', { isMockMode: this.isMockMode });
     
     let mockData: ContactEnrichmentData = {
       confidence: 30,
-      notes: 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.'
+      notes: this.isMockMode 
+        ? 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.'
+        : 'Using estimated data based on available information.'
     };
     
     if (data.email) {
