@@ -248,12 +248,23 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+        // Don't show toast if there was an error (error state will handle the UI)
+        if (!error) {
+          toast.info('No automation suggestions available for the selected contacts');
+        }
 
   const getStatusColor = (isActive: boolean, successRate: number) => {
     if (!isActive) return 'text-gray-500 bg-gray-100';
     if (successRate >= 80) return 'text-green-600 bg-green-100';
-    if (successRate >= 60) return 'text-yellow-600 bg-yellow-100';
+      
+      // Show more helpful error messages
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate automation suggestions';
+      
+      if (errorMessage.includes('Edge Function not available') || errorMessage.includes('function not available')) {
+        toast.warning('AI automation features require additional setup. Please deploy the automation-ai Edge Function and configure API keys.');
+      } else {
+        toast.error('Failed to generate automation suggestions');
+      }
     return 'text-red-600 bg-red-100';
   };
 

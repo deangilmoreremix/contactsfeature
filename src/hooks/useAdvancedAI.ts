@@ -224,8 +224,16 @@ export const useAdvancedAI = () => {
       return predictions;
     } catch (error) {
       setState(prev => ({ ...prev, isPredicting: false }));
-      logger.error('Predictions failed', error as Error);
-      // Return empty array instead of throwing to prevent UI crashes
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate suggestions';
+      
+      // Don't treat Edge Function unavailability as a critical error
+      if (errorMessage.includes('Edge Function not available') || errorMessage.includes('function not available')) {
+        console.warn('AI automation features temporarily unavailable:', errorMessage);
+        setError('AI automation features are temporarily unavailable. Please ensure Edge Functions are deployed and API keys are configured.');
+      } else {
+        setError(errorMessage);
+      }
+      
       return [];
     }
   }, []);

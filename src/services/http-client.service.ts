@@ -281,6 +281,12 @@ class HttpClientService {
         error.config = config;
         error.isRetryable = response.status >= 500 || response.status === 429;
         
+        
+        // Provide more specific error handling for common Edge Function issues
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          throw new Error(`Edge Function unavailable: ${url.replace('/functions/v1/', '')} function may not be deployed or API keys may not be configured`);
+        }
+        
         throw error;
       }
       
@@ -326,7 +332,13 @@ class HttpClientService {
         return this.makeRequest(config, useAuth, attempt + 1);
       }
       
-      throw apiError;
+      
+      // Handle specific Edge Function errors
+      if (networkError.message.includes('Failed to fetch')) {
+        throw new Error(`Edge Function not available: The requested function may not be deployed or properly configured`);
+      }
+      
+      throw new Error(`Network request failed: ${networkError.message}`);
     }
   }
   
