@@ -422,6 +422,34 @@ export const useAutomationEngine = () => {
   return {
     generateSuggestions: advancedAI.generateAutomationSuggestions,
     optimizeRule: advancedAI.optimizeAutomationRule,
+    translateNaturalLanguage: async (description: string, contactContext?: Contact) => {
+      try {
+        return await aiAutomationEngine.translateNaturalLanguageToRule({
+          description,
+          contactContext,
+          urgency: 'medium'
+        });
+      } catch (error) {
+        logger.error('Natural language translation failed', error as Error);
+        throw error;
+      }
+    },
+    generateAdvancedAnalysis: async (ruleId: string, rule: any, contacts: Contact[]) => {
+      try {
+        return await aiAutomationEngine.generateAdvancedRuleAnalysis(rule, contacts);
+      } catch (error) {
+        logger.error('Advanced rule analysis failed', error as Error);
+        throw error;
+      }
+    },
+    generateContextualWorkflows: async (contact: Contact, objective: string, timeframe?: string) => {
+      try {
+        return await aiAutomationEngine.generateContextualWorkflowSuggestions(contact, objective, timeframe as any);
+      } catch (error) {
+        logger.error('Contextual workflow generation failed', error as Error);
+        throw error;
+      }
+    },
     suggestions: advancedAI.automationSuggestions,
     rules: advancedAI.automationRules,
     isOptimizing: advancedAI.isOptimizing
