@@ -10,7 +10,7 @@ export default defineConfig({
       filename: 'remoteEntry.js',
       exposes: {
         './ContactsApp': './src/ContactsApp.tsx',
-        './ContactModal': './src/ContactModal.tsx',
+        './ContactModal': './src/components/modals/ContactsModal.tsx',
       },
       shared: ['react', 'react-dom']
     })
