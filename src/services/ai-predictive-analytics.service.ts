@@ -97,12 +97,45 @@ class AIPredictiveAnalyticsService {
   private predictions: Map<string, Prediction[]> = new Map();
   private trendCache: Map<string, TrendAnalysis> = new Map();
   private apiUrl: string;
+  private isApiAvailable: boolean = false;
+  private healthCheckPerformed: boolean = false;
 
   constructor() {
     // Configure API URL for Supabase Edge Function
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     this.apiUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/predictive-analytics` : '';
     this.initializeModels();
+    
+    // Perform health check on first use
+    if (this.apiUrl) {
+      this.performHealthCheck();
+    }
+  }
+
+  // Health check to verify if the Edge Function is available
+  private async performHealthCheck(): Promise<void> {
+    if (this.healthCheckPerformed) return;
+    
+    try {
+      const response = await fetch(`${this.apiUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
+      
+      this.isApiAvailable = response.ok;
+      this.healthCheckPerformed = true;
+      
+      if (!this.isApiAvailable) {
+        console.warn('Predictive analytics Edge Function not available, using mock data');
+      }
+    } catch (error) {
+      console.warn('Predictive analytics Edge Function health check failed, using mock data:', error.message);
+      this.isApiAvailable = false;
+      this.healthCheckPerformed = true;
+    }
   }
 
   // Core Prediction Methods
@@ -112,47 +145,61 @@ class AIPredictiveAnalyticsService {
   ): Promise<Prediction[]> {
     logger.info('Generating predictions for contact', { contactId: contact.id, types: predictionTypes });
 
+    // Ensure health check is performed
+    if (!this.healthCheckPerformed && this.apiUrl) {
+      await this.performHealthCheck();
+    }
+
     try {
       // Check if API is available
-      if (!this.apiUrl) {
+      if (!this.apiUrl || !this.isApiAvailable) {
         console.warn('Supabase URL not configured, using mock predictions');
         return this.generateMockPredictions(contact, predictionTypes);
       }
 
-      const response = await httpClient.post<any>(
-        `${this.apiUrl}/predictions`,
-        {
-          contactId: contact.id,
-          contact,
-          predictionTypes,
-          timeframe: '90d'
-        },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      try {
+        const response = await httpClient.post<any>(
+          `${this.apiUrl}/predictions`,
+          {
+            contactId: contact.id,
+            contact,
+            predictionTypes,
+            timeframe: '90d'
+          },
+          {
+            timeout: 30000,
+            retries: 1, // Reduce retries to fail faster
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            }
           }
+        );
+
+        const predictions = response.data.predictions || [];
+        
+        // Store predictions
+        this.predictions.set(contact.id, predictions);
+        
+        // Cache results
+        cacheService.set('predictions', contact.id, predictions, 3600000); // 1 hour cache
+        
+        logger.info('Predictions generated successfully', {
+          contactId: contact.id,
+          count: predictions.length,
+          provider: response.data.provider
+        });
+
+        return predictions;
+      } catch (apiError) {
+        // Mark API as unavailable on network errors
+        if (apiError.message.includes('Failed to fetch') || apiError.message.includes('Network Error')) {
+          this.isApiAvailable = false;
+          console.warn('Predictive analytics API became unavailable, switching to mock mode');
         }
-      );
-
-      const predictions = response.data.predictions || [];
-      
-      // Store predictions
-      this.predictions.set(contact.id, predictions);
-      
-      // Cache results
-      cacheService.set('predictions', contact.id, predictions, 3600000); // 1 hour cache
-      
-      logger.info('Predictions generated successfully', {
-        contactId: contact.id,
-        count: predictions.length,
-        provider: response.data.provider
-      });
-
-      return predictions;
+        throw apiError;
+      }
     } catch (error) {
-      logger.error('Real predictions failed, using fallback', error as Error, { contactId: contact.id });
+      logger.warn('Real predictions failed, using fallback', { contactId: contact.id, error: error.message });
       return this.generateMockPredictions(contact, predictionTypes);
     }
   }
@@ -164,6 +211,11 @@ class AIPredictiveAnalyticsService {
   ): Promise<TrendAnalysis> {
     logger.info('Analyzing trends for contact', { contactId: contact.id, timeframe, metrics });
 
+    // Ensure health check is performed
+    if (!this.healthCheckPerformed && this.apiUrl) {
+      await this.performHealthCheck();
+    }
+
     // Check cache first
     const cacheKey = `${contact.id}_${timeframe}_${metrics.join('_')}`;
     const cached = this.trendCache.get(cacheKey);
@@ -173,41 +225,50 @@ class AIPredictiveAnalyticsService {
 
     try {
       // Check if API is available
-      if (!this.apiUrl) {
+      if (!this.apiUrl || !this.isApiAvailable) {
         console.warn('Supabase URL not configured, using mock trend analysis');
         return this.generateMockTrendAnalysis(contact, timeframe, metrics);
       }
 
-      const response = await httpClient.post<TrendAnalysis>(
-        `${this.apiUrl}/trends`,
-        {
-          contactId: contact.id,
-          contact,
-          timeframe,
-          metrics
-        },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      try {
+        const response = await httpClient.post<TrendAnalysis>(
+          `${this.apiUrl}/trends`,
+          {
+            contactId: contact.id,
+            contact,
+            timeframe,
+            metrics
+          },
+          {
+            timeout: 30000,
+            retries: 1, // Reduce retries to fail faster
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            }
           }
+        );
+
+        const analysis = response.data;
+        
+        // Cache the analysis
+        this.trendCache.set(cacheKey, analysis);
+        
+        logger.info('Trend analysis completed successfully', {
+          contactId: contact.id,
+          trendsCount: analysis.trends.length
+        });
+
+        return analysis;
+      } catch (apiError) {
+        // Mark API as unavailable on network errors
+        if (apiError.message.includes('Failed to fetch') || apiError.message.includes('Network Error')) {
+          this.isApiAvailable = false;
+          console.warn('Predictive analytics API became unavailable, switching to mock mode');
         }
-      );
-
-      const analysis = response.data;
-      
-      // Cache the analysis
-      this.trendCache.set(cacheKey, analysis);
-      
-      logger.info('Trend analysis completed successfully', {
-        contactId: contact.id,
-        trendsCount: analysis.trends.length
-      });
-
-      return analysis;
+        throw apiError;
+      }
     } catch (error) {
-      logger.error('Real trend analysis failed, using fallback', error as Error, { contactId: contact.id });
+      logger.warn('Real trend analysis failed, using fallback', { contactId: contact.id, error: error.message });
       return this.generateMockTrendAnalysis(contact, timeframe, metrics);
     }
   }
@@ -222,40 +283,54 @@ class AIPredictiveAnalyticsService {
   ): Promise<RiskAssessment> {
     logger.info('Assessing risk for contact', { contactId: contact.id });
 
+    // Ensure health check is performed
+    if (!this.healthCheckPerformed && this.apiUrl) {
+      await this.performHealthCheck();
+    }
+
     try {
       // Check if API is available
-      if (!this.apiUrl) {
+      if (!this.apiUrl || !this.isApiAvailable) {
         console.warn('Supabase URL not configured, using mock risk assessment');
         return this.generateMockRiskAssessment(contact, context);
       }
 
-      const response = await httpClient.post<RiskAssessment>(
-        `${this.apiUrl}/risk-assessment`,
-        {
-          contactId: contact.id,
-          contact,
-          context
-        },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      try {
+        const response = await httpClient.post<RiskAssessment>(
+          `${this.apiUrl}/risk-assessment`,
+          {
+            contactId: contact.id,
+            contact,
+            context
+          },
+          {
+            timeout: 30000,
+            retries: 1, // Reduce retries to fail faster
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            }
           }
+        );
+
+        const assessment = response.data;
+        
+        logger.info('Risk assessment completed successfully', {
+          contactId: contact.id,
+          riskLevel: assessment.overallRisk,
+          riskScore: assessment.riskScore
+        });
+
+        return assessment;
+      } catch (apiError) {
+        // Mark API as unavailable on network errors
+        if (apiError.message.includes('Failed to fetch') || apiError.message.includes('Network Error')) {
+          this.isApiAvailable = false;
+          console.warn('Predictive analytics API became unavailable, switching to mock mode');
         }
-      );
-
-      const assessment = response.data;
-      
-      logger.info('Risk assessment completed successfully', {
-        contactId: contact.id,
-        riskLevel: assessment.overallRisk,
-        riskScore: assessment.riskScore
-      });
-
-      return assessment;
+        throw apiError;
+      }
     } catch (error) {
-      logger.error('Real risk assessment failed, using fallback', error as Error, { contactId: contact.id });
+      logger.warn('Real risk assessment failed, using fallback', { contactId: contact.id, error: error.message });
       return this.generateMockRiskAssessment(contact, context);
     }
   }

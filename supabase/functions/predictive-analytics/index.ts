@@ -101,9 +101,47 @@ Deno.serve(async (req: Request) => {
         case 'risk-assessment':
           return await handleRiskAssessment(await req.json(), hasOpenAI, hasGemini, openaiApiKey, geminiApiKey);
         
+        case 'health':
+          // Health check endpoint
+          return new Response(
+            JSON.stringify({
+              status: 'healthy',
+              timestamp: new Date().toISOString(),
+              providers: {
+                openai: !!openaiApiKey,
+                gemini: !!geminiApiKey
+              }
+            }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        
         default:
           // Default endpoint - handle general predictive analytics
           return await handlePredictions(await req.json(), hasOpenAI, hasGemini, openaiApiKey, geminiApiKey);
+      }
+    }
+
+    // Handle GET requests for health check
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      const endpoint = url.pathname.split('/').pop();
+      
+      if (endpoint === 'health') {
+        return new Response(
+          JSON.stringify({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            providers: {
+              openai: !!openaiApiKey,
+              gemini: !!geminiApiKey
+            }
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
       }
     }
 
