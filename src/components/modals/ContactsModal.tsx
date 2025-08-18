@@ -8,6 +8,10 @@ import { NewContactModal } from './NewContactModal';
 import { useContactStore } from '../../store/contactStore';
 import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
+import { ContactGalleryView } from '../contacts/ContactGalleryView';
+import { ContactTimelineView } from '../contacts/ContactTimelineView';
+import { ContactKanbanView } from '../contacts/ContactKanbanView';
+import { ContactTableView } from '../contacts/ContactTableView';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import Fuse from 'fuse.js';
 import { 
@@ -36,7 +40,8 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
-  Info
+  Info,
+  Clock
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -95,7 +100,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'table' | 'gallery' | 'timeline' | 'kanban'>('card');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [bulkActionDropdown, setBulkActionDropdown] = useState(false);
@@ -719,6 +724,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                       ? 'bg-blue-600 text-white' 
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
+                  title="Card View"
                 >
                   <Grid3X3 className="w-4 h-4" />
                 </button>
@@ -729,8 +735,42 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                       ? 'bg-blue-600 text-white' 
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
+                  title="Table View"
                 >
                   <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('gallery')}
+                  className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
+                    viewMode === 'gallery' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="Gallery View"
+                >
+                  <Users className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('timeline')}
+                  className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
+                    viewMode === 'timeline' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="Timeline View"
+                >
+                  <Clock className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
+                    viewMode === 'kanban' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="Kanban View"
+                >
+                  <BarChart3 className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -753,19 +793,71 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 </ModernButton>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredContacts.map((contact) => (
-                  <AIEnhancedContactCard
-                    key={contact.id}
-                    contact={contact}
-                    isSelected={selectedContacts.includes(contact.id)}
-                    onSelect={() => handleContactSelect(contact.id)}
-                    onClick={() => handleContactClick(contact)}
+              <>
+                {viewMode === 'card' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredContacts.map((contact) => (
+                      <AIEnhancedContactCard
+                        key={contact.id}
+                        contact={contact}
+                        isSelected={selectedContacts.includes(contact.id)}
+                        onSelect={() => handleContactSelect(contact.id)}
+                        onClick={() => handleContactClick(contact)}
+                        onAnalyze={handleAnalyzeContact}
+                        isAnalyzing={analyzingContactIds.includes(contact.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                {viewMode === 'table' && (
+                  <ContactTableView
+                    contacts={filteredContacts}
+                    selectedContacts={selectedContacts}
+                    onContactSelect={handleContactSelect}
+                    onContactClick={handleContactClick}
                     onAnalyze={handleAnalyzeContact}
-                    isAnalyzing={analyzingContactIds.includes(contact.id)}
+                    analyzingContactIds={analyzingContactIds}
+                    onSort={handleSort}
+                    sortBy={sortBy}
+                    sortOrder={sortOrder}
                   />
-                ))}
-              </div>
+                )}
+                
+                {viewMode === 'gallery' && (
+                  <ContactGalleryView
+                    contacts={filteredContacts}
+                    selectedContacts={selectedContacts}
+                    onContactSelect={handleContactSelect}
+                    onContactClick={handleContactClick}
+                    onAnalyze={handleAnalyzeContact}
+                    analyzingContactIds={analyzingContactIds}
+                  />
+                )}
+                
+                {viewMode === 'timeline' && (
+                  <ContactTimelineView
+                    contacts={filteredContacts}
+                    selectedContacts={selectedContacts}
+                    onContactSelect={handleContactSelect}
+                    onContactClick={handleContactClick}
+                    onAnalyze={handleAnalyzeContact}
+                    analyzingContactIds={analyzingContactIds}
+                  />
+                )}
+                
+                {viewMode === 'kanban' && (
+                  <ContactKanbanView
+                    contacts={filteredContacts}
+                    selectedContacts={selectedContacts}
+                    onContactSelect={handleContactSelect}
+                    onContactClick={handleContactClick}
+                    onAnalyze={handleAnalyzeContact}
+                    analyzingContactIds={analyzingContactIds}
+                    groupBy="interestLevel"
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
