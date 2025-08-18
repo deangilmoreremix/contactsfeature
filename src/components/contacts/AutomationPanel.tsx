@@ -245,26 +245,16 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
       console.error('Failed to generate automation suggestions:', error);
     }
   };
+  
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        // Don't show toast if there was an error (error state will handle the UI)
-        if (!error) {
-          toast.info('No automation suggestions available for the selected contacts');
-        }
+  };
 
   const getStatusColor = (isActive: boolean, successRate: number) => {
     if (!isActive) return 'text-gray-500 bg-gray-100';
     if (successRate >= 80) return 'text-green-600 bg-green-100';
-      
-      // Show more helpful error messages
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate automation suggestions';
-      
-      if (errorMessage.includes('Edge Function not available') || errorMessage.includes('function not available')) {
-        toast.warning('AI automation features require additional setup. Please deploy the automation-ai Edge Function and configure API keys.');
-      } else {
-        toast.error('Failed to generate automation suggestions');
-      }
+    if (successRate >= 60) return 'text-yellow-600 bg-yellow-100';
     return 'text-red-600 bg-red-100';
   };
 
@@ -283,17 +273,17 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
           <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
             <Filter className="w-4 h-4" />
             <span>Filter</span>
-            <ModernButton 
-              variant="outline" 
-              size="sm" 
-              onClick={handleGenerateSuggestions}
-              loading={isOptimizing}
-              className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
-            >
-              <Brain className="w-4 h-4" />
-              <span>{isOptimizing ? 'Analyzing...' : 'AI Suggestions'}</span>
-              <Sparkles className="w-3 h-3 text-yellow-500" />
-            </ModernButton>
+          </ModernButton>
+          <ModernButton 
+            variant="outline" 
+            size="sm" 
+            onClick={handleGenerateSuggestions}
+            loading={isOptimizing}
+            className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
+          >
+            <Brain className="w-4 h-4" />
+            <span>{isOptimizing ? 'Analyzing...' : 'AI Suggestions'}</span>
+            <Sparkles className="w-3 h-3 text-yellow-500" />
           </ModernButton>
           <ModernButton 
             variant="primary" 
