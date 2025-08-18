@@ -303,13 +303,18 @@ class AIAutomationEngine {
     }
   }
 
-      this.logger.warn('GPT-5 suggestion generation failed, falling back to rule-based suggestions');
   private async generateGPT5Suggestions(
     contacts: Contact[],
     existingRules: AutomationRule[]
   ): Promise<EnhancedRuleSuggestion[]> {
     if (!this.gpt5EndpointUrl) {
       throw new Error('GPT-5 endpoint not configured');
+    }
+
+    const response = await httpClient.post(
+      this.gpt5EndpointUrl,
+      {
+        type: 'enhanced-suggestions',
         contacts: contacts.slice(0, 100), // Limit for performance
         existingRules,
         performanceHistory: this.performanceHistory.slice(-200), // Recent history
@@ -534,35 +539,23 @@ class AIAutomationEngine {
     rule.performance.lastTriggered = execution.triggeredAt;
 
     // Record in history
-    try {
-      const { data, error } = await this.httpClient.makeRequest<{
-        suggestions: any[]
-      }>('/automation-ai', {
-        method: 'POST',
-        body: JSON.stringify({
-          type: 'enhanced-suggestions',
-          contacts: contacts.slice(0, 50), // Limit for performance
-          existingRules: [],
-          performanceHistory: [],
-          patterns: this.analyzeContactPatterns(contacts)
-        })
-      });
+    this.performanceHistory.push({
+      ruleId,
+      execution,
+      outcome: execution.outcome,
+      timestamp: execution.completedAt
+    });
 
-      if (error) {
-        throw new Error(`Automation AI API error: ${error.message}`);
-      }
-  // Private Helper Methods
-      return this.transformGPT5Suggestions(data?.suggestions || []);
-    } catch (fetchError) {
-      // Check if it's a network/function unavailability error
-      if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
-        this.logger.warn('Automation AI Edge Function not available - using fallback suggestions');
-        throw new Error('Edge function not available');
-      }
-      
-      // Re-throw other errors
-      throw fetchError;
+    // Keep history manageable
+    if (this.performanceHistory.length > 1000) {
+      this.performanceHistory = this.performanceHistory.slice(-800);
     }
+
+    this.savePerformanceHistory();
+  }
+
+  // Private Helper Methods
+  private analyzeContactPatterns(contacts: Contact[]): any {
     const patterns = {
       interestLevelDistribution: this.getDistribution(contacts, 'interestLevel'),
       industryDistribution: this.getDistribution(contacts, 'industry'),
