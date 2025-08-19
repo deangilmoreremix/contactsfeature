@@ -282,7 +282,7 @@ async function callOpenAI(prompt: string, apiKey: string) {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o', // Placeholder for gpt-5
+      model: 'gpt-5-omni', // Updated model to GPT-5 Omni
       messages: [
         {
           role: 'system',
