@@ -65,6 +65,8 @@ class TaskRouterService {
         { model: 'gemma-2-2b-it', score: 75, reasoning: 'Fast scoring for simple cases' }
       ],
       openaiModels: [
+        { model: 'gpt-5-omni', score: 98, reasoning: 'Highest accuracy and comprehensive understanding for scoring' }, // Added GPT-5 Omni
+        { model: 'gpt-5-small', score: 90, reasoning: 'Cost-effective and fast for general scoring' }, // Added GPT-5 Small
         { model: 'gpt-4o-mini', score: 88, reasoning: 'Optimal cost-performance for contact scoring' },
         { model: 'gpt-4o', score: 95, reasoning: 'Highest accuracy for critical scoring decisions' },
         { model: 'gpt-3.5-turbo', score: 78, reasoning: 'Cost-effective for basic scoring' }
@@ -78,6 +80,8 @@ class TaskRouterService {
         { model: 'gemma-2-9b-it', score: 82, reasoning: 'Good balance for standard enrichment' }
       ],
       openaiModels: [
+        { model: 'gpt-5-omni', score: 99, reasoning: 'Unmatched accuracy and detail for comprehensive enrichment' }, // Added GPT-5 Omni
+        { model: 'gpt-5-vision', score: 97, reasoning: 'Excellent for enriching with visual data and insights' }, // Added GPT-5 Vision
         { model: 'gpt-4o', score: 95, reasoning: 'Superior reasoning for complex data enrichment' },
         { model: 'gpt-4o-mini', score: 85, reasoning: 'Cost-effective enrichment with good quality' }
       ],
@@ -91,6 +95,8 @@ class TaskRouterService {
         { model: 'gemma-2-9b-it', score: 85, reasoning: 'More nuanced categorization' }
       ],
       openaiModels: [
+        { model: 'gpt-5-small', score: 95, reasoning: 'Highly efficient and accurate for categorization' }, // Added GPT-5 Small
+        { model: 'gpt-5-nano', score: 90, reasoning: 'Ultra-fast and cost-effective for simple categorization' }, // Added GPT-5 Nano
         { model: 'gpt-4o-mini', score: 88, reasoning: 'Reliable categorization with consistency' },
         { model: 'gpt-3.5-turbo', score: 82, reasoning: 'Basic categorization at low cost' }
       ],
@@ -103,6 +109,8 @@ class TaskRouterService {
         { model: 'gemini-1.5-flash-8b', score: 90, reasoning: 'Ultra-fast tagging with good precision' }
       ],
       openaiModels: [
+        { model: 'gpt-5-nano', score: 92, reasoning: 'Extremely fast and precise for tagging' }, // Added GPT-5 Nano
+        { model: 'gpt-5-small', score: 89, reasoning: 'Efficient and accurate for diverse tagging needs' }, // Added GPT-5 Small
         { model: 'gpt-4o-mini', score: 85, reasoning: 'Consistent tagging quality' },
         { model: 'gpt-3.5-turbo', score: 80, reasoning: 'Cost-effective basic tagging' }
       ],
@@ -114,6 +122,8 @@ class TaskRouterService {
         { model: 'gemma-2-27b-it', score: 85, reasoning: 'Complex reasoning for relationship analysis' }
       ],
       openaiModels: [
+        { model: 'gpt-5-omni', score: 99, reasoning: 'Unparalleled reasoning for intricate relationship mapping' }, // Added GPT-5 Omni
+        { model: 'gpt-5-vision', score: 97, reasoning: 'Can infer relationships from visual cues and profiles' }, // Added GPT-5 Vision
         { model: 'gpt-4o', score: 95, reasoning: 'Superior reasoning for complex relationship mapping' },
         { model: 'gpt-4o-mini', score: 80, reasoning: 'Good relationship detection with efficiency' }
       ],
@@ -126,6 +136,8 @@ class TaskRouterService {
         { model: 'gemma-2-27b-it', score: 92, reasoning: 'Advanced qualification criteria analysis' }
       ],
       openaiModels: [
+        { model: 'gpt-5-omni', score: 99, reasoning: 'Best-in-class accuracy for critical lead qualification' }, // Added GPT-5 Omni
+        { model: 'gpt-5-turbo', score: 96, reasoning: 'Fast and highly accurate for high-volume qualification' }, // Added GPT-5 Turbo
         { model: 'gpt-4o', score: 95, reasoning: 'Best-in-class qualification accuracy' },
         { model: 'gpt-4o-mini', score: 87, reasoning: 'Efficient qualification with good accuracy' }
       ],
@@ -138,6 +150,8 @@ class TaskRouterService {
         { model: 'gemini-1.5-flash', score: 88, reasoning: 'Fast sentiment analysis with accuracy' }
       ],
       openaiModels: [
+        { model: 'gpt-5-omni', score: 98, reasoning: 'Highly nuanced and accurate sentiment detection' }, // Added GPT-5 Omni
+        { model: 'gpt-5-small', score: 90, reasoning: 'Efficient sentiment analysis for general use' }, // Added GPT-5 Small
         { model: 'gpt-4o-mini', score: 90, reasoning: 'Nuanced sentiment detection' },
         { model: 'gpt-4o', score: 95, reasoning: 'Superior emotional intelligence' }
       ],
@@ -269,34 +283,46 @@ class TaskRouterService {
     let score = baseScore;
 
     // Accuracy requirement adjustment
-    if (requirements.accuracy === 'critical' && modelConfig.id.includes('gpt-4o')) {
-      score += 15; // Boost OpenAI GPT-4o for critical accuracy
-    } else if (requirements.accuracy === 'critical' && modelConfig.id.includes('gemma-2-27b')) {
-      score += 10; // Boost largest Gemma for critical accuracy
+    if (requirements.accuracy === 'critical') {
+      if (modelConfig.id.includes('gpt-5-omni')) {
+        score += 25; // Significant boost for GPT-5 Omni
+      } else if (modelConfig.id.includes('gpt-5-vision')) {
+        score += 20; // Significant boost for GPT-5 Vision
+      } else if (modelConfig.id.includes('gpt-4o')) {
+        score += 15;
+      } else if (modelConfig.id.includes('gemma-2-27b')) {
+        score += 10;
+      }
     } else if (requirements.accuracy === 'low' && modelConfig.id.includes('2b')) {
-      score += 5; // Boost smaller models for low accuracy needs
+      score += 5;
     }
 
     // Speed requirement adjustment
     if (requirements.speed === 'realtime') {
-      if (modelConfig.id.includes('flash-8b') || modelConfig.id.includes('2b')) {
-        score += 20; // Significant boost for fastest models
+      if (modelConfig.id.includes('gpt-5-nano')) {
+        score += 30; // Max boost for GPT-5 Nano
+      } else if (modelConfig.id.includes('gpt-5-small') || modelConfig.id.includes('gpt-5-turbo')) {
+        score += 20; // Strong boost for other fast GPT-5 models
+      } else if (modelConfig.id.includes('flash-8b') || modelConfig.id.includes('2b')) {
+        score += 15;
       } else if (modelConfig.id.includes('mini') || modelConfig.id.includes('flash')) {
         score += 10;
       } else if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
-        score -= 10; // Penalize slower models for realtime needs
+        score -= 10;
       }
     }
 
     // Cost requirement adjustment
     if (requirements.cost === 'free') {
       if (modelConfig.id.includes('gemma') || modelConfig.id.includes('gemini')) {
-        score += 25; // Strong preference for free Gemini/Gemma models
+        score += 25;
       } else {
-        score -= 30; // Heavy penalty for paid models when free is required
+        score -= 30;
       }
     } else if (requirements.cost === 'low') {
-      if (modelConfig.costPer1kTokens && modelConfig.costPer1kTokens < 0.001) {
+      if (modelConfig.id.includes('gpt-5-nano') || modelConfig.id.includes('gpt-5-small')) {
+        score += 18; // Boost for cost-efficient GPT-5 models
+      } else if (modelConfig.costPer1kTokens && modelConfig.costPer1kTokens < 0.001) {
         score += 15;
       } else if (modelConfig.id.includes('mini')) {
         score += 10;
@@ -305,25 +331,33 @@ class TaskRouterService {
 
     // Volume adjustment
     if (requirements.volume === 'bulk' || requirements.volume === 'streaming') {
-      if (modelConfig.id.includes('flash') || modelConfig.id.includes('2b') || modelConfig.id.includes('9b')) {
-        score += 15; // Prefer faster models for bulk processing
+      if (modelConfig.id.includes('gpt-5-turbo') || modelConfig.id.includes('gpt-5-small') || modelConfig.id.includes('gpt-5-nano')) {
+        score += 20; // Prefer fast GPT-5 models for bulk/streaming
+      } else if (modelConfig.id.includes('flash') || modelConfig.id.includes('2b') || modelConfig.id.includes('9b')) {
+        score += 15;
       }
     }
 
     // Complexity adjustment
     if (requirements.complexity === 'expert') {
-      if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
-        score += 20; // Strong preference for GPT-4o for expert tasks
+      if (modelConfig.id.includes('gpt-5-omni')) {
+        score += 30; // Max boost for GPT-5 Omni
+      } else if (modelConfig.id.includes('gpt-5-vision') && modelConfig.capabilities.includes('vision')) {
+        score += 25; // Boost for vision tasks
+      } else if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
+        score += 20;
       } else if (modelConfig.id.includes('27b') || modelConfig.id.includes('1.5-pro')) {
-        score += 15; // Boost larger models for complex tasks
+        score += 15;
       }
     } else if (requirements.complexity === 'simple') {
-      if (modelConfig.id.includes('2b') || modelConfig.id.includes('8b') || modelConfig.id.includes('3.5')) {
-        score += 10; // Prefer smaller/simpler models for simple tasks
+      if (modelConfig.id.includes('gpt-5-nano') || modelConfig.id.includes('gpt-5-small')) {
+        score += 15; // Prefer smaller/simpler GPT-5 models for simple tasks
+      } else if (modelConfig.id.includes('2b') || modelConfig.id.includes('8b') || modelConfig.id.includes('3.5')) {
+        score += 10;
       }
     }
 
-    return Math.max(0, Math.min(100, score)); // Clamp between 0-100
+    return Math.max(0, Math.min(100, score));
   }
 
   private adjustScoreForPerformance(baseScore: number, modelKey: string): number {
@@ -423,7 +457,14 @@ class TaskRouterService {
       'gpt-3.5-turbo': 1800,
       'gemma-2-27b-it': 3500,
       'gemini-1.5-pro': 3000,
-      'gpt-4o': 4000
+      'gpt-4o': 4000,
+      // New GPT-5 models
+      'gpt-5-nano': 500, // Very fast
+      'gpt-5-small': 800,
+      'gpt-5-chat': 1000,
+      'gpt-5-turbo': 1500,
+      'gpt-5-omni': 3000,
+      'gpt-5-vision': 4500 // Can be slower due to multimodal processing
     };
 
     let latency = baseLatencies[modelConfig.id] || 2500;
@@ -499,7 +540,6 @@ class TaskRouterService {
   getTaskRecommendations(taskType: string): { 
     recommendedProvider: string; 
     recommendedModel: string; 
-    reasoning: string;
     alternatives: Array<{ provider: string; model: string; reasoning: string }>;
   } | null {
     const profile = this.taskProfiles[taskType];
