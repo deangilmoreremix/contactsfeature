@@ -69,6 +69,21 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Validate API keys before proceeding
+      if (!hasOpenAI && !hasGemini) {
+        console.warn('No AI provider API keys available for request');
+        return new Response(
+          JSON.stringify({
+            error: 'AI service temporarily unavailable',
+            details: 'Please try again later or contact support if the issue persists'
+          }),
+          {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
       let result;
 
       switch (type) {
@@ -121,7 +136,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: 'Internal server error',
-        details: error.message || 'An unexpected error occurred'
+        details: error instanceof Error ? error.message : 'An unexpected error occurred'
       }),
       {
         status: 500,
@@ -275,74 +290,102 @@ ONLY return the JSON object, nothing else.`;
 }
 
 async function callOpenAI(prompt: string, apiKey: string) {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-5-omni', // Updated model to GPT-5 Omni
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert sales AI analyst who provides clear, concise reasoning for contact assessments.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.2,
-      response_format: { type: "json_object" }
-    })
-  });
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o', // Use available model
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert sales AI analyst who provides clear, concise reasoning for contact assessments.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      })
+    });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage;
+      try {
+        const error = JSON.parse(errorText);
+        errorMessage = error.error?.message || response.statusText;
+      } catch {
+        errorMessage = response.statusText;
+      }
+      throw new Error(`OpenAI API error (${response.status}): ${errorMessage}`);
+    }
+
+    const result = await response.json();
+    const content = result.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('Empty response from OpenAI API');
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`OpenAI API call failed: ${error}`);
   }
-
-  const result = await response.json();
-  const content = result.choices[0]?.message?.content;
-
-  if (!content) {
-    throw new Error('Empty response from OpenAI API');
-  }
-
-  return JSON.parse(content);
 }
 
 async function callGemini(prompt: string, apiKey: string) {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{
-          text: prompt
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.2,
-        response_mime_type: "application/json"
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          response_mime_type: "application/json"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage;
+      try {
+        const error = JSON.parse(errorText);
+        errorMessage = error.error?.message || response.statusText;
+      } catch {
+        errorMessage = response.statusText;
       }
-    })
-  });
+      throw new Error(`Gemini API error (${response.status}): ${errorMessage}`);
+    }
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!content) {
+      throw new Error('Empty response from Gemini API');
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Gemini API call failed: ${error}`);
   }
-
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!content) {
-    throw new Error('Empty response from Gemini API');
-  }
-
-  return JSON.parse(content);
 }
