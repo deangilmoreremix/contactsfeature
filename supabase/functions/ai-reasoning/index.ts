@@ -39,14 +39,15 @@ Deno.serve(async (req) => {
   const hasGemini = !!geminiApiKey;
 
   if (!hasOpenAI && !hasGemini) {
-    console.warn('No AI provider API keys configured');
+    console.error('No AI provider API keys configured - both OPENAI_API_KEY and GEMINI_API_KEY are missing');
     return new Response(
       JSON.stringify({
-        error: 'AI providers not configured',
-        details: 'OpenAI or Gemini API keys are required for AI reasoning'
+        error: 'AI service unavailable',
+        details: 'No AI provider API keys are configured. Please set OPENAI_API_KEY or GEMINI_API_KEY as Supabase secrets and redeploy this function.',
+        setup_instructions: 'Run: npx supabase secrets set OPENAI_API_KEY=your-key && npx supabase functions deploy ai-reasoning'
       }),
       {
-        status: 400,
+        status: 503,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
@@ -71,11 +72,11 @@ Deno.serve(async (req) => {
 
       // Validate API keys before proceeding
       if (!hasOpenAI && !hasGemini) {
-        console.warn('No AI provider API keys available for request');
+        console.error('No AI provider API keys available for request processing');
         return new Response(
           JSON.stringify({
-            error: 'AI service temporarily unavailable',
-            details: 'Please try again later or contact support if the issue persists'
+            error: 'AI service configuration error',
+            details: 'AI provider credentials are not properly configured. This function requires either OPENAI_API_KEY or GEMINI_API_KEY to be set as Supabase secrets.'
           }),
           {
             status: 503,
@@ -291,6 +292,10 @@ ONLY return the JSON object, nothing else.`;
 
 async function callOpenAI(prompt: string, apiKey: string) {
   try {
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+      throw new Error('Invalid OpenAI API key format. Key should start with "sk-"');
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -344,6 +349,10 @@ async function callOpenAI(prompt: string, apiKey: string) {
 
 async function callGemini(prompt: string, apiKey: string) {
   try {
+    if (!apiKey || apiKey.length < 10) {
+      throw new Error('Invalid Gemini API key format');
+    }
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
