@@ -77,21 +77,20 @@ class AIEnrichmentService {
 
   async enrichContactByEmail(email: string): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by email: ${email}`);
-    
+
     // Check if any providers are configured before making the request
     if (!this.hasConfiguredProviders()) {
       logger.warn(`No AI providers configured for email enrichment: ${email}`);
       return this.generateMockData({ email });
     }
-    
+
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
         this.apiUrl,
-        { 
-          authorization: 'anon-key',
-          contactId: 'client-enrichment-request',
-          enrichmentRequest: { email },
-          type: 'email'
+        {
+          type: 'email',
+          email: email,
+          contactId: 'client-enrichment-request'
         },
         {
           timeout: 30000,
@@ -101,7 +100,7 @@ class AIEnrichmentService {
           }
         }
       );
-      
+
       logger.info(`Contact enriched successfully by email`);
       return response.data;
     } catch (error) {
@@ -113,27 +112,33 @@ class AIEnrichmentService {
 
   async enrichContactByName(firstName: string, lastName: string, company?: string): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by name: ${firstName} ${lastName} ${company ? `at ${company}` : ''}`);
-    
+
     // Check if any providers are configured before making the request
     if (!this.hasConfiguredProviders()) {
       logger.warn(`No AI providers configured for name enrichment: ${firstName} ${lastName}`);
       return this.generateMockData({ firstName, lastName, company });
     }
-    
+
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
         this.apiUrl,
-        { 
-          contactId: 'client-enrichment-request',
-          enrichmentRequest: { firstName, lastName, company },
-          type: 'name'
+        {
+          type: 'name',
+          name: `${firstName} ${lastName}`,
+          firstName,
+          lastName,
+          company,
+          contactId: 'client-enrichment-request'
         },
         {
           timeout: 30000,
-          retries: 2
+          retries: 2,
+          headers: {
+            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
+          }
         }
       );
-      
+
       logger.info(`Contact enriched successfully by name`);
       return response.data;
     } catch (error) {
@@ -145,27 +150,30 @@ class AIEnrichmentService {
 
   async enrichContactByLinkedIn(linkedinUrl: string): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by LinkedIn URL: ${linkedinUrl}`);
-    
+
     // Check if any providers are configured before making the request
     if (!this.hasConfiguredProviders()) {
       logger.warn(`No AI providers configured for LinkedIn enrichment: ${linkedinUrl}`);
       return this.generateMockData({ linkedinUrl });
     }
-    
+
     try {
       const response = await httpClient.post<ContactEnrichmentData>(
         this.apiUrl,
-        { 
-          contactId: 'client-enrichment-request',
-          enrichmentRequest: { linkedinUrl },
-          type: 'linkedin'
+        {
+          type: 'linkedin',
+          linkedin: linkedinUrl,
+          contactId: 'client-enrichment-request'
         },
         {
           timeout: 30000,
-          retries: 2
+          retries: 2,
+          headers: {
+            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
+          }
         }
       );
-      
+
       logger.info(`Contact enriched successfully by LinkedIn`);
       return response.data;
     } catch (error) {
@@ -177,34 +185,37 @@ class AIEnrichmentService {
 
   async findContactImage(name: string, company?: string): Promise<string> {
     logger.info(`Finding contact image for: ${name}${company ? ` at ${company}` : ''}`);
-    
+
     // Check if any providers are configured before making the request
     if (!this.hasConfiguredProviders()) {
       logger.warn(`No AI providers configured for image search: ${name}`);
       // Return a default avatar
       return 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
     }
-    
+
     try {
       const response = await httpClient.post<{ imageUrl: string }>(
         this.apiUrl,
-        { 
-          contactId: 'client-enrichment-request',
+        {
+          type: 'image',
           name,
           company,
-          type: 'image'
+          contactId: 'client-enrichment-request'
         },
         {
           timeout: 15000,
-          retries: 1
+          retries: 1,
+          headers: {
+            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
+          }
         }
       );
-      
+
       logger.info(`Found contact image successfully`);
       return response.data.imageUrl;
     } catch (error) {
       logger.error('Finding contact image failed', error as Error);
-      
+
       // Return a default avatar from Pexels if the API call fails
       return 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
     }

@@ -23,43 +23,53 @@ serve(async (req) => {
     )
 
     const requestBody = await req.json()
-    const { type, contactData, enrichmentType, email, name, linkedin, contacts } = requestBody
+    const { type, contactData, enrichmentType, email, name, linkedin, contacts, enrichmentRequest, contactId } = requestBody
 
     let enrichedData
 
     // Use 'type' field first, fallback to 'enrichmentType' for backward compatibility
     const requestType = type || enrichmentType
 
+    // Handle nested enrichmentRequest structure for backward compatibility
+    let processedData = contactData || requestBody
+    if (enrichmentRequest) {
+      processedData = enrichmentRequest
+      // Extract email from nested structure if present
+      if (enrichmentRequest.email) {
+        processedData.email = enrichmentRequest.email
+      }
+    }
+
     switch (requestType) {
       case 'image':
-        enrichedData = await findContactImage(contactData || requestBody)
+        enrichedData = await findContactImage(processedData)
         break
       case 'email':
-        enrichedData = await enrichByEmail(email, requestBody)
+        enrichedData = await enrichByEmail(processedData.email || email, processedData)
         break
       case 'name':
-        enrichedData = await enrichByName(name, requestBody)
+        enrichedData = await enrichByName(processedData.name || name, processedData)
         break
       case 'linkedin':
-        enrichedData = await enrichByLinkedIn(linkedin, requestBody)
+        enrichedData = await enrichByLinkedIn(processedData.linkedin || linkedin, processedData)
         break
       case 'bulk':
-        enrichedData = await enrichBulkContacts(contacts || requestBody)
+        enrichedData = await enrichBulkContacts(contacts || processedData.contacts || processedData)
         break
       case 'company':
-        enrichedData = await enrichCompanyInfo(contactData || requestBody)
+        enrichedData = await enrichCompanyInfo(processedData)
         break
       case 'social':
-        enrichedData = await enrichSocialProfiles(contactData || requestBody)
+        enrichedData = await enrichSocialProfiles(processedData)
         break
       case 'interests':
-        enrichedData = await enrichInterests(contactData || requestBody)
+        enrichedData = await enrichInterests(processedData)
         break
       case 'comprehensive':
-        enrichedData = await comprehensiveEnrichment(contactData || requestBody)
+        enrichedData = await comprehensiveEnrichment(processedData)
         break
       default:
-        enrichedData = await basicEnrichment(contactData || requestBody)
+        enrichedData = await basicEnrichment(processedData)
     }
 
     return new Response(JSON.stringify(enrichedData), {
