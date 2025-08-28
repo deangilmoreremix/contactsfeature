@@ -22,37 +22,149 @@ serve(async (req) => {
       }
     )
 
-    const { contactData, enrichmentType } = await req.json()
+    const requestBody = await req.json()
+    const { type, contactData, enrichmentType, email, name, linkedin, contacts } = requestBody
 
     let enrichedData
 
-    switch (enrichmentType) {
+    // Use 'type' field first, fallback to 'enrichmentType' for backward compatibility
+    const requestType = type || enrichmentType
+
+    switch (requestType) {
+      case 'image':
+        enrichedData = await findContactImage(contactData || requestBody)
+        break
+      case 'email':
+        enrichedData = await enrichByEmail(email, requestBody)
+        break
+      case 'name':
+        enrichedData = await enrichByName(name, requestBody)
+        break
+      case 'linkedin':
+        enrichedData = await enrichByLinkedIn(linkedin, requestBody)
+        break
+      case 'bulk':
+        enrichedData = await enrichBulkContacts(contacts || requestBody)
+        break
       case 'company':
-        enrichedData = await enrichCompanyInfo(contactData)
+        enrichedData = await enrichCompanyInfo(contactData || requestBody)
         break
       case 'social':
-        enrichedData = await enrichSocialProfiles(contactData)
+        enrichedData = await enrichSocialProfiles(contactData || requestBody)
         break
       case 'interests':
-        enrichedData = await enrichInterests(contactData)
+        enrichedData = await enrichInterests(contactData || requestBody)
         break
       case 'comprehensive':
-        enrichedData = await comprehensiveEnrichment(contactData)
+        enrichedData = await comprehensiveEnrichment(contactData || requestBody)
         break
       default:
-        enrichedData = await basicEnrichment(contactData)
+        enrichedData = await basicEnrichment(contactData || requestBody)
     }
 
     return new Response(JSON.stringify(enrichedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('AI Enrichment Error:', error)
+    return new Response(JSON.stringify({ 
+      error: error.message || 'An unexpected error occurred',
+      success: false 
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 })
+
+async function findContactImage(data: any) {
+  // Mock implementation for finding contact images
+  const contact = data.contact || data
+  
+  // In a real implementation, this would use AI services to find professional images
+  const mockImages = [
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1494790108755-2616b332dea7?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+  ]
+
+  const randomImage = mockImages[Math.floor(Math.random() * mockImages.length)]
+  
+  return {
+    success: true,
+    imageUrl: randomImage,
+    confidence: 0.75,
+    source: 'AI Generated',
+    enrichedAt: new Date().toISOString(),
+    contact: contact
+  }
+}
+
+async function enrichByEmail(email: string, data: any) {
+  const enriched = await basicEnrichment({ email, ...data })
+  
+  if (email) {
+    enriched.emailDomain = email.split('@')[1]
+    enriched.emailProvider = getEmailProvider(email)
+    enriched.companyInfo = {
+      domain: email.split('@')[1],
+      industry: 'Unknown',
+      size: 'Unknown'
+    }
+  }
+
+  enriched.enrichmentLevel = 'email'
+  return { success: true, data: enriched }
+}
+
+async function enrichByName(name: string, data: any) {
+  const enriched = await basicEnrichment({ name, ...data })
+  
+  if (name) {
+    enriched.nameParts = parseName(name)
+    enriched.socialProfiles = {
+      linkedin: null,
+      twitter: null,
+      facebook: null
+    }
+  }
+
+  enriched.enrichmentLevel = 'name'
+  return { success: true, data: enriched }
+}
+
+async function enrichByLinkedIn(linkedin: string, data: any) {
+  const enriched = await basicEnrichment({ linkedin, ...data })
+  
+  enriched.socialProfiles = {
+    linkedin: linkedin,
+    twitter: null,
+    facebook: null
+  }
+  
+  enriched.enrichmentLevel = 'linkedin'
+  return { success: true, data: enriched }
+}
+
+async function enrichBulkContacts(contacts: any[]) {
+  if (!Array.isArray(contacts)) {
+    return { success: false, error: 'Contacts must be an array' }
+  }
+
+  const enrichedContacts = await Promise.all(
+    contacts.map(async (contact) => {
+      return await basicEnrichment(contact)
+    })
+  )
+
+  return {
+    success: true,
+    data: enrichedContacts,
+    processed: enrichedContacts.length,
+    enrichedAt: new Date().toISOString()
+  }
+}
 
 async function basicEnrichment(data: any) {
   // Basic enrichment without AI
@@ -91,7 +203,7 @@ async function enrichCompanyInfo(data: any) {
   }
 
   enriched.enrichmentLevel = 'company'
-  return enriched
+  return { success: true, data: enriched }
 }
 
 async function enrichSocialProfiles(data: any) {
@@ -105,7 +217,7 @@ async function enrichSocialProfiles(data: any) {
   }
 
   enriched.enrichmentLevel = 'social'
-  return enriched
+  return { success: true, data: enriched }
 }
 
 async function enrichInterests(data: any) {
@@ -115,18 +227,25 @@ async function enrichInterests(data: any) {
   enriched.interests = []
   enriched.enrichmentLevel = 'interests'
 
-  return enriched
+  return { success: true, data: enriched }
 }
 
 async function comprehensiveEnrichment(data: any) {
   // Combine all enrichment types
   let enriched = await basicEnrichment(data)
-  enriched = await enrichCompanyInfo(enriched)
-  enriched = await enrichSocialProfiles(enriched)
-  enriched = await enrichInterests(enriched)
+  const companyResult = await enrichCompanyInfo(enriched)
+  const socialResult = await enrichSocialProfiles(enriched)
+  const interestsResult = await enrichInterests(enriched)
+
+  enriched = {
+    ...enriched,
+    ...companyResult.data,
+    ...socialResult.data,
+    ...interestsResult.data
+  }
 
   enriched.enrichmentLevel = 'comprehensive'
-  return enriched
+  return { success: true, data: enriched }
 }
 
 function getEmailProvider(email: string): string {
