@@ -1,16 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useContactAI } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { Contact } from '../../types';
 import { useContactStore } from '../../store/contactStore';
-import { aiEnrichmentService } from '../../services/aiEnrichmentService';
-import { cacheService } from '../../services/cache.service';
-import { httpClient } from '../../services/http-client.service';
 import { 
   Edit, 
-  AlertCircle,
-  Loader2,
   MoreHorizontal, 
   Mail, 
   Phone, 
@@ -21,11 +16,10 @@ import {
   ExternalLink,
   Star,
   Brain,
+  Loader2,
   Sparkles,
   Target,
-  Zap,
-  Camera,
-  MessageSquare
+  Zap
 } from 'lucide-react';
 
 interface AIEnhancedContactCardProps {
@@ -78,12 +72,6 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 }) => {
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [localAnalyzing, setLocalAnalyzing] = useState(false);
-  const [isMultimodalEnriching, setIsMultimodalEnriching] = useState(false);
-  // State for AI Score Explanation Tooltip
-  const [showScoreExplanation, setShowScoreExplanation] = useState(false);
-  const [scoreExplanation, setScoreExplanation] = useState<string | null>(null);
-  const [isFetchingExplanation, setIsFetchingExplanation] = useState(false);
-  const [explanationError, setExplanationError] = useState<string | null>(null);
   
   // Connect to AI services
   const { scoreContact, generateInsights, contactScore, contactInsights, isContactProcessing } = useContactAI(contact.id);
@@ -124,101 +112,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
     }
   };
 
-  // Function to fetch AI Score Explanation
-  const fetchScoreExplanation = useCallback(async () => {
-    if (!contact.aiScore) return; // Only fetch if there's an AI score
-
-    const cacheKey = `score_explanation_${contact.id}_${contact.aiScore}`;
-    const cachedExplanation = cacheService.get<string>('ai_score_explanation', cacheKey);
-
-    if (cachedExplanation) {
-      setScoreExplanation(cachedExplanation);
-      setExplanationError(null);
-      return;
-    }
-
-    setIsFetchingExplanation(true);
-    setExplanationError(null);
-
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase environment variables not configured.');
-      }
-
-      const response = await httpClient.post(
-        `${supabaseUrl}/functions/v1/ai-reasoning`,
-        {
-          contact: {
-            id: contact.id,
-            name: contact.name,
-            title: contact.title,
-            company: contact.company,
-            industry: contact.industry,
-            interestLevel: contact.interestLevel,
-            status: contact.status,
-            aiScore: contact.aiScore,
-            inferredPersonalityTraits: contact.inferredPersonalityTraits,
-            communicationStyle: contact.communicationStyle,
-            professionalDemeanor: contact.professionalDemeanor,
-            imageAnalysisNotes: contact.imageAnalysisNotes,
-          },
-          type: 'score-explanation',
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000, // 30 seconds timeout
-        }
-      );
-
-      const result = response.data;
-      if (result && result.reasons && Array.isArray(result.reasons)) {
-        const explanationText = result.reasons.join(' '); // Join bullet points
-        setScoreExplanation(explanationText);
-        cacheService.set('ai_score_explanation', cacheKey, explanationText, 3600000); // Cache for 1 hour
-      } else {
-        setExplanationError('Invalid response format from AI.');
-      }
-    } catch (err) {
-      console.error('Failed to fetch score explanation:', err);
-      setExplanationError(err instanceof Error ? err.message : 'Failed to fetch explanation.');
-    } finally {
-      setIsFetchingExplanation(false);
-    }
-  }, [contact]); // Dependency array for useCallback
-
-  // New handler for multimodal enrichment
-  const handleMultimodalEnrichment = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isMultimodalEnriching) return;
-
-    setIsMultimodalEnriching(true);
-    console.log('Starting multimodal enrichment for contact:', contact.id);
-    try {
-      if (contact.avatarSrc) {
-        const enrichedData = await aiEnrichmentService.enrichContactMultimodal(contact, contact.avatarSrc);
-        // Update the contact with the new multimodal fields
-        await updateContact(contact.id, enrichedData);
-        console.log('Multimodal enrichment completed:', enrichedData);
-      } else {
-        console.warn('No avatar source found for multimodal enrichment.');
-      }
-    } catch (error) {
-      console.error('Multimodal enrichment failed:', error);
-    } finally {
-      setIsMultimodalEnriching(false);
-    }
-  };
-
   const analyzing = isAnalyzing || localAnalyzing || isContactProcessing;
-
-  // Check if multimodal data is present
-  const hasMultimodalData = contact.inferredPersonalityTraits || contact.communicationStyle || contact.professionalDemeanor || contact.imageAnalysisNotes;
 
   return (
     <div
@@ -263,29 +157,6 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
           </button>
         )}
         
-        {/* Multimodal Enrichment Button */}
-        {contact.avatarSrc && (
-          <button
-            onClick={handleMultimodalEnrichment}
-            disabled={isMultimodalEnriching}
-            className={`p-2 rounded-lg transition-all duration-200 relative ${
-              hasMultimodalData
-                ? 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-                : 'bg-gradient-to-r from-pink-500 to-indigo-500 text-white hover:from-pink-600 hover:to-indigo-600 shadow-lg'
-            }`}
-            title={hasMultimodalData ? 'Re-enrich Multimodal' : 'Multimodal AI Enrichment'}
-          >
-            {isMultimodalEnriching ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Camera className="w-4 h-4" />
-            )}
-            {!hasMultimodalData && !isMultimodalEnriching && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-            )}
-          </button>
-        )}
-
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -325,13 +196,6 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 </div>
               )}
             </div>
-            {/* Multimodal Data Indicator */}
-            {hasMultimodalData && (
-              <div className="mt-2 flex items-center space-x-1">
-                <MessageSquare className="w-3 h-3 text-indigo-500" />
-                <span className="text-xs text-indigo-700 font-medium">Multimodal insights available</span>
-              </div>
-            )}
             <h3 className="text-gray-900 font-semibold text-lg mb-1 group-hover:text-blue-600 transition-colors">
               {contact.name}
             </h3>
@@ -342,81 +206,28 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
           {/* AI Score Display */}
           <div className="flex flex-col items-center space-y-2">
             {contact.aiScore ? (
-              <div 
-                className={`h-12 w-12 rounded-full ${getScoreColor(contact.aiScore)} text-white flex items-center justify-center font-bold text-lg shadow-lg ring-2 ring-white relative`}
-                onMouseEnter={() => {
-                  setShowScoreExplanation(true);
-                  fetchScoreExplanation();
-                }}
-                onMouseLeave={() => setShowScoreExplanation(false)}
-              >
+              <div className={`h-12 w-12 rounded-full ${getScoreColor(contact.aiScore)} text-white flex items-center justify-center font-bold text-lg shadow-lg ring-2 ring-white relative`}>
                 {contact.aiScore}
                 <Sparkles className="absolute -top-1 -right-1 w-3 h-3 text-yellow-300" />
-
-                {/* Score Explanation Tooltip */}
-                {showScoreExplanation && (
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg z-20">
-                    {isFetchingExplanation ? (
-                      <div className="flex items-center justify-center">
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        <span>Generating explanation...</span>
-                      </div>
-                    ) : explanationError ? (
-                      <div className="flex items-center">
-                        <AlertCircle className="w-4 h-4 text-red-400 mr-2" />
-                        <span>{explanationError}</span>
-                      </div>
-                    ) : scoreExplanation ? (
-                      <p>{scoreExplanation}</p>
-                    ) : (
-                      <p>Hover to see AI explanation for this score.</p>
-                    )}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
-                  </div>
-                )}
               </div>
             ) : (
-              <>
-                {/* Score Explanation Tooltip */}
-                {showScoreExplanation && (
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg z-20">
-                    {isFetchingExplanation ? (
-                      <div className="flex items-center justify-center">
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        <span>Generating explanation...</span>
-                      </div>
-                    ) : explanationError ? (
-                      <div className="flex items-center">
-                        <AlertCircle className="w-4 h-4 text-red-400 mr-2" />
-                        <span>{explanationError}</span>
-                      </div>
-                    ) : scoreExplanation ? (
-                      <p>{scoreExplanation}</p>
-                    ) : (
-                      <p>Hover to see AI explanation for this score.</p>
-                    )}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
+              <button
+                onClick={handleAnalyzeClick}
+                disabled={analyzing}
+                className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center font-bold text-lg shadow-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 hover:scale-110 relative"
+                title="Click to get AI score"
+              >
+                {analyzing ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Brain className="w-5 h-5" />
+                )}
+                {!analyzing && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse">
+                    <div className="absolute inset-0 bg-yellow-400 rounded-full animate-ping"></div>
                   </div>
                 )}
-
-                <button
-                  onClick={handleAnalyzeClick}
-                  disabled={analyzing}
-                  className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center font-bold text-lg shadow-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 hover:scale-110 relative"
-                  title="Click to get AI score"
-                >
-                  {analyzing ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Brain className="w-5 h-5" />
-                  )}
-                  {!analyzing && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse">
-                      <div className="absolute inset-0 bg-yellow-400 rounded-full animate-ping"></div>
-                    </div>
-                  )}
-                </button>
-              </>
+              </button>
             )}
             <span className="text-xs text-gray-500 font-medium">
               {contact.aiScore ? 'AI Score' : 'Click to Score'}

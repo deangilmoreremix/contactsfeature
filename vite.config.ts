@@ -1,21 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import federation from '@originjs/vite-plugin-federation'
 
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    federation({
-      name: 'contacts_remote',
-      filename: 'remoteEntry.js',
-      exposes: {
-        './ContactsApp': './src/ContactsApp.tsx',
-        './ContactModal': './src/components/modals/ContactsModal.tsx',
-      },
-      shared: ['react', 'react-dom']
-    })
-  ],
-  build: {
-    target: 'esnext'
+  plugins: [react()],
+  optimizeDeps: {
+    include: ['react', 'react-dom'],
+    exclude: ['@supabase/supabase-js']
+  },
+  define: {
+    global: 'globalThis',
+  },
+  server: {
+    host: true,
+    port: 5173,
   }
 })

@@ -5,7 +5,6 @@ import { AIResearchButton } from '../ui/AIResearchButton';
 import { useContactStore } from '../../store/contactStore';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { Contact } from '../../types';
-import { aiEnrichmentService } from '../../services/aiEnrichmentService';
 import { 
   X, 
   User, 
@@ -37,8 +36,7 @@ import {
   Sparkles,
   Wand2,
   RefreshCw,
-  Camera,
-  Zap
+  Camera
 } from 'lucide-react';
 
 interface NewContactModalProps {
@@ -141,7 +139,6 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
   const [newCustomField, setNewCustomField] = useState({ name: '', value: '' });
   const [showCustomFields, setShowCustomFields] = useState(false);
   const [lastEnrichmentData, setLastEnrichmentData] = useState<ContactEnrichmentData | null>(null);
-  const [isMultimodalEnriching, setIsMultimodalEnriching] = useState(false);
   
   const { createContact } = useContactStore();
 
@@ -299,39 +296,6 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
-  const handleMultimodalEnrichment = async () => {
-    if (!formData.avatarSrc || !formData.firstName) return;
-    
-    setIsMultimodalEnriching(true);
-    try {
-      const contact = {
-        name: `${formData.firstName} ${formData.lastName}`.trim(),
-        title: formData.title,
-        company: formData.company,
-        email: formData.email,
-        industry: formData.industry,
-        notes: formData.notes,
-        socialProfiles: formData.socialProfiles
-      };
-      
-      const enrichedData = await aiEnrichmentService.enrichContactMultimodal(contact, formData.avatarSrc);
-      
-      // Apply multimodal insights to form
-      if (enrichedData.communicationStyle && !formData.notes.includes('Communication Style:')) {
-        setFormData(prev => ({
-          ...prev,
-          notes: `${prev.notes}\n\nCommunication Style: ${enrichedData.communicationStyle}\nProfessional Demeanor: ${enrichedData.professionalDemeanor || 'N/A'}`
-        }));
-      }
-      
-      setLastEnrichmentData(enrichedData);
-    } catch (error) {
-      console.error('Multimodal enrichment failed:', error);
-    } finally {
-      setIsMultimodalEnriching(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -408,19 +372,6 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
           </p>
           {lastEnrichmentData && (
             <p className="text-sm text-gray-600 mb-4">
-                <button
-                  type="button"
-                  onClick={handleMultimodalEnrichment}
-                  disabled={isMultimodalEnriching || !formData.avatarSrc}
-                  className="absolute -bottom-1 -left-1 p-1.5 bg-gradient-to-r from-pink-600 to-indigo-600 text-white rounded-full hover:from-pink-700 hover:to-indigo-700 transition-colors shadow-lg disabled:opacity-50"
-                  title="Multimodal AI Enrichment"
-                >
-                  {isMultimodalEnriching ? (
-                    <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <Camera className="w-3 h-3" />
-                  )}
-                </button>
               ✨ Enhanced with AI research data
             </p>
           )}
@@ -885,8 +836,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                   Social Profiles & Contact Methods
                 </h3>
                 {formData.socialProfiles.linkedin && (
-                  <>
-                    <AIResearchButton
+                  <AIResearchButton
                     searchType="linkedin"
                     searchQuery={{ linkedinUrl: formData.socialProfiles.linkedin }}
                     onDataFound={handleAIAutoFill}
@@ -894,20 +844,6 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     size="sm"
                     className="bg-blue-50 border-blue-200 text-blue-700"
                   />
-                  {formData.avatarSrc && (
-                    <ModernButton
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleMultimodalEnrichment}
-                      loading={isMultimodalEnriching}
-                      className="bg-gradient-to-r from-pink-50 to-indigo-50 border-pink-200 text-pink-700 hover:from-pink-100 hover:to-indigo-100"
-                    >
-                      <Camera className="w-4 h-4 mr-1" />
-                      {isMultimodalEnriching ? 'Analyzing Image...' : 'Multimodal AI'}
-                    </ModernButton>
-                  )}
-                  </>
                 )}
               </div>
               

@@ -28,18 +28,8 @@ class CacheService {
     this.maxSize = maxSize;
     this.defaultTTL = defaultTTL;
     
-    // Cleanup expired entries every 5 minutes with proper cleanup
-    this.cleanupInterval = setInterval(() => this.cleanup(), 300000);
-  }
-  
-  private cleanupInterval: NodeJS.Timeout | null = null;
-  
-  destroy(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
-    this.cache.clear();
+    // Cleanup expired entries every 5 minutes
+    setInterval(() => this.cleanup(), 300000);
   }
   
   private generateKey(namespace: string, identifier: string | object): string {

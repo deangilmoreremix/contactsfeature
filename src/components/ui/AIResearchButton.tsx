@@ -14,19 +14,18 @@ import {
   Mail,
   Phone,
   MapPin,
-  Camera, 
+  Camera,
   RefreshCw
 } from 'lucide-react';
 
 interface AIResearchButtonProps {
-  searchType: 'email' | 'name' | 'linkedin' | 'auto' | 'multimodal';
+  searchType: 'email' | 'name' | 'linkedin' | 'auto';
   searchQuery: {
     email?: string;
     firstName?: string;
     lastName?: string;
     company?: string;
     linkedinUrl?: string;
-    avatarSrc?: string;
   };
   onDataFound: (data: ContactEnrichmentData) => void;
   className?: string;
@@ -50,10 +49,9 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
   const [searchResults, setSearchResults] = useState<ContactEnrichmentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [isMultimodalSupported] = useState(true); // GPT-5 supports multimodal
 
   const hasMinimumData = searchQuery.email || searchQuery.firstName || 
-                         searchQuery.linkedinUrl || searchQuery.avatarSrc ||
+                         searchQuery.linkedinUrl || 
                          (searchQuery.firstName && searchQuery.company);
 
   // Log available API keys for debugging
@@ -120,21 +118,6 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
             throw new Error('Insufficient search parameters');
           }
           break;
-          
-        case 'multimodal':
-          if (searchQuery.avatarSrc) {
-            const contact = {
-              name: `${searchQuery.firstName || ''} ${searchQuery.lastName || ''}`.trim(),
-              firstName: searchQuery.firstName,
-              lastName: searchQuery.lastName,
-              company: searchQuery.company,
-              email: searchQuery.email
-            };
-            results = await aiEnrichmentService.enrichContactMultimodal(contact, searchQuery.avatarSrc);
-          } else {
-            throw new Error('Avatar image URL is required for multimodal search');
-          }
-          break;
 
         default:
           throw new Error('Invalid search type');
@@ -197,8 +180,6 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
         return 'Research LinkedIn';
       case 'auto':
         return 'AI Auto-Research';
-      case 'multimodal':
-        return 'Multimodal Analysis';
       default:
         return 'AI Research';
     }
@@ -206,9 +187,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
   const getButtonIcon = () => {
     if (isSearching) return Loader2;
-    if (searchType === 'auto') return Brain;
-    if (searchType === 'multimodal') return Camera;
-    return Search;
+    return searchType === 'auto' ? Brain : Search;
   };
 
   const ButtonIcon = getButtonIcon();

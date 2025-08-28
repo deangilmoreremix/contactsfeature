@@ -11,8 +11,7 @@ import {
   Building,
   Mail,
   Star,
-  Sparkles,
-  Award
+  Sparkles
 } from 'lucide-react';
 
 const sampleContacts = [

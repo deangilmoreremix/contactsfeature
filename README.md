@@ -1,153 +1,183 @@
-# Smart CRM Dashboard
+# Supabase CLI
 
-A full-featured AI-powered CRM dashboard built with React, TypeScript, and Supabase.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
+](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
 
-## Features
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-- AI-powered contact enrichment and analysis
-- Smart email generation and analysis
-- Lead qualification and scoring
-- Personalized communication templates
-- Contact management
+This repository contains all the functionality for Supabase CLI.
 
-## Getting Started
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-### ⚠️ IMPORTANT: Connect to Supabase First
+## Getting started
 
-Before running any commands or deploying functions, you MUST connect to your Supabase project:
+### Install the CLI
 
-```bash
-# 1. Login to Supabase (this will open a browser)
-npx supabase login
-
-# 2. Link to your project (replace YOUR_PROJECT_REF with your actual project reference)
-npx supabase link --project-ref YOUR_PROJECT_REF
-```
-
-You can find your project reference ID in your Supabase dashboard URL:
-`https://supabase.com/dashboard/project/YOUR_PROJECT_REF`
-
-### Prerequisites
-
-- Node.js v18+
-- Supabase account
-- OpenAI API key and/or Google Gemini API key
-
-### Setup
-
-1. Clone the repository
-2. Install dependencies:
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
 ```bash
-npm install
+npm i supabase --save-dev
 ```
 
-3. Copy `.env.example` to `.env` and set your environment variables:
+To install the beta release channel:
 
 ```bash
-cp .env.example .env
+npm i supabase@beta --save-dev
 ```
 
-4. Edit `.env` file and add your Supabase and AI API credentials:
+When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
 
 ```
-VITE_SUPABASE_URL=your-supabase-url
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-VITE_OPENAI_API_KEY=sk-your-openai-key
-VITE_GEMINI_API_KEY=your-gemini-key
+NODE_OPTIONS=--no-experimental-fetch yarn add supabase
 ```
 
-### Deploying Edge Functions
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
 
-⚠️ **Make sure you've completed the Supabase connection setup above before deploying functions!**
+<details>
+  <summary><b>macOS</b></summary>
 
-Deploy all required Edge Functions to your Supabase project:
+  Available via [Homebrew](https://brew.sh). To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Windows</b></summary>
+
+  Available via [Scoop](https://scoop.sh). To install:
+
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
+
+  To upgrade:
+
+  ```powershell
+  scoop update supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Linux</b></summary>
+
+  Available via [Homebrew](https://brew.sh) and Linux packages.
+
+  #### via Homebrew
+
+  To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+
+  #### via Linux packages
+
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
+
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
+
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
+
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
+
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
+
+<details>
+  <summary><b>Other Platforms</b></summary>
+
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
+
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
+
+  Add a symlink to the binary in `$PATH` for easier access:
+
+  ```sh
+  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
+  ```
+
+  This works on other non-standard Linux distros.
+</details>
+
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
+
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
+
+  ```bash
+  pkgx install supabase
+  ```
+
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
+
+### Run the CLI
 
 ```bash
-# Deploy individual functions
-npx supabase functions deploy ai-enrichment --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy contacts --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy email-composer --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy email-analyzer --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy email-templates --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy personalized-messages --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy smart-bulk --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy smart-categorize --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy smart-enrichment --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy smart-qualify --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy smart-score --project-ref YOUR_PROJECT_REF
-
-# Replace YOUR_PROJECT_REF with your actual project reference ID
+supabase bootstrap
 ```
 
-### Setting Environment Variables in Supabase
-
-For your Edge Functions to access AI APIs, you need to set environment variables in your Supabase project:
+Or using npx:
 
 ```bash
-npx supabase secrets set OPENAI_API_KEY=sk-your-openai-key
-npx supabase secrets set GEMINI_API_KEY=your-gemini-key
+npx supabase bootstrap
 ```
 
-### Running the App
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
 
-Start the development server:
+## Docs
 
-```bash
-npm run dev
-```
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
 
-## Troubleshooting
+## Breaking changes
 
-### Edge Function Connection Issues
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
 
-If your Edge Functions are failing with "Failed to deploy" or "Supabase project not connected" errors:
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
 
-1. **First, ensure you're connected to Supabase:**
-   ```bash
-   npx supabase login
-   npx supabase link --project-ref YOUR_PROJECT_REF
-   ```
+## Developing
 
-2. Check if your Supabase Edge Functions are deployed correctly
-3. Ensure your `.env` file has the correct Supabase URL and anon key
-4. Make sure your Supabase project has the required environment variables set
-5. Check CORS settings in your Supabase project
+To run from source:
 
-### AI Features Not Working
-
-If you see errors like "Failed to fetch" or "AI provider not configured":
-
-1. **Get Valid API Keys**: 
-   - OpenAI: https://platform.openai.com/api-keys (requires billing setup)
-   - Gemini: https://aistudio.google.com/app/apikey (free tier available)
-
-2. **Set Supabase Secrets**:
-   ```bash
-   npx supabase secrets set OPENAI_API_KEY=sk-your-actual-key
-   # OR
-   npx supabase secrets set GEMINI_API_KEY=your-actual-key
-   ```
-
-3. **Redeploy Edge Functions** (CRITICAL STEP):
-   ```bash
-   npx supabase functions deploy ai-enrichment --project-ref YOUR_PROJECT_REF
-   ```
-
-4. Check the Edge Function logs in your Supabase dashboard for specific errors
-
-## Development
-
-### Local Edge Function Testing
-
-For development, you can run Edge Functions locally with:
-
-```bash
-npx supabase functions serve
-```
-
-Then update your .env file to point to the local functions:
-
-```
-VITE_SUPABASE_FUNCTIONS_URL=http://localhost:54321/functions/v1
+```sh
+# Go >= 1.22
+go run . help
 ```

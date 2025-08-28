@@ -1,369 +1,497 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization"
-};
-
-interface DuplicateMatch {
-  id: string;
-  name: string;
-  email: string;
-  company: string;
-  matchScore: number;
-  matchReasons: string[];
-  suggestedAction: 'merge' | 'keep_separate' | 'review';
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface DuplicateDetectionResult {
-  contactId: string;
-  hasDuplicates: boolean;
-  duplicates: DuplicateMatch[];
-  confidence: number;
-  mergeRecommendations: Array<{
-    primaryContactId: string;
-    duplicateIds: string[];
-    confidence: number;
-    reasoning: string[];
-  }>;
-}
-
-Deno.serve(async (req: Request) => {
-  // Handle CORS preflight request
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders
-    });
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Validate environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing required environment variables');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Server configuration error',
-          details: 'Missing required environment variables'
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const hasAI = !!(openaiApiKey || geminiApiKey);
-
-    if (req.method === 'POST') {
-      const { contactId, contact, threshold = 0.8 } = await req.json();
-      
-      if (!contactId || !contact) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Missing required parameters',
-            details: 'contactId and contact data are required'
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      // Get all contacts for comparison
-      const { data: allContacts, error: fetchError } = await supabase
-        .from('contacts')
-        .select('id, first_name, last_name, name, email, phone, company, title')
-        .neq('id', contactId);
-
-      if (fetchError) {
-        console.error('Error fetching contacts:', fetchError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch contacts for comparison' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Detect duplicates using multiple algorithms
-      const duplicates = await detectDuplicates(contact, allContacts || [], threshold, hasAI, openaiApiKey, geminiApiKey);
-      
-      // Generate merge recommendations
-      const mergeRecommendations = generateMergeRecommendations(contact, duplicates);
-
-      const result: DuplicateDetectionResult = {
-        contactId,
-        hasDuplicates: duplicates.length > 0,
-        duplicates,
-        confidence: hasAI ? 90 : 75,
-        mergeRecommendations
-      };
-
-      return new Response(
-        JSON.stringify(result),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        error: 'Method not allowed',
-        details: 'This endpoint only supports POST requests'
-      }),
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
       }
-    );
+    )
+
+    const { contacts, threshold, detectionType } = await req.json()
+
+    const duplicates = await detectDuplicates(contacts, threshold || 0.8, detectionType)
+
+    return new Response(JSON.stringify(duplicates), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   } catch (error) {
-    console.error('Duplicate detection error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        message: error.message || 'An unexpected error occurred' 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
-});
+})
 
-async function detectDuplicates(
-  targetContact: any,
-  allContacts: any[],
-  threshold: number,
-  hasAI: boolean,
-  openaiApiKey?: string,
-  geminiApiKey?: string
-): Promise<DuplicateMatch[]> {
-  const duplicates: DuplicateMatch[] = [];
-
-  for (const contact of allContacts) {
-    const matchResult = await calculateMatchScore(targetContact, contact, hasAI, openaiApiKey, geminiApiKey);
-    
-    if (matchResult.score >= threshold) {
-      duplicates.push({
-        id: contact.id,
-        name: contact.name || `${contact.first_name} ${contact.last_name}`,
-        email: contact.email,
-        company: contact.company,
-        matchScore: matchResult.score,
-        matchReasons: matchResult.reasons,
-        suggestedAction: matchResult.score >= 0.95 ? 'merge' : 
-                        matchResult.score >= 0.85 ? 'review' : 'keep_separate'
-      });
-    }
+async function detectDuplicates(contacts: any[], threshold: number, detectionType: string) {
+  const duplicates = {
+    groups: [],
+    summary: {
+      totalContacts: contacts.length,
+      duplicateGroups: 0,
+      totalDuplicates: 0,
+      uniqueContacts: 0
+    },
+    analysis: {},
+    recommendations: []
   }
 
-  return duplicates.sort((a, b) => b.matchScore - a.matchScore);
+  switch (detectionType) {
+    case 'email':
+      duplicates.groups = await detectEmailDuplicates(contacts, threshold)
+      break
+    case 'name':
+      duplicates.groups = await detectNameDuplicates(contacts, threshold)
+      break
+    case 'phone':
+      duplicates.groups = await detectPhoneDuplicates(contacts, threshold)
+      break
+    case 'comprehensive':
+      duplicates.groups = await detectComprehensiveDuplicates(contacts, threshold)
+      break
+    default:
+      duplicates.groups = await detectComprehensiveDuplicates(contacts, threshold)
+  }
+
+  // Calculate summary
+  duplicates.summary.duplicateGroups = duplicates.groups.length
+  duplicates.summary.totalDuplicates = duplicates.groups.reduce((sum, group) => sum + group.duplicates.length, 0)
+  duplicates.summary.uniqueContacts = contacts.length - duplicates.summary.totalDuplicates
+
+  // Generate analysis
+  duplicates.analysis = await analyzeDuplicates(duplicates.groups)
+
+  // Generate recommendations
+  duplicates.recommendations = await generateDuplicateRecommendations(duplicates.groups)
+
+  return duplicates
 }
 
-async function calculateMatchScore(
-  contact1: any,
-  contact2: any,
-  hasAI: boolean,
-  openaiApiKey?: string,
-  geminiApiKey?: string
-): Promise<{ score: number; reasons: string[] }> {
-  const reasons: string[] = [];
-  let score = 0;
-  let factors = 0;
+async function detectEmailDuplicates(contacts: any[], threshold: number) {
+  const groups = []
+  const processed = new Set()
 
-  // Email exact match (highest weight)
-  if (contact1.email && contact2.email && contact1.email.toLowerCase() === contact2.email.toLowerCase()) {
-    score += 0.4;
-    factors++;
-    reasons.push('Exact email match');
+  for (let i = 0; i < contacts.length; i++) {
+    if (processed.has(i)) continue
+
+    const contact = contacts[i]
+    if (!contact.email) continue
+
+    const group = {
+      master: contact,
+      duplicates: [],
+      similarity: 1,
+      matchReason: 'exact_email_match'
+    }
+
+    for (let j = i + 1; j < contacts.length; j++) {
+      if (processed.has(j)) continue
+
+      const otherContact = contacts[j]
+      if (!otherContact.email) continue
+
+      const similarity = calculateEmailSimilarity(contact.email, otherContact.email)
+      if (similarity >= threshold) {
+        group.duplicates.push({
+          contact: otherContact,
+          similarity: similarity,
+          matchReason: similarity === 1 ? 'exact_match' : 'similar_email'
+        })
+        processed.add(j)
+      }
+    }
+
+    if (group.duplicates.length > 0) {
+      groups.push(group)
+      processed.add(i)
+    }
+  }
+
+  return groups
+}
+
+async function detectNameDuplicates(contacts: any[], threshold: number) {
+  const groups = []
+  const processed = new Set()
+
+  for (let i = 0; i < contacts.length; i++) {
+    if (processed.has(i)) continue
+
+    const contact = contacts[i]
+    const name = contact.name || contact.firstName + ' ' + contact.lastName
+    if (!name) continue
+
+    const group = {
+      master: contact,
+      duplicates: [],
+      similarity: 1,
+      matchReason: 'exact_name_match'
+    }
+
+    for (let j = i + 1; j < contacts.length; j++) {
+      if (processed.has(j)) continue
+
+      const otherContact = contacts[j]
+      const otherName = otherContact.name || otherContact.firstName + ' ' + otherContact.lastName
+      if (!otherName) continue
+
+      const similarity = calculateNameSimilarity(name, otherName)
+      if (similarity >= threshold) {
+        group.duplicates.push({
+          contact: otherContact,
+          similarity: similarity,
+          matchReason: similarity === 1 ? 'exact_match' : 'similar_name'
+        })
+        processed.add(j)
+      }
+    }
+
+    if (group.duplicates.length > 0) {
+      groups.push(group)
+      processed.add(i)
+    }
+  }
+
+  return groups
+}
+
+async function detectPhoneDuplicates(contacts: any[], threshold: number) {
+  const groups = []
+  const processed = new Set()
+
+  for (let i = 0; i < contacts.length; i++) {
+    if (processed.has(i)) continue
+
+    const contact = contacts[i]
+    if (!contact.phone) continue
+
+    const group = {
+      master: contact,
+      duplicates: [],
+      similarity: 1,
+      matchReason: 'exact_phone_match'
+    }
+
+    for (let j = i + 1; j < contacts.length; j++) {
+      if (processed.has(j)) continue
+
+      const otherContact = contacts[j]
+      if (!otherContact.phone) continue
+
+      const similarity = calculatePhoneSimilarity(contact.phone, otherContact.phone)
+      if (similarity >= threshold) {
+        group.duplicates.push({
+          contact: otherContact,
+          similarity: similarity,
+          matchReason: similarity === 1 ? 'exact_match' : 'similar_phone'
+        })
+        processed.add(j)
+      }
+    }
+
+    if (group.duplicates.length > 0) {
+      groups.push(group)
+      processed.add(i)
+    }
+  }
+
+  return groups
+}
+
+async function detectComprehensiveDuplicates(contacts: any[], threshold: number) {
+  const groups = []
+  const processed = new Set()
+
+  for (let i = 0; i < contacts.length; i++) {
+    if (processed.has(i)) continue
+
+    const contact = contacts[i]
+    const group = {
+      master: contact,
+      duplicates: [],
+      similarity: 0,
+      matchReason: 'multiple_criteria'
+    }
+
+    let maxSimilarity = 0
+
+    for (let j = i + 1; j < contacts.length; j++) {
+      if (processed.has(j)) continue
+
+      const otherContact = contacts[j]
+      const similarity = calculateComprehensiveSimilarity(contact, otherContact)
+
+      if (similarity >= threshold) {
+        group.duplicates.push({
+          contact: otherContact,
+          similarity: similarity,
+          matchReason: getMatchReason(contact, otherContact, similarity)
+        })
+        processed.add(j)
+        maxSimilarity = Math.max(maxSimilarity, similarity)
+      }
+    }
+
+    if (group.duplicates.length > 0) {
+      group.similarity = maxSimilarity
+      groups.push(group)
+      processed.add(i)
+    }
+  }
+
+  return groups
+}
+
+async function analyzeDuplicates(groups: any[]) {
+  const analysis = {
+    duplicateRate: 0,
+    averageGroupSize: 0,
+    mostCommonMatchReason: '',
+    dataQuality: '',
+    recommendations: []
+  }
+
+  if (groups.length === 0) {
+    analysis.dataQuality = 'excellent'
+    analysis.recommendations.push('No duplicates found - data quality is good')
+    return analysis
+  }
+
+  // Calculate duplicate rate
+  const totalContacts = groups.reduce((sum, group) => sum + group.duplicates.length + 1, 0)
+  analysis.duplicateRate = (groups.length / totalContacts) * 100
+
+  // Calculate average group size
+  const totalDuplicates = groups.reduce((sum, group) => sum + group.duplicates.length, 0)
+  analysis.averageGroupSize = totalDuplicates / groups.length
+
+  // Find most common match reason
+  const reasons = groups.map(group => group.matchReason)
+  analysis.mostCommonMatchReason = reasons.reduce((a, b, i, arr) =>
+    arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b
+  )
+
+  // Assess data quality
+  if (analysis.duplicateRate < 5) {
+    analysis.dataQuality = 'good'
+  } else if (analysis.duplicateRate < 15) {
+    analysis.dataQuality = 'fair'
+  } else {
+    analysis.dataQuality = 'poor'
+  }
+
+  return analysis
+}
+
+async function generateDuplicateRecommendations(groups: any[]) {
+  const recommendations = []
+
+  if (groups.length === 0) {
+    return ['Data appears to be clean with no duplicates detected']
+  }
+
+  const analysis = await analyzeDuplicates(groups)
+
+  if (analysis.duplicateRate > 20) {
+    recommendations.push('High duplicate rate detected - implement stricter data validation')
+  }
+
+  if (analysis.mostCommonMatchReason === 'exact_email_match') {
+    recommendations.push('Implement email uniqueness constraint at database level')
+  }
+
+  if (analysis.averageGroupSize > 3) {
+    recommendations.push('Large duplicate groups found - review data import processes')
+  }
+
+  recommendations.push(`Merge ${groups.length} duplicate groups to improve data quality`)
+  recommendations.push('Set up automated duplicate detection for new records')
+
+  return recommendations
+}
+
+// Helper functions
+function calculateEmailSimilarity(email1: string, email2: string): number {
+  if (email1 === email2) return 1
+
+  // Check for common variations
+  const normalizeEmail = (email: string) => email.toLowerCase().replace(/\+.*@/, '@')
+  const normalized1 = normalizeEmail(email1)
+  const normalized2 = normalizeEmail(email2)
+
+  if (normalized1 === normalized2) return 0.9
+
+  // Check domain similarity
+  const domain1 = email1.split('@')[1]
+  const domain2 = email2.split('@')[1]
+
+  if (domain1 === domain2) {
+    // Same domain, different local part
+    return 0.7
+  }
+
+  // Check for typos in domain
+  if (calculateStringSimilarity(domain1, domain2) > 0.8) {
+    return 0.6
+  }
+
+  return 0
+}
+
+function calculateNameSimilarity(name1: string, name2: string): number {
+  if (!name1 || !name2) return 0
+
+  const normalized1 = normalizeName(name1)
+  const normalized2 = normalizeName(name2)
+
+  if (normalized1 === normalized2) return 1
+
+  // Check for name variations
+  const parts1 = normalized1.split(' ')
+  const parts2 = normalized2.split(' ')
+
+  if (parts1.length === parts2.length) {
+    let matchingParts = 0
+    for (const part1 of parts1) {
+      for (const part2 of parts2) {
+        if (calculateStringSimilarity(part1, part2) > 0.8) {
+          matchingParts++
+          break
+        }
+      }
+    }
+    return matchingParts / parts1.length
+  }
+
+  return calculateStringSimilarity(normalized1, normalized2)
+}
+
+function calculatePhoneSimilarity(phone1: string, phone2: string): number {
+  if (!phone1 || !phone2) return 0
+
+  // Normalize phone numbers
+  const normalized1 = phone1.replace(/\D/g, '')
+  const normalized2 = phone2.replace(/\D/g, '')
+
+  if (normalized1 === normalized2) return 1
+
+  // Check for different formats of same number
+  if (normalized1.length === 10 && normalized2.length === 10) {
+    return 0.9 // Assume same if same digits
+  }
+
+  if (normalized1.length === 11 && normalized2.length === 11 &&
+      normalized1.substring(1) === normalized2.substring(1)) {
+    return 0.9 // Same number with different country codes
+  }
+
+  return 0
+}
+
+function calculateComprehensiveSimilarity(contact1: any, contact2: any): number {
+  let similarity = 0
+  let criteriaCount = 0
+
+  // Email similarity
+  if (contact1.email && contact2.email) {
+    similarity += calculateEmailSimilarity(contact1.email, contact2.email)
+    criteriaCount++
   }
 
   // Name similarity
-  const nameScore = calculateNameSimilarity(contact1, contact2);
-  if (nameScore > 0.7) {
-    score += nameScore * 0.3;
-    factors++;
-    reasons.push(`High name similarity (${Math.round(nameScore * 100)}%)`);
+  const name1 = contact1.name || `${contact1.firstName} ${contact1.lastName}`
+  const name2 = contact2.name || `${contact2.firstName} ${contact2.lastName}`
+  if (name1 && name2) {
+    similarity += calculateNameSimilarity(name1, name2)
+    criteriaCount++
   }
 
-  // Company match
-  if (contact1.company && contact2.company) {
-    const companyScore = calculateStringSimilarity(contact1.company, contact2.company);
-    if (companyScore > 0.8) {
-      score += companyScore * 0.2;
-      factors++;
-      reasons.push(`Company match (${Math.round(companyScore * 100)}%)`);
-    }
-  }
-
-  // Phone number match
+  // Phone similarity
   if (contact1.phone && contact2.phone) {
-    const phone1 = normalizePhone(contact1.phone);
-    const phone2 = normalizePhone(contact2.phone);
-    if (phone1 === phone2) {
-      score += 0.1;
-      factors++;
-      reasons.push('Phone number match');
-    }
+    similarity += calculatePhoneSimilarity(contact1.phone, contact2.phone)
+    criteriaCount++
   }
 
-  // Use AI for advanced similarity if available
-  if (hasAI && factors > 0 && score > 0.5) {
-    try {
-      const aiScore = await getAISimilarityScore(contact1, contact2, openaiApiKey, geminiApiKey);
-      score = (score + aiScore.score) / 2;
-      reasons.push(...aiScore.reasons);
-    } catch (error) {
-      console.warn('AI similarity scoring failed:', error);
-    }
+  // Company similarity
+  if (contact1.company && contact2.company) {
+    similarity += calculateStringSimilarity(contact1.company, contact2.company)
+    criteriaCount++
   }
 
-  return { score: factors > 0 ? score / Math.max(factors, 1) : 0, reasons };
+  return criteriaCount > 0 ? similarity / criteriaCount : 0
 }
 
-function calculateNameSimilarity(contact1: any, contact2: any): number {
-  const name1 = (contact1.name || `${contact1.first_name || ''} ${contact1.last_name || ''}`).toLowerCase().trim();
-  const name2 = (contact2.name || `${contact2.first_name || ''} ${contact2.last_name || ''}`).toLowerCase().trim();
-  
-  return calculateStringSimilarity(name1, name2);
+function getMatchReason(contact1: any, contact2: any, similarity: number): string {
+  if (contact1.email === contact2.email) return 'exact_email_match'
+  if (contact1.phone === contact2.phone) return 'exact_phone_match'
+
+  const name1 = contact1.name || `${contact1.firstName} ${contact1.lastName}`
+  const name2 = contact2.name || `${contact2.firstName} ${contact2.lastName}`
+  if (name1 === name2) return 'exact_name_match'
+
+  if (similarity > 0.8) return 'high_similarity'
+  if (similarity > 0.6) return 'medium_similarity'
+  return 'low_similarity'
 }
 
 function calculateStringSimilarity(str1: string, str2: string): number {
-  if (!str1 || !str2) return 0;
-  
-  const longer = str1.length > str2.length ? str1 : str2;
-  const shorter = str1.length > str2.length ? str2 : str1;
-  
-  if (longer.length === 0) return 1.0;
-  
-  const editDistance = levenshteinDistance(longer, shorter);
-  return (longer.length - editDistance) / longer.length;
+  if (!str1 || !str2) return 0
+  if (str1 === str2) return 1
+
+  const longer = str1.length > str2.length ? str1 : str2
+  const shorter = str1.length > str2.length ? str2 : str1
+
+  if (longer.length === 0) return 1
+
+  const distance = levenshteinDistance(longer, shorter)
+  return (longer.length - distance) / longer.length
 }
 
 function levenshteinDistance(str1: string, str2: string): number {
-  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
-  
-  for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
-  for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
-  
-  for (let j = 1; j <= str2.length; j++) {
-    for (let i = 1; i <= str1.length; i++) {
-      const substitutionCost = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1,
-        matrix[j - 1][i] + 1,
-        matrix[j - 1][i - 1] + substitutionCost
-      );
-    }
+  const matrix = []
+
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i]
   }
-  
-  return matrix[str2.length][str1.length];
-}
 
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '');
-}
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j
+  }
 
-async function getAISimilarityScore(
-  contact1: any,
-  contact2: any,
-  openaiApiKey?: string,
-  geminiApiKey?: string
-): Promise<{ score: number; reasons: string[] }> {
-  const prompt = `Analyze if these two contacts are the same person:
-
-Contact 1:
-${JSON.stringify(contact1, null, 2)}
-
-Contact 2:
-${JSON.stringify(contact2, null, 2)}
-
-Return a JSON object with:
-- score: number between 0-1 indicating likelihood they are the same person
-- reasons: array of strings explaining the match factors
-
-Only return the JSON object.`;
-
-  try {
-    if (openaiApiKey) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'You are an expert at detecting duplicate contacts in CRM systems.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.2,
-          response_format: { type: "json_object" }
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const result = JSON.parse(data.choices[0].message.content);
-        return { score: result.score || 0, reasons: result.reasons || [] };
-      }
-    } else if (geminiApiKey) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, response_mime_type: "application/json" }
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (content) {
-          const result = JSON.parse(content);
-          return { score: result.score || 0, reasons: result.reasons || [] };
-        }
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        )
       }
     }
-  } catch (error) {
-    console.warn('AI similarity scoring failed:', error);
   }
 
-  return { score: 0, reasons: ['AI analysis unavailable'] };
+  return matrix[str2.length][str1.length]
 }
 
-function generateMergeRecommendations(
-  targetContact: any,
-  duplicates: DuplicateMatch[]
-): DuplicateDetectionResult['mergeRecommendations'] {
-  const recommendations = [];
-  
-  // Group high-confidence duplicates for merge recommendation
-  const highConfidenceDuplicates = duplicates.filter(d => d.matchScore >= 0.9);
-  
-  if (highConfidenceDuplicates.length > 0) {
-    recommendations.push({
-      primaryContactId: targetContact.id,
-      duplicateIds: highConfidenceDuplicates.map(d => d.id),
-      confidence: Math.round(highConfidenceDuplicates.reduce((sum, d) => sum + d.matchScore, 0) / highConfidenceDuplicates.length * 100),
-      reasoning: [
-        'High similarity scores detected',
-        'Exact or near-exact matches found',
-        'Automated merge recommended'
-      ]
-    });
-  }
-  
-  return recommendations;
+function normalizeName(name: string): string {
+  return name.toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[^a-z\s]/g, '')
 }

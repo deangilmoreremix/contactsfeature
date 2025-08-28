@@ -269,7 +269,7 @@ class AIOrchestrator {
       'email_generation': 'email-composer',
       'email_analysis': 'email-analyzer',
       'insights_generation': 'ai-insights',
-      'communication_analysis': 'ai-reasoning',
+      'communication_analysis': 'communication-logs',
       'automation_suggestions': 'smart-categorize',
       'predictive_analytics': 'smart-qualify',
       'relationship_mapping': 'smart-enrichment'

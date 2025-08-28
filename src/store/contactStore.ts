@@ -2,7 +2,25 @@ import { create } from 'zustand';
 import { Contact } from '../types';
 import { contactAPI } from '../services/contact-api.service';
 import { logger } from '../services/logger.service';
-import { crmBridge } from '../services/crm-bridge.service';
+
+interface ContactStore {
+  contacts: Contact[];
+  isLoading: boolean;
+  error: string | null;
+  selectedContact: Contact | null;
+  totalCount: number;
+  hasMore: boolean;
+  
+  // Actions
+  fetchContacts: (filters?: any) => Promise<void>;
+  createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
+  updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
+  deleteContact: (id: string) => Promise<void>;
+  selectContact: (contact: Contact | null) => void;
+  importContacts: (contacts: any[]) => Promise<void>;
+  exportContacts: (format: 'csv' | 'json') => Promise<void>;
+  searchContacts: (query: string) => Promise<void>;
+}
 
 // Enhanced sample contacts with more variety and data to showcase different UI states
 const sampleContacts: Contact[] = [
@@ -267,38 +285,12 @@ const sampleContacts: Contact[] = [
   }
 ];
 
-interface ContactStore {
-  contacts: Contact[];
-  isLoading: boolean;
-  error: string | null;
-  selectedContact: Contact | null;
-  totalCount: number;
-  hasMore: boolean;
-  
-  // Actions
-  fetchContacts: (filters?: any) => Promise<void>;
-  createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
-  updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
-  deleteContact: (id: string) => Promise<void>;
-  selectContact: (contact: Contact | null) => void;
-  importContacts: (contacts: any[]) => Promise<void>;
-  exportContacts: (format: 'csv' | 'json') => Promise<void>;
-  searchContacts: (query: string) => Promise<void>;
-  
-  // CRM Bridge actions (don't notify CRM)
-  setContacts: (contacts: Contact[]) => void;
-  addContactLocally: (contact: Contact) => void;
-  updateContactLocally: (contact: Contact) => void;
-  deleteContactLocally: (id: string) => void;
-}
-
-
 export const useContactStore = create<ContactStore>((set, get) => ({
-  contacts: sampleContacts, // Start with sample data - can be overridden by CRM Bridge
+  contacts: sampleContacts, // Initialize with sample contacts
   isLoading: false,
   error: null,
   selectedContact: null,
-  totalCount: sampleContacts.length,
+  totalCount: sampleContacts.length, // Set initial count
   hasMore: false,
 
   fetchContacts: async (filters = {}) => {
@@ -341,9 +333,6 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         totalCount: state.totalCount + 1
       }));
       
-      // Notify CRM Bridge of the creation
-      crmBridge.notifyContactCreated(contact);
-      
       logger.info('Contact created successfully', { contactId: contact.id });
       return contact;
     } catch (error) {
@@ -366,9 +355,6 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         contacts: state.contacts.map(c => c.id === id ? contact : c),
         selectedContact: state.selectedContact?.id === id ? contact : state.selectedContact
       }));
-      
-      // Notify CRM Bridge of the update
-      crmBridge.notifyContactUpdated(contact);
       
       logger.info('Contact updated successfully', { contactId: id });
       return contact;
@@ -416,9 +402,6 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         totalCount: Math.max(0, state.totalCount - 1),
         selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
       }));
-      
-      // Notify CRM Bridge of the deletion
-      crmBridge.notifyContactDeleted(id);
       
       logger.info('Contact deleted successfully', { contactId: id });
     } catch (error) {
@@ -532,41 +515,5 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         });
       }
     }
-  },
-
-  // CRM Bridge methods (local operations, don't notify CRM)
-  setContacts: (contacts) => {
-    set({
-      contacts,
-      totalCount: contacts.length,
-      hasMore: false,
-      isLoading: false
-    });
-    logger.info('Contacts set from CRM', { count: contacts.length });
-  },
-
-  addContactLocally: (contact) => {
-    set(state => ({
-      contacts: [contact, ...state.contacts],
-      totalCount: state.totalCount + 1
-    }));
-    logger.info('Contact added locally from CRM', { contactId: contact.id });
-  },
-
-  updateContactLocally: (contact) => {
-    set(state => ({
-      contacts: state.contacts.map(c => c.id === contact.id ? contact : c),
-      selectedContact: state.selectedContact?.id === contact.id ? contact : state.selectedContact
-    }));
-    logger.info('Contact updated locally from CRM', { contactId: contact.id });
-  },
-
-  deleteContactLocally: (id) => {
-    set(state => ({
-      contacts: state.contacts.filter(c => c.id !== id),
-      totalCount: Math.max(0, state.totalCount - 1),
-      selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
-    }));
-    logger.info('Contact deleted locally from CRM', { contactId: id });
   }
 }));

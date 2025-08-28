@@ -26,8 +26,7 @@ import {
   Smartphone,
   ExternalLink,
   BarChart3,
-  TrendingUp,
-  Brain
+  TrendingUp
 } from 'lucide-react';
 
 interface CommunicationRecord {

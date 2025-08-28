@@ -1,497 +1,96 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization"
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
-Deno.serve(async (req: Request) => {
-  // Handle CORS preflight request
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders
-    });
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Validate environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing required environment variables');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Server configuration error',
-          details: 'Missing required environment variables'
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    // Check if AI providers are configured
-    const hasOpenAI = !!openaiApiKey;
-    const hasGemini = !!geminiApiKey;
-    
-    if (!hasOpenAI && !hasGemini) {
-      console.warn('No AI provider API keys configured, using fallback mode');
-    }
-
-    if (req.method === 'POST') {
-      const { contact, purpose, tone = 'professional', length = 'medium', includeSignature = true } = await req.json();
-      
-      if (!contact) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Missing required parameters',
-            details: 'contact data is required'
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      let result;
-      
-      // Use real AI providers if available
-      if (hasOpenAI || hasGemini) {
-        try {
-          // Prefer OpenAI for email composition if available (better formatting), otherwise use Gemini
-          if (hasOpenAI) {
-            result = await generateEmailWithOpenAI(contact, purpose, tone, length, includeSignature, openaiApiKey!);
-          } else {
-            result = await generateEmailWithGemini(contact, purpose, tone, length, includeSignature, geminiApiKey!);
-          }
-        } catch (error) {
-          console.error('AI email generation failed:', error);
-          // Fall back to template-based generation
-          result = generateTemplateEmail(contact, purpose, tone, length, includeSignature);
-        }
-      } else {
-        // Use template-based generation when no AI providers are available
-        result = generateTemplateEmail(contact, purpose, tone, length, includeSignature);
-      }
-
-      return new Response(
-        JSON.stringify(result),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        error: 'Method not allowed',
-        details: 'This endpoint only supports POST requests'
-      }),
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  } catch (error) {
-    console.error('Email composer error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        message: error.message || 'An unexpected error occurred' 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  }
-});
-
-// Generate email using OpenAI API
-async function generateEmailWithOpenAI(
-  contact: any,
-  purpose: string,
-  tone: string,
-  length: string,
-  includeSignature: boolean,
-  apiKey: string
-): Promise<any> {
-  // Select model based on complexity
-  const model = 'gpt-4o-mini'; // Could use gpt-4o for more important emails
-  
-  // Determine target length
-  const wordCountTarget = length === 'short' ? 75 : length === 'medium' ? 150 : 300;
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert email composer for sales and business development professionals. 
-          Create personalized, professional emails that are engaging and effective.
-          Use appropriate tone, length, and structure based on the purpose and recipient.
-          For signatures, use placeholders like [Your Name], [Your Title], [Company Name].`
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
         },
-        {
-          role: 'user',
-          content: `Write a professional email to ${contact.name} who works as ${contact.title || 'a professional'} at ${contact.company}.
-          
-          Purpose: ${purpose}
-          Tone: ${tone}
-          Length: ${wordCountTarget} words approximate
-          Include signature: ${includeSignature ? 'Yes' : 'No'}
-          
-          Additional context about the recipient:
-          - Industry: ${contact.industry || 'Not specified'}
-          - Interest level: ${contact.interestLevel || 'medium'}
-          - Status: ${contact.status || 'lead'}
-          
-          Return a JSON object with:
-          - subject: The email subject line
-          - body: The complete email body${includeSignature ? ', including signature' : ''}
-          `
-        }
-      ],
-      temperature: 0.7,
-      response_format: { type: "json_object" }
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0]?.message?.content;
-  
-  if (!content) {
-    throw new Error('Empty response from OpenAI API');
-  }
-  
-  try {
-    const emailData = JSON.parse(content);
-    
-    return {
-      subject: emailData.subject,
-      body: emailData.body,
-      tone,
-      purpose,
-      targetWordCount: wordCountTarget,
-      actualWordCount: {
-        subject: emailData.subject.split(' ').length,
-        body: emailData.body.split(' ').length
-      },
-      confidence: 90,
-      model,
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    throw new Error(`Failed to parse OpenAI response: ${error.message}`);
-  }
-}
-
-// Generate email using Gemini API
-async function generateEmailWithGemini(
-  contact: any,
-  purpose: string,
-  tone: string,
-  length: string,
-  includeSignature: boolean,
-  apiKey: string
-): Promise<any> {
-  // Determine target length
-  const wordCountTarget = length === 'short' ? 75 : length === 'medium' ? 150 : 300;
-  
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{
-          text: `Write a professional email to ${contact.name} who works as ${contact.title || 'a professional'} at ${contact.company}.
-          
-          Purpose: ${purpose}
-          Tone: ${tone}
-          Length: ${wordCountTarget} words approximate
-          Include signature: ${includeSignature ? 'Yes' : 'No'}
-          
-          Additional context about the recipient:
-          - Industry: ${contact.industry || 'Not specified'}
-          - Interest level: ${contact.interestLevel || 'medium'}
-          - Status: ${contact.status || 'lead'}
-          
-          Return a JSON object with:
-          - subject: The email subject line
-          - body: The complete email body${includeSignature ? ', including signature' : ''}
-          
-          Only return the JSON object, nothing else.`
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024
       }
+    )
+
+    const { contactData, emailType, context } = await req.json()
+
+    const email = await composeEmail(contactData, emailType, context)
+
+    return new Response(JSON.stringify(email), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
-  }
-
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  
-  if (!content) {
-    throw new Error('Empty response from Gemini API');
-  }
-  
-  try {
-    // Extract JSON from text (Gemini might return markdown code blocks)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-    
-    const emailData = JSON.parse(jsonMatch[0]);
-    
-    return {
-      subject: emailData.subject,
-      body: emailData.body,
-      tone,
-      purpose,
-      targetWordCount: wordCountTarget,
-      actualWordCount: {
-        subject: emailData.subject.split(' ').length,
-        body: emailData.body.split(' ').length
-      },
-      confidence: 85,
-      model: 'gemini-1.5-flash',
-      timestamp: new Date().toISOString()
-    };
   } catch (error) {
-    throw new Error(`Failed to parse Gemini response: ${error.message}`);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
-}
+})
 
-// Fallback template-based email generation
-function generateTemplateEmail(
-  contact: any,
-  purpose: string,
-  tone: string,
-  length: string,
-  includeSignature: boolean
-): any {
-  // Determine word count based on length parameter
-  const wordCounts = {
-    short: { subject: 5, body: 50 },
-    medium: { subject: 8, body: 120 },
-    long: { subject: 10, body: 250 }
-  };
-  
-  const count = wordCounts[length as keyof typeof wordCounts] || wordCounts.medium;
-  
-  // Generate appropriate greeting
-  const greeting = `Hi ${contact.firstName || contact.name.split(' ')[0]},`;
-  
-  // Generate appropriate subject and body based on purpose
-  let subject = '';
-  let body = '';
-  
-  switch (purpose) {
-    case 'introduction':
-      subject = `Introduction from ${generateCompanyName()} - ${generateIndustrySpecificPhrase(contact.industry)}`;
-      body = `${greeting}\n\nI hope this email finds you well. I'm reaching out because I saw your work at ${contact.company} and was particularly impressed by your focus on ${generateIndustrySpecificPhrase(contact.industry)}.\n\n${generateCompanyName()} specializes in helping companies like ${contact.company} to overcome challenges in ${contact.industry || 'your industry'} through our innovative solutions.\n\nWould you be open to a brief 15-minute call next week to discuss how we might be able to help with your current initiatives?\n\n`;
-      break;
-      
-    case 'follow-up':
-      subject = `Following up on our conversation about ${generateIndustrySpecificPhrase(contact.industry)}`;
-      body = `${greeting}\n\nThank you for taking the time to speak with me earlier about your needs at ${contact.company}. As discussed, I wanted to provide you with some additional information about how our solutions can address the ${generatePainPoint(contact.industry)} you mentioned.\n\nBased on what you shared about your goals to ${generateGoal(contact.industry)}, I believe our ${generateProductName()} would be an excellent fit for your team.\n\n`;
-      break;
-      
-    case 'proposal':
-      subject = `Proposal for ${contact.company}: ${generateIndustrySpecificPhrase(contact.industry)} Solution`;
-      body = `${greeting}\n\nBased on our recent conversations about your needs at ${contact.company}, I'm pleased to present our proposal for addressing your ${generatePainPoint(contact.industry)}.\n\nOur solution will help you ${generateBenefit(contact.industry)} while ensuring ${generateSecondaryBenefit(contact.industry)}. The implementation timeline would be approximately 4-6 weeks, with dedicated support throughout the process.\n\nI've attached the complete proposal for your review, which includes pricing options and implementation details.\n\n`;
-      break;
-      
-    case 'meeting-request':
-      subject = `Meeting request: Discussing ${generateIndustrySpecificPhrase(contact.industry)} solutions`;
-      body = `${greeting}\n\nI hope this email finds you well. I'd like to schedule a meeting to discuss how ${generateCompanyName()} can help ${contact.company} with ${generatePainPoint(contact.industry)}.\n\nOur team has worked with several companies in the ${contact.industry || 'industry'} to help them ${generateBenefit(contact.industry)}.\n\nWould you be available for a 30-minute call next Tuesday or Wednesday afternoon? If those times don't work, please let me know your availability and I'll be happy to accommodate your schedule.\n\n`;
-      break;
-      
-    default:
-      subject = `Connecting with ${contact.company} about ${generateIndustrySpecificPhrase(contact.industry)}`;
-      body = `${greeting}\n\nI hope this email finds you well. I wanted to reach out regarding ${generateIndustrySpecificPhrase(contact.industry)} and how we might be able to support your initiatives at ${contact.company}.\n\nOur team specializes in helping companies like yours to overcome challenges and achieve your goals through innovative solutions tailored to your specific needs.\n\nI'd welcome the opportunity to learn more about your current projects and discuss how we might be able to collaborate.\n\n`;
-  }
-  
-  // Adjust tone
-  if (tone === 'formal') {
-    body = body.replace('Hi', 'Dear').replace('hey', 'hello').replace('thanks', 'thank you');
-  } else if (tone === 'friendly') {
-    body = body.replace('Dear', 'Hey').replace('I hope this email finds you well.', 'Hope you\'re having a great day!');
-  } else if (tone === 'direct') {
-    body = body.replace('I hope this email finds you well. ', '').replace('I wanted to', 'I\'m writing to');
-  }
-  
-  // Add signature if requested
-  if (includeSignature) {
-    body += '\nBest regards,\n\n[Your Name]\n[Your Title]\n[Your Company]\n[Your Contact Information]';
-  }
-  
-  return {
-    subject,
-    body,
-    tone,
-    purpose,
-    targetWordCount: count,
-    actualWordCount: {
-      subject: subject.split(' ').length,
-      body: body.split(' ').length
+async function composeEmail(contact: any, type: string, context: any = {}) {
+  const templates = {
+    introduction: {
+      subject: `Introduction - ${context.senderName || 'Your Name'}`,
+      body: `Hi ${contact.firstName || contact.name},
+
+I hope this email finds you well. My name is ${context.senderName || 'Your Name'} and I'm reaching out because ${context.reason || 'I believe we could benefit from connecting'}.
+
+${context.additionalInfo || 'I would love to learn more about your work and see if there are opportunities for collaboration.'}
+
+Would you be available for a brief call next week?
+
+Best regards,
+${context.senderName || 'Your Name'}
+${context.senderTitle || ''}
+${context.senderCompany || ''}
+${context.senderContact || ''}`
     },
-    confidence: 75,
-    model: 'template-based',
-    timestamp: new Date().toISOString()
-  };
-}
+    followUp: {
+      subject: `Following up on our previous conversation`,
+      body: `Hi ${contact.firstName || contact.name},
 
-// Helper functions for realistic content generation
+I wanted to follow up on our previous conversation about ${context.topic || 'our discussion'}.
 
-function generateCompanyName(): string {
-  const prefixes = ['Acme', 'Apex', 'Pinnacle', 'Summit', 'Infinity', 'Nova', 'Elite', 'Prime', 'Vertex', 'Zenith'];
-  const suffixes = ['Solutions', 'Technologies', 'Innovations', 'Systems', 'Enterprises', 'Group', 'Partners', 'Corp', 'Inc', 'Global'];
-  
-  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-  
-  return `${prefix} ${suffix}`;
-}
+${context.followUpDetails || 'I was wondering if you had any updates or thoughts on the matter.'}
 
-function generateProductName(): string {
-  const prefixes = ['Ultra', 'Pro', 'Advanced', 'Smart', 'Intelligent', 'Dynamic', 'Flex', 'Power', 'Precision', 'Strategic'];
-  const roots = ['Connect', 'Solve', 'Manage', 'Analyze', 'Optimize', 'Transform', 'Sync', 'Drive', 'Vision', 'Insight'];
-  
-  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const root = roots[Math.floor(Math.random() * roots.length)];
-  
-  return `${prefix}${root}`;
-}
+Please let me know if you need any additional information from my side.
 
-function generateIndustrySpecificPhrase(industry?: string): string {
-  const phrases: Record<string, string[]> = {
-    'Technology': ['digital transformation', 'cloud migration', 'IT infrastructure optimization', 'cybersecurity enhancement', 'data analytics solutions'],
-    'Healthcare': ['patient experience improvement', 'healthcare operations efficiency', 'medical data management', 'telehealth solutions', 'compliance optimization'],
-    'Finance': ['financial process automation', 'risk management solutions', 'investment strategy optimization', 'regulatory compliance', 'customer financial insights'],
-    'Manufacturing': ['supply chain optimization', 'production efficiency', 'quality control enhancement', 'Industry 4.0 implementation', 'manufacturing automation'],
-    'Retail': ['customer experience enhancement', 'omnichannel strategy', 'inventory management solutions', 'retail analytics', 'personalization technology'],
-    'Education': ['learning management solutions', 'student engagement platforms', 'educational analytics', 'administrative efficiency', 'distance learning technology']
-  };
-  
-  if (industry && phrases[industry]) {
-    const industryPhrases = phrases[industry];
-    return industryPhrases[Math.floor(Math.random() * industryPhrases.length)];
+Best regards,
+${context.senderName || 'Your Name'}`
+    },
+    proposal: {
+      subject: `Proposal for ${context.service || 'Our Services'}`,
+      body: `Hi ${contact.firstName || contact.name},
+
+Thank you for your interest in ${context.service || 'our services'}. I've attached a proposal outlining our approach and pricing.
+
+${context.proposalSummary || 'The proposal includes detailed information about deliverables, timeline, and next steps.'}
+
+Please review the attachment and let me know if you have any questions or would like to discuss further.
+
+Best regards,
+${context.senderName || 'Your Name'}`
+    }
   }
-  
-  // Default phrases for unknown industry
-  const defaultPhrases = ['business process optimization', 'operational efficiency', 'strategic growth initiatives', 'digital solutions', 'innovative approaches'];
-  return defaultPhrases[Math.floor(Math.random() * defaultPhrases.length)];
-}
 
-function generatePainPoint(industry?: string): string {
-  const painPoints: Record<string, string[]> = {
-    'Technology': ['legacy system integration challenges', 'cybersecurity vulnerabilities', 'technical debt', 'siloed data systems', 'scaling limitations'],
-    'Healthcare': ['patient data management inefficiencies', 'compliance burden', 'care coordination gaps', 'staff productivity challenges', 'billing complexity'],
-    'Finance': ['risk assessment inefficiencies', 'compliance monitoring challenges', 'customer acquisition costs', 'legacy system limitations', 'fraud detection gaps'],
-    'Manufacturing': ['supply chain disruptions', 'quality control inconsistencies', 'production bottlenecks', 'inventory management inefficiencies', 'equipment downtime'],
-    'Retail': ['inventory forecasting challenges', 'customer retention issues', 'omnichannel integration difficulties', 'personalization limitations', 'operational inefficiencies'],
-    'Education': ['student engagement challenges', 'administrative overhead', 'remote learning limitations', 'data management complexities', 'resource allocation inefficiencies']
-  };
-  
-  if (industry && painPoints[industry]) {
-    const industryPains = painPoints[industry];
-    return industryPains[Math.floor(Math.random() * industryPains.length)];
-  }
-  
-  // Default pain points for unknown industry
-  const defaultPains = ['operational inefficiencies', 'growth challenges', 'resource constraints', 'competitive pressures', 'market adaptation difficulties'];
-  return defaultPains[Math.floor(Math.random() * defaultPains.length)];
-}
+  const template = templates[type] || templates.introduction
 
-function generateBenefit(industry?: string): string {
-  const benefits: Record<string, string[]> = {
-    'Technology': ['streamline your development process', 'enhance system security', 'improve data integration', 'accelerate digital transformation', 'optimize IT infrastructure'],
-    'Healthcare': ['improve patient outcomes', 'streamline clinical workflows', 'enhance regulatory compliance', 'reduce administrative burden', 'optimize resource utilization'],
-    'Finance': ['mitigate financial risks', 'automate compliance processes', 'enhance customer financial insights', 'optimize investment strategies', 'streamline reporting'],
-    'Manufacturing': ['optimize production efficiency', 'reduce supply chain disruptions', 'improve quality control', 'minimize equipment downtime', 'enhance inventory management'],
-    'Retail': ['increase customer retention', 'optimize inventory forecasting', 'enhance omnichannel experience', 'personalize customer interactions', 'streamline operations'],
-    'Education': ['boost student engagement', 'streamline administrative processes', 'enhance learning outcomes', 'improve data-driven decision making', 'optimize resource allocation']
-  };
-  
-  if (industry && benefits[industry]) {
-    const industryBenefits = benefits[industry];
-    return industryBenefits[Math.floor(Math.random() * industryBenefits.length)];
+  return {
+    to: contact.email,
+    subject: template.subject,
+    body: template.body,
+    type,
+    composedAt: new Date().toISOString(),
+    contactId: contact.id
   }
-  
-  // Default benefits for unknown industry
-  const defaultBenefits = ['improve operational efficiency', 'drive strategic growth', 'enhance decision-making', 'streamline key processes', 'optimize resource utilization'];
-  return defaultBenefits[Math.floor(Math.random() * defaultBenefits.length)];
-}
-
-function generateSecondaryBenefit(industry?: string): string {
-  const secondaryBenefits: Record<string, string[]> = {
-    'Technology': ['reduced maintenance costs', 'increased system uptime', 'enhanced scalability', 'improved user experience', 'stronger data security'],
-    'Healthcare': ['lower operational costs', 'enhanced patient satisfaction', 'improved staff retention', 'better care coordination', 'reduced readmission rates'],
-    'Finance': ['improved customer satisfaction', 'reduced operational costs', 'enhanced audit readiness', 'stronger fraud protection', 'more agile decision-making'],
-    'Manufacturing': ['reduced operational costs', 'improved product quality', 'increased production capacity', 'enhanced sustainability', 'greater market responsiveness'],
-    'Retail': ['higher average order value', 'improved inventory turnover', 'reduced operational costs', 'enhanced brand loyalty', 'more effective marketing ROI'],
-    'Education': ['increased retention rates', 'reduced administrative costs', 'improved faculty satisfaction', 'enhanced reputation', 'better resource utilization']
-  };
-  
-  if (industry && secondaryBenefits[industry]) {
-    const industryBenefits = secondaryBenefits[industry];
-    return industryBenefits[Math.floor(Math.random() * industryBenefits.length)];
-  }
-  
-  // Default secondary benefits for unknown industry
-  const defaultBenefits = ['improved team productivity', 'reduced operational costs', 'enhanced competitive advantage', 'greater organizational agility', 'improved customer satisfaction'];
-  return defaultBenefits[Math.floor(Math.random() * defaultBenefits.length)];
-}
-
-function generateGoal(industry?: string): string {
-  const goals: Record<string, string[]> = {
-    'Technology': ['accelerate your product development', 'modernize your tech stack', 'strengthen your cybersecurity posture', 'enable cloud migration', 'implement AI capabilities'],
-    'Healthcare': ['improve patient outcomes', 'streamline clinical workflows', 'enhance telehealth capabilities', 'optimize resource allocation', 'strengthen data security'],
-    'Finance': ['enhance risk management', 'streamline compliance processes', 'improve customer financial insights', 'automate routine transactions', 'strengthen fraud detection'],
-    'Manufacturing': ['optimize production efficiency', 'improve supply chain resilience', 'enhance quality control', 'implement predictive maintenance', 'reduce operational waste'],
-    'Retail': ['create seamless omnichannel experiences', 'personalize customer interactions', 'optimize inventory management', 'enhance customer loyalty', 'streamline fulfillment'],
-    'Education': ['improve student engagement', 'enhance learning outcomes', 'streamline administrative processes', 'expand online learning capabilities', 'strengthen data security']
-  };
-  
-  if (industry && goals[industry]) {
-    const industryGoals = goals[industry];
-    return industryGoals[Math.floor(Math.random() * industryGoals.length)];
-  }
-  
-  // Default goals for unknown industry
-  const defaultGoals = ['grow your business', 'improve operational efficiency', 'enhance customer satisfaction', 'streamline key processes', 'strengthen competitive advantage'];
-  return defaultGoals[Math.floor(Math.random() * defaultGoals.length)];
 }

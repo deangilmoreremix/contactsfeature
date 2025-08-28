@@ -1,323 +1,427 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization"
-};
-
-interface MeetingOptimization {
-  contactId: string;
-  optimalTimes: Array<{
-    day: string;
-    timeSlot: string;
-    score: number;
-    reasoning: string[];
-  }>;
-  duration: {
-    recommended: number; // minutes
-    reasoning: string;
-  };
-  format: {
-    recommended: 'video' | 'phone' | 'in_person';
-    reasoning: string;
-  };
-  agenda: {
-    suggestedTopics: string[];
-    preparation: string[];
-    goals: string[];
-  };
-  followUp: {
-    timing: string;
-    method: string;
-    content: string;
-  };
-  attendees: {
-    recommended: string[];
-    optional: string[];
-  };
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req: Request) => {
-  // Handle CORS preflight request
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders
-    });
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Validate environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    
-    if (!supabaseUrl || !supabaseKey) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const hasAI = !!(openaiApiKey || geminiApiKey);
-
-    if (req.method === 'POST') {
-      const { contactId, contact, meetingPurpose = 'discovery', urgency = 'medium' } = await req.json();
-      
-      if (!contactId || !contact) {
-        return new Response(
-          JSON.stringify({ error: 'contactId and contact data are required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Get contact's meeting history and preferences
-      const { data: meetings } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('contact_id', contactId)
-        .order('start_time', { ascending: false })
-        .limit(10);
-
-      const { data: communications } = await supabase
-        .from('communications')
-        .select('*')
-        .eq('contact_id', contactId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      // Generate meeting optimization
-      const optimization = await optimizeMeeting(
-        contactId,
-        contact,
-        meetings || [],
-        communications || [],
-        meetingPurpose,
-        urgency,
-        hasAI,
-        openaiApiKey,
-        geminiApiKey
-      );
-
-      return new Response(
-        JSON.stringify(optimization),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    console.error('Meeting optimizer error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-});
-
-async function optimizeMeeting(
-  contactId: string,
-  contact: any,
-  meetingHistory: any[],
-  communications: any[],
-  purpose: string,
-  urgency: string,
-  hasAI: boolean,
-  openaiApiKey?: string,
-  geminiApiKey?: string
-): Promise<MeetingOptimization> {
-  if (hasAI) {
-    return await performAIMeetingOptimization(contactId, contact, meetingHistory, communications, purpose, urgency, openaiApiKey, geminiApiKey);
-  } else {
-    return performRuleBasedOptimization(contactId, contact, meetingHistory, communications, purpose, urgency);
-  }
-}
-
-async function performAIMeetingOptimization(
-  contactId: string,
-  contact: any,
-  meetingHistory: any[],
-  communications: any[],
-  purpose: string,
-  urgency: string,
-  openaiApiKey?: string,
-  geminiApiKey?: string
-): Promise<MeetingOptimization> {
-  const prompt = `Optimize a meeting with this contact:
-
-Contact: ${JSON.stringify(contact, null, 2)}
-Meeting History: ${JSON.stringify(meetingHistory.slice(0, 5), null, 2)}
-Recent Communications: ${JSON.stringify(communications.slice(0, 10), null, 2)}
-Meeting Purpose: ${purpose}
-Urgency: ${urgency}
-
-Analyze patterns and provide meeting optimization with:
-- optimalTimes: best days/times with scores and reasoning
-- duration: recommended duration in minutes with reasoning
-- format: video/phone/in_person with reasoning
-- agenda: suggested topics, preparation, goals
-- followUp: timing, method, content recommendations
-- attendees: recommended and optional participants
-
-Return JSON object only.`;
-
-  try {
-    if (openaiApiKey) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
         },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'You are an expert meeting optimizer who analyzes communication patterns to recommend optimal meeting strategies.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.4,
-          response_format: { type: "json_object" }
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const result = JSON.parse(data.choices[0].message.content);
-        return formatOptimizationResult(contactId, result);
       }
-    } else if (geminiApiKey) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4, response_mime_type: "application/json" }
-        })
-      });
+    )
 
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (content) {
-          const result = JSON.parse(content);
-          return formatOptimizationResult(contactId, result);
-        }
-      }
-    }
+    const { meetingData, optimizationType } = await req.json()
+
+    const optimizedMeeting = await optimizeMeeting(meetingData, optimizationType)
+
+    return new Response(JSON.stringify(optimizedMeeting), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   } catch (error) {
-    console.warn('AI optimization failed:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+})
+
+async function optimizeMeeting(meetingData: any, optimizationType: string) {
+  const optimized = {
+    originalData: meetingData,
+    optimizationType: optimizationType || 'comprehensive',
+    optimizedSchedule: {},
+    optimizedAgenda: [],
+    participantOptimization: {},
+    recommendations: [],
+    predictedOutcomes: {},
+    riskFactors: [],
+    optimizedAt: new Date().toISOString()
   }
 
-  return performRuleBasedOptimization(contactId, contact, meetingHistory, communications, purpose, urgency);
+  switch (optimizationType) {
+    case 'schedule':
+      optimized.optimizedSchedule = await optimizeSchedule(meetingData)
+      break
+    case 'agenda':
+      optimized.optimizedAgenda = await optimizeAgenda(meetingData)
+      break
+    case 'participants':
+      optimized.participantOptimization = await optimizeParticipants(meetingData)
+      break
+    default:
+      optimized.optimizedSchedule = await optimizeSchedule(meetingData)
+      optimized.optimizedAgenda = await optimizeAgenda(meetingData)
+      optimized.participantOptimization = await optimizeParticipants(meetingData)
+  }
+
+  // Generate recommendations
+  optimized.recommendations = await generateMeetingRecommendations(meetingData, optimized)
+
+  // Predict outcomes
+  optimized.predictedOutcomes = await predictMeetingOutcomes(meetingData, optimized)
+
+  // Identify risk factors
+  optimized.riskFactors = await identifyMeetingRisks(meetingData, optimized)
+
+  return optimized
 }
 
-function performRuleBasedOptimization(
-  contactId: string,
-  contact: any,
-  meetingHistory: any[],
-  communications: any[],
-  purpose: string,
-  urgency: string
-): MeetingOptimization {
-  // Analyze meeting patterns
-  const preferredTimes = analyzeHistoricalTimes(meetingHistory);
-  const communicationPatterns = analyzeCommunicationPatterns(communications);
+async function optimizeSchedule(meetingData: any) {
+  const { participants, duration, preferredTimes, timeZone } = meetingData
 
-  return {
-    contactId,
-    optimalTimes: [
-      { day: 'Tuesday', timeSlot: '2:00 PM - 3:00 PM', score: 85, reasoning: ['Historically responsive on Tuesdays', 'Afternoon slots show better attendance'] },
-      { day: 'Thursday', timeSlot: '10:00 AM - 11:00 AM', score: 80, reasoning: ['Good engagement on Thursday mornings', 'Mid-week optimal for business discussions'] },
-      { day: 'Wednesday', timeSlot: '3:00 PM - 4:00 PM', score: 75, reasoning: ['Alternative mid-week option', 'Consistent availability pattern'] }
-    ],
-    duration: {
-      recommended: purpose === 'discovery' ? 30 : purpose === 'demo' ? 45 : 60,
-      reasoning: `${purpose} meetings typically require ${purpose === 'discovery' ? '30' : purpose === 'demo' ? '45' : '60'} minutes for thorough discussion`
-    },
-    format: {
-      recommended: 'video',
-      reasoning: 'Video calls provide better engagement while maintaining convenience'
-    },
-    agenda: {
-      suggestedTopics: getSuggestedTopics(purpose, contact),
-      preparation: getPreparationItems(purpose, contact),
-      goals: getMeetingGoals(purpose, contact)
-    },
-    followUp: {
-      timing: urgency === 'high' ? '24 hours' : '48 hours',
-      method: communicationPatterns.preferredChannel || 'email',
-      content: 'Summary of discussion points and next steps'
-    },
-    attendees: {
-      recommended: [contact.name],
-      optional: contact.title?.includes('CEO') ? ['Technical team member'] : []
+  const optimized = {
+    recommendedTime: '',
+    recommendedDate: '',
+    duration: duration || 60,
+    timeZone: timeZone || 'UTC',
+    alternatives: [],
+    reasoning: '',
+    confidence: 0
+  }
+
+  // Analyze participant availability
+  const availability = await analyzeParticipantAvailability(participants)
+
+  // Find optimal time slot
+  const optimalSlot = findOptimalTimeSlot(availability, duration, preferredTimes)
+
+  optimized.recommendedTime = optimalSlot.time
+  optimized.recommendedDate = optimalSlot.date
+  optimized.alternatives = optimalSlot.alternatives
+  optimized.reasoning = generateScheduleReasoning(optimalSlot, participants)
+  optimized.confidence = calculateScheduleConfidence(optimalSlot, participants)
+
+  return optimized
+}
+
+async function optimizeAgenda(meetingData: any) {
+  const { topic, participants, objectives, duration } = meetingData
+
+  const optimized = []
+
+  // Estimate time allocation
+  const totalDuration = duration || 60
+  const timeAllocations = estimateTimeAllocations(participants.length, totalDuration)
+
+  // Generate agenda items
+  optimized.push({
+    item: 'Introduction & Objectives',
+    duration: timeAllocations.introduction,
+    presenter: 'Meeting Organizer',
+    purpose: 'Set context and expectations'
+  })
+
+  if (participants.length > 2) {
+    optimized.push({
+      item: 'Round-robin Introductions',
+      duration: timeAllocations.introductions,
+      presenter: 'All Participants',
+      purpose: 'Build rapport and understanding'
+    })
+  }
+
+  optimized.push({
+    item: 'Main Discussion: ' + (topic || 'Meeting Topic'),
+    duration: timeAllocations.discussion,
+    presenter: 'All Participants',
+    purpose: 'Address main objectives and topics'
+  })
+
+  if (objectives && objectives.length > 0) {
+    objectives.forEach((objective: string, index: number) => {
+      optimized.push({
+        item: `Objective ${index + 1}: ${objective}`,
+        duration: Math.max(5, timeAllocations.discussion / objectives.length),
+        presenter: 'Relevant Participant',
+        purpose: 'Achieve specific meeting goal'
+      })
+    })
+  }
+
+  optimized.push({
+    item: 'Action Items & Next Steps',
+    duration: timeAllocations.actions,
+    presenter: 'All Participants',
+    purpose: 'Define follow-up actions and responsibilities'
+  })
+
+  optimized.push({
+    item: 'Q&A and Closing',
+    duration: timeAllocations.closing,
+    presenter: 'Meeting Organizer',
+    purpose: 'Address remaining questions and summarize'
+  })
+
+  return optimized
+}
+
+async function optimizeParticipants(meetingData: any) {
+  const { participants, objectives } = meetingData
+
+  const optimized = {
+    required: [],
+    optional: [],
+    roles: {},
+    preparation: {},
+    communication: {}
+  }
+
+  // Categorize participants
+  for (const participant of participants) {
+    const category = await categorizeParticipant(participant, objectives)
+
+    if (category.necessity === 'required') {
+      optimized.required.push({
+        ...participant,
+        role: category.suggestedRole,
+        preparation: category.preparationNeeded
+      })
+    } else {
+      optimized.optional.push({
+        ...participant,
+        role: category.suggestedRole,
+        preparation: category.preparationNeeded
+      })
     }
-  };
+
+    optimized.roles[participant.id] = category.suggestedRole
+    optimized.preparation[participant.id] = category.preparationNeeded
+  }
+
+  // Optimize communication strategy
+  optimized.communication = await optimizeParticipantCommunication(participants)
+
+  return optimized
 }
 
-function formatOptimizationResult(contactId: string, aiResult: any): MeetingOptimization {
+async function generateMeetingRecommendations(meetingData: any, optimized: any) {
+  const recommendations = []
+
+  // Duration recommendations
+  if (meetingData.duration > 90) {
+    recommendations.push('Consider breaking long meetings into shorter sessions')
+  }
+
+  // Participant recommendations
+  if (optimized.participantOptimization.required.length > 8) {
+    recommendations.push('Large participant count detected - consider smaller focused meetings')
+  }
+
+  // Agenda recommendations
+  const agendaItems = optimized.optimizedAgenda
+  const totalAgendaTime = agendaItems.reduce((sum: number, item: any) => sum + item.duration, 0)
+  const meetingDuration = meetingData.duration || 60
+
+  if (totalAgendaTime > meetingDuration * 0.9) {
+    recommendations.push('Agenda may be too packed - consider prioritizing topics')
+  }
+
+  // Preparation recommendations
+  recommendations.push('Send agenda and materials 24 hours in advance')
+  recommendations.push('Include clear objectives and expected outcomes')
+
+  return recommendations
+}
+
+async function predictMeetingOutcomes(meetingData: any, optimized: any) {
+  const predictions = {
+    successProbability: 0,
+    expectedEngagement: '',
+    likelyOutcomes: [],
+    potentialChallenges: [],
+    followUpNeeded: false
+  }
+
+  // Calculate success probability
+  let successScore = 50
+
+  // Factors affecting success
+  if (optimized.optimizedSchedule.confidence > 80) successScore += 15
+  if (optimized.participantOptimization.required.length <= 6) successScore += 10
+  if (meetingData.objectives && meetingData.objectives.length > 0) successScore += 10
+  if (meetingData.preparation && meetingData.preparation.length > 0) successScore += 10
+
+  predictions.successProbability = Math.min(100, successScore)
+
+  // Predict engagement level
+  if (successScore > 80) predictions.expectedEngagement = 'High'
+  else if (successScore > 60) predictions.expectedEngagement = 'Medium'
+  else predictions.expectedEngagement = 'Low'
+
+  // Predict outcomes
+  if (meetingData.objectives) {
+    predictions.likelyOutcomes = meetingData.objectives.map((obj: string) =>
+      `Progress on: ${obj}`
+    )
+  }
+
+  // Identify potential challenges
+  if (optimized.riskFactors.length > 0) {
+    predictions.potentialChallenges = optimized.riskFactors.slice(0, 3)
+  }
+
+  predictions.followUpNeeded = meetingData.duration > 60 || optimized.participantOptimization.required.length > 4
+
+  return predictions
+}
+
+async function identifyMeetingRisks(meetingData: any, optimized: any) {
+  const risks = []
+
+  // Scheduling risks
+  if (optimized.optimizedSchedule.confidence < 60) {
+    risks.push('Low scheduling confidence - participants may have conflicts')
+  }
+
+  // Duration risks
+  if (meetingData.duration > 120) {
+    risks.push('Long meeting duration may lead to fatigue and reduced engagement')
+  }
+
+  // Participant risks
+  if (optimized.participantOptimization.required.length > 10) {
+    risks.push('Large participant count may hinder productive discussion')
+  }
+
+  // Preparation risks
+  if (!meetingData.agenda) {
+    risks.push('No agenda provided - meeting may lack direction')
+  }
+
+  // Time zone risks
+  const timeZones = meetingData.participants?.map((p: any) => p.timeZone).filter(Boolean) || []
+  if (timeZones.length > 1 && new Set(timeZones).size > 1) {
+    risks.push('Multiple time zones - consider rotating meeting times')
+  }
+
+  return risks
+}
+
+// Helper functions
+async function analyzeParticipantAvailability(participants: any[]) {
+  // Placeholder for availability analysis
   return {
-    contactId,
-    optimalTimes: aiResult.optimalTimes || [],
-    duration: aiResult.duration || { recommended: 30, reasoning: 'Standard meeting duration' },
-    format: aiResult.format || { recommended: 'video', reasoning: 'Default recommendation' },
-    agenda: aiResult.agenda || { suggestedTopics: [], preparation: [], goals: [] },
-    followUp: aiResult.followUp || { timing: '48 hours', method: 'email', content: 'Follow-up summary' },
-    attendees: aiResult.attendees || { recommended: [], optional: [] }
-  };
+    commonSlots: [
+      { date: '2024-01-15', time: '10:00', available: participants.length },
+      { date: '2024-01-15', time: '14:00', available: participants.length - 1 },
+      { date: '2024-01-16', time: '11:00', available: participants.length }
+    ]
+  }
 }
 
-function analyzeHistoricalTimes(meetings: any[]): string[] {
-  // Simple analysis of preferred meeting times
-  return ['Tuesday 2-4 PM', 'Thursday 10 AM-12 PM'];
-}
+function findOptimalTimeSlot(availability: any, duration: number, preferredTimes: any) {
+  // Find the slot with maximum availability
+  let optimal = availability.commonSlots[0]
 
-function analyzeCommunicationPatterns(communications: any[]): any {
-  const channelCounts = communications.reduce((acc, c) => {
-    acc[c.type] = (acc[c.type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  for (const slot of availability.commonSlots) {
+    if (slot.available > optimal.available) {
+      optimal = slot
+    }
+  }
 
   return {
-    preferredChannel: Object.entries(channelCounts).sort(([,a], [,b]) => b - a)[0]?.[0] || 'email'
-  };
+    date: optimal.date,
+    time: optimal.time,
+    alternatives: availability.commonSlots.slice(1, 4)
+  }
 }
 
-function getSuggestedTopics(purpose: string, contact: any): string[] {
-  const topicsByPurpose = {
-    discovery: ['Current challenges', 'Business goals', 'Decision-making process', 'Timeline expectations'],
-    demo: ['Product walkthrough', 'Use case scenarios', 'Technical requirements', 'Integration needs'],
-    proposal: ['Solution overview', 'Pricing discussion', 'Implementation plan', 'Success metrics'],
-    follow_up: ['Previous discussion recap', 'Outstanding questions', 'Next steps', 'Decision timeline']
-  };
-
-  return topicsByPurpose[purpose as keyof typeof topicsByPurpose] || ['General discussion'];
+function generateScheduleReasoning(optimalSlot: any, participants: any[]) {
+  return `Selected ${optimalSlot.date} at ${optimalSlot.time} based on maximum participant availability (${participants.length} participants can attend)`
 }
 
-function getPreparationItems(purpose: string, contact: any): string[] {
-  const prepByPurpose = {
-    discovery: ['Research company background', 'Prepare discovery questions', 'Review contact profile'],
-    demo: ['Customize demo environment', 'Prepare use case scenarios', 'Set up screen sharing'],
-    proposal: ['Prepare proposal presentation', 'Gather pricing information', 'Review technical requirements'],
-    follow_up: ['Review previous meeting notes', 'Prepare answers to outstanding questions', 'Update proposal if needed']
-  };
-
-  return prepByPurpose[purpose as keyof typeof prepByPurpose] || ['Review contact information'];
+function calculateScheduleConfidence(optimalSlot: any, participants: any[]) {
+  const availabilityRate = optimalSlot.available / participants.length
+  return Math.round(availabilityRate * 100)
 }
 
-function getMeetingGoals(purpose: string, contact: any): string[] {
-  const goalsByPurpose = {
-    discovery: ['Understand business needs', 'Identify decision makers', 'Qualify opportunity', 'Build rapport'],
-    demo: ['Showcase relevant features', 'Address specific use cases', 'Generate excitement', 'Handle objections'],
-    proposal: ['Present solution value', 'Discuss pricing and terms', 'Address concerns', 'Secure next steps'],
-    follow_up: ['Clarify remaining questions', 'Confirm mutual interest', 'Establish timeline', 'Define next actions']
-  };
+function estimateTimeAllocations(participantCount: number, totalDuration: number) {
+  const allocations = {
+    introduction: Math.max(5, Math.min(10, totalDuration * 0.1)),
+    introductions: participantCount > 2 ? participantCount * 2 : 0,
+    discussion: 0,
+    actions: Math.max(10, Math.min(15, totalDuration * 0.2)),
+    closing: Math.max(5, Math.min(10, totalDuration * 0.1))
+  }
 
-  return goalsByPurpose[purpose as keyof typeof goalsByPurpose] || ['Productive discussion'];
+  // Calculate discussion time as remainder
+  allocations.discussion = totalDuration -
+    allocations.introduction -
+    allocations.introductions -
+    allocations.actions -
+    allocations.closing
+
+  return allocations
+}
+
+async function categorizeParticipant(participant: any, objectives: any[]) {
+  const category = {
+    necessity: 'optional',
+    suggestedRole: 'Participant',
+    preparationNeeded: []
+  }
+
+  // Determine necessity based on role and objectives
+  if (participant.role === 'decision-maker' || participant.title?.includes('VP') || participant.title?.includes('Director')) {
+    category.necessity = 'required'
+    category.suggestedRole = 'Decision Maker'
+  } else if (participant.expertise && objectives.some((obj: string) => obj.toLowerCase().includes(participant.expertise.toLowerCase()))) {
+    category.necessity = 'required'
+    category.suggestedRole = 'Subject Matter Expert'
+  }
+
+  // Determine preparation needed
+  if (objectives && objectives.length > 0) {
+    category.preparationNeeded.push('Review meeting objectives')
+  }
+
+  if (participant.role === 'presenter') {
+    category.preparationNeeded.push('Prepare presentation materials')
+    category.suggestedRole = 'Presenter'
+  }
+
+  return category
+}
+
+async function optimizeParticipantCommunication(participants: any[]) {
+  const communication = {
+    primaryChannel: 'video',
+    backupChannels: ['phone', 'email'],
+    materials: [],
+    reminders: []
+  }
+
+  // Determine best communication method
+  const timeZones = participants.map(p => p.timeZone).filter(Boolean)
+  if (timeZones.length > 1 && new Set(timeZones).size > 1) {
+    communication.primaryChannel = 'async'
+    communication.backupChannels = ['email', 'chat']
+  }
+
+  // Recommend materials
+  communication.materials = [
+    'Meeting agenda',
+    'Participant list',
+    'Background materials'
+  ]
+
+  // Set up reminders
+  communication.reminders = [
+    { timing: '24 hours before', message: 'Meeting reminder with agenda' },
+    { timing: '1 hour before', message: 'Final reminder with meeting link' }
+  ]
+
+  return communication
 }
