@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
+import { AvatarUpload } from '../ui/AvatarUpload';
 import { ModernButton } from '../ui/ModernButton';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { AIResearchButton } from '../ui/AIResearchButton';
@@ -527,13 +528,19 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
             {/* Avatar and Basic Info with AI Enhancement */}
             <div className="p-5 text-center border-b border-gray-100 bg-white">
               <div className="relative inline-block mb-4">
-                <AvatarWithStatus
-                  src={editedContact.avatarSrc}
-                  alt={editedContact.name}
+                <AvatarUpload
+                  currentAvatar={editedContact.avatarSrc}
+                  onAvatarChange={(avatarUrl) => {
+                    setEditedContact(prev => ({ ...prev, avatarSrc: avatarUrl }));
+                    if (onUpdate) {
+                      onUpdate(contact.id, { avatarSrc: avatarUrl });
+                    }
+                  }}
                   size="xl"
-                  status={editedContact.status}
+                  contactName={editedContact.name}
+                  contactId={contact.id}
                 />
-                
+
                 {/* AI Score Badge */}
                 {editedContact.aiScore && (
                   <div className={`absolute -top-1 -right-1 h-7 w-7 rounded-full ${
@@ -544,33 +551,20 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     {editedContact.aiScore}
                   </div>
                 )}
-                
+
                 {/* Favorite Badge */}
                 {editedContact.isFavorite && (
                   <div className="absolute -top-1 -left-1 h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg ring-2 ring-white">
                     <Heart className="w-3 h-3" />
                   </div>
                 )}
-                
+
                 {/* AI Enhancement Indicator */}
                 {lastEnrichment && (
                   <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-purple-500 text-white flex items-center justify-center shadow-lg ring-2 ring-white">
                     <Sparkles className="w-2.5 h-2.5" />
                   </div>
                 )}
-                
-                {/* AI Image Search Button */}
-                <button 
-                  onClick={handleFindNewImage}
-                  disabled={isEnriching}
-                  className="absolute -bottom-1 -right-1 p-1.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full hover:from-purple-700 hover:to-blue-700 transition-colors shadow-lg relative"
-                >
-                  {isEnriching ? (
-                    <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full" />
-                  ) : (
-                    <Camera className="w-3 h-3" />
-                  )}
-                </button>
               </div>
               
               {/* Name and Title */}

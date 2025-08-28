@@ -419,6 +419,47 @@ export class EdgeFunctionService {
     if (error) throw error
     return result
   }
+
+  // Specialized AI Tools Functions
+  async generateInstantResponse(message: string, context: any = {}, contactData: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('instant-response', {
+      body: { message, context, contactData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async analyzeDeal(dealData: any, analysisType: string = 'comprehensive') {
+    const { data: result, error } = await supabase.functions.invoke('deal-analysis', {
+      body: { dealData, analysisType }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async performSemanticSearch(query: string, searchType: string = 'universal', filters: any = {}, options: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('semantic-search', {
+      body: { query, searchType, filters, options }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async streamChat(message: string, conversationId: string, context: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('streaming-chat', {
+      body: { message, conversationId, context, stream: true }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async generateChatResponse(message: string, conversationId: string, context: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('streaming-chat', {
+      body: { message, conversationId, context, stream: false }
+    })
+    if (error) throw error
+    return result
+  }
 }
 
 export const edgeFunctionService = EdgeFunctionService.getInstance()

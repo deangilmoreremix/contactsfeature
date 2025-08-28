@@ -215,46 +215,47 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             <p className="text-gray-600">Loading journey events...</p>
           </div>
         </GlassCard>
-      )}
+      </div>
+    )}
 
-      {/* Error State */}
-      {error && (
-        <GlassCard className="p-6 border-red-200 bg-red-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-              <div>
-                <p className="text-red-900 font-medium">Failed to load journey events</p>
-                <p className="text-red-700 text-sm">{error}</p>
-              </div>
+    {/* Error State */}
+    {error && (
+      <GlassCard className="p-6 border-red-200 bg-red-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <AlertCircle className="w-6 h-6 text-red-600" />
+            <div>
+              <p className="text-red-900 font-medium">Failed to load journey events</p>
+              <p className="text-red-700 text-sm">{error}</p>
             </div>
-            <ModernButton
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              className="border-red-300 text-red-700 hover:bg-red-50"
-            >
-              Try Again
-            </ModernButton>
+          </div>
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="border-red-300 text-red-700 hover:bg-red-50"
+          >
+            Try Again
+          </ModernButton>
+        </div>
+      </GlassCard>
+    )}
+
+    {/* Journey Stats */}
+    {!loading && !error && (
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <GlassCard className="p-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <MessageSquare className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{journeyEvents.length}</p>
+              <p className="text-sm text-gray-600">Total Interactions</p>
+            </div>
           </div>
         </GlassCard>
-      )}
 
-      {/* Journey Stats */}
-      {!loading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <GlassCard className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <MessageSquare className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{journeyEvents.length}</p>
-                <p className="text-sm text-gray-600">Total Interactions</p>
-              </div>
-            </div>
-          </GlassCard>
-        
         <GlassCard className="p-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-green-100 rounded-lg">
@@ -268,7 +269,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             </div>
           </div>
         </GlassCard>
-        
+
         <GlassCard className="p-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-100 rounded-lg">
@@ -280,7 +281,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             </div>
           </div>
         </GlassCard>
-        
+
         <GlassCard className="p-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-yellow-100 rounded-lg">
@@ -292,91 +293,92 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             </div>
           </div>
         </GlassCard>
-        )}
+      </div>
+    )}
 
-        {/* Timeline */}
-        {!loading && !error && (
-          <GlassCard className="p-6">
-            <div className="relative">
-              {/* Timeline Line */}
-              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+    {/* Timeline */}
+    {!loading && !error && (
+      <GlassCard className="p-6">
+        <div className="relative">
+          {/* Timeline Line */}
+          <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
 
-              {/* Timeline Events */}
-              <div className="space-y-6">
-                {filteredEvents.map((event, index) => {
-                  const Icon = eventIcons[event.type];
-                  const eventColor = eventColors[event.type];
-                  const { date, time } = formatDate(event.date);
+          {/* Timeline Events */}
+          <div className="space-y-6">
+            {filteredEvents.map((event, index) => {
+              const Icon = eventIcons[event.type];
+              const eventColor = eventColors[event.type];
+              const { date, time } = formatDate(event.date);
 
-                  return (
-                    <div key={event.id} className="relative flex items-start space-x-4">
-                      {/* Timeline Dot */}
-                      <div className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full ${eventColor} shadow-lg`}>
-                        <Icon className="w-4 h-4 text-white" />
+              return (
+                <div key={event.id} className="relative flex items-start space-x-4">
+                  {/* Timeline Dot */}
+                  <div className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full ${eventColor} shadow-lg`}>
+                    <Icon className="w-4 h-4 text-white" />
+                  </div>
+
+                  {/* Event Content */}
+                  <div className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">{event.title}</h4>
+                        <p className="text-gray-600">{event.description}</p>
                       </div>
-
-                      {/* Event Content */}
-                      <div className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h4 className="text-lg font-semibold text-gray-900">{event.title}</h4>
-                            <p className="text-gray-600">{event.description}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900">{date}</p>
-                            <p className="text-sm text-gray-500">{time}</p>
-                          </div>
-                        </div>
-
-                        {/* Event Details */}
-                        <div className="flex items-center space-x-4 mt-3">
-                          {event.outcome && (
-                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${outcomeColors[event.outcome]}`}>
-                              {event.outcome.charAt(0).toUpperCase() + event.outcome.slice(1)}
-                            </span>
-                          )}
-
-                          {event.value && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
-                              ${event.value.toLocaleString()}
-                            </span>
-                          )}
-
-                          {event.participants && (
-                            <span className="text-xs text-gray-500">
-                              {event.participants.length} participant{event.participants.length > 1 ? 's' : ''}
-                            </span>
-                          )}
-
-                          {event.attachments && (
-                            <span className="text-xs text-gray-500">
-                              {event.attachments.length} attachment{event.attachments.length > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Attachments */}
-                        {event.attachments && event.attachments.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {event.attachments.map((attachment, idx) => (
-                                <span key={idx} className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
-                                  <FileText className="w-3 h-3 mr-1" />
-                                  {attachment}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900">{date}</p>
+                        <p className="text-sm text-gray-500">{time}</p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </GlassCard>
-        )}
-      </div>
-    );
-  };
+
+                    {/* Event Details */}
+                    <div className="flex items-center space-x-4 mt-3">
+                      {event.outcome && (
+                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${outcomeColors[event.outcome]}`}>
+                          {event.outcome.charAt(0).toUpperCase() + event.outcome.slice(1)}
+                        </span>
+                      )}
+
+                      {event.value && (
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                          ${event.value.toLocaleString()}
+                        </span>
+                      )}
+
+                      {event.participants && (
+                        <span className="text-xs text-gray-500">
+                          {event.participants.length} participant{event.participants.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+
+                      {event.attachments && (
+                        <span className="text-xs text-gray-500">
+                          {event.attachments.length} attachment{event.attachments.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Attachments */}
+                    {event.attachments && event.attachments.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {event.attachments.map((attachment, idx) => (
+                            <span key={idx} className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
+                              <FileText className="w-3 h-3 mr-1" />
+                              {attachment}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </GlassCard>
+    )}
+  </div>
+  );
+};
