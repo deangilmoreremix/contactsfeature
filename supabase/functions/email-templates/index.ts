@@ -1,246 +1,292 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization"
+};
+
+interface EmailTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  subject: string;
+  body: string;
+  variables: string[];
+  category: string;
+  isDefault?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight request
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders
+    });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
+    // Validate environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing required environment variables');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Server configuration error',
+          details: 'Missing required environment variables'
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const url = new URL(req.url);
+    const path = url.pathname.split('/');
+    const endpoint = path[path.length - 1];
+
+    // GET /email-templates - List all templates
+    if (req.method === 'GET' && endpoint === 'email-templates') {
+      const category = url.searchParams.get('category');
+      
+      // Normally we would query the database
+      // Since we don't have a real DB connection, return mock templates
+      const templates = getMockTemplates();
+      
+      // Filter by category if provided
+      const filteredTemplates = category 
+        ? templates.filter(t => t.category === category) 
+        : templates;
+
+      return new Response(
+        JSON.stringify({
+          templates: filteredTemplates,
+          count: filteredTemplates.length
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // GET /email-templates/:id - Get single template
+    if (req.method === 'GET' && path.length > 4) {
+      const templateId = path[path.length - 1];
+      
+      // Normally we would query the database
+      const templates = getMockTemplates();
+      const template = templates.find(t => t.id === templateId);
+      
+      if (!template) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Not found',
+            details: `Template with ID ${templateId} not found`
+          }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
       }
-    )
 
-    const { action, category, templateId, templateData } = await req.json()
-
-    let result
-
-    switch (action) {
-      case 'get':
-        result = await getTemplates(category)
-        break
-      case 'getById':
-        result = await getTemplateById(templateId)
-        break
-      case 'create':
-        result = await createTemplate(templateData)
-        break
-      case 'update':
-        result = await updateTemplate(templateId, templateData)
-        break
-      case 'delete':
-        result = await deleteTemplate(templateId)
-        break
-      case 'categories':
-        result = await getTemplateCategories()
-        break
-      default:
-        throw new Error(`Unknown action: ${action}`)
+      return new Response(
+        JSON.stringify(template),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    // POST /email-templates - Create template
+    if (req.method === 'POST' && endpoint === 'email-templates') {
+      const templateData = await req.json();
+      
+      if (!templateData.name || !templateData.subject || !templateData.body) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing required fields',
+            details: 'name, subject, and body are required'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // In a real implementation, we would save to the database
+      // For mock purposes, we'll just return the template with an ID
+      const newTemplate: EmailTemplate = {
+        id: `template-${Date.now()}`,
+        name: templateData.name,
+        description: templateData.description || '',
+        subject: templateData.subject,
+        body: templateData.body,
+        variables: templateData.variables || [],
+        category: templateData.category || 'General',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      return new Response(
+        JSON.stringify(newTemplate),
+        {
+          status: 201,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // PUT /email-templates/:id - Update template
+    if (req.method === 'PUT' && path.length > 4) {
+      const templateId = path[path.length - 1];
+      const templateData = await req.json();
+      
+      if (!templateData.name || !templateData.subject || !templateData.body) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing required fields',
+            details: 'name, subject, and body are required'
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // In a real implementation, we would update in the database
+      // For mock purposes, we'll just return the updated template
+      const updatedTemplate: EmailTemplate = {
+        id: templateId,
+        name: templateData.name,
+        description: templateData.description || '',
+        subject: templateData.subject,
+        body: templateData.body,
+        variables: templateData.variables || [],
+        category: templateData.category || 'General',
+        updated_at: new Date().toISOString()
+      };
+
+      return new Response(
+        JSON.stringify(updatedTemplate),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // DELETE /email-templates/:id - Delete template
+    if (req.method === 'DELETE' && path.length > 4) {
+      const templateId = path[path.length - 1];
+      
+      // In a real implementation, we would delete from the database
+      // For mock purposes, just return success
+
+      return new Response(
+        null,
+        {
+          status: 204,
+          headers: corsHeaders,
+        }
+      );
+    }
+
+    // Endpoint not found
+    return new Response(
+      JSON.stringify({
+        error: 'Not found',
+        details: 'Endpoint not found'
+      }),
+      {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('Email templates error:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Internal server error', 
+        message: error.message || 'An unexpected error occurred' 
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
-})
+});
 
-async function getTemplates(category: string = 'all') {
-  // In a real implementation, this would query a database
-  // For now, return predefined templates
-  const allTemplates = [
+function getMockTemplates(): EmailTemplate[] {
+  return [
     {
-      id: 'welcome-new-contact',
-      name: 'Welcome New Contact',
-      category: 'onboarding',
-      subject: 'Welcome to {{company_name}}!',
-      content: `Hi {{first_name}},
-
-Welcome to {{company_name}}! We're excited to have you as part of our community.
-
-Here's what you can expect from us:
-• Regular updates about our latest features
-• Exclusive insights from our team
-• Opportunities to connect with other professionals
-
-If you have any questions, feel free to reply to this email.
-
-Best regards,
-{{sender_name}}
-{{sender_title}}
-{{company_name}}`
+      id: "template-1",
+      name: "Introduction Email",
+      description: "First outreach to a new prospect",
+      subject: "Introduction from {{company_name}}",
+      body: "Hi {{first_name}},\n\nI hope this email finds you well. I'm reaching out because I believe our solutions at {{company_name}} could help address the challenges you might be facing at {{client_company}}.\n\nWould you be open to a brief call to discuss how we might be able to help?\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{company_name}}",
+      variables: ["first_name", "company_name", "client_company", "sender_name", "sender_title"],
+      category: "Prospecting",
+      isDefault: true,
+      created_at: "2023-01-15T00:00:00Z",
+      updated_at: "2023-01-15T00:00:00Z"
     },
     {
-      id: 'follow-up-meeting',
-      name: 'Meeting Follow-up',
-      category: 'followup',
-      subject: 'Thank you for meeting with us',
-      content: `Hi {{first_name}},
-
-Thank you for taking the time to meet with me today. I enjoyed our conversation about {{meeting_topic}}.
-
-As discussed, here are the next steps:
-{{next_steps}}
-
-Please let me know if you need any additional information.
-
-Best regards,
-{{sender_name}}`
+      id: "template-2",
+      name: "Follow-up After Meeting",
+      description: "Send after initial sales call or meeting",
+      subject: "Thank you for your time, {{first_name}}",
+      body: "Hi {{first_name}},\n\nThank you for taking the time to meet with me today. I really enjoyed learning more about {{client_company}} and your role there.\n\nAs promised, I'm sending over the additional information about our {{product_name}} that we discussed. I've also included a case study that I think you'll find relevant.\n\nPlease let me know if you have any questions. I'm looking forward to our next conversation.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{company_name}}",
+      variables: ["first_name", "client_company", "product_name", "sender_name", "sender_title", "company_name"],
+      category: "Follow-up",
+      isDefault: true,
+      created_at: "2023-01-15T00:00:00Z",
+      updated_at: "2023-01-15T00:00:00Z"
     },
     {
-      id: 'newsletter-monthly',
-      name: 'Monthly Newsletter',
-      category: 'newsletter',
-      subject: '{{month}} Update from {{company_name}}',
-      content: `Hi {{first_name}},
-
-Here's what's been happening at {{company_name}} this month:
-
-{{monthly_highlights}}
-
-{{cta_text}}
-
-Best regards,
-{{sender_name}}
-{{company_name}}`
+      id: "template-3",
+      name: "Proposal Email",
+      description: "Email to accompany a formal proposal",
+      subject: "{{client_company}} - Proposal for {{solution_type}}",
+      body: "Dear {{first_name}},\n\nThank you for the opportunity to present this proposal for {{client_company}}.\n\nBased on our discussions, I've attached a comprehensive proposal that addresses your needs regarding {{pain_point}}. Our solution will help you {{benefit_1}} while ensuring {{benefit_2}}.\n\nThe proposal includes detailed pricing information, implementation timeline, and expected outcomes. I'd be happy to schedule a call to walk through the details and answer any questions you might have.\n\nI look forward to your feedback.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{company_name}}\n{{sender_phone}}",
+      variables: ["first_name", "client_company", "solution_type", "pain_point", "benefit_1", "benefit_2", "sender_name", "sender_title", "company_name", "sender_phone"],
+      category: "Proposal",
+      isDefault: true,
+      created_at: "2023-01-15T00:00:00Z",
+      updated_at: "2023-01-15T00:00:00Z"
     },
     {
-      id: 'product-update',
-      name: 'Product Update',
-      category: 'product',
-      subject: 'New Feature: {{feature_name}}',
-      content: `Hi {{first_name}},
-
-We're excited to announce our latest feature: {{feature_name}}!
-
-{{feature_description}}
-
-{{benefits}}
-
-Try it out today: {{cta_link}}
-
-Best regards,
-{{sender_name}}
-{{company_name}}`
+      id: "template-4",
+      name: "Re-engagement Email",
+      description: "Reach out to dormant prospects",
+      subject: "Checking in - {{client_company}}",
+      body: "Hi {{first_name}},\n\nIt's been a while since we last connected, and I wanted to reach out to see how things are going at {{client_company}}.\n\nSince we last spoke, we've launched several new features that I believe would address the {{pain_point}} you mentioned previously. I'd love to share how these updates might benefit your team.\n\nWould you be open to a quick catch-up call in the next couple of weeks?\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{company_name}}",
+      variables: ["first_name", "client_company", "pain_point", "sender_name", "sender_title", "company_name"],
+      category: "Re-engagement",
+      isDefault: true,
+      created_at: "2023-01-15T00:00:00Z",
+      updated_at: "2023-01-15T00:00:00Z"
     },
     {
-      id: 're-engagement',
-      name: 'Re-engagement Campaign',
-      category: 'engagement',
-      subject: 'We miss you at {{company_name}}',
-      content: `Hi {{first_name}},
-
-We noticed it has been a while since you last visited {{company_name}}. We hope you're doing well!
-
-Here are some updates you might have missed:
-{{recent_updates}}
-
-Come back and see what's new: {{website_link}}
-
-Best regards,
-{{sender_name}}`
-    },
-    {
-      id: 'event-invitation',
-      name: 'Event Invitation',
-      category: 'events',
-      subject: 'You\'re invited: {{event_name}}',
-      content: `Hi {{first_name}},
-
-You're invited to our upcoming event: {{event_name}}
-
-Event Details:
-• Date: {{event_date}}
-• Time: {{event_time}}
-• Location: {{event_location}}
-
-{{event_description}}
-
-RSVP here: {{rsvp_link}}
-
-We hope to see you there!
-
-Best regards,
-{{sender_name}}
-{{company_name}}`
+      id: "template-5",
+      name: "Meeting Request",
+      description: "Request a meeting or call",
+      subject: "Meeting request: {{topic}}",
+      body: "Hi {{first_name}},\n\nI hope this email finds you well. I'd like to schedule a meeting to discuss {{topic}} and how {{company_name}} can help {{client_company}} with {{pain_point}}.\n\nWould you be available for a {{meeting_duration}}-minute call on {{proposed_date_1}} or {{proposed_date_2}}? If those times don't work, please let me know your availability and I'll be happy to accommodate your schedule.\n\nLooking forward to speaking with you.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{company_name}}\n{{sender_phone}}",
+      variables: ["first_name", "topic", "company_name", "client_company", "pain_point", "meeting_duration", "proposed_date_1", "proposed_date_2", "sender_name", "sender_title", "sender_phone"],
+      category: "Meeting",
+      isDefault: true,
+      created_at: "2023-01-15T00:00:00Z",
+      updated_at: "2023-01-15T00:00:00Z"
     }
-  ]
-
-  if (category === 'all') {
-    return allTemplates
-  }
-
-  return allTemplates.filter(template => template.category === category)
-}
-
-async function getTemplateById(templateId: string) {
-  const templates = await getTemplates()
-  return templates.find(template => template.id === templateId) || null
-}
-
-async function createTemplate(templateData: any) {
-  // In a real implementation, this would save to database
-  const newTemplate = {
-    ...templateData,
-    id: generateTemplateId(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-
-  return newTemplate
-}
-
-async function updateTemplate(templateId: string, templateData: any) {
-  // In a real implementation, this would update in database
-  const existingTemplate = await getTemplateById(templateId)
-  if (!existingTemplate) {
-    throw new Error('Template not found')
-  }
-
-  const updatedTemplate = {
-    ...existingTemplate,
-    ...templateData,
-    updatedAt: new Date().toISOString()
-  }
-
-  return updatedTemplate
-}
-
-async function deleteTemplate(templateId: string) {
-  // In a real implementation, this would delete from database
-  const template = await getTemplateById(templateId)
-  if (!template) {
-    throw new Error('Template not found')
-  }
-
-  return { success: true, deletedId: templateId }
-}
-
-async function getTemplateCategories() {
-  const templates = await getTemplates()
-  const categories = [...new Set(templates.map(template => template.category))]
-
-  return categories.map(category => ({
-    name: category,
-    count: templates.filter(template => template.category === category).length
-  }))
-}
-
-function generateTemplateId(): string {
-  return 'template_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+  ];
 }

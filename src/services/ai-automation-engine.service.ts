@@ -6,6 +6,7 @@
 import { logger } from './logger.service';
 import { Contact } from '../types';
 import { aiIntelligenceEngine, SmartRecommendation } from './ai-intelligence-engine.service';
+import { httpClient } from './http-client.service';
 
 export interface AutomationRule {
   id: string;
@@ -64,6 +65,25 @@ export interface AutomationSuggestion {
   createdAt: string;
 }
 
+export interface NaturalLanguageRuleRequest {
+  description: string;
+  contactContext?: Contact;
+  businessGoals?: string[];
+  urgency?: 'low' | 'medium' | 'high';
+}
+
+export interface EnhancedRuleSuggestion extends AutomationSuggestion {
+  naturalLanguageDescription: string;
+  complexityScore: number;
+  implementationSteps: string[];
+  riskFactors: string[];
+  successPrediction: {
+    probability: number;
+    timeToValue: string;
+    expectedROI: string;
+  };
+}
+
 class AIAutomationEngine {
   private automationRules: Map<string, AutomationRule> = new Map();
   private suggestions: AutomationSuggestion[] = [];
@@ -73,8 +93,13 @@ class AIAutomationEngine {
     outcome: 'success' | 'failure';
     timestamp: string;
   }> = [];
+  private gpt5EndpointUrl: string;
 
   constructor() {
+    // Configure GPT-5 endpoint (using Supabase Edge Function)
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    this.gpt5EndpointUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/automation-ai` : '';
+    
     this.initializeDefaultRules();
     this.loadPerformanceHistory();
   }
@@ -84,26 +109,325 @@ class AIAutomationEngine {
     contacts: Contact[],
     existingRules: AutomationRule[] = []
   ): Promise<AutomationSuggestion[]> {
-    logger.info('Generating automation suggestions', { contactCount: contacts.length });
+    logger.info('Generating enhanced automation suggestions with GPT-5', { contactCount: contacts.length });
 
-    const suggestions: AutomationSuggestion[] = [];
+    try {
+      // Use GPT-5 for enhanced suggestion generation
+      const enhancedSuggestions = await this.generateGPT5Suggestions(contacts, existingRules);
+      this.suggestions = enhancedSuggestions;
+      return enhancedSuggestions;
+    } catch (error) {
+      logger.error('GPT-5 suggestion generation failed, falling back to rule-based', error as Error);
+      
+      // Fallback to existing logic
+      const suggestions: AutomationSuggestion[] = [];
+      const patterns = this.analyzeContactPatterns(contacts);
+      
+      suggestions.push(...this.suggestNewRules(patterns, contacts));
+      suggestions.push(...this.suggestRuleOptimizations(existingRules, patterns));
+      suggestions.push(...this.suggestRuleConsolidation(existingRules));
+      
+      const scoredSuggestions = suggestions.map(s => ({
+        ...s,
+        score: this.calculateSuggestionScore(s, patterns)
+      })).sort((a, b) => b.score - a.score);
     
-    // Analyze contact patterns for automation opportunities
-    const patterns = this.analyzeContactPatterns(contacts);
+      this.suggestions = scoredSuggestions.slice(0, 10);
+      return this.suggestions;
+    }
+  }
+
+  async translateNaturalLanguageToRule(request: NaturalLanguageRuleRequest): Promise<AutomationRule> {
+    logger.info('Translating natural language to automation rule', { description: request.description });
     
-    // Generate suggestions based on patterns
-    suggestions.push(...this.suggestNewRules(patterns, contacts));
-    suggestions.push(...this.suggestRuleOptimizations(existingRules, patterns));
-    suggestions.push(...this.suggestRuleConsolidation(existingRules));
+    try {
+      if (!this.gpt5EndpointUrl) {
+        throw new Error('GPT-5 endpoint not configured');
+      }
+
+      const response = await httpClient.post(
+        this.gpt5EndpointUrl,
+        {
+          type: 'natural-language-rule',
+          description: request.description,
+          contactContext: request.contactContext,
+          businessGoals: request.businessGoals,
+          urgency: request.urgency || 'medium'
+        },
+        {
+          timeout: 45000,
+          retries: 2,
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+
+      const ruleData = response.data;
+      
+      // Convert the AI response to a proper AutomationRule
+      const automationRule: AutomationRule = {
+        id: `nl_rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: ruleData.name || 'AI Generated Rule',
+        description: ruleData.description || request.description,
+        trigger: ruleData.trigger || { type: 'manual', config: {} },
+        conditions: ruleData.conditions || [],
+        actions: ruleData.actions || [],
+        isActive: false, // Start inactive for review
+        performance: {
+          triggerCount: 0,
+          successCount: 0,
+          failureCount: 0,
+          avgExecutionTime: 0
+        },
+        aiOptimized: true,
+        optimizationSuggestions: ruleData.optimizationSuggestions || [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      logger.info('Natural language rule translation completed', { 
+        ruleId: automationRule.id,
+        complexity: ruleData.complexity || 'medium'
+      });
+
+      return automationRule;
+    } catch (error) {
+      logger.error('Natural language rule translation failed', error as Error);
+      
+      // Fallback to basic rule creation
+      return this.createFallbackRule(request);
+    }
+  }
+
+  async generateAdvancedRuleAnalysis(rule: AutomationRule, contacts: Contact[]): Promise<{
+    impactPrediction: {
+      affectedContacts: number;
+      estimatedExecutions: number;
+      timesSaved: number;
+      revenueImpact: number;
+      riskLevel: 'low' | 'medium' | 'high';
+    };
+    optimizationRecommendations: Array<{
+      area: string;
+      suggestion: string;
+      expectedImprovement: string;
+      confidence: number;
+    }>;
+    strategicInsights: string[];
+    competitiveAdvantage: string;
+  }> {
+    logger.info('Generating advanced rule analysis with GPT-5', { ruleId: rule.id });
     
-    // Score and prioritize suggestions
-    const scoredSuggestions = suggestions.map(s => ({
-      ...s,
-      score: this.calculateSuggestionScore(s, patterns)
-    })).sort((a, b) => b.score - a.score);
+    try {
+      if (!this.gpt5EndpointUrl) {
+        throw new Error('GPT-5 endpoint not configured');
+      }
+
+      const response = await httpClient.post(
+        this.gpt5EndpointUrl,
+        {
+          type: 'advanced-rule-analysis',
+          rule,
+          contacts: contacts.slice(0, 50), // Limit for performance
+          performanceHistory: this.performanceHistory.filter(h => h.ruleId === rule.id)
+        },
+        {
+          timeout: 60000,
+          retries: 1,
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      logger.error('Advanced rule analysis failed', error as Error);
+      
+      // Return fallback analysis
+      return this.generateFallbackAnalysis(rule, contacts);
+    }
+  }
+
+  async generateContextualWorkflowSuggestions(
+    contact: Contact,
+    businessObjective: string,
+    timeframe: '1week' | '1month' | '1quarter' = '1month'
+  ): Promise<Array<{
+    workflowName: string;
+    description: string;
+    steps: Array<{
+      action: string;
+      timing: string;
+      conditions: string;
+      expectedOutcome: string;
+    }>;
+    successProbability: number;
+    estimatedROI: string;
+    implementationComplexity: 'low' | 'medium' | 'high';
+    reasoning: string[];
+  }>> {
+    logger.info('Generating contextual workflow suggestions', { 
+      contactId: contact.id, 
+      objective: businessObjective 
+    });
     
-    this.suggestions = scoredSuggestions.slice(0, 10); // Keep top 10
-    return this.suggestions;
+    try {
+      if (!this.gpt5EndpointUrl) {
+        throw new Error('GPT-5 endpoint not configured');
+      }
+
+      const response = await httpClient.post(
+        this.gpt5EndpointUrl,
+        {
+          type: 'contextual-workflow',
+          contact,
+          businessObjective,
+          timeframe,
+          existingRules: Array.from(this.automationRules.values())
+        },
+        {
+          timeout: 45000,
+          retries: 2,
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+
+      return response.data.workflows || [];
+    } catch (error) {
+      logger.error('Contextual workflow generation failed', error as Error);
+      return this.generateFallbackWorkflows(contact, businessObjective);
+    }
+  }
+
+  private async generateGPT5Suggestions(
+    contacts: Contact[],
+    existingRules: AutomationRule[]
+  ): Promise<EnhancedRuleSuggestion[]> {
+    if (!this.gpt5EndpointUrl) {
+      throw new Error('GPT-5 endpoint not configured');
+    }
+
+    const response = await httpClient.post(
+      this.gpt5EndpointUrl,
+      {
+        type: 'enhanced-suggestions',
+        contacts: contacts.slice(0, 100), // Limit for performance
+        existingRules,
+        performanceHistory: this.performanceHistory.slice(-200), // Recent history
+        patterns: this.analyzeContactPatterns(contacts)
+      },
+      {
+        timeout: 60000,
+        retries: 2,
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        }
+      }
+    );
+
+    return response.data.suggestions || [];
+  }
+
+  private createFallbackRule(request: NaturalLanguageRuleRequest): AutomationRule {
+    // Create a basic rule from natural language description
+    const description = request.description.toLowerCase();
+    
+    let trigger: AutomationTrigger = { type: 'manual', config: {} };
+    let conditions: AutomationCondition[] = [];
+    let actions: AutomationAction[] = [];
+    let name = 'Custom Rule';
+
+    // Parse common patterns
+    if (description.includes('hot lead') || description.includes('high interest')) {
+      conditions.push({ field: 'interestLevel', operator: 'equals', value: 'hot' });
+      name = 'Hot Lead Rule';
+    }
+    
+    if (description.includes('no response') || description.includes("hasn't responded")) {
+      trigger = { type: 'time_based', config: { delay: '3 days' } };
+      name = 'No Response Follow-up';
+    }
+    
+    if (description.includes('send email') || description.includes('email')) {
+      actions.push({ type: 'email', config: { template: 'follow_up' } });
+    }
+    
+    if (description.includes('call') || description.includes('phone')) {
+      actions.push({ type: 'task', config: { title: 'Schedule call', priority: 'medium' } });
+    }
+
+    return {
+      id: `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      description: request.description,
+      trigger,
+      conditions,
+      actions,
+      isActive: false,
+      performance: { triggerCount: 0, successCount: 0, failureCount: 0, avgExecutionTime: 0 },
+      aiOptimized: false,
+      optimizationSuggestions: ['Review and refine this rule manually'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  private generateFallbackAnalysis(rule: AutomationRule, contacts: Contact[]): any {
+    const affectedContacts = contacts.filter(c => this.wouldRuleTrigger(rule, c)).length;
+    
+    return {
+      impactPrediction: {
+        affectedContacts,
+        estimatedExecutions: affectedContacts * 0.1,
+        timesSaved: affectedContacts * 0.25,
+        revenueImpact: affectedContacts * 500,
+        riskLevel: 'medium' as const
+      },
+      optimizationRecommendations: [
+        {
+          area: 'Timing',
+          suggestion: 'Consider adjusting trigger timing based on industry patterns',
+          expectedImprovement: '15-20% better response rates',
+          confidence: 75
+        }
+      ],
+      strategicInsights: [
+        'Rule aligns with industry best practices',
+        'Consider A/B testing different variations'
+      ],
+      competitiveAdvantage: 'Automated follow-up ensures no leads fall through cracks'
+    };
+  }
+
+  private generateFallbackWorkflows(contact: Contact, objective: string): any[] {
+    return [
+      {
+        workflowName: `${objective} Workflow for ${contact.industry || 'General'}`,
+        description: `Automated workflow designed to achieve ${objective}`,
+        steps: [
+          {
+            action: 'Send personalized email',
+            timing: 'Immediately',
+            conditions: 'Contact shows interest',
+            expectedOutcome: 'Initial engagement'
+          },
+          {
+            action: 'Schedule follow-up',
+            timing: '3 days later',
+            conditions: 'Email opened',
+            expectedOutcome: 'Deeper conversation'
+          }
+        ],
+        successProbability: 70,
+        estimatedROI: '$5,000-$15,000',
+        implementationComplexity: 'medium' as const,
+        reasoning: ['Based on industry patterns', 'Proven workflow structure']
+      }
+    ];
   }
 
   async optimizeExistingRule(
@@ -219,8 +543,13 @@ class AIAutomationEngine {
       ruleId,
       execution,
       outcome: execution.outcome,
-      timestamp: new Date().toISOString()
+      timestamp: execution.completedAt
     });
+
+    // Keep history manageable
+    if (this.performanceHistory.length > 1000) {
+      this.performanceHistory = this.performanceHistory.slice(-800);
+    }
 
     this.savePerformanceHistory();
   }

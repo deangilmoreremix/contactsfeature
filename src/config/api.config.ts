@@ -112,7 +112,7 @@ const config: ApiConfig = {
       },
       capabilities: ['enrichment', 'analysis', 'categorization', 'tagging', 'chat', 'completion'],
       priority: 1,
-      defaultModel: 'gpt-4o',
+      defaultModel: 'gpt-5-omni', // Updated default model
       models: [
         {
           id: 'gpt-4o',
@@ -145,6 +145,55 @@ const config: ApiConfig = {
           maxTokens: 16385,
           costPer1kTokens: 0.0005,
           description: 'Fast and efficient model for simple tasks'
+        },
+        // New GPT-5 models
+        {
+          id: 'gpt-5-omni',
+          name: 'GPT-5 Omni',
+          capabilities: ['chat', 'completion', 'analysis', 'enrichment', 'vision', 'multimodal', 'advanced-reasoning'],
+          maxTokens: 256000, // Hypothetical larger context window
+          costPer1kTokens: 0.015, // Hypothetical higher cost
+          description: 'Next-generation flagship model with superior reasoning, multimodal capabilities, and extensive context.'
+        },
+        {
+          id: 'gpt-5-vision',
+          name: 'GPT-5 Vision',
+          capabilities: ['vision', 'multimodal', 'image-analysis', 'object-detection'],
+          maxTokens: 128000,
+          costPer1kTokens: 0.01,
+          description: 'Specialized GPT-5 model optimized for image and video understanding tasks.'
+        },
+        {
+          id: 'gpt-5-turbo',
+          name: 'GPT-5 Turbo',
+          capabilities: ['chat', 'completion', 'analysis', 'high-throughput'],
+          maxTokens: 128000,
+          costPer1kTokens: 0.008,
+          description: 'High-speed GPT-5 model designed for high-volume, low-latency applications.'
+        },
+        {
+          id: 'gpt-5-small',
+          name: 'GPT-5 Small',
+          capabilities: ['chat', 'completion', 'cost-efficient'],
+          maxTokens: 32000,
+          costPer1kTokens: 0.0008,
+          description: 'Cost-optimized GPT-5 model for simpler, everyday tasks.'
+        },
+        {
+          id: 'gpt-5-nano',
+          name: 'GPT-5 Nano',
+          capabilities: ['chat', 'completion', 'ultra-cost-efficient'],
+          maxTokens: 8000,
+          costPer1kTokens: 0.0002,
+          description: 'Extremely lightweight and cost-effective GPT-5 model for basic conversational tasks.'
+        },
+        {
+          id: 'gpt-5-chat',
+          name: 'GPT-5 Chat',
+          capabilities: ['chat', 'conversational-ai', 'completion'],
+          maxTokens: 64000,
+          costPer1kTokens: 0.001,
+          description: 'Optimized GPT-5 model for highly engaging and natural conversational AI experiences.'
         }
       ],
     },

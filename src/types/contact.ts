@@ -33,6 +33,12 @@ export interface Contact {
   isTeamMember?: boolean;
   role?: string;
   gamificationStats?: Record<string, any>;
+
+  // New Multimodal AI Enrichment Fields
+  inferredPersonalityTraits?: Record<string, string>;
+  communicationStyle?: string;
+  professionalDemeanor?: string;
+  imageAnalysisNotes?: string;
 }
 
 export interface ContactCreateRequest {
@@ -75,4 +81,10 @@ export interface ContactUpdateRequest {
   isFavorite?: boolean;
   socialProfiles?: Contact['socialProfiles'];
   customFields?: Record<string, any>;
+
+  // New Multimodal AI Enrichment Fields for updates
+  inferredPersonalityTraits?: Record<string, string>;
+  communicationStyle?: string;
+  professionalDemeanor?: string;
+  imageAnalysisNotes?: string;
 }

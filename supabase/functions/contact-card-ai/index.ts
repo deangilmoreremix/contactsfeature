@@ -1,521 +1,269 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
-  'Access-control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization"
+};
+
+interface ContactCardAI {
+  contactId: string;
+  quickScore: {
+    overall: number;
+    breakdown: {
+      engagement: number;
+      fit: number;
+      urgency: number;
+    };
+    reasoning: string[];
+  };
+  quickInsights: Array<{
+    type: 'opportunity' | 'risk' | 'action';
+    title: string;
+    description: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+  nextBestAction: {
+    action: string;
+    timing: string;
+    channel: string;
+    reasoning: string;
+  };
+  cardMetadata: {
+    priorityLevel: 'high' | 'medium' | 'low';
+    statusSuggestion?: string;
+    tagSuggestions: string[];
+    lastAnalysis: string;
+  };
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight request
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders
+    });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
+    // Validate environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const hasAI = !!(openaiApiKey || geminiApiKey);
+
+    if (req.method === 'POST') {
+      const { contactId, contact, quickAnalysis = true } = await req.json();
+      
+      if (!contactId || !contact) {
+        return new Response(
+          JSON.stringify({ error: 'contactId and contact data are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-    )
 
-    const { contactData, cardType, options } = await req.json()
+      // Generate quick AI analysis for contact card
+      const cardAI = await generateContactCardAI(
+        contactId,
+        contact,
+        quickAnalysis,
+        hasAI,
+        openaiApiKey,
+        geminiApiKey
+      );
 
-    const enhancedCard = await enhanceContactCard(contactData, cardType, options)
+      return new Response(
+        JSON.stringify(cardAI),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    return new Response(JSON.stringify(enhancedCard), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('Contact card AI error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
-})
+});
 
-async function enhanceContactCard(contactData: any, cardType: string, options: any = {}) {
-  const enhanced = {
-    originalData: contactData,
-    cardType: cardType || 'standard',
-    enhancements: {},
-    insights: [],
-    recommendations: [],
-    riskIndicators: [],
-    opportunityFlags: [],
-    engagement: {},
-    lastUpdated: new Date().toISOString()
+async function generateContactCardAI(
+  contactId: string,
+  contact: any,
+  quickAnalysis: boolean,
+  hasAI: boolean,
+  openaiApiKey?: string,
+  geminiApiKey?: string
+): Promise<ContactCardAI> {
+  if (hasAI && quickAnalysis) {
+    return await performQuickAIAnalysis(contactId, contact, openaiApiKey, geminiApiKey);
+  } else {
+    return performQuickRuleBasedAnalysis(contactId, contact);
   }
-
-  switch (cardType) {
-    case 'comprehensive':
-      enhanced.enhancements = await generateComprehensiveEnhancements(contactData)
-      break
-    case 'sales':
-      enhanced.enhancements = await generateSalesEnhancements(contactData)
-      break
-    case 'support':
-      enhanced.enhancements = await generateSupportEnhancements(contactData)
-      break
-    case 'marketing':
-      enhanced.enhancements = await generateMarketingEnhancements(contactData)
-      break
-    default:
-      enhanced.enhancements = await generateStandardEnhancements(contactData)
-  }
-
-  // Generate insights regardless of card type
-  enhanced.insights = await generateContactInsights(contactData)
-  enhanced.recommendations = await generateContactRecommendations(contactData)
-  enhanced.riskIndicators = await identifyRiskIndicators(contactData)
-  enhanced.opportunityFlags = await identifyOpportunityFlags(contactData)
-  enhanced.engagement = await calculateEngagementMetrics(contactData)
-
-  return enhanced
 }
 
-async function generateStandardEnhancements(contact: any) {
-  const enhancements = {}
+async function performQuickAIAnalysis(
+  contactId: string,
+  contact: any,
+  openaiApiKey?: string,
+  geminiApiKey?: string
+): Promise<ContactCardAI> {
+  const prompt = `Quickly analyze this contact for card display:
 
-  // Basic information enhancement
-  if (contact.name) {
-    enhancements.name = {
-      displayName: formatDisplayName(contact.name),
-      phonetic: generatePhonetic(contact.name),
-      formality: detectFormality(contact.name)
+${JSON.stringify(contact, null, 2)}
+
+Provide quick analysis with:
+- quickScore: overall score 0-100 with engagement/fit/urgency breakdown and reasoning
+- quickInsights: 2-3 key insights with type, title, description, priority
+- nextBestAction: recommended action with timing, channel, reasoning
+- priorityLevel: high/medium/low
+- tagSuggestions: 3-5 relevant tags
+
+Focus on actionable insights for immediate use. Return JSON object only.`;
+
+  try {
+    const apiKey = openaiApiKey || geminiApiKey;
+    const isOpenAI = !!openaiApiKey;
+
+    if (isOpenAI) {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'You are a sales intelligence assistant providing quick contact insights for CRM card views.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const result = JSON.parse(data.choices[0].message.content);
+        return formatCardAIResult(contactId, result);
+      }
+    } else {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, response_mime_type: "application/json" }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (content) {
+          const result = JSON.parse(content);
+          return formatCardAIResult(contactId, result);
+        }
+      }
     }
+  } catch (error) {
+    console.warn('Quick AI analysis failed:', error);
   }
 
-  // Contact information
-  if (contact.email) {
-    enhancements.email = {
-      isValid: validateEmail(contact.email),
-      domain: extractDomain(contact.email),
-      provider: getEmailProvider(contact.email)
+  return performQuickRuleBasedAnalysis(contactId, contact);
+}
+
+function performQuickRuleBasedAnalysis(contactId: string, contact: any): ContactCardAI {
+  // Quick rule-based scoring
+  let score = 50;
+  
+  if (contact.interest_level === 'hot') score += 25;
+  else if (contact.interest_level === 'medium') score += 10;
+  else if (contact.interest_level === 'cold') score -= 20;
+
+  if (contact.title?.includes('CEO') || contact.title?.includes('VP')) score += 20;
+  if (contact.industry === 'Technology') score += 10;
+
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    contactId,
+    quickScore: {
+      overall: score,
+      breakdown: {
+        engagement: Math.min(100, score + 10),
+        fit: Math.min(100, score - 5),
+        urgency: contact.interest_level === 'hot' ? 90 : 50
+      },
+      reasoning: [
+        `${contact.interest_level} interest level`,
+        `${contact.title} at ${contact.company}`,
+        'Industry alignment factor'
+      ]
+    },
+    quickInsights: [
+      {
+        type: score > 70 ? 'opportunity' : 'action',
+        title: score > 70 ? 'High Potential Contact' : 'Needs Follow-up',
+        description: score > 70 
+          ? 'Strong indicators for conversion potential'
+          : 'Consider increasing engagement frequency',
+        priority: score > 70 ? 'high' : 'medium'
+      }
+    ],
+    nextBestAction: {
+      action: score > 70 ? 'Schedule demo call' : 'Send follow-up email',
+      timing: score > 70 ? 'Within 24 hours' : 'Within 48 hours',
+      channel: 'email',
+      reasoning: 'Based on contact priority and engagement level'
+    },
+    cardMetadata: {
+      priorityLevel: score > 70 ? 'high' : score > 50 ? 'medium' : 'low',
+      tagSuggestions: generateTagSuggestions(contact),
+      lastAnalysis: new Date().toISOString()
     }
-  }
+  };
+}
 
-  if (contact.phone) {
-    enhancements.phone = {
-      formatted: formatPhoneNumber(contact.phone),
-      type: detectPhoneType(contact.phone),
-      country: detectPhoneCountry(contact.phone)
+function formatCardAIResult(contactId: string, aiResult: any): ContactCardAI {
+  return {
+    contactId,
+    quickScore: aiResult.quickScore || { overall: 50, breakdown: { engagement: 50, fit: 50, urgency: 50 }, reasoning: [] },
+    quickInsights: aiResult.quickInsights || [],
+    nextBestAction: aiResult.nextBestAction || { action: 'Follow up', timing: '48 hours', channel: 'email', reasoning: 'Standard follow-up' },
+    cardMetadata: {
+      priorityLevel: aiResult.priorityLevel || 'medium',
+      statusSuggestion: aiResult.statusSuggestion,
+      tagSuggestions: aiResult.tagSuggestions || [],
+      lastAnalysis: new Date().toISOString()
     }
-  }
-
-  // Company information
-  if (contact.company) {
-    enhancements.company = {
-      formatted: formatCompanyName(contact.company),
-      industry: await inferIndustry(contact.company),
-      size: await estimateCompanySize(contact.company)
-    }
-  }
-
-  return enhancements
+  };
 }
 
-async function generateComprehensiveEnhancements(contact: any) {
-  const enhancements = await generateStandardEnhancements(contact)
-
-  // Add comprehensive enhancements
-  enhancements.social = await generateSocialEnhancements(contact)
-  enhancements.behavioral = await generateBehavioralEnhancements(contact)
-  enhancements.predictive = await generatePredictiveEnhancements(contact)
-  enhancements.contextual = await generateContextualEnhancements(contact)
-
-  return enhancements
-}
-
-async function generateSalesEnhancements(contact: any) {
-  const enhancements = await generateStandardEnhancements(contact)
-
-  // Sales-specific enhancements
-  enhancements.sales = {
-    leadScore: await calculateLeadScore(contact),
-    buyingStage: await determineBuyingStage(contact),
-    budget: await estimateBudget(contact),
-    timeline: await predictTimeline(contact),
-    decisionMakers: await identifyDecisionMakers(contact),
-    competitors: await identifyCompetitors(contact)
-  }
-
-  return enhancements
-}
-
-async function generateSupportEnhancements(contact: any) {
-  const enhancements = await generateStandardEnhancements(contact)
-
-  // Support-specific enhancements
-  enhancements.support = {
-    priority: await calculateSupportPriority(contact),
-    issueHistory: await analyzeIssueHistory(contact),
-    satisfaction: await predictSatisfaction(contact),
-    escalationRisk: await calculateEscalationRisk(contact),
-    resolutionTime: await predictResolutionTime(contact)
-  }
-
-  return enhancements
-}
-
-async function generateMarketingEnhancements(contact: any) {
-  const enhancements = await generateStandardEnhancements(contact)
-
-  // Marketing-specific enhancements
-  enhancements.marketing = {
-    segments: await determineSegments(contact),
-    interests: await inferInterests(contact),
-    preferences: await analyzePreferences(contact),
-    engagement: await calculateMarketingEngagement(contact),
-    campaigns: await recommendCampaigns(contact)
-  }
-
-  return enhancements
-}
-
-async function generateContactInsights(contact: any) {
-  const insights = []
-
-  // Demographic insights
-  if (contact.location) {
-    insights.push(`Located in ${contact.location} - consider time zone for communications`)
-  }
-
-  // Professional insights
-  if (contact.jobTitle && contact.company) {
-    insights.push(`${contact.jobTitle} at ${contact.company} - ${await generateRoleInsight(contact.jobTitle, contact.company)}`)
-  }
-
-  // Engagement insights
-  if (contact.lastActivity) {
-    const daysSince = Math.floor((Date.now() - new Date(contact.lastActivity).getTime()) / (1000 * 60 * 60 * 24))
-    if (daysSince > 30) {
-      insights.push(`Last active ${daysSince} days ago - consider re-engagement campaign`)
-    } else if (daysSince < 7) {
-      insights.push(`Recently active (${daysSince} days ago) - good timing for follow-up`)
-    }
-  }
-
-  // Communication insights
-  if (contact.preferredChannel) {
-    insights.push(`Prefers communication via ${contact.preferredChannel}`)
-  }
-
-  return insights
-}
-
-async function generateContactRecommendations(contact: any) {
-  const recommendations = []
-
-  // Communication recommendations
-  if (!contact.preferredChannel) {
-    recommendations.push('Determine preferred communication channel')
-  }
-
-  // Engagement recommendations
-  if (contact.engagementScore < 50) {
-    recommendations.push('Increase engagement through personalized content')
-  }
-
-  // Data completeness recommendations
-  const missingFields = []
-  if (!contact.phone) missingFields.push('phone number')
-  if (!contact.company) missingFields.push('company information')
-  if (!contact.jobTitle) missingFields.push('job title')
-
-  if (missingFields.length > 0) {
-    recommendations.push(`Gather missing information: ${missingFields.join(', ')}`)
-  }
-
-  // Timing recommendations
-  if (contact.timezone) {
-    recommendations.push(`Schedule communications during ${contact.timezone} business hours`)
-  }
-
-  return recommendations
-}
-
-async function identifyRiskIndicators(contact: any) {
-  const risks = []
-
-  // Data quality risks
-  if (!contact.email && !contact.phone) {
-    risks.push('No reliable contact method')
-  }
-
-  // Engagement risks
-  if (contact.engagementScore < 30) {
-    risks.push('Low engagement - risk of disinterest')
-  }
-
-  // Timing risks
-  if (contact.lastActivity) {
-    const daysSince = Math.floor((Date.now() - new Date(contact.lastActivity).getTime()) / (1000 * 60 * 60 * 24))
-    if (daysSince > 90) {
-      risks.push('Extended inactivity - potential churn risk')
-    }
-  }
-
-  // Data accuracy risks
-  if (contact.email && !validateEmail(contact.email)) {
-    risks.push('Invalid email address')
-  }
-
-  return risks
-}
-
-async function identifyOpportunityFlags(contact: any) {
-  const opportunities = []
-
-  // Growth opportunities
-  if (contact.company && contact.jobTitle) {
-    if (contact.jobTitle.includes('VP') || contact.jobTitle.includes('Director')) {
-      opportunities.push('High-level executive - potential for enterprise solutions')
-    }
-  }
-
-  // Engagement opportunities
-  if (contact.engagementScore > 70) {
-    opportunities.push('Highly engaged - good candidate for upsell/cross-sell')
-  }
-
-  // Referral opportunities
-  if (contact.referralCount > 0) {
-    opportunities.push('Referral source - nurture relationship for more referrals')
-  }
-
-  // Expansion opportunities
-  if (contact.company && contact.companySize > 100) {
-    opportunities.push('Large company - potential for account expansion')
-  }
-
-  return opportunities
-}
-
-async function calculateEngagementMetrics(contact: any) {
-  return {
-    overallScore: contact.engagementScore || 0,
-    emailEngagement: calculateEmailEngagement(contact),
-    socialEngagement: calculateSocialEngagement(contact),
-    websiteEngagement: calculateWebsiteEngagement(contact),
-    lastInteraction: contact.lastActivity,
-    interactionFrequency: calculateInteractionFrequency(contact),
-    preferredChannel: contact.preferredChannel || 'unknown'
-  }
-}
-
-// Helper functions
-function formatDisplayName(name: string): string {
-  return name.trim()
-}
-
-function generatePhonetic(name: string): string {
-  // Simple phonetic representation
-  return name.toLowerCase().replace(/[^a-z]/g, '')
-}
-
-function detectFormality(name: string): string {
-  // Simple formality detection
-  const parts = name.split(' ')
-  if (parts.length > 1) return 'formal'
-  return 'casual'
-}
-
-function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
-}
-
-function extractDomain(email: string): string {
-  return email.split('@')[1]
-}
-
-function getEmailProvider(email: string): string {
-  const domain = email.split('@')[1].toLowerCase()
-  const providers = {
-    'gmail.com': 'Gmail',
-    'yahoo.com': 'Yahoo',
-    'hotmail.com': 'Hotmail',
-    'outlook.com': 'Outlook'
-  }
-  return providers[domain] || 'Other'
-}
-
-function formatPhoneNumber(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  if (cleaned.length === 10) {
-    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
-  }
-  return phone
-}
-
-function detectPhoneType(phone: string): string {
-  // Simple phone type detection
-  return 'mobile'
-}
-
-function detectPhoneCountry(phone: string): string {
-  // Simple country detection
-  return 'US'
-}
-
-function formatCompanyName(company: string): string {
-  return company.trim()
-}
-
-async function inferIndustry(company: string): Promise<string> {
-  // Placeholder for industry inference
-  return 'Technology'
-}
-
-async function estimateCompanySize(company: string): Promise<string> {
-  // Placeholder for company size estimation
-  return '51-200'
-}
-
-async function generateSocialEnhancements(contact: any) {
-  return {
-    profiles: contact.socialProfiles || [],
-    recommendations: ['Connect on LinkedIn', 'Follow on Twitter']
-  }
-}
-
-async function generateBehavioralEnhancements(contact: any) {
-  return {
-    patterns: ['Regular email opener', 'Weekend activity'],
-    predictions: ['Likely to respond within 24 hours']
-  }
-}
-
-async function generatePredictiveEnhancements(contact: any) {
-  return {
-    nextAction: 'Send personalized email',
-    bestTime: 'Tuesday 10 AM',
-    conversionProbability: 0.75
-  }
-}
-
-async function generateContextualEnhancements(contact: any) {
-  return {
-    industryTrends: ['AI adoption increasing'],
-    companyNews: ['Recent funding round'],
-    marketPosition: 'Growing market leader'
-  }
-}
-
-async function calculateLeadScore(contact: any): Promise<number> {
-  let score = 50
-  if (contact.jobTitle) score += 10
-  if (contact.company) score += 10
-  if (contact.budget) score += 15
-  return Math.min(100, score)
-}
-
-async function determineBuyingStage(contact: any): Promise<string> {
-  if (contact.budget && contact.timeline) return 'ready'
-  if (contact.interests) return 'considering'
-  return 'awareness'
-}
-
-async function estimateBudget(contact: any): Promise<string> {
-  // Placeholder
-  return '$10,000 - $50,000'
-}
-
-async function predictTimeline(contact: any): Promise<string> {
-  // Placeholder
-  return '3-6 months'
-}
-
-async function identifyDecisionMakers(contact: any): Promise<any[]> {
-  // Placeholder
-  return []
-}
-
-async function identifyCompetitors(contact: any): Promise<any[]> {
-  // Placeholder
-  return []
-}
-
-async function calculateSupportPriority(contact: any): Promise<string> {
-  if (contact.urgency === 'high') return 'high'
-  if (contact.accountType === 'premium') return 'high'
-  return 'medium'
-}
-
-async function analyzeIssueHistory(contact: any): Promise<any> {
-  return {
-    totalIssues: contact.issues?.length || 0,
-    resolvedIssues: contact.issues?.filter((i: any) => i.resolved).length || 0,
-    averageResolutionTime: '2.5 days'
-  }
-}
-
-async function predictSatisfaction(contact: any): Promise<number> {
-  // Placeholder
-  return 85
-}
-
-async function calculateEscalationRisk(contact: any): Promise<number> {
-  // Placeholder
-  return 25
-}
-
-async function predictResolutionTime(contact: any): Promise<string> {
-  // Placeholder
-  return '24-48 hours'
-}
-
-async function determineSegments(contact: any): Promise<string[]> {
-  const segments = []
-  if (contact.industry) segments.push(contact.industry)
-  if (contact.companySize > 100) segments.push('enterprise')
-  segments.push('active')
-  return segments
-}
-
-async function inferInterests(contact: any): Promise<string[]> {
-  // Placeholder
-  return ['Technology', 'Business Development']
-}
-
-async function analyzePreferences(contact: any): Promise<any> {
-  return {
-    frequency: 'weekly',
-    contentType: 'educational',
-    channel: contact.preferredChannel || 'email'
-  }
-}
-
-async function calculateMarketingEngagement(contact: any): Promise<number> {
-  return contact.engagementScore || 50
-}
-
-async function recommendCampaigns(contact: any): Promise<string[]> {
-  return ['Welcome Series', 'Product Updates', 'Industry Insights']
-}
-
-async function generateRoleInsight(jobTitle: string, company: string): Promise<string> {
-  // Placeholder
-  return 'Key decision maker with purchasing authority'
-}
-
-function calculateEmailEngagement(contact: any): number {
-  return contact.emailEngagement || 0
-}
-
-function calculateSocialEngagement(contact: any): number {
-  return contact.socialEngagement || 0
-}
-
-function calculateWebsiteEngagement(contact: any): number {
-  return contact.websiteEngagement || 0
-}
-
-function calculateInteractionFrequency(contact: any): string {
-  // Placeholder
-  return 'weekly'
+function generateTagSuggestions(contact: any): string[] {
+  const tags = [];
+  
+  if (contact.industry) tags.push(contact.industry.toLowerCase());
+  if (contact.title?.includes('CEO')) tags.push('decision-maker');
+  if (contact.title?.includes('VP') || contact.title?.includes('Director')) tags.push('influencer');
+  if (contact.interest_level === 'hot') tags.push('high-priority');
+  if (contact.company?.includes('Corp') || contact.company?.includes('Inc')) tags.push('enterprise');
+  
+  return tags.slice(0, 5);
 }

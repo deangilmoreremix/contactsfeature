@@ -12,7 +12,8 @@ import {
   ChevronDown,
   Mail,
   User,
-  Globe
+  Globe,
+  Camera
 } from 'lucide-react';
 
 interface AIAutoFillButtonProps {
@@ -43,7 +44,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
 
   const handleAutoFill = (data: ContactEnrichmentData) => {
     // Apply different merge strategies based on mode
-    const mergedData = { ...data };
+    let mergedData = { ...data };
 
     switch (autoFillMode) {
       case 'conservative':
@@ -115,6 +116,16 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
       icon: Brain,
       description: 'AI chooses best research method'
     });
+    
+    // Add multimodal option if avatar is available
+    if (formData.avatarSrc) {
+      options.push({
+        type: 'multimodal' as const,
+        label: 'Multimodal Analysis',
+        icon: Camera,
+        description: 'Analyze profile image + text data'
+      });
+    }
 
     return options;
   };

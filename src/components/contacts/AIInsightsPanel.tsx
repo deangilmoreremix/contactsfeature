@@ -24,7 +24,10 @@ import {
   Activity,
   Award,
   Layers,
-  Sparkles
+  Sparkles,
+  Camera,
+  MessageSquare,
+  User
 } from 'lucide-react';
 
 interface AIInsightsPanelProps {
@@ -462,6 +465,94 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
             })
           )}
         </div>
+      )}
+
+      {/* New Multimodal Insights Section */}
+      {(contact.inferredPersonalityTraits || contact.communicationStyle || contact.professionalDemeanor || contact.imageAnalysisNotes) && (
+        <GlassCard className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Camera className="w-5 h-5 mr-2 text-indigo-600" />
+            Multimodal AI Insights
+            <Sparkles className="w-4 h-4 ml-2 text-yellow-500" />
+          </h3>
+          <div className="space-y-4">
+            {contact.inferredPersonalityTraits && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <User className="w-4 h-4 mr-1 text-purple-500" />
+                  Personality Traits:
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                  {Object.entries(contact.inferredPersonalityTraits).map(([trait, value]) => (
+                    <div key={trait} className="flex items-center justify-between p-2 bg-white rounded-lg border border-indigo-200">
+                      <span className="capitalize text-gray-700">{trait}:</span>
+                      <span className={`font-medium capitalize px-2 py-1 rounded-md text-xs ${
+                        value === 'high' ? 'bg-green-100 text-green-800' :
+                        value === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {contact.communicationStyle && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <MessageSquare className="w-4 h-4 mr-1 text-blue-500" />
+                  Communication Style:
+                </h4>
+                <div className="p-3 bg-white rounded-lg border border-blue-200">
+                  <p className="text-gray-700">{contact.communicationStyle}</p>
+                </div>
+              </div>
+            )}
+            {contact.professionalDemeanor && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <Briefcase className="w-4 h-4 mr-1 text-green-500" />
+                  Professional Demeanor:
+                </h4>
+                <div className="p-3 bg-white rounded-lg border border-green-200">
+                  <p className="text-gray-700">{contact.professionalDemeanor}</p>
+                </div>
+              </div>
+            )}
+            {contact.imageAnalysisNotes && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <Camera className="w-4 h-4 mr-1 text-orange-500" />
+                  Image Analysis Notes:
+                </h4>
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-gray-700 text-sm italic">{contact.imageAnalysisNotes}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Multimodal Actions */}
+          <div className="mt-4 pt-4 border-t border-indigo-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm font-medium text-indigo-900">
+                  Powered by GPT-5 Vision Analysis
+                </span>
+              </div>
+              <ModernButton
+                variant="outline"
+                size="sm"
+                className="flex items-center space-x-1 border-indigo-200 text-indigo-700"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Re-analyze</span>
+              </ModernButton>
+            </div>
+          </div>
+        </GlassCard>
       )}
 
       {/* Intelligence Engine View */}
