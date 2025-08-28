@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
-import { useAutomationEngine } from '../../hooks/useAdvancedAI';
+import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { 
-  Zap, 
-  Play, 
-  Pause, 
-  Calendar, 
-  Mail, 
-  Phone, 
-  MessageSquare, 
-  Clock, 
-  Target, 
+import { edgeFunctionService } from '../../services/edgeFunctionService';
+import {
+  Zap,
+  Play,
+  Pause,
+  Calendar,
+  Mail,
+  Phone,
+  MessageSquare,
+  Clock,
+  Target,
   AlertCircle,
   CheckCircle,
   Settings,
@@ -26,7 +26,8 @@ import {
   RefreshCw,
   Sparkles,
   Brain,
-  Award
+  Award,
+  Eye
 } from 'lucide-react';
 
 interface AutomationRule {
@@ -144,19 +145,13 @@ const automationTemplates = [
 ];
 
 export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => {
-  const [activeTab, setActiveTab] = useState('active');
-  const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  
-  // Connect to Advanced Automation Engine
-  const {
-    generateSuggestions,
-    optimizeRule,
-    suggestions,
-    rules,
-    isOptimizing
-  } = useAutomationEngine();
+   const [activeTab, setActiveTab] = useState('active');
+   const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
+   const [showCreateModal, setShowCreateModal] = useState(false);
+   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+   const [suggestions, setSuggestions] = useState<any[]>([]);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
 
   const tabs = [
     { id: 'active', label: 'Active Rules', icon: Play },
@@ -173,9 +168,19 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
   const handleGenerateSuggestions = async () => {
     try {
-      await generateSuggestions([contact]); // Pass single contact for context
+      setLoading(true);
+      setError(null);
+
+      const result = await edgeFunctionService.getAutomationRules(contact.id || 'test-contact-123', {
+        action: 'suggestions',
+        contactData: contact
+      });
+      setSuggestions(result.data || []);
     } catch (error) {
       console.error('Failed to generate automation suggestions:', error);
+      setError('Failed to generate automation suggestions');
+    } finally {
+      setLoading(false);
     }
   };
   const formatDate = (dateString: string) => {
@@ -209,11 +214,11 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
               variant="outline" 
               size="sm" 
               onClick={handleGenerateSuggestions}
-              loading={isOptimizing}
+              loading={loading}
               className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
             >
               <Brain className="w-4 h-4" />
-              <span>{isOptimizing ? 'Analyzing...' : 'AI Suggestions'}</span>
+              <span>{loading ? 'Analyzing...' : 'AI Suggestions'}</span>
               <Sparkles className="w-3 h-3 text-yellow-500" />
             </ModernButton>
           </ModernButton>

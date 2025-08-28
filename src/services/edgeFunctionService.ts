@@ -213,6 +213,212 @@ export class EdgeFunctionService {
     if (error) throw error
     return result
   }
+
+  // Journey Manager
+  async getJourneyEvents(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('journey-manager', {
+      body: { action: 'get_events', contactId, filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async addJourneyEvent(contactId: string, eventData: any) {
+    const { data: result, error } = await supabase.functions.invoke('journey-manager', {
+      body: { action: 'add_event', contactId, eventData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async updateJourneyEvent(eventId: string, eventData: any) {
+    const { data: result, error } = await supabase.functions.invoke('journey-manager', {
+      body: { action: 'update_event', data: { id: eventId, ...eventData } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async deleteJourneyEvent(eventId: string) {
+    const { data: result, error } = await supabase.functions.invoke('journey-manager', {
+      body: { action: 'delete_event', data: { id: eventId } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async getJourneyTimeline(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('journey-manager', {
+      body: { action: 'get_timeline', contactId, filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  // Analytics Manager
+  async getContactAnalytics(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('analytics-manager', {
+      body: { action: 'get', contactId, data: filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async createAnalyticsData(contactId: string, analyticsData: any) {
+    const { data: result, error } = await supabase.functions.invoke('analytics-manager', {
+      body: { action: 'create', contactId, data: analyticsData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async updateAnalyticsData(analyticsId: string, analyticsData: any) {
+    const { data: result, error } = await supabase.functions.invoke('analytics-manager', {
+      body: { action: 'update', data: { id: analyticsId, ...analyticsData } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async deleteAnalyticsData(analyticsId: string) {
+    const { data: result, error } = await supabase.functions.invoke('analytics-manager', {
+      body: { action: 'delete', data: { id: analyticsId } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  // Communication Manager
+  async getCommunicationHistory(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('communication-manager', {
+      body: { action: 'get', contactId, data: filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async addCommunication(contactId: string, communicationData: any) {
+    const { data: result, error } = await supabase.functions.invoke('communication-manager', {
+      body: { action: 'create', contactId, data: communicationData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async updateCommunication(communicationId: string, communicationData: any) {
+    const { data: result, error } = await supabase.functions.invoke('communication-manager', {
+      body: { action: 'update', data: { id: communicationId, ...communicationData } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async deleteCommunication(communicationId: string) {
+    const { data: result, error } = await supabase.functions.invoke('communication-manager', {
+      body: { action: 'delete', data: { id: communicationId } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  // Automation Manager
+  async getAutomationRules(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('automation-manager', {
+      body: { action: 'get', contactId, data: filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async createAutomationRule(contactId: string, ruleData: any) {
+    const { data: result, error } = await supabase.functions.invoke('automation-manager', {
+      body: { action: 'create', contactId, data: ruleData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async updateAutomationRule(ruleId: string, ruleData: any) {
+    const { data: result, error } = await supabase.functions.invoke('automation-manager', {
+      body: { action: 'update', data: { id: ruleId, ...ruleData } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async deleteAutomationRule(ruleId: string) {
+    const { data: result, error } = await supabase.functions.invoke('automation-manager', {
+      body: { action: 'delete', data: { id: ruleId } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  // Insights Manager
+  async getContactInsights(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('insights-manager', {
+      body: { action: 'get', contactId, data: filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async createInsight(contactId: string, insightData: any) {
+    const { data: result, error } = await supabase.functions.invoke('insights-manager', {
+      body: { action: 'create', contactId, data: insightData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async updateInsight(insightId: string, insightData: any) {
+    const { data: result, error } = await supabase.functions.invoke('insights-manager', {
+      body: { action: 'update', data: { id: insightId, ...insightData } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async deleteInsight(insightId: string) {
+    const { data: result, error } = await supabase.functions.invoke('insights-manager', {
+      body: { action: 'delete', data: { id: insightId } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  // Email Manager
+  async sendEmail(contactId: string, emailData: any) {
+    const { data: result, error } = await supabase.functions.invoke('email-manager', {
+      body: { action: 'send', contactId, data: emailData }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async getEmailHistory(contactId: string, filters: any = {}) {
+    const { data: result, error } = await supabase.functions.invoke('email-manager', {
+      body: { action: 'get_history', contactId, data: filters }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async trackEmailOpen(emailId: string, trackingData: any) {
+    const { data: result, error } = await supabase.functions.invoke('email-manager', {
+      body: { action: 'track_open', data: { id: emailId, ...trackingData } }
+    })
+    if (error) throw error
+    return result
+  }
+
+  async trackEmailClick(emailId: string, trackingData: any) {
+    const { data: result, error } = await supabase.functions.invoke('email-manager', {
+      body: { action: 'track_click', data: { id: emailId, ...trackingData } }
+    })
+    if (error) throw error
+    return result
+  }
 }
 
 export const edgeFunctionService = EdgeFunctionService.getInstance()

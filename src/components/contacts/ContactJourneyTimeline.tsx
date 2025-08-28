@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { 
-  Calendar, 
-  Mail, 
-  Phone, 
-  MessageSquare, 
-  FileText, 
-  User, 
-  Clock, 
-  TrendingUp, 
+import { edgeFunctionService } from '../../services/edgeFunctionService';
+import {
+  Calendar,
+  Mail,
+  Phone,
+  MessageSquare,
+  FileText,
+  User,
+  Clock,
+  TrendingUp,
   AlertCircle,
   CheckCircle,
   Video,
@@ -18,7 +19,9 @@ import {
   DollarSign,
   Target,
   Filter,
-  Download
+  Download,
+  Plus,
+  RefreshCw
 } from 'lucide-react';
 
 interface JourneyEvent {
@@ -115,12 +118,42 @@ const sampleJourneyEvents: JourneyEvent[] = [
 ];
 
 export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ contact }) => {
-  const [filter, setFilter] = useState<string>('all');
-  const [journeyEvents] = useState<JourneyEvent[]>(sampleJourneyEvents);
+   const [filter, setFilter] = useState<string>('all');
+   const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
 
-  const filteredEvents = journeyEvents.filter(event => 
-    filter === 'all' || event.type === filter
-  );
+   useEffect(() => {
+     loadJourneyEvents();
+   }, [contact]);
+
+   const loadJourneyEvents = async () => {
+     try {
+       setLoading(true);
+       setError(null);
+
+       const result = await edgeFunctionService.generateTimeline(contact.id || 'test-contact-123');
+
+       // Transform the result to match our JourneyEvent interface
+       const events: JourneyEvent[] = result.events || sampleJourneyEvents;
+       setJourneyEvents(events);
+     } catch (err) {
+       console.error('Failed to load journey events:', err);
+       setError('Failed to load journey events');
+       // Fallback to sample data
+       setJourneyEvents(sampleJourneyEvents);
+     } finally {
+       setLoading(false);
+     }
+   };
+
+   const handleRefresh = () => {
+     loadJourneyEvents();
+   };
+
+   const filteredEvents = journeyEvents.filter(event =>
+     filter === 'all' || event.type === filter
+   );
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -148,35 +181,79 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           <p className="text-gray-600">Complete interaction timeline with {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {eventTypes.map(type => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </select>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
-            <Download className="w-4 h-4" />
-            <span>Export</span>
-          </ModernButton>
-        </div>
+           <select
+             value={filter}
+             onChange={(e) => setFilter(e.target.value)}
+             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+           >
+             {eventTypes.map(type => (
+               <option key={type.value} value={type.value}>{type.label}</option>
+             ))}
+           </select>
+           <ModernButton
+             variant="outline"
+             size="sm"
+             onClick={handleRefresh}
+             disabled={loading}
+             className="flex items-center space-x-2"
+           >
+             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+             <span>Refresh</span>
+           </ModernButton>
+           <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+             <Download className="w-4 h-4" />
+             <span>Export</span>
+           </ModernButton>
+         </div>
       </div>
 
-      {/* Journey Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <GlassCard className="p-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <MessageSquare className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{journeyEvents.length}</p>
-              <p className="text-sm text-gray-600">Total Interactions</p>
-            </div>
+      {/* Loading State */}
+      {loading && (
+        <GlassCard className="p-6">
+          <div className="flex items-center justify-center space-x-3">
+            <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+            <p className="text-gray-600">Loading journey events...</p>
           </div>
         </GlassCard>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <GlassCard className="p-6 border-red-200 bg-red-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              <div>
+                <p className="text-red-900 font-medium">Failed to load journey events</p>
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            </div>
+            <ModernButton
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Try Again
+            </ModernButton>
+          </div>
+        </GlassCard>
+      )}
+
+      {/* Journey Stats */}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <GlassCard className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <MessageSquare className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{journeyEvents.length}</p>
+                <p className="text-sm text-gray-600">Total Interactions</p>
+              </div>
+            </div>
+          </GlassCard>
         
         <GlassCard className="p-4">
           <div className="flex items-center space-x-3">
@@ -215,89 +292,91 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             </div>
           </div>
         </GlassCard>
-      </div>
+        )}
 
-      {/* Timeline */}
-      <GlassCard className="p-6">
-        <div className="relative">
-          {/* Timeline Line */}
-          <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-          
-          {/* Timeline Events */}
-          <div className="space-y-6">
-            {filteredEvents.map((event, index) => {
-              const Icon = eventIcons[event.type];
-              const eventColor = eventColors[event.type];
-              const { date, time } = formatDate(event.date);
-              
-              return (
-                <div key={event.id} className="relative flex items-start space-x-4">
-                  {/* Timeline Dot */}
-                  <div className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full ${eventColor} shadow-lg`}>
-                    <Icon className="w-4 h-4 text-white" />
-                  </div>
-                  
-                  {/* Event Content */}
-                  <div className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="text-lg font-semibold text-gray-900">{event.title}</h4>
-                        <p className="text-gray-600">{event.description}</p>
+        {/* Timeline */}
+        {!loading && !error && (
+          <GlassCard className="p-6">
+            <div className="relative">
+              {/* Timeline Line */}
+              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+
+              {/* Timeline Events */}
+              <div className="space-y-6">
+                {filteredEvents.map((event, index) => {
+                  const Icon = eventIcons[event.type];
+                  const eventColor = eventColors[event.type];
+                  const { date, time } = formatDate(event.date);
+
+                  return (
+                    <div key={event.id} className="relative flex items-start space-x-4">
+                      {/* Timeline Dot */}
+                      <div className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full ${eventColor} shadow-lg`}>
+                        <Icon className="w-4 h-4 text-white" />
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900">{date}</p>
-                        <p className="text-sm text-gray-500">{time}</p>
-                      </div>
-                    </div>
-                    
-                    {/* Event Details */}
-                    <div className="flex items-center space-x-4 mt-3">
-                      {event.outcome && (
-                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${outcomeColors[event.outcome]}`}>
-                          {event.outcome.charAt(0).toUpperCase() + event.outcome.slice(1)}
-                        </span>
-                      )}
-                      
-                      {event.value && (
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
-                          ${event.value.toLocaleString()}
-                        </span>
-                      )}
-                      
-                      {event.participants && (
-                        <span className="text-xs text-gray-500">
-                          {event.participants.length} participant{event.participants.length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                      
-                      {event.attachments && (
-                        <span className="text-xs text-gray-500">
-                          {event.attachments.length} attachment{event.attachments.length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Attachments */}
-                    {event.attachments && event.attachments.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {event.attachments.map((attachment, idx) => (
-                            <span key={idx} className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
-                              <FileText className="w-3 h-3 mr-1" />
-                              {attachment}
-                            </span>
-                          ))}
+
+                      {/* Event Content */}
+                      <div className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900">{event.title}</h4>
+                            <p className="text-gray-600">{event.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900">{date}</p>
+                            <p className="text-sm text-gray-500">{time}</p>
+                          </div>
                         </div>
+
+                        {/* Event Details */}
+                        <div className="flex items-center space-x-4 mt-3">
+                          {event.outcome && (
+                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${outcomeColors[event.outcome]}`}>
+                              {event.outcome.charAt(0).toUpperCase() + event.outcome.slice(1)}
+                            </span>
+                          )}
+
+                          {event.value && (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                              ${event.value.toLocaleString()}
+                            </span>
+                          )}
+
+                          {event.participants && (
+                            <span className="text-xs text-gray-500">
+                              {event.participants.length} participant{event.participants.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+
+                          {event.attachments && (
+                            <span className="text-xs text-gray-500">
+                              {event.attachments.length} attachment{event.attachments.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Attachments */}
+                        {event.attachments && event.attachments.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {event.attachments.map((attachment, idx) => (
+                                <span key={idx} className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  {attachment}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </GlassCard>
-    </div>
-  );
-};
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </GlassCard>
+        )}
+      </div>
+    );
+  };

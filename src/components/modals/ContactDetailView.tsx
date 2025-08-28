@@ -4,6 +4,7 @@ import { ModernButton } from '../ui/ModernButton';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { AIResearchButton } from '../ui/AIResearchButton';
 import { aiEnrichmentService, ContactEnrichmentData } from '../../services/aiEnrichmentService';
+import { contactService } from '../../services/contactService';
 import { ContactJourneyTimeline } from '../contacts/ContactJourneyTimeline';
 import { AIInsightsPanel } from '../contacts/AIInsightsPanel';
 import { CommunicationHub } from '../contacts/CommunicationHub';
@@ -100,18 +101,34 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   ];
 
   const handleSave = async () => {
-    if (onUpdate) {
-      setIsSaving(true);
-      try {
-        const updated = await onUpdate(contact.id, editedContact);
-        setEditedContact(updated);
-        setIsEditing(false);
-        setEditingField(null);
-      } catch (error) {
-        console.error('Failed to update contact:', error);
-      } finally {
-        setIsSaving(false);
+    setIsSaving(true);
+    try {
+      // Validate contact data first
+      const validation = contactService.validateContactData(editedContact);
+      if (!validation.isValid) {
+        alert(`Validation errors:\n${validation.errors.join('\n')}`);
+        return;
       }
+
+      // Save to database
+      const updated = await contactService.updateContact(contact.id, editedContact);
+      setEditedContact(updated);
+
+      // Log activity
+      await contactService.addContactActivity(
+        contact.id,
+        'contact_updated',
+        'Contact information updated',
+        { fieldsChanged: Object.keys(editedContact) }
+      );
+
+      setIsEditing(false);
+      setEditingField(null);
+    } catch (error) {
+      console.error('Failed to update contact:', error);
+      alert('Failed to save contact. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -154,10 +171,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   };
 
   const handleSaveField = async () => {
-    if (onUpdate && editingField) {
+    if (editingField) {
       try {
         let updates: Partial<Contact> = {};
-        
+
         if (editingField.startsWith('social_')) {
           const platform = editingField.replace('social_', '');
           const socialProfiles = {
@@ -174,35 +191,55 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
           const fieldValue = editedContact[editingField as keyof Contact];
           updates = { [editingField]: fieldValue };
         }
-        
-        await onUpdate(contact.id, updates);
+
+        await contactService.updateContact(contact.id, updates);
+
+        // Log activity
+        await contactService.addContactActivity(
+          contact.id,
+          'field_updated',
+          `Updated ${editingField}`,
+          { field: editingField, oldValue: contact[editingField as keyof Contact], newValue: updates[editingField as keyof Contact] }
+        );
+
         setEditingField(null);
       } catch (error) {
         console.error('Failed to update field:', error);
+        alert('Failed to save field. Please try again.');
       }
     }
   };
 
-  const handleAddCustomField = () => {
+  const handleAddCustomField = async () => {
     if (newFieldName && newFieldValue) {
       const customFields = {
         ...(editedContact.customFields || {}),
         [newFieldName]: newFieldValue
       };
-      
+
       setEditedContact(prev => ({
         ...prev,
         customFields
       }));
-      
-      if (onUpdate) {
-        onUpdate(contact.id, { customFields })
-          .catch(error => console.error('Failed to add custom field:', error));
+
+      try {
+        await contactService.updateContact(contact.id, { customFields });
+
+        // Log activity
+        await contactService.addContactActivity(
+          contact.id,
+          'custom_field_added',
+          `Added custom field: ${newFieldName}`,
+          { fieldName: newFieldName, fieldValue: newFieldValue }
+        );
+
+        setNewFieldName('');
+        setNewFieldValue('');
+        setShowAddField(false);
+      } catch (error) {
+        console.error('Failed to add custom field:', error);
+        alert('Failed to add custom field. Please try again.');
       }
-      
-      setNewFieldName('');
-      setNewFieldValue('');
-      setShowAddField(false);
     }
   };
 

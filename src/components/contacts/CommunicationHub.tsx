@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import { useCommunicationAI } from '../../contexts/AIContext';
+import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { 
-  Mail, 
-  Phone, 
-  MessageSquare, 
-  Video, 
-  Calendar, 
-  Send, 
-  Paperclip, 
-  Smile, 
+import { edgeFunctionService } from '../../services/edgeFunctionService';
+import {
+  Mail,
+  Phone,
+  MessageSquare,
+  Video,
+  Calendar,
+  Send,
+  Paperclip,
+  Smile,
   MoreHorizontal,
   Clock,
   CheckCircle,
@@ -26,7 +26,8 @@ import {
   Smartphone,
   ExternalLink,
   BarChart3,
-  TrendingUp
+  TrendingUp,
+  Brain
 } from 'lucide-react';
 
 interface CommunicationRecord {
@@ -113,14 +114,13 @@ const sampleCommunications: CommunicationRecord[] = [
 ];
 
 export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) => {
-  const [activeTab, setActiveTab] = useState('timeline');
-  const [selectedType, setSelectedType] = useState('all');
-  const [isComposing, setIsComposing] = useState(false);
-  const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
-  const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
-  
-  // Connect to Communication AI
-  const { generateEmail, analyzeEmail, getCommunicationStrategy, isProcessing } = useCommunicationAI();
+   const [activeTab, setActiveTab] = useState('timeline');
+   const [selectedType, setSelectedType] = useState('all');
+   const [isComposing, setIsComposing] = useState(false);
+   const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
+   const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
 
   const tabs = [
     { id: 'timeline', label: 'Timeline', icon: Clock },
@@ -139,29 +139,43 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
   ];
   const handleQuickCompose = async (type: 'email' | 'call' | 'sms') => {
     try {
+      setLoading(true);
+      setError(null);
+
       if (type === 'email') {
-        const emailData = await generateEmail(contact, 'follow-up', {
+        const result = await edgeFunctionService.composeEmail(contact, 'follow-up', {
           tone: 'professional',
           urgency: 'medium'
         });
         setIsComposing(true);
-        console.log('Generated email:', emailData);
+        console.log('Generated email:', result);
       } else {
         // For non-email types, we'll implement later
         console.log(`${type} composition coming soon...`);
       }
     } catch (error) {
       console.error(`Failed to generate ${type}:`, error);
+      setError(`Failed to generate ${type}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGetCommunicationStrategy = async () => {
     try {
-      const strategy = await getCommunicationStrategy(contact);
-      console.log('Communication strategy:', strategy);
+      setLoading(true);
+      setError(null);
+
+      const result = await edgeFunctionService.getCommunicationHistory(contact.id || 'test-contact-123', {
+        action: 'strategy'
+      });
+      console.log('Communication strategy:', result);
       // You could show this in a modal or dedicated section
     } catch (error) {
       console.error('Failed to get communication strategy:', error);
+      setError('Failed to get communication strategy');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -298,7 +312,7 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
                 variant="primary" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('email')}
-                loading={isProcessing}
+                loading={loading}
               >
                 <Mail className="w-4 h-4" />
                 <span>AI Email</span>
@@ -385,7 +399,7 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
                   size="sm"
                   onClick={handleGetCommunicationStrategy}
                   className="w-full"
-                  loading={isProcessing}
+                  loading={loading}
                 >
                   <Brain className="w-4 h-4 mr-2" />
                   Get AI Strategy
