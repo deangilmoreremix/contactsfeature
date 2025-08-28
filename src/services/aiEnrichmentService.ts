@@ -37,28 +37,36 @@ export interface AIProvider {
 
 class AIEnrichmentService {
   private apiUrl: string;
-  private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
-  private openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  private geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  private isMockMode = import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development';
+  private openaiApiKey = import.meta.env['VITE_OPENAI_API_KEY'];
+  private geminiApiKey = import.meta.env['VITE_GEMINI_API_KEY'];
 
   constructor() {
     // Get Supabase URL and anon key from environment
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-    const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    
+    const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'] || '';
+    const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'] || '';
+    const openaiApiKey = import.meta.env['VITE_OPENAI_API_KEY'];
+    const geminiApiKey = import.meta.env['VITE_GEMINI_API_KEY'];
+
     // Log API keys for debugging (without revealing full keys)
-    console.log('OpenAI API Key:', openaiApiKey ? `${openaiApiKey.substring(0, 4)}...${openaiApiKey.substring(openaiApiKey.length - 4)}` : 'Not configured');
-    console.log('Gemini API Key:', geminiApiKey ? `${geminiApiKey.substring(0, 4)}...${geminiApiKey.substring(geminiApiKey.length - 4)}` : 'Not configured');
-    
+    console.log('🔍 AI Enrichment Service - Environment Check:');
+    console.log('OpenAI API Key:', openaiApiKey ? `${openaiApiKey.substring(0, 10)}...${openaiApiKey.substring(openaiApiKey.length - 10)} (length: ${openaiApiKey.length})` : '❌ Not configured');
+    console.log('Gemini API Key:', geminiApiKey ? `${geminiApiKey.substring(0, 10)}...${geminiApiKey.substring(geminiApiKey.length - 10)} (length: ${geminiApiKey.length})` : '❌ Not configured');
+
+    // Validate API keys format
+    const isValidOpenAI = openaiApiKey && openaiApiKey.startsWith('sk-') && openaiApiKey.length > 20;
+    const isValidGemini = geminiApiKey && geminiApiKey.startsWith('AIza') && geminiApiKey.length > 20;
+
+    console.log('OpenAI Key Valid:', isValidOpenAI ? '✅' : '❌');
+    console.log('Gemini Key Valid:', isValidGemini ? '✅' : '❌');
+
     if (!supabaseUrl || !supabaseKey) {
       console.warn('Supabase environment variables not defined, using fallback mode');
       this.apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
       this.isMockMode = true;
     } else {
-      this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`; 
-      console.log('Using AI Enrichment Edge Function URL:', this.apiUrl); 
+      this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`;
+      console.log('Using AI Enrichment Edge Function URL:', this.apiUrl);
     }
   }
 
@@ -89,7 +97,7 @@ class AIEnrichmentService {
           timeout: 30000,
           retries: 2,
           headers: {
-            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
           }
         }
       );
@@ -259,13 +267,14 @@ class AIEnrichmentService {
   // Get an available provider, or return a default if none are configured
   private getAvailableProvider(): string {
     const enabledProviders = this.providers.filter(p => p.enabled);
-    
+
     if (enabledProviders.length === 0) {
       logger.warn('No AI providers are configured. Using fallback mode.');
       return 'fallback';
     }
-    
-    return enabledProviders[0].name;
+
+    const firstProvider = enabledProviders[0];
+    return firstProvider ? firstProvider.name : 'fallback';
   }
 
   // Generate mock data when API enrichment is not available
