@@ -43,7 +43,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
 
   const handleAutoFill = (data: ContactEnrichmentData) => {
     // Apply different merge strategies based on mode
-    let mergedData = { ...data };
+    const mergedData = { ...data };
 
     switch (autoFillMode) {
       case 'conservative':
