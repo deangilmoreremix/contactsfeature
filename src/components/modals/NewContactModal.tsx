@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { AIAutoFillButton } from '../ui/AIAutoFillButton';
 import { AIResearchButton } from '../ui/AIResearchButton';
-import { FeatureHighlight } from '../ui/FeatureHighlight';
 import { useContactStore } from '../../store/contactStore';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { Contact } from '../../types';
@@ -404,17 +403,11 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
           
           {/* AI Quick Actions */}
           <div className="flex items-center space-x-3">
-            <FeatureHighlight
-              tooltipContent="AI researches and auto-fills contact information from email, name, or LinkedIn profile"
-              isAIFeature={true}
-              tourId="ai-auto-fill"
-            >
             <AIAutoFillButton
               formData={formData}
               onAutoFill={handleAIAutoFill}
               size="sm"
             />
-            </FeatureHighlight>
             
             <button
               onClick={handleClose}
