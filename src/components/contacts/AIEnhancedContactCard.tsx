@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useContactAI } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
+import { Tooltip } from '../ui/Tooltip';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { Contact } from '../../types';
 import { useContactStore } from '../../store/contactStore';
