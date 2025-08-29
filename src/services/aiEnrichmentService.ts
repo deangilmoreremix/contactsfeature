@@ -1,7 +1,6 @@
 // AI Contact Enrichment Service - OpenAI & Gemini Integration
-import { httpClient } from './http-client.service';
 import { logger } from './logger.service';
-import apiConfig from '../config/api.config';
+import { supabase } from './supabaseClient';
 
 export interface ContactEnrichmentData {
   firstName?: string;
@@ -38,38 +37,15 @@ export interface AIProvider {
 }
 
 class AIEnrichmentService {
-  private apiUrl: string;
-  private isMockMode = import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development';
   private openaiApiKey = import.meta.env['VITE_OPENAI_API_KEY'];
   private geminiApiKey = import.meta.env['VITE_GEMINI_API_KEY'];
 
   constructor() {
-    // Get Supabase URL and anon key from environment
-    const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'] || '';
-    const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'] || '';
-    const openaiApiKey = import.meta.env['VITE_OPENAI_API_KEY'];
-    const geminiApiKey = import.meta.env['VITE_GEMINI_API_KEY'];
-
     // Log API keys for debugging (without revealing full keys)
     console.log('🔍 AI Enrichment Service - Environment Check:');
-    console.log('OpenAI API Key:', openaiApiKey ? `${openaiApiKey.substring(0, 10)}...${openaiApiKey.substring(openaiApiKey.length - 10)} (length: ${openaiApiKey.length})` : '❌ Not configured');
-    console.log('Gemini API Key:', geminiApiKey ? `${geminiApiKey.substring(0, 10)}...${geminiApiKey.substring(geminiApiKey.length - 10)} (length: ${geminiApiKey.length})` : '❌ Not configured');
-
-    // Validate API keys format
-    const isValidOpenAI = openaiApiKey && openaiApiKey.startsWith('sk-') && openaiApiKey.length > 20;
-    const isValidGemini = geminiApiKey && geminiApiKey.startsWith('AIza') && geminiApiKey.length > 20;
-
-    console.log('OpenAI Key Valid:', isValidOpenAI ? '✅' : '❌');
-    console.log('Gemini Key Valid:', isValidGemini ? '✅' : '❌');
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Supabase environment variables not defined, using fallback mode');
-      this.apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
-      this.isMockMode = true;
-    } else {
-      this.apiUrl = `${supabaseUrl}/functions/v1/ai-enrichment`;
-      console.log('Using AI Enrichment Edge Function URL:', this.apiUrl);
-    }
+    console.log('OpenAI API Key:', this.openaiApiKey ? `${this.openaiApiKey.substring(0, 10)}...` : '❌ Not configured');
+    console.log('Gemini API Key:', this.geminiApiKey ? `${this.geminiApiKey.substring(0, 10)}...` : '❌ Not configured');
+    console.log('Using Supabase Edge Functions for AI enrichment');
   }
 
   private providers: AIProvider[] = [
@@ -109,9 +85,8 @@ class AIEnrichmentService {
     }
 
     try {
-      const response = await httpClient.post<ContactEnrichmentData>(
-        this.apiUrl,
-        {
+      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
+        body: {
           type: 'email',
           email: email,
           contactId: options.isMockData ? 'mock-enrichment-request' : 'real-enrichment-request',
@@ -122,13 +97,16 @@ class AIEnrichmentService {
           timeout: 30000,
           retries: 2,
           headers: {
-            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
+            'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
           }
         }
-      );
+      });
 
+      if (error) {
+        throw error;
+      }
       logger.info(`Contact enriched successfully by email (${shouldUseRealAI ? 'real AI' : 'mock'})`);
-      const enrichedData = response.data as ContactEnrichmentData;
+      const enrichedData = data.success ? data.data || data : data;
       return {
         ...enrichedData,
         enrichmentType: shouldUseRealAI ? 'real' : 'mock',
@@ -166,27 +144,22 @@ class AIEnrichmentService {
     }
 
     try {
-      const response = await httpClient.post<ContactEnrichmentData>(
-        this.apiUrl,
-        {
+      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
+        body: {
           type: 'name',
           name: `${firstName} ${lastName}`,
           firstName,
           lastName,
           company,
           contactId: 'client-enrichment-request'
-        },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-          }
         }
-      );
+      });
 
+      if (error) {
+        throw error;
+      }
       logger.info(`Contact enriched successfully by name`);
-      return response.data;
+      return data.success ? data.data || data : data;
     } catch (error) {
       logger.error('Contact enrichment by name failed', error as Error);
       // Return graceful fallback data instead of throwing error
@@ -204,24 +177,19 @@ class AIEnrichmentService {
     }
 
     try {
-      const response = await httpClient.post<ContactEnrichmentData>(
-        this.apiUrl,
-        {
+      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
+        body: {
           type: 'linkedin',
           linkedin: linkedinUrl,
           contactId: 'client-enrichment-request'
-        },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-          }
         }
-      );
+      });
 
+      if (error) {
+        throw error;
+      }
       logger.info(`Contact enriched successfully by LinkedIn`);
-      return response.data;
+      return data.success ? data.data || data : data;
     } catch (error) {
       logger.error('Contact enrichment by LinkedIn failed', error as Error);
       // Return graceful fallback data instead of throwing error
@@ -240,25 +208,20 @@ class AIEnrichmentService {
     }
 
     try {
-      const response = await httpClient.post<{ imageUrl: string }>(
-        this.apiUrl,
-        {
+      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
+        body: {
           type: 'image',
           name,
           company,
           contactId: 'client-enrichment-request'
-        },
-        {
-          timeout: 15000,
-          retries: 1,
-          headers: {
-            'Authorization': `Bearer ${this.isMockMode ? '' : import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-          }
         }
-      );
+      });
 
+      if (error) {
+        throw error;
+      }
       logger.info(`Found contact image successfully`);
-      return response.data.imageUrl;
+      return data.imageUrl || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
     } catch (error) {
       logger.error('Finding contact image failed', error as Error);
 
@@ -278,9 +241,8 @@ class AIEnrichmentService {
     }
     
     try {
-      const response = await httpClient.post<ContactEnrichmentData[]>(
-        this.apiUrl,
-        {
+      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
+        body: {
           contactId: 'client-bulk-enrichment-request',
           contacts,
           type: 'bulk',
@@ -288,15 +250,16 @@ class AIEnrichmentService {
             maxConcurrency: 5,
             timeout: 60000
           }
-        },
-        {
-          timeout: 120000,
-          retries: 2
         }
-      );
+      });
       
-      logger.info(`Successfully bulk enriched ${response.data.length} contacts`);
-      return response.data;
+      if (error) {
+        throw error;
+      }
+      
+      const enrichedContacts = data.success ? data.data || [] : [];
+      logger.info(`Successfully bulk enriched ${enrichedContacts.length} contacts`);
+      return enrichedContacts;
     } catch (error) {
       logger.error('Bulk contact enrichment failed', error as Error);
       // Generate mock data for each contact
@@ -335,16 +298,12 @@ class AIEnrichmentService {
   }
 
   // Generate mock data when API enrichment is not available
-  private generateMockData(data: any, isMockData: boolean = false): ContactEnrichmentData {
+  private generateMockData(data: any): ContactEnrichmentData {
     logger.info('Generating mock enrichment data for fallback');
-
+    
     let mockData: ContactEnrichmentData = {
       confidence: 30,
-      notes: isMockData
-        ? 'Mock data enrichment completed. This contact contains sample/demo data.'
-        : 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.',
-      enrichmentType: 'mock',
-      isMockData
+      notes: 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.'
     };
     
     if (data.email) {
