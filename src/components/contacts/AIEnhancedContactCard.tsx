@@ -292,6 +292,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 <BarChart className="w-4 h-4 mr-2 text-blue-500" />
                 AI Insights
               </h4>
+              </Tooltip>
               <div className="flex space-x-1">
                 <button className="p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600">
                   <ThumbsUp className="w-3 h-3" />
