@@ -1,4 +1,4 @@
-import React, { useState, useRef, cloneElement } from 'react';
+import React, { useState, useRef, cloneElement, useEffect } from 'react';
 import { usePopper } from 'react-popper';
 import { tooltipConfig } from '../../config/tour.config';
 
@@ -141,7 +141,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   };
 
   // Clean up timeout on unmount
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
