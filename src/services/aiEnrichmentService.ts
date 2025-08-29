@@ -93,12 +93,9 @@ class AIEnrichmentService {
           useRealAI: shouldUseRealAI,
           isMockData: options.isMockData
         },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-          }
+        timeout: 30000,
+        headers: {
+          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
         }
       });
 
@@ -152,6 +149,9 @@ class AIEnrichmentService {
           lastName,
           company,
           contactId: 'client-enrichment-request'
+        },
+        headers: {
+          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
         }
       });
 
@@ -182,6 +182,9 @@ class AIEnrichmentService {
           type: 'linkedin',
           linkedin: linkedinUrl,
           contactId: 'client-enrichment-request'
+        },
+        headers: {
+          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
         }
       });
 
@@ -214,6 +217,9 @@ class AIEnrichmentService {
           name,
           company,
           contactId: 'client-enrichment-request'
+        },
+        headers: {
+          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
         }
       });
 
@@ -250,6 +256,9 @@ class AIEnrichmentService {
             maxConcurrency: 5,
             timeout: 60000
           }
+        },
+        headers: {
+          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
         }
       });
       
