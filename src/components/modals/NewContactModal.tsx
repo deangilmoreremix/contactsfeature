@@ -413,6 +413,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               onAutoFill={handleAIAutoFill}
               size="sm"
             />
+            </FeatureHighlight>
             
             <button
               onClick={handleClose}
