@@ -1,14 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, cloneElement } from 'react';
+import { usePopper } from 'react-popper';
 import { tooltipConfig } from '../../config/tour.config';
 
 interface TooltipProps {
-  children: React.ReactNode;
-  content: string;
-  position?: 'top' | 'bottom' | 'left' | 'right';
+  children: React.ReactElement;
+  content?: string;
+  position?: 'top' | 'bottom' | 'left' | 'right' | 'auto';
   delay?: number;
   disabled?: boolean;
   className?: string;
   tooltipId?: keyof typeof tooltipConfig;
+  trigger?: 'hover' | 'click' | 'focus';
+  offset?: [number, number];
+  arrow?: boolean;
 }
 
 export const Tooltip: React.FC<TooltipProps> = ({
@@ -18,23 +22,60 @@ export const Tooltip: React.FC<TooltipProps> = ({
   delay = 200,
   disabled = false,
   className = '',
-  tooltipId
+  tooltipId,
+  trigger = 'hover',
+  offset = [0, 8],
+  arrow = true
 }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [actualPosition, setActualPosition] = useState(position);
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [referenceElement, setReferenceElement] = useState<HTMLElement | null>(null);
+  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
+  const [arrowElement, setArrowElement] = useState<HTMLDivElement | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout>();
 
   // Get tooltip content from config if tooltipId is provided
   const tooltipContent = tooltipId ? tooltipConfig[tooltipId] : content;
 
+  // Configure Popper
+  const { styles, attributes } = usePopper(referenceElement, popperElement, {
+    placement: position === 'auto' ? 'auto' : position,
+    modifiers: [
+      {
+        name: 'offset',
+        options: {
+          offset,
+        },
+      },
+      {
+        name: 'arrow',
+        options: {
+          element: arrowElement,
+        },
+      },
+      {
+        name: 'preventOverflow',
+        options: {
+          padding: 8,
+        },
+      },
+      {
+        name: 'flip',
+        options: {
+          fallbackPlacements: ['top', 'bottom', 'left', 'right'],
+        },
+      },
+    ],
+  });
+
   const showTooltip = () => {
     if (disabled || !tooltipContent) return;
     
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
     timeoutRef.current = setTimeout(() => {
       setIsVisible(true);
-      updatePosition();
     }, delay);
   };
 
@@ -45,111 +86,110 @@ export const Tooltip: React.FC<TooltipProps> = ({
     setIsVisible(false);
   };
 
-  const updatePosition = () => {
-    if (!triggerRef.current || !tooltipRef.current) return;
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (trigger === 'hover') {
+      showTooltip();
+    }
+    // Call original onMouseEnter if it exists
+    if (children.props.onMouseEnter) {
+      children.props.onMouseEnter(e);
+    }
+  };
 
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    const tooltipRect = tooltipRef.current.getBoundingClientRect();
-    const viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight
+  const handleMouseLeave = (e: React.MouseEvent) => {
+    if (trigger === 'hover') {
+      hideTooltip();
+    }
+    // Call original onMouseLeave if it exists
+    if (children.props.onMouseLeave) {
+      children.props.onMouseLeave(e);
+    }
+  };
+
+  const handleFocus = (e: React.FocusEvent) => {
+    if (trigger === 'focus') {
+      showTooltip();
+    }
+    // Call original onFocus if it exists
+    if (children.props.onFocus) {
+      children.props.onFocus(e);
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent) => {
+    if (trigger === 'focus') {
+      hideTooltip();
+    }
+    // Call original onBlur if it exists
+    if (children.props.onBlur) {
+      children.props.onBlur(e);
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (trigger === 'click') {
+      if (isVisible) {
+        hideTooltip();
+      } else {
+        showTooltip();
+      }
+    }
+    // Call original onClick if it exists
+    if (children.props.onClick) {
+      children.props.onClick(e);
+    }
+  };
+
+  // Clean up timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
-
-    let newPosition = position;
-
-    // Check if tooltip would go outside viewport and adjust
-    switch (position) {
-      case 'top':
-        if (triggerRect.top - tooltipRect.height < 0) {
-          newPosition = 'bottom';
-        }
-        break;
-      case 'bottom':
-        if (triggerRect.bottom + tooltipRect.height > viewport.height) {
-          newPosition = 'top';
-        }
-        break;
-      case 'left':
-        if (triggerRect.left - tooltipRect.width < 0) {
-          newPosition = 'right';
-        }
-        break;
-      case 'right':
-        if (triggerRect.right + tooltipRect.width > viewport.width) {
-          newPosition = 'left';
-        }
-        break;
-    }
-
-    setActualPosition(newPosition);
-  };
-
-  useEffect(() => {
-    if (isVisible) {
-      updatePosition();
-    }
-  }, [isVisible]);
-
-  const getPositionClasses = () => {
-    const baseClasses = 'absolute z-50 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg';
-    
-    switch (actualPosition) {
-      case 'top':
-        return `${baseClasses} bottom-full left-1/2 transform -translate-x-1/2 mb-2`;
-      case 'bottom':
-        return `${baseClasses} top-full left-1/2 transform -translate-x-1/2 mt-2`;
-      case 'left':
-        return `${baseClasses} right-full top-1/2 transform -translate-y-1/2 mr-2`;
-      case 'right':
-        return `${baseClasses} left-full top-1/2 transform -translate-y-1/2 ml-2`;
-      default:
-        return `${baseClasses} bottom-full left-1/2 transform -translate-x-1/2 mb-2`;
-    }
-  };
-
-  const getArrowClasses = () => {
-    const baseClasses = 'absolute w-2 h-2 bg-gray-900 transform rotate-45';
-    
-    switch (actualPosition) {
-      case 'top':
-        return `${baseClasses} top-full left-1/2 -translate-x-1/2 -mt-1`;
-      case 'bottom':
-        return `${baseClasses} bottom-full left-1/2 -translate-x-1/2 -mb-1`;
-      case 'left':
-        return `${baseClasses} left-full top-1/2 -translate-y-1/2 -ml-1`;
-      case 'right':
-        return `${baseClasses} right-full top-1/2 -translate-y-1/2 -mr-1`;
-      default:
-        return `${baseClasses} top-full left-1/2 -translate-x-1/2 -mt-1`;
-    }
-  };
+  }, []);
 
   if (disabled || !tooltipContent) {
-    return <>{children}</>;
+    return children;
   }
 
+  // Clone the child element and add event handlers
+  const enhancedChild = cloneElement(children, {
+    ref: setReferenceElement,
+    onMouseEnter: handleMouseEnter,
+    onMouseLeave: handleMouseLeave,
+    onFocus: handleFocus,
+    onBlur: handleBlur,
+    onClick: handleClick,
+    className: `${children.props.className || ''} ${className}`.trim(),
+  });
+
   return (
-    <div
-      ref={triggerRef}
-      className={`relative inline-block ${className}`}
-      onMouseEnter={showTooltip}
-      onMouseLeave={hideTooltip}
-      onFocus={showTooltip}
-      onBlur={hideTooltip}
-    >
-      {children}
+    <>
+      {enhancedChild}
       
       {isVisible && (
         <div
-          ref={tooltipRef}
-          className={getPositionClasses()}
+          ref={setPopperElement}
+          style={styles.popper}
+          {...attributes.popper}
+          className="z-50 max-w-xs tooltip"
           role="tooltip"
           aria-label={tooltipContent}
         >
-          {tooltipContent}
-          <div className={getArrowClasses()}></div>
+          <div className="px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg border border-gray-700">
+            {tooltipContent}
+          </div>
+          
+          {arrow && (
+            <div
+              ref={setArrowElement}
+              style={styles.arrow}
+              className="absolute w-2 h-2 bg-gray-900 transform rotate-45 border border-gray-700"
+            />
+          )}
         </div>
       )}
-    </div>
+    </>
   );
 };
