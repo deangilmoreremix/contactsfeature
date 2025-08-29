@@ -133,22 +133,48 @@ class AIPredictiveAnalyticsService {
   async analyzeTrends(
     contact: Contact,
     timeframe: '30d' | '90d' | '6m' | '1y' = '90d',
-    metrics: string[] = ['engagement', 'response_time', 'interaction_frequency']
+    metrics: string[] = ['engagement', 'response_time', 'interaction_frequency'],
+    options: {
+      isMockData?: boolean;
+      forceRealAI?: boolean;
+      skipIfMock?: boolean;
+    } = {}
   ): Promise<TrendAnalysis> {
-    logger.info('Analyzing trends for contact', { contactId: contact.id, timeframe, metrics });
+    logger.info('Analyzing trends for contact', {
+      contactId: contact.id,
+      timeframe,
+      metrics,
+      isMockData: options.isMockData || false
+    });
 
-    // Check cache first
-    const cacheKey = `${contact.id}_${timeframe}_${metrics.join('_')}`;
-    const cached = this.trendCache.get(cacheKey);
-    if (cached && this.isTrendAnalysisValid(cached)) {
-      return cached;
+    // Determine if this is mock data
+    const isMockData = options.isMockData ||
+                      contact.isMockData ||
+                      contact.dataSource === 'mock' ||
+                      contact.createdBy === 'demo';
+
+    // Check if we should skip analysis for mock data
+    if (options.skipIfMock && isMockData) {
+      logger.info(`Skipping trend analysis for mock contact: ${contact.id}`);
+      return this.generateMockTrendAnalysis(contact, timeframe, metrics);
     }
 
-    // Generate historical data points (mock for now)
-    const historicalData = this.generateHistoricalData(contact, timeframe, metrics);
+    // Check cache first (only for real data)
+    if (!isMockData) {
+      const cacheKey = `${contact.id}_${timeframe}_${metrics.join('_')}`;
+      const cached = this.trendCache.get(cacheKey);
+      if (cached && this.isTrendAnalysisValid(cached)) {
+        return cached;
+      }
+    }
+
+    // Generate historical data points
+    const historicalData = isMockData
+      ? this.generateMockHistoricalData(contact, timeframe, metrics)
+      : this.generateHistoricalData(contact, timeframe, metrics);
 
     // Analyze trends
-    const trends = metrics.map(metric => this.analyzeSingleTrend(metric, historicalData[metric]));
+    const trends = metrics.map(metric => this.analyzeSingleTrend(metric, historicalData[metric] || []));
 
     // Detect seasonality
     const seasonality = this.detectSeasonality(historicalData);
@@ -167,8 +193,11 @@ class AIPredictiveAnalyticsService {
       forecast
     };
 
-    // Cache the analysis
-    this.trendCache.set(cacheKey, analysis);
+    // Cache the analysis (only for real data)
+    if (!isMockData) {
+      const cacheKey = `${contact.id}_${timeframe}_${metrics.join('_')}`;
+      this.trendCache.set(cacheKey, analysis);
+    }
 
     return analysis;
   }
@@ -552,12 +581,68 @@ class AIPredictiveAnalyticsService {
   private generateHistoricalData(contact: Contact, timeframe: string, metrics: string[]): Record<string, any[]> {
     // Generate mock historical data for trend analysis
     const data: Record<string, any[]> = {};
-    
+
     metrics.forEach(metric => {
       data[metric] = this.generateMetricHistory(contact, metric, timeframe);
     });
-    
+
     return data;
+  }
+
+  private generateMockHistoricalData(contact: Contact, timeframe: string, metrics: string[]): Record<string, any[]> {
+    // Generate mock historical data specifically for mock contacts
+    const data: Record<string, any[]> = {};
+
+    metrics.forEach(metric => {
+      data[metric] = this.generateMockMetricHistory(contact, metric, timeframe);
+    });
+
+    return data;
+  }
+
+  private generateMockMetricHistory(contact: Contact, metric: string, timeframe: string): any[] {
+    // Generate mock time series data with clear mock indicators
+    const points = timeframe === '30d' ? 30 : timeframe === '90d' ? 90 : 180;
+    const data = [];
+
+    for (let i = 0; i < points; i++) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      data.push({
+        date: date.toISOString().split('T')[0],
+        value: Math.random() * 100 + Math.sin(i / 10) * 20,
+        isMockData: true,
+        source: 'mock_generation'
+      });
+    }
+
+    return data.reverse();
+  }
+
+  private generateMockTrendAnalysis(
+    contact: Contact,
+    timeframe: string,
+    metrics: string[]
+  ): TrendAnalysis {
+    // Generate a mock trend analysis for mock contacts
+    return {
+      contactId: contact.id,
+      trends: metrics.map(metric => ({
+        metric,
+        direction: 'stable' as const,
+        strength: 0.3,
+        significance: 'low' as const,
+        dataPoints: 30,
+        timeframe: '30d'
+      })),
+      seasonality: {
+        detected: false,
+        confidence: 50
+      },
+      anomalies: [],
+      forecast: [],
+      isMockData: true,
+      notes: 'This is a mock trend analysis for demonstration purposes.'
+    } as TrendAnalysis;
   }
 
   private generateMetricHistory(contact: Contact, metric: string, timeframe: string): any[] {

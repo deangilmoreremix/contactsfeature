@@ -33,6 +33,13 @@ export interface Contact {
   isTeamMember?: boolean;
   role?: string;
   gamificationStats?: Record<string, any>;
+
+  // NEW: Mock data classification fields
+  isMockData?: boolean;           // Flag for mock/example data
+  isExample?: boolean;            // Flag for demo/example records
+  dataSource?: 'mock' | 'real' | 'imported' | 'manual'; // Source of data
+  createdBy?: 'system' | 'user' | 'demo'; // Who created this record
+  mockDataType?: 'sample' | 'demo' | 'test'; // Type of mock data
 }
 
 export interface ContactCreateRequest {
@@ -53,6 +60,13 @@ export interface ContactCreateRequest {
   isFavorite?: boolean;
   socialProfiles?: Contact['socialProfiles'];
   customFields?: Record<string, any>;
+
+  // NEW: Mock data classification fields
+  isMockData?: boolean;
+  isExample?: boolean;
+  dataSource?: Contact['dataSource'];
+  createdBy?: Contact['createdBy'];
+  mockDataType?: Contact['mockDataType'];
 }
 
 export interface ContactUpdateRequest {
@@ -75,4 +89,11 @@ export interface ContactUpdateRequest {
   isFavorite?: boolean;
   socialProfiles?: Contact['socialProfiles'];
   customFields?: Record<string, any>;
+
+  // NEW: Mock data classification fields
+  isMockData?: boolean;
+  isExample?: boolean;
+  dataSource?: Contact['dataSource'];
+  createdBy?: Contact['createdBy'];
+  mockDataType?: Contact['mockDataType'];
 }

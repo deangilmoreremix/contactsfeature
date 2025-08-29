@@ -172,11 +172,11 @@ class HttpClientService {
   
   private async makeRequest<T>(
     config: RequestConfig,
-    useAuth = true, 
+    useAuth = true,
     attempt = 1
   ): Promise<ApiResponse<T>> {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     try {
       // Check cache first for GET requests
       if (config.method === 'GET' && config.cache?.key) {
@@ -186,7 +186,7 @@ class HttpClientService {
           return cached as ApiResponse<T>;
         }
       }
-      
+
       // Rate limiting check
       if (config.rateLimit) {
         const rateLimitResult = await rateLimiter.checkLimit(
@@ -195,7 +195,7 @@ class HttpClientService {
           config.url,
           { maxRequests: 100, windowMs: 60000 }
         );
-        
+
         if (!rateLimitResult.allowed) {
           const error = new Error('Rate limit exceeded') as ApiError;
           error.status = 429;
@@ -203,21 +203,25 @@ class HttpClientService {
           throw error;
         }
       }
-      
+
       // Prepare headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Request-ID': requestId,
         ...config.headers,
       };
-      
+
       if (useAuth && this.authToken) {
         headers.Authorization = `Bearer ${this.authToken}`;
       }
-      
+
       // Log request
       logger.apiRequest(config.method, config.url, config.data, { requestId });
-      const fetchUrl = this.buildUrl('', config.url, config.params);
+
+      // Use the URL as-is if it's already a full URL, otherwise build it
+      const fetchUrl = config.url.startsWith('http') ?
+        this.buildUrl('', config.url, config.params) :
+        config.url;
 
       console.log(`Making ${config.method} request to: ${fetchUrl}`, {
         hasAuth: !!headers.Authorization,

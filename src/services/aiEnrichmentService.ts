@@ -27,6 +27,8 @@ export interface ContactEnrichmentData {
   bio?: string;
   notes?: string;
   confidence?: number;
+  enrichmentType?: 'real' | 'mock'; // NEW: Track enrichment type
+  isMockData?: boolean; // NEW: Flag for mock data
 }
 
 export interface AIProvider {
@@ -75,13 +77,35 @@ class AIEnrichmentService {
     { name: 'gemini', enabled: !!this.geminiApiKey, apiKey: this.geminiApiKey },
   ];
 
-  async enrichContactByEmail(email: string): Promise<ContactEnrichmentData> {
-    logger.info(`Enriching contact by email: ${email}`);
+  async enrichContactByEmail(
+    email: string,
+    options: {
+      isMockData?: boolean;
+      forceRealAI?: boolean;
+      skipIfMock?: boolean;
+    } = {}
+  ): Promise<ContactEnrichmentData> {
+    logger.info(`Enriching contact by email: ${email} (Mock: ${options.isMockData || false})`);
+
+    // Determine enrichment strategy based on data classification
+    const shouldUseRealAI = this.shouldUseRealAI(options);
+    const shouldSkipEnrichment = options.skipIfMock && options.isMockData;
+
+    if (shouldSkipEnrichment) {
+      logger.info(`Skipping enrichment for mock contact: ${email}`);
+      return {
+        email,
+        confidence: 0,
+        notes: 'Enrichment skipped for mock data',
+        enrichmentType: 'mock',
+        isMockData: true
+      };
+    }
 
     // Check if any providers are configured before making the request
     if (!this.hasConfiguredProviders()) {
       logger.warn(`No AI providers configured for email enrichment: ${email}`);
-      return this.generateMockData({ email });
+      return this.generateMockData({ email }, options.isMockData);
     }
 
     try {
@@ -90,7 +114,9 @@ class AIEnrichmentService {
         {
           type: 'email',
           email: email,
-          contactId: 'client-enrichment-request'
+          contactId: options.isMockData ? 'mock-enrichment-request' : 'real-enrichment-request',
+          useRealAI: shouldUseRealAI,
+          isMockData: options.isMockData
         },
         {
           timeout: 30000,
@@ -101,13 +127,33 @@ class AIEnrichmentService {
         }
       );
 
-      logger.info(`Contact enriched successfully by email`);
-      return response.data;
+      logger.info(`Contact enriched successfully by email (${shouldUseRealAI ? 'real AI' : 'mock'})`);
+      const enrichedData = response.data as ContactEnrichmentData;
+      return {
+        ...enrichedData,
+        enrichmentType: shouldUseRealAI ? 'real' : 'mock',
+        isMockData: options.isMockData || false
+      };
     } catch (error) {
       logger.error('Contact enrichment by email failed', error as Error);
       // Return graceful fallback data instead of throwing error
-      return this.generateMockData({ email });
+      return this.generateMockData({ email }, options.isMockData);
     }
+  }
+
+  private shouldUseRealAI(options: {
+    isMockData?: boolean;
+    forceRealAI?: boolean;
+    skipIfMock?: boolean;
+  }): boolean {
+    // Always use real AI if explicitly requested
+    if (options.forceRealAI) return true;
+
+    // Don't use real AI for mock data unless forced
+    if (options.isMockData) return false;
+
+    // Use real AI for real data if providers are available
+    return this.hasConfiguredProviders();
   }
 
   async enrichContactByName(firstName: string, lastName: string, company?: string): Promise<ContactEnrichmentData> {
@@ -289,12 +335,16 @@ class AIEnrichmentService {
   }
 
   // Generate mock data when API enrichment is not available
-  private generateMockData(data: any): ContactEnrichmentData {
+  private generateMockData(data: any, isMockData: boolean = false): ContactEnrichmentData {
     logger.info('Generating mock enrichment data for fallback');
-    
+
     let mockData: ContactEnrichmentData = {
       confidence: 30,
-      notes: 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.'
+      notes: isMockData
+        ? 'Mock data enrichment completed. This contact contains sample/demo data.'
+        : 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.',
+      enrichmentType: 'mock',
+      isMockData
     };
     
     if (data.email) {

@@ -13,14 +13,14 @@ import { AutomationPanel } from '../contacts/AutomationPanel';
 import { ContactAnalytics } from '../contacts/ContactAnalytics';
 import { ContactEmailPanel } from '../contacts/ContactEmailPanel';
 import { Contact } from '../../types/contact';
-import { 
-  X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar, MoreHorizontal, 
-  User, Globe, Clock, Building, Tag, Star, ExternalLink, Brain, TrendingUp, 
-  BarChart3, Zap, Users, Activity, Settings, Database, Shield, Target, 
-  Smartphone, Video, Linkedin, Twitter, Facebook, Instagram, Save, 
-  Ambulance as Cancel, Heart, HeartOff, MapPin, Briefcase, Award, 
+import {
+  X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar, MoreHorizontal,
+  User, Globe, Clock, Building, Tag, Star, ExternalLink, Brain, TrendingUp,
+  BarChart3, Zap, Users, Activity, Settings, Database, Shield, Target,
+  Smartphone, Video, Linkedin, Twitter, Facebook, Instagram, Save,
+  Ambulance as Cancel, Heart, HeartOff, MapPin, Briefcase, Award,
   CheckCircle, AlertCircle, Wifi, WifiOff, Search, DollarSign, RefreshCw,
-  Sparkles, Camera, Wand2
+  Sparkles, Camera, Wand2, Info
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -721,7 +721,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   <Plus className="w-4 h-4 mb-1 text-purple-600" />
                   <span className="text-xs font-medium">Add Field</span>
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('journey')}
                   className="p-3 flex flex-col items-center hover:bg-orange-50 rounded-lg transition-all text-center"
                 >
