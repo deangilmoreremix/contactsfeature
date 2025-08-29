@@ -303,13 +303,11 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 tooltipContent="AI-generated insights and recommendations based on contact analysis"
                 isAIFeature={true}
               >
-              <Tooltip tooltipId="aiInsights">
-              <h4 className="text-sm font-medium text-gray-900 flex items-center">
-                <BarChart className="w-4 h-4 mr-2 text-blue-500" />
-                AI Insights
-              </h4>
+                <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                  <BarChart className="w-4 h-4 mr-2 text-blue-500" />
+                  AI Insights
+                </h4>
               </FeatureHighlight>
-              </Tooltip>
               <div className="flex space-x-1">
                 <Tooltip content="Mark this AI insight as helpful" position="top">
                 <button className="p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600">
