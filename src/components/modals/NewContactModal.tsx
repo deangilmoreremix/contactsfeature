@@ -403,6 +403,11 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
           
           {/* AI Quick Actions */}
           <div className="flex items-center space-x-3">
+            <FeatureHighlight
+              tooltipContent="AI researches and auto-fills contact information from email, name, or LinkedIn profile"
+              isAIFeature={true}
+              tourId="ai-auto-fill"
+            >
             <AIAutoFillButton
               formData={formData}
               onAutoFill={handleAIAutoFill}

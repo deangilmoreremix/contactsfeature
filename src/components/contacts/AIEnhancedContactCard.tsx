@@ -285,8 +285,9 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 
         {/* AI Insights Section */}
         {(contact.aiScore || contactScore) && (
-          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200" data-tour-id="ai-insights">
             <div className="flex justify-between items-center mb-2">
+              <Tooltip tooltipId="aiInsights">
               <h4 className="text-sm font-medium text-gray-900 flex items-center">
                 <BarChart className="w-4 h-4 mr-2 text-blue-500" />
                 AI Insights

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAI } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { ModernButton } from '../ui/ModernButton';
+import { Tooltip } from '../ui/Tooltip';
+import { FeatureHighlight } from '../ui/FeatureHighlight';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
@@ -9,6 +11,7 @@ import { useContactStore } from '../../store/contactStore';
 import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
+import { TourLaunchButton } from '../ui/TourLaunchButton';
 import Fuse from 'fuse.js';
 import { 
   X, 
@@ -470,57 +473,61 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
               {/* Bulk Actions */}
               {selectedContacts.length > 0 && (
-                <div className="relative">
-                  <ModernButton
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBulkActionDropdown(!bulkActionDropdown)}
-                    className="flex items-center space-x-2"
-                  >
-                    <Zap className="w-4 h-4" />
-                    <span>Actions</span>
-                    <ChevronDown className="w-4 h-4" />
-                  </ModernButton>
+                <Tooltip content="Re-analyze selected contacts with latest AI models">
+                  <div className="relative">
+                    <ModernButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBulkActionDropdown(!bulkActionDropdown)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Zap className="w-4 h-4" />
+                      <span>Actions</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </ModernButton>
                   
-                  {bulkActionDropdown && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-10">
-                      <button
-                        onClick={handleAnalyzeSelected}
-                        disabled={isAnalyzing}
-                        className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors first:rounded-t-lg disabled:opacity-50"
-                      >
-                        Re-analyze Selected
-                      </button>
-                      <button 
-                        className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
-                        onClick={handleExportContacts}
-                      >
-                        Export Selected
-                      </button>
-                      <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
-                        Add Tags
-                      </button>
-                      <button 
-                        onClick={() => setSelectedContacts([])}
-                        className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors last:rounded-b-lg"
-                      >
-                        Clear Selection
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    {bulkActionDropdown && (
+                      <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-10">
+                        <button
+                          onClick={handleAnalyzeSelected}
+                          disabled={isAnalyzing}
+                          className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors first:rounded-t-lg disabled:opacity-50"
+                        >
+                          Re-analyze Selected
+                        </button>
+                        <button 
+                          className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={handleExportContacts}
+                        >
+                          Export Selected
+                        </button>
+                        <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
+                          Add Tags
+                        </button>
+                        <button 
+                          onClick={() => setSelectedContacts([])}
+                          className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors last:rounded-b-lg"
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </Tooltip>
               )}
 
               {/* Import/Export */}
-              <ModernButton 
-                variant="outline" 
-                size="sm" 
-                onClick={handleImportClick}
-                className="flex items-center space-x-2 bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Import</span>
-              </ModernButton>
+              <Tooltip content="Import CSV files with AI-powered duplicate detection and data validation">
+                <ModernButton 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleImportClick}
+                  className="flex items-center space-x-2 bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Import</span>
+                </ModernButton>
+              </Tooltip>
               
               <ModernButton 
                 variant="outline" 
@@ -532,15 +539,21 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <span>Export</span>
               </ModernButton>
               
-              <ModernButton 
-                variant="primary" 
-                size="sm" 
-                onClick={handleNewContactClick}
-                className="flex items-center space-x-2"
+              <FeatureHighlight
+                tooltipContent="Add new contacts with AI auto-fill that researches and completes missing information"
+                isAIFeature={true}
+                tourId="new-contact"
               >
-                <Plus className="w-4 h-4" />
-                <span>New Contact</span>
-              </ModernButton>
+                <ModernButton 
+                  variant="primary" 
+                  size="sm" 
+                  onClick={handleNewContactClick}
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Contact</span>
+                </ModernButton>
+              </FeatureHighlight>
               
               <ModernButton 
                 variant="outline" 
@@ -619,6 +632,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 pr-4 py-2 w-full bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  data-tour-id="search-input"
                 />
               </div>
               
@@ -688,85 +702,93 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <span>{selectedContacts.length === filteredContacts.length ? 'Deselect All' : 'Select All'}</span>
               </button>
             </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center space-x-2">
-              {/* Sort Dropdown */}
-              <select
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setSortBy(field as typeof sortBy);
-                  setSortOrder(order as typeof sortOrder);
-                }}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="name-asc">Name A-Z</option>
-                <option value="name-desc">Name Z-A</option>
-                <option value="company-asc">Company A-Z</option>
-                <option value="company-desc">Company Z-A</option>
-                <option value="score-desc">Highest Score</option>
-                <option value="score-asc">Lowest Score</option>
-                <option value="updated-desc">Recently Updated</option>
-                <option value="updated-asc">Oldest Updated</option>
-              </select>
-
-              <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                <button
-                  onClick={() => setViewMode('card')}
-                  className={`p-2 text-sm font-medium transition-colors ${
-                    viewMode === 'card' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+            <div className="flex items-center space-x-3" data-tour-id="contacts-hub">
+              {/* View Mode Toggle */}
+              <div className="flex items-center space-x-2">
+                {/* Sort Dropdown */}
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setSortBy(field as typeof sortBy);
+                    setSortOrder(order as typeof sortOrder);
+                  }}
+                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <Grid3X3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
-                    viewMode === 'table' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
+                  <option value="name-asc">Name A-Z</option>
+                  <option value="name-desc">Name Z-A</option>
+                  <option value="company-asc">Company A-Z</option>
+                  <option value="company-desc">Company Z-A</option>
+                  <option value="score-desc">Highest Score</option>
+                  <option value="score-asc">Lowest Score</option>
+                  <option value="updated-desc">Recently Updated</option>
+                  <option value="updated-asc">Oldest Updated</option>
+                </select>
+
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                  <button
+                    onClick={() => setViewMode('card')}
+                    className={`p-2 text-sm font-medium transition-colors ${
+                      viewMode === 'card' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Grid3X3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
+                      viewMode === 'table' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Contacts Grid */}
           <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-            {filteredContacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Users className="w-16 h-16 text-gray-400 mb-4" />
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">No contacts found</h3>
-                <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
-                <ModernButton 
-                  variant="primary" 
-                  onClick={handleNewContactClick}
-                  className="flex items-center space-x-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Your First Contact</span>
-                </ModernButton>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredContacts.map((contact) => (
-                  <AIEnhancedContactCard
-                    key={contact.id}
-                    contact={contact}
-                    isSelected={selectedContacts.includes(contact.id)}
-                    onSelect={() => handleContactSelect(contact.id)}
-                    onClick={() => handleContactClick(contact)}
-                    onAnalyze={handleAnalyzeContact}
-                    isAnalyzing={analyzingContactIds.includes(contact.id)}
-                  />
-                ))}
-              </div>
-            )}
+            <FeatureHighlight
+              tooltipContent="AI automatically scores all unscored contacts using advanced machine learning models"
+              isAIFeature={true}
+              tourId="ai-score-all"
+            >
+              {filteredContacts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Users className="w-16 h-16 text-gray-400 mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-600 mb-2">No contacts found</h3>
+                  <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
+                  <ModernButton 
+                    variant="primary" 
+                    onClick={handleNewContactClick}
+                    className="flex items-center space-x-2"
+                    data-tour-id="import-contacts"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Your First Contact</span>
+                  </ModernButton>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredContacts.map((contact) => (
+                    <AIEnhancedContactCard
+                      key={contact.id}
+                      contact={contact}
+                      isSelected={selectedContacts.includes(contact.id)}
+                      onSelect={() => handleContactSelect(contact.id)}
+                      onClick={() => handleContactClick(contact)}
+                      onAnalyze={handleAnalyzeContact}
+                      isAnalyzing={analyzingContactIds.includes(contact.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </FeatureHighlight>
           </div>
         </div>
       </div>
