@@ -22,6 +22,7 @@ import {
   Target,
   Zap
 } from 'lucide-react';
+import { FeatureHighlight } from '../ui/FeatureHighlight';
 
 interface AIEnhancedContactCardProps {
   contact: Contact;
@@ -137,6 +138,10 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
       <div className="absolute top-4 right-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
         {/* AI Analysis Button - Prominently Featured */}
         {onAnalyze && (
+          <FeatureHighlight
+            tooltipContent="AI-powered contact scoring using advanced machine learning models. Click to analyze lead potential."
+            isAIFeature={true}
+          >
           <button 
             onClick={handleAnalyzeClick}
             disabled={analyzing}
@@ -156,8 +161,10 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
             )}
           </button>
+          </FeatureHighlight>
         )}
         
+        <Tooltip content="Edit contact information and preferences" position="top">
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -167,6 +174,9 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
         >
           <Edit className="w-3 h-3" />
         </button>
+        </Tooltip>
+        
+        <Tooltip content="More contact actions and options" position="top">
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -176,6 +186,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
         >
           <MoreHorizontal className="w-3 h-3" />
         </button>
+        </Tooltip>
       </div>
 
       <div className="p-6">
@@ -288,19 +299,28 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
         {(contact.aiScore || contactScore) && (
           <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200" data-tour-id="ai-insights">
             <div className="flex justify-between items-center mb-2">
+              <FeatureHighlight
+                tooltipContent="AI-generated insights and recommendations based on contact analysis"
+                isAIFeature={true}
+              >
               <Tooltip tooltipId="aiInsights">
               <h4 className="text-sm font-medium text-gray-900 flex items-center">
                 <BarChart className="w-4 h-4 mr-2 text-blue-500" />
                 AI Insights
               </h4>
+              </FeatureHighlight>
               </Tooltip>
               <div className="flex space-x-1">
+                <Tooltip content="Mark this AI insight as helpful" position="top">
                 <button className="p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600">
                   <ThumbsUp className="w-3 h-3" />
                 </button>
+                </Tooltip>
+                <Tooltip content="Mark this AI insight as unhelpful" position="top">
                 <button className="p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600">
                   <ThumbsDown className="w-3 h-3" />
                 </button>
+                </Tooltip>
               </div>
             </div>
             <p className="text-xs text-gray-900">

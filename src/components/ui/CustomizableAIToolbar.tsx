@@ -238,6 +238,18 @@ export const AIGoalsButton: React.FC<{
   );
 };
 
+// Helper function to get tooltip text for actions
+const getTooltipForAction = (toolName: string): string => {
+  const tooltips = {
+    leadScoring: 'AI analyzes contact data to predict conversion likelihood and assign priority score',
+    emailPersonalization: 'Generate personalized emails using AI based on contact profile and history',
+    contactEnrichment: 'AI researches and fills missing contact information from multiple data sources',
+    businessIntelligence: 'Advanced AI insights about contact behavior, preferences, and opportunities'
+  };
+  
+  return tooltips[toolName as keyof typeof tooltips] || 'AI-powered tool for enhanced productivity';
+};
+
 export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
   entityType,
   entityId,
@@ -253,6 +265,7 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
   return (
     <div className="space-y-3">
       {/* AI Goals Button */}
+      <Tooltip content="Access AI-powered business goals and automation suggestions" position="top">
       <AIGoalsButton
         entityType={entityType}
         entityId={entityId}
@@ -261,14 +274,15 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
         variant="primary"
         className="w-full justify-center"
       />
+      </Tooltip>
 
       {/* Quick AI Actions Grid */}
       <div className="grid grid-cols-2 gap-1.5">
         {customQuickActions.map((action, index) => {
           const IconComponent = iconMap[action.icon as keyof typeof iconMap];
           return (
+            <Tooltip key={index} content={getTooltipForAction(action.toolName)} position="top">
             <QuickAIButton
-              key={index}
               icon={IconComponent}
               label={action.label}
               toolName={action.toolName}
@@ -279,6 +293,7 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
               variant={action.variant as 'primary' | 'secondary'}
               className="w-full justify-center text-center"
             />
+            </Tooltip>
           );
         })}
       </div>
@@ -286,6 +301,7 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
       {/* Customize Button */}
       {showCustomizeButton && (
         <div className="flex items-center justify-between">
+          <Tooltip content="Add custom AI tools and automation goals tailored to your workflow" position="top">
           <button
             onClick={() => setShowCustomizeModal(true)}
             className="flex-1 flex items-center justify-center py-2 px-3 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-lg hover:from-indigo-100 hover:to-purple-100 text-sm font-medium transition-all duration-200 border border-indigo-200/50 shadow-sm border-dashed mr-2"
@@ -293,6 +309,8 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
             <Plus size={14} className="mr-2" />
             Add Custom AI Goals
           </button>
+          </Tooltip>
+          <Tooltip content="Customize AI tools and arrange them according to your preferences" position="top">
           <button
             onClick={() => setShowCustomizeModal(true)}
             className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -300,6 +318,7 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
           >
             <Settings size={16} />
           </button>
+          </Tooltip>
         </div>
       )}
     </div>

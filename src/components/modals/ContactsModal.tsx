@@ -517,6 +517,11 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               )}
 
               {/* Import/Export */}
+              <FeatureHighlight
+                tooltipContent="Import CSV files with AI-powered duplicate detection and data validation"
+                isAIFeature={true}
+                tourId="import-contacts"
+              >
               <Tooltip content="Import CSV files with AI-powered duplicate detection and data validation">
                 <ModernButton 
                   variant="outline" 
@@ -528,7 +533,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   <span>Import</span>
                 </ModernButton>
               </Tooltip>
+              </FeatureHighlight>
               
+              <Tooltip content="Export contacts as CSV or JSON with current filters applied" position="top">
               <ModernButton 
                 variant="outline" 
                 size="sm" 
@@ -538,6 +545,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <Download className="w-4 h-4" />
                 <span>Export</span>
               </ModernButton>
+              </Tooltip>
               
               <FeatureHighlight
                 tooltipContent="Add new contacts with AI auto-fill that researches and completes missing information"
@@ -555,6 +563,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 </ModernButton>
               </FeatureHighlight>
               
+              <Tooltip content="Learn about Smart CRM features and capabilities" position="top">
               <ModernButton 
                 variant="outline" 
                 size="sm" 
@@ -564,6 +573,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <Info className="w-4 h-4" />
                 <span>Learn More</span>
               </ModernButton>
+              </Tooltip>
               
               {/* Dark Mode Toggle */}
               <DarkModeToggle size="sm" />
@@ -626,6 +636,10 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               {/* Search Input */}
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <FeatureHighlight
+                  tooltipContent="Smart search with fuzzy matching. Search by name, company, title, email, or even AI score"
+                  tourId="search-input"
+                >
                 <input
                   type="text"
                   placeholder="Search contacts..."
@@ -634,6 +648,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   className="pl-10 pr-4 py-2 w-full bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   data-tour-id="search-input"
                 />
+                </FeatureHighlight>
               </div>
               
               {/* Interest Level Filter */}
@@ -706,6 +721,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               {/* View Mode Toggle */}
               <div className="flex items-center space-x-2">
                 {/* Sort Dropdown */}
+                <Tooltip content="Sort contacts by name, company, AI score, or last updated date" position="bottom">
                 <select
                   value={`${sortBy}-${sortOrder}`}
                   onChange={(e) => {
@@ -724,8 +740,10 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   <option value="updated-desc">Recently Updated</option>
                   <option value="updated-asc">Oldest Updated</option>
                 </select>
+                </Tooltip>
 
                 <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                  <Tooltip content="Card view - shows contact cards with avatars and key info" position="top">
                   <button
                     onClick={() => setViewMode('card')}
                     className={`p-2 text-sm font-medium transition-colors ${
@@ -736,6 +754,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   >
                     <Grid3X3 className="w-4 h-4" />
                   </button>
+                  </Tooltip>
+                  <Tooltip content="Table view - compact list view with more details per row" position="top">
                   <button
                     onClick={() => setViewMode('table')}
                     className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
@@ -746,6 +766,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   >
                     <List className="w-4 h-4" />
                   </button>
+                  </Tooltip>
                 </div>
               </div>
             </div>

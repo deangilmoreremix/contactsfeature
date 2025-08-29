@@ -155,7 +155,15 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
   // Clone the child element and add event handlers
   const enhancedChild = cloneElement(children, {
-    ref: setReferenceElement,
+    ref: (node: HTMLElement) => {
+      setReferenceElement(node);
+      // Handle existing refs
+      if (typeof children.ref === 'function') {
+        children.ref(node);
+      } else if (children.ref) {
+        children.ref.current = node;
+      }
+    },
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
     onFocus: handleFocus,
@@ -173,11 +181,11 @@ export const Tooltip: React.FC<TooltipProps> = ({
           ref={setPopperElement}
           style={styles.popper}
           {...attributes.popper}
-          className="z-50 max-w-xs tooltip"
+          className="z-50 max-w-xs tooltip pointer-events-none"
           role="tooltip"
           aria-label={tooltipContent}
         >
-          <div className="px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg border border-gray-700">
+          <div className="px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-xl border border-gray-700">
             {tooltipContent}
           </div>
           
