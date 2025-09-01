@@ -1,3 +1,4 @@
+```tsx
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
@@ -5,6 +6,10 @@ import { DarkModeToggle } from '../ui/DarkModeToggle';
 import { InteractiveEmailComposer } from './InteractiveEmailComposer';
 import { InteractiveContactScorer } from './InteractiveContactScorer';
 import { InteractiveFilterDemo } from './InteractiveFilterDemo';
+import { InteractiveSmartSearch } from './InteractiveSmartSearch';
+import { InteractiveLiveDealAnalysis } from './InteractiveLiveDealAnalysis';
+import { InteractiveObjectionHandler } from './InteractiveObjectionHandler';
+import { InteractiveInstantAIResponse } from './InteractiveInstantAIResponse';
 import { 
   X,
   ArrowRight,
@@ -32,7 +37,8 @@ import {
   Award,
   Eye,
   Heart,
-  Star
+  Star,
+  DollarSign
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -68,6 +74,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
       image: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       icon: Search,
       color: 'from-blue-500 to-green-500',
+      interactive: true
+    },
+    {
+      id: 'smart-search',
+      title: 'AI Smart Search',
+      description: 'Find contacts, companies, and documents with natural language queries and AI-powered relevance.',
+      image: 'https://images.pexels.com/photos/3861970/pexels-photo-3861970.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Search,
+      color: 'from-teal-500 to-cyan-500',
+      interactive: true
+    },
+    {
+      id: 'live-deal-analysis',
+      title: 'Live Deal Analysis',
+      description: 'Get real-time AI insights on deal health, risks, and next best actions to close deals faster.',
+      image: 'https://images.pexels.com/photos/3861968/pexels-photo-3861968.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: DollarSign,
+      color: 'from-orange-500 to-yellow-500',
+      interactive: true
+    },
+    {
+      id: 'objection-handler',
+      title: 'AI Objection Handler',
+      description: 'Instantly generate AI-powered responses to common sales objections, tailored to your context.',
+      image: 'https://images.pexels.com/photos/3861966/pexels-photo-3861966.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: MessageSquare,
+      color: 'from-red-500 to-pink-500',
+      interactive: true
+    },
+    {
+      id: 'instant-ai-response',
+      title: 'Instant AI Response',
+      description: 'Get immediate, context-aware AI-generated replies for any message or query.',
+      image: 'https://images.pexels.com/photos/3861967/pexels-photo-3861967.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Zap,
+      color: 'from-indigo-500 to-purple-500',
       interactive: true
     },
     {
@@ -152,6 +194,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
         return <InteractiveEmailComposer />;
       case 'smart-filtering':
         return <InteractiveFilterDemo />;
+      case 'smart-search':
+        return <InteractiveSmartSearch />;
+      case 'live-deal-analysis':
+        return <InteractiveLiveDealAnalysis />;
+      case 'objection-handler':
+        return <InteractiveObjectionHandler />;
+      case 'instant-ai-response':
+        return <InteractiveInstantAIResponse />;
       default:
         return null;
     }
@@ -335,6 +385,50 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
               </div>
               <InteractiveFilterDemo />
             </div>
+
+            {/* AI Smart Search Demo */}
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="p-3 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-xl">
+                  <Search className="w-6 h-6 text-white" />
+                </div>
+                <h4 className="text-2xl font-bold text-gray-900">AI Smart Search Demo</h4>
+              </div>
+              <InteractiveSmartSearch />
+            </div>
+
+            {/* Live Deal Analysis Demo */}
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="p-3 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-xl">
+                  <DollarSign className="w-6 h-6 text-white" />
+                </div>
+                <h4 className="text-2xl font-bold text-gray-900">Live Deal Analysis Demo</h4>
+              </div>
+              <InteractiveLiveDealAnalysis />
+            </div>
+
+            {/* AI Objection Handler Demo */}
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="p-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl">
+                  <MessageSquare className="w-6 h-6 text-white" />
+                </div>
+                <h4 className="text-2xl font-bold text-gray-900">AI Objection Handler Demo</h4>
+              </div>
+              <InteractiveObjectionHandler />
+            </div>
+
+            {/* Instant AI Response Demo */}
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
+                  <Zap className="w-6 h-6 text-white" />
+                </div>
+                <h4 className="text-2xl font-bold text-gray-900">Instant AI Response Demo</h4>
+              </div>
+              <InteractiveInstantAIResponse />
+            </div>
           </div>
         </div>
 
@@ -494,3 +588,4 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
     </div>
   );
 };
+```
