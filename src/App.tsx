@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useDarkMode } from './hooks/useDarkMode';
 import { AIProvider } from './contexts/AIContext';
 import { ContactsModal } from './components/modals/ContactsModal';
-import { LandingPage } from './components/landing/LandingPage';
+import LandingPage from './components/landing/LandingPage';
 import './styles/design-system.css';
 
 function App() {
