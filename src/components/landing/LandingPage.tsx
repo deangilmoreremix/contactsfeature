@@ -301,8 +301,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                       className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     {(() => {
-                      const overlayClasses = `absolute inset-0 bg-gradient-to-br ${feature.color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`;
-                      const iconContainerClasses = `absolute top-4 left-4 p-3 bg-gradient-to-br ${feature.color} rounded-xl shadow-lg`;
+                      const overlayClasses = \`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`;
+                      const iconContainerClasses = \`absolute top-4 left-4 p-3 bg-gradient-to-br ${feature.color} rounded-xl shadow-lg`;
                       return (
                         <>
                           <div className={overlayClasses}></div>
@@ -535,7 +535,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
               const Icon = benefit.icon;
               return (
                 <GlassCard key={index} className="p-6 text-center hover:shadow-xl transition-all duration-300">
-                  <div className={`w-12 h-12 bg-gradient-to-r ${benefit.color} rounded-xl flex items-center justify-center mx-auto mb-4`}>
+                  <div className={\`w-12 h-12 bg-gradient-to-r ${benefit.color} rounded-xl flex items-center justify-center mx-auto mb-4`}>
                     <Icon className="w-6 h-6 text-white" />
                   </div>
                   <h4 className="text-lg font-semibold text-gray-900 mb-2">{benefit.title}</h4>
