@@ -146,13 +146,13 @@ export const InteractiveLiveDealAnalysis: React.FC = () => {
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-white border border-gray-200 rounded-lg text-center">
-                <div className={\`text-2xl font-bold ${getHealthColor(analysisResult.healthScore)}`}>
+                <div className={'text-2xl font-bold ' + getHealthColor(analysisResult.healthScore)}>
                   {analysisResult.healthScore}
                 </div>
                 <div className="text-sm text-gray-600">Health Score</div>
               </div>
               <div className="p-3 bg-white border border-gray-200 rounded-lg text-center">
-                <div className={\`text-2xl font-bold ${analysisResult.riskLevel === 'High' ? 'text-red-500' : analysisResult.riskLevel === 'Medium' ? 'text-yellow-500' : 'text-green-500'}`}>
+                <div className={'text-2xl font-bold ' + (analysisResult.riskLevel === 'High' ? 'text-red-500' : analysisResult.riskLevel === 'Medium' ? 'text-yellow-500' : 'text-green-500')}>
                   {analysisResult.riskLevel}
                 </div>
                 <div className="text-sm text-gray-600">Risk Level</div>

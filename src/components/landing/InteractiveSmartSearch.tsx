@@ -114,7 +114,7 @@ export const InteractiveSmartSearch: React.FC = () => {
                     <div key={index} className="p-3 bg-white border border-gray-200 rounded-lg flex items-start space-x-3">
                       <Icon className="w-5 h-5 text-blue-500 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-gray-900">{item.name} {item.company && `(${item.company})`}</p>
+                        <p className="font-medium text-gray-900">{`${item.name}${item.company ? ` (${item.company})` : ''}`}</p>
                         <p className="text-sm text-gray-600 line-clamp-2">{item.snippet}</p>
                         <span className="text-xs text-gray-500 capitalize">{item.type}</span>
                       </div>
