@@ -581,8 +581,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 <CheckCircle className="w-4 h-4 text-green-500" />
                 <span>Setup in minutes</span>
               </div>
-            </div>
-          </GlassCard>
+                      const overlayClasses = `absolute inset-0 bg-gradient-to-br ${feature.color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`;
+                      const iconContainerClasses = `absolute top-4 left-4 p-3 bg-gradient-to-br ${feature.color} rounded-xl shadow-lg`;
         </div>
       </div>
     </div>
