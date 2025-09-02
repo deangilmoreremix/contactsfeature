@@ -1,4 +1,3 @@
-```tsx
 import React, { useState } from 'react';
 import clsx from 'clsx';
 import { GlassCard } from '../ui/GlassCard';
@@ -595,4 +594,3 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
     </div>
   );
 };
-```
