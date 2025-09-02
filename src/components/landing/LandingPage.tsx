@@ -301,8 +301,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                       className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     {(() => {
-                      const overlayClasses = \`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`;
-                      const iconContainerClasses = \`absolute top-4 left-4 p-3 bg-gradient-to-br ${feature.color} rounded-xl shadow-lg`;
+                      const overlayClasses = `absolute inset-0 bg-gradient-to-br ${feature.color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`;
+                      const iconContainerClasses = `absolute top-4 left-4 p-3 bg-gradient-to-br ${feature.color} rounded-xl shadow-lg`;
                       return (
                         <>
                           <div className={overlayClasses}></div>
