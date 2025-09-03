@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
+import { ModernButton } from '../ui/ModernButton';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
-import { MoreHorizontal, ArrowRight, Calendar, UserPlus, Users, Plus } from 'lucide-react';
+import { MoreHorizontal, ArrowRight, Calendar, UserPlus, Users, Plus, X } from 'lucide-react';
 
 const taskData = [
   { 
@@ -364,68 +365,91 @@ export const TasksAndFunnel: React.FC = () => {
 
       {/* Assignee Details Modal */}
       {showAssigneeModal && selectedAssignee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Assignee Details</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <UserPlus className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Assignee Details</h2>
+                  <p className="text-gray-600">View team member information</p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowAssigneeModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                ✕
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="flex items-center space-x-3 mb-4">
-              <AvatarWithStatus
-                src={selectedAssignee.avatar}
-                alt={selectedAssignee.name}
-                size="md"
-                status={selectedAssignee.status as any || 'active'}
-              />
-              <div>
-                <h4 className="font-semibold text-gray-900">{selectedAssignee.name}</h4>
-                <p className="text-sm text-gray-600">Team Member</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Current Tasks
-                </label>
-                <div className="text-sm text-gray-600">
-                  {taskData
-                    .filter(t => t.assignees.some(a => a.id === selectedAssignee.id))
-                    .map(t => `${t.tasks} tasks on ${t.day}`)
-                    .join(', ') || 'No current tasks'}
+            <div className="p-6">
+              <div className="flex items-center space-x-4 mb-6">
+                <AvatarWithStatus
+                  src={selectedAssignee.avatar}
+                  alt={selectedAssignee.name}
+                  size="lg"
+                  status={selectedAssignee.status as any || 'active'}
+                />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{selectedAssignee.name}</h3>
+                  <p className="text-gray-600">Team Member</p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
-                </label>
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                  selectedAssignee.status === 'active' ? 'bg-green-100 text-green-800' :
-                  selectedAssignee.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {selectedAssignee.status || 'active'}
-                </span>
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Tasks</h4>
+                  <div className="space-y-3">
+                    {taskData
+                      .filter(t => t.assignees.some(a => a.id === selectedAssignee.id))
+                      .map((task, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{task.day}</p>
+                            <p className="text-sm text-gray-600">{task.tasks} tasks assigned</p>
+                          </div>
+                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                            Active
+                          </span>
+                        </div>
+                      ))}
+                    {taskData.filter(t => t.assignees.some(a => a.id === selectedAssignee.id)).length === 0 && (
+                      <p className="text-gray-600 text-center py-4">No current tasks assigned</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Status</h4>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Current Status</span>
+                    <span className={`inline-flex px-3 py-1 text-sm font-medium rounded-full ${
+                      selectedAssignee.status === 'active' ? 'bg-green-100 text-green-800' :
+                      selectedAssignee.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedAssignee.status || 'active'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
-              <button
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+              <ModernButton
+                variant="outline"
                 onClick={() => setShowAssigneeModal(false)}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Close
-              </button>
-              <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+              </ModernButton>
+              <ModernButton
+                variant="primary"
+              >
                 View Full Profile
-              </button>
+              </ModernButton>
             </div>
           </div>
         </div>
@@ -433,80 +457,90 @@ export const TasksAndFunnel: React.FC = () => {
 
       {/* Task Management Modal */}
       {showTaskModal && selectedDay && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Task Management - October {selectedDay}
-              </h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Calendar className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Task Management</h2>
+                  <p className="text-gray-600">October {selectedDay}</p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowTaskModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                ✕
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter task title..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+            <div className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Task Title
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter task title..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  placeholder="Enter task description..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    placeholder="Enter task description..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Assign To
-                </label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                  <option value="">Select assignee...</option>
-                  {[...new Map(taskData.flatMap(t => t.assignees).map(a => [a.id, a])).values()].map((assignee) => (
-                    <option key={assignee.id} value={assignee.id}>
-                      {assignee.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assign To
+                  </label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Select assignee...</option>
+                    {[...new Map(taskData.flatMap(t => t.assignees).map(a => [a.id, a])).values()].map((assignee) => (
+                      <option key={assignee.id} value={assignee.id}>
+                        {assignee.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Priority
-                </label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Priority
+                  </label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
-              <button
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+              <ModernButton
+                variant="outline"
                 onClick={() => setShowTaskModal(false)}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancel
-              </button>
-              <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+              </ModernButton>
+              <ModernButton
+                variant="primary"
+              >
                 Create Task
-              </button>
+              </ModernButton>
             </div>
           </div>
         </div>
