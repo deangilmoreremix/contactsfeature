@@ -81,7 +81,7 @@ class AIEnrichmentService {
     // Check if any providers are configured before making the request
     if (!this.hasConfiguredProviders()) {
       logger.warn(`No AI providers configured for email enrichment: ${email}`);
-      return this.generateMockData({ email }, options.isMockData);
+      return this.generateMockData({ email, isMockData: options.isMockData });
     }
 
     try {
@@ -93,12 +93,8 @@ class AIEnrichmentService {
           useRealAI: shouldUseRealAI,
           isMockData: options.isMockData
         },
-        {
-          timeout: 30000,
-          retries: 2,
-          headers: {
-            'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-          }
+        headers: {
+          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
         }
       });
 
@@ -115,7 +111,7 @@ class AIEnrichmentService {
     } catch (error) {
       logger.error('Contact enrichment by email failed', error as Error);
       // Return graceful fallback data instead of throwing error
-      return this.generateMockData({ email }, options.isMockData);
+      return this.generateMockData({ email, isMockData: options.isMockData });
     }
   }
 
