@@ -7,6 +7,7 @@ import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOv
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
+import { gpt5ToolsService } from '../../services/gpt5ToolsService';
 import {
   Mail,
   Phone,
@@ -196,9 +197,44 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         });
         setIsComposing(true);
         console.log('Generated email with web research:', result);
-      } else {
-        // For non-email types, we'll implement later
-        console.log(`${type} composition with web research coming soon...`);
+      } else if (type === 'sms') {
+        researchThinking.moveToOptimizing('📱 Generating personalized SMS...');
+
+        if (!contact.phone) {
+          throw new Error('Contact does not have a phone number for SMS');
+        }
+
+        // Generate SMS content using GPT-5
+        const smsResult = await gpt5ToolsService.sendSMS({
+          to: contact.phone,
+          message: `Hi ${contact.firstName || contact.name}, following up on our recent conversation. Would you be available for a quick call this week?`
+        });
+
+        if (smsResult.success && smsResult.smsAppUrl) {
+          window.open(smsResult.smsAppUrl, '_blank');
+          alert('SMS app opened with your personalized message!');
+        } else {
+          alert(smsResult.message || 'Failed to prepare SMS');
+        }
+      } else if (type === 'call') {
+        researchThinking.moveToOptimizing('📞 Preparing call with research insights...');
+
+        if (!contact.phone) {
+          throw new Error('Contact does not have a phone number for calling');
+        }
+
+        // Prepare call with GPT-5 enhanced notes
+        const callResult = await gpt5ToolsService.makeCall({
+          to: contact.phone,
+          notes: `Call preparation for ${contact.firstName || contact.name} at ${contact.company}. Recent research: ${searchResults.content.substring(0, 200)}...`
+        });
+
+        if (callResult.success && callResult.callUrl) {
+          window.open(callResult.callUrl, '_blank');
+          alert('Calling app opened with research insights!');
+        } else {
+          alert(callResult.message || 'Failed to prepare call');
+        }
       }
 
       researchThinking.complete('✅ Communication prepared with web intelligence!');

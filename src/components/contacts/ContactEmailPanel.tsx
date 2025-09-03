@@ -11,11 +11,12 @@ import { EmailAnalyzer } from '../email/EmailAnalyzer';
 import { EmailTemplateSelector } from '../email/EmailTemplateSelector';
 import { SocialMessageGenerator } from '../email/SocialMessageGenerator';
 import { webSearchService } from '../../services/webSearchService';
-import { 
-  Mail, 
-  MessageSquare, 
-  FileText, 
-  BarChart3, 
+import { gpt5ToolsService } from '../../services/gpt5ToolsService';
+import {
+  Mail,
+  MessageSquare,
+  FileText,
+  BarChart3,
   ArrowRight,
   ExternalLink,
   Send,
@@ -116,13 +117,41 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
       researchThinking.complete('❌ Email generation failed');
     }
   };
-  const handleSendEmail = () => {
-    // In a real implementation, this would send the email via API
-    console.log('Sending email:', { subject: emailSubject, body: emailBody });
-    alert('Email would be sent in a real implementation');
-    setEmailSubject('');
-    setEmailBody('');
-    setIsDrafting(false);
+  const handleSendEmail = async () => {
+    if (!emailSubject.trim() || !emailBody.trim()) {
+      alert('Please enter both subject and body for the email');
+      return;
+    }
+
+    if (!contact.email) {
+      alert('Contact does not have an email address');
+      return;
+    }
+
+    try {
+      // Use GPT-5 tools to send email via Gmail
+      const result = await gpt5ToolsService.sendEmail({
+        to: contact.email,
+        subject: emailSubject,
+        body: emailBody
+      });
+
+      if (result.success && result.gmailUrl) {
+        // Open Gmail compose window
+        window.open(result.gmailUrl, '_blank');
+        alert('Gmail compose window opened with your email draft!');
+      } else {
+        alert(result.message || 'Failed to prepare email');
+      }
+
+      // Clear the draft
+      setEmailSubject('');
+      setEmailBody('');
+      setIsDrafting(false);
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      alert('Failed to send email. Please try again.');
+    }
   };
 
   const handleDiscardDraft = () => {

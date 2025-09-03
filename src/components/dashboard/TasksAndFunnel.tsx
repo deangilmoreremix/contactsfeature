@@ -159,6 +159,9 @@ const CalendarDay: React.FC<{
 
 export const TasksAndFunnel: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedAssignee, setSelectedAssignee] = useState<any>(null);
+  const [showAssigneeModal, setShowAssigneeModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const today = new Date().getDate();
 
   // Mock calendar data - for each day, randomly assign avatars based on our contacts
@@ -180,15 +183,21 @@ export const TasksAndFunnel: React.FC = () => {
   });
 
   const handleAssigneeClick = (id: string) => {
-    console.log(`Clicked on assignee: ${id}`);
-    // In a real implementation, this would open the contact details modal
-    // You could call the onContactsClick function from props here
+    // Find the assignee details from our task data
+    const allAssignees = taskData.flatMap(t => t.assignees);
+    const assignee = allAssignees.find(a => a.id === id);
+
+    if (assignee) {
+      setSelectedAssignee(assignee);
+      setShowAssigneeModal(true);
+      console.log(`Opening assignee details for: ${assignee.name}`);
+    }
   };
 
   const handleDayClick = (day: number) => {
     setSelectedDay(day);
-    console.log(`Clicked on day: ${day}`);
-    // In a real implementation, this might open a modal to create/view tasks for this day
+    setShowTaskModal(true);
+    console.log(`Opening task management for day: ${day}`);
   };
 
   return (
@@ -251,30 +260,36 @@ export const TasksAndFunnel: React.FC = () => {
         </div>
 
         {/* Selected Day Details */}
-        {selectedDay && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center justify-between mb-2">
-              <h5 className="font-semibold text-blue-800">October {selectedDay}</h5>
-              <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-sm text-blue-700">
-              {calendarData[selectedDay - 1].assignees.length > 0
-                ? `${calendarData[selectedDay - 1].assignees.length} assignees with scheduled tasks`
-                : 'No tasks scheduled for this day'}
-            </p>
-            {calendarData[selectedDay - 1].assignees.length > 0 && (
-              <div className="mt-2 flex items-center space-x-2">
-                <TaskAssignees 
-                  assignees={calendarData[selectedDay - 1].assignees}
-                  maxVisible={5}
-                  onClick={handleAssigneeClick}
-                />
+        {selectedDay && calendarData[selectedDay - 1] && (() => {
+          const currentDayData = calendarData[selectedDay - 1]!;
+          return (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="font-semibold text-blue-800">October {selectedDay}</h5>
+                <button
+                  className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                  onClick={() => setShowTaskModal(true)}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
-            )}
-          </div>
-        )}
+              <p className="text-sm text-blue-700">
+                {currentDayData.assignees.length > 0
+                  ? `${currentDayData.assignees.length} assignees with scheduled tasks`
+                  : 'No tasks scheduled for this day'}
+              </p>
+              {currentDayData.assignees.length > 0 && (
+                <div className="mt-2 flex items-center space-x-2">
+                  <TaskAssignees
+                    assignees={currentDayData.assignees}
+                    maxVisible={5}
+                    onClick={handleAssigneeClick}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </GlassCard>
 
       {/* Stage Funnel */}
@@ -346,6 +361,156 @@ export const TasksAndFunnel: React.FC = () => {
           </div>
         </div>
       </GlassCard>
+
+      {/* Assignee Details Modal */}
+      {showAssigneeModal && selectedAssignee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Assignee Details</h3>
+              <button
+                onClick={() => setShowAssigneeModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-3 mb-4">
+              <AvatarWithStatus
+                src={selectedAssignee.avatar}
+                alt={selectedAssignee.name}
+                size="md"
+                status={selectedAssignee.status as any || 'active'}
+              />
+              <div>
+                <h4 className="font-semibold text-gray-900">{selectedAssignee.name}</h4>
+                <p className="text-sm text-gray-600">Team Member</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Tasks
+                </label>
+                <div className="text-sm text-gray-600">
+                  {taskData
+                    .filter(t => t.assignees.some(a => a.id === selectedAssignee.id))
+                    .map(t => `${t.tasks} tasks on ${t.day}`)
+                    .join(', ') || 'No current tasks'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                  selectedAssignee.status === 'active' ? 'bg-green-100 text-green-800' :
+                  selectedAssignee.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {selectedAssignee.status || 'active'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowAssigneeModal(false)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+              <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                View Full Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Management Modal */}
+      {showTaskModal && selectedDay && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Task Management - October {selectedDay}
+              </h3>
+              <button
+                onClick={() => setShowTaskModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter task title..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Enter task description..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign To
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="">Select assignee...</option>
+                  {[...new Map(taskData.flatMap(t => t.assignees).map(a => [a.id, a])).values()].map((assignee) => (
+                    <option key={assignee.id} value={assignee.id}>
+                      {assignee.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Priority
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowTaskModal(false)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                Create Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
