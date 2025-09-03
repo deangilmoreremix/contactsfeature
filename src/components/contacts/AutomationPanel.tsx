@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { CitationBadge } from '../ui/CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { webSearchService } from '../../services/webSearchService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
@@ -153,6 +157,11 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
 
+   // Research state management
+   const researchThinking = useResearchThinking();
+   const researchStatus = useResearchStatus();
+   const [researchSources, setResearchSources] = useState<any[]>([]);
+
   const tabs = [
     { id: 'active', label: 'Active Rules', icon: Play },
     { id: 'suggestions', label: 'AI Suggestions', icon: Brain },
@@ -167,17 +176,59 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   };
 
   const handleGenerateSuggestions = async () => {
+    researchThinking.startResearch('🔍 Researching company for automation opportunities...');
+
     try {
       setLoading(true);
       setError(null);
 
+      researchThinking.moveToAnalyzing('🌐 Analyzing company news and industry trends...');
+
+      // Perform web search for company and industry context
+      const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} company news industry trends automation opportunities`;
+      const systemPrompt = `You are an automation strategist. Analyze this contact's company and industry to suggest intelligent automation opportunities. Focus on triggers based on company events, industry trends, and contact behavior patterns.`;
+      const userPrompt = `Analyze ${contact.firstName} ${contact.lastName} at ${contact.company} for automation opportunities. Suggest intelligent triggers based on company news, industry trends, and optimal automation timing.`;
+
+      const searchResults = await webSearchService.searchWithAI(
+        searchQuery,
+        systemPrompt,
+        userPrompt,
+        {
+          includeSources: true,
+          searchContextSize: 'high'
+        }
+      );
+
+      researchThinking.moveToSynthesizing('🤖 Generating intelligent automation suggestions...');
+
+      // Convert search results to citations
+      const sources = searchResults.sources.map(source => ({
+        url: source.url,
+        title: source.title,
+        domain: source.domain,
+        type: 'company' as const,
+        confidence: 85,
+        timestamp: new Date(),
+        snippet: searchResults.content.substring(0, 200) + '...'
+      }));
+
+      setResearchSources(sources);
+
+      // Generate automation suggestions with enhanced context
       const result = await edgeFunctionService.getAutomationRules(contact.id || 'test-contact-123', {
         action: 'suggestions',
-        contactData: contact
+        contactData: contact,
+        webResearch: searchResults.content,
+        companyContext: searchResults.sources
       });
+
       setSuggestions(result.data || []);
+
+      researchThinking.complete('✅ Intelligent automation suggestions generated!');
+
     } catch (error) {
       console.error('Failed to generate automation suggestions:', error);
+      researchThinking.complete('❌ Failed to generate suggestions');
       setError('Failed to generate automation suggestions');
     } finally {
       setLoading(false);
@@ -196,7 +247,16 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   };
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -582,5 +642,6 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         </div>
       )}
     </div>
+    </>
   );
 };

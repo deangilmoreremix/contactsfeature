@@ -133,7 +133,10 @@ export const EnhancedNavbar: React.FC = () => {
             <button className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">
               Pipeline
             </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">
+            <button
+              onClick={() => window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank')}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+            >
               AI Goals
             </button>
             

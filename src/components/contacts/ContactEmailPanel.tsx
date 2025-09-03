@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { useCommunicationAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { CitationBadge } from '../ui/CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { AIEmailGenerator } from '../email/AIEmailGenerator';
 import { EmailAnalyzer } from '../email/EmailAnalyzer';
 import { EmailTemplateSelector } from '../email/EmailTemplateSelector';
 import { SocialMessageGenerator } from '../email/SocialMessageGenerator';
+import { webSearchService } from '../../services/webSearchService';
 import { 
   Mail, 
   MessageSquare, 
@@ -29,13 +33,18 @@ interface ContactEmailPanelProps {
 type ActiveTab = 'compose' | 'templates' | 'analyzer' | 'social';
 
 export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('compose');
-  const [emailSubject, setEmailSubject] = useState('');
-  const [emailBody, setEmailBody] = useState('');
-  const [isDrafting, setIsDrafting] = useState(false);
-  
-  // Connect to Communication AI
-  const { generateEmail, analyzeEmail, isProcessing } = useCommunicationAI();
+   const [activeTab, setActiveTab] = useState<ActiveTab>('compose');
+   const [emailSubject, setEmailSubject] = useState('');
+   const [emailBody, setEmailBody] = useState('');
+   const [isDrafting, setIsDrafting] = useState(false);
+
+   // Connect to Communication AI
+   const { generateEmail, analyzeEmail, isProcessing } = useCommunicationAI();
+
+   // Research state management
+   const researchThinking = useResearchThinking();
+   const researchStatus = useResearchStatus();
+   const [researchSources, setResearchSources] = useState<any[]>([]);
 
   const handleSelectTemplate = (subject: string, body: string) => {
     setEmailSubject(subject);
@@ -51,20 +60,60 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
   };
 
   const handleQuickGenerate = async (purpose: 'introduction' | 'follow-up' | 'proposal') => {
+    researchThinking.startResearch(`🔍 Researching ${contact.company} for ${purpose} email...`);
+
     try {
+      researchThinking.moveToAnalyzing('🌐 Analyzing company news and context...');
+
+      // Perform web search for contextual email content
+      const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} recent news company updates ${purpose} communication preferences`;
+      const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective ${purpose} communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies for ${purpose} emails.`;
+      const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${purpose} email. Find recent company news, leadership information, communication preferences, and optimal timing for ${purpose} contact.`;
+
+      const searchResults = await webSearchService.searchWithAI(
+        searchQuery,
+        systemPrompt,
+        userPrompt,
+        {
+          includeSources: true,
+          searchContextSize: 'high'
+        }
+      );
+
+      researchThinking.moveToSynthesizing('📧 Generating personalized email content...');
+
+      // Convert search results to citations
+      const sources = searchResults.sources.map(source => ({
+        url: source.url,
+        title: source.title,
+        domain: source.domain,
+        type: 'company' as const,
+        confidence: 85,
+        timestamp: new Date(),
+        snippet: searchResults.content.substring(0, 200) + '...'
+      }));
+
+      setResearchSources(sources);
+
       const emailData = await generateEmail(contact, purpose, {
         tone: 'professional',
-        urgency: 'medium'
+        urgency: 'medium',
+        webResearch: searchResults.content,
+        companyContext: searchResults.sources
       });
-      
+
       if (emailData) {
         setEmailSubject(emailData.subject);
         setEmailBody(emailData.body);
         setIsDrafting(true);
         setActiveTab('compose');
       }
+
+      researchThinking.complete('✅ Research-powered email generated!');
+
     } catch (error) {
       console.error('Quick email generation failed:', error);
+      researchThinking.complete('❌ Email generation failed');
     }
   };
   const handleSendEmail = () => {
@@ -92,7 +141,16 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
   ];
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -315,5 +373,6 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
         </div>
       )}
     </div>
+    </>
   );
 };

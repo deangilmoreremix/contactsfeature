@@ -4,8 +4,12 @@ import { AvatarUpload } from '../ui/AvatarUpload';
 import { ModernButton } from '../ui/ModernButton';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { AIResearchButton } from '../ui/AIResearchButton';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { CitationBadge } from '../ui/CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { aiEnrichmentService, ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { contactService } from '../../services/contactService';
+import { webSearchService } from '../../services/webSearchService';
 import { ContactJourneyTimeline } from '../contacts/ContactJourneyTimeline';
 import { AIInsightsPanel } from '../contacts/AIInsightsPanel';
 import { CommunicationHub } from '../contacts/CommunicationHub';
@@ -13,6 +17,7 @@ import { AutomationPanel } from '../contacts/AutomationPanel';
 import { ContactAnalytics } from '../contacts/ContactAnalytics';
 import { ContactEmailPanel } from '../contacts/ContactEmailPanel';
 import { Contact } from '../../types/contact';
+import { contactAI } from '../../services/contact-ai.service';
 import {
   X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar, MoreHorizontal,
   User, Globe, Clock, Building, Tag, Star, ExternalLink, Brain, TrendingUp,
@@ -63,11 +68,11 @@ const socialPlatforms = [
   { icon: Instagram, color: 'bg-pink-500', name: 'Instagram', key: 'instagram' },
 ];
 
-export const ContactDetailView: React.FC<ContactDetailViewProps> = ({ 
-  contact, 
-  isOpen, 
-  onClose, 
-  onUpdate 
+export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
+  contact,
+  isOpen,
+  onClose,
+  onUpdate
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
@@ -86,6 +91,11 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const [showAddSource, setShowAddSource] = useState(false);
   const [addSource, setAddSource] = useState('');
   const [editInterestLevel, setEditInterestLevel] = useState(false);
+
+  // Research state management
+  const researchThinking = useResearchThinking();
+  const researchStatus = useResearchStatus();
+  const [researchSources, setResearchSources] = useState<any[]>([]);
 
   useEffect(() => {
     setEditedContact(contact);
@@ -361,19 +371,84 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   };
 
   const handleAnalyzeContact = async () => {
+    // Check if this is mock data
+    const isMockData = editedContact.isMockData || editedContact.dataSource === 'mock' || editedContact.createdBy === 'demo';
+
+    if (isMockData) {
+      alert('This is a demo contact. AI analysis is disabled for mock data to preserve the demo experience.');
+      return;
+    }
+
     setIsAnalyzing(true);
+    researchThinking.startResearch('🧠 Analyzing contact with AI...');
+
     try {
-      // Simulate AI analysis
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const newScore = Math.floor(Math.random() * 40) + 60; // Random score between 60-100
-      const updatedContact = { ...editedContact, aiScore: newScore };
+      researchThinking.moveToAnalyzing('🔍 Researching background information...');
+
+      // Perform web search for additional context
+      const searchQuery = `${editedContact.company} ${editedContact.firstName} ${editedContact.lastName} leadership company news industry`;
+      const systemPrompt = `You are an expert business analyst. Analyze this contact's background, company performance, industry position, and potential as a business prospect. Provide detailed insights for sales qualification.`;
+      const userPrompt = `Analyze this contact: ${editedContact.firstName} ${editedContact.lastName} at ${editedContact.company}. Provide insights on their role, company performance, industry trends, and sales potential.`;
+
+      const searchResults = await webSearchService.searchWithAI(
+        searchQuery,
+        systemPrompt,
+        userPrompt,
+        {
+          includeSources: true,
+          searchContextSize: 'high'
+        }
+      );
+
+      researchThinking.moveToSynthesizing('📊 Synthesizing analysis results...');
+
+      // Convert search results to citations
+      const sources = searchResults.sources.map(source => ({
+        url: source.url,
+        title: source.title,
+        domain: source.domain,
+        type: 'company' as const,
+        confidence: 85,
+        timestamp: new Date(),
+        snippet: searchResults.content.substring(0, 200) + '...'
+      }));
+
+      setResearchSources(sources);
+
+      // Use enhanced AI analysis with web research context
+      const score = await contactAI.scoreContact(editedContact, {
+        businessGoals: ['lead_qualification', 'opportunity_identification'],
+        industryContext: searchResults.content,
+        competitorInfo: searchResults.sources
+      });
+
+      const newScore = Math.round(score.overall);
+
+      researchThinking.moveToOptimizing('✨ Finalizing AI score...');
+
+      const updatedContact = {
+        ...editedContact,
+        aiScore: newScore,
+        notes: editedContact.notes ?
+          `${editedContact.notes}\n\nAI Analysis (${new Date().toLocaleDateString()}): ${score.reasoning.join('. ')}` :
+          `AI Analysis (${new Date().toLocaleDateString()}): ${score.reasoning.join('. ')}`
+      };
+
       setEditedContact(updatedContact);
-      
+
       if (onUpdate) {
-        await onUpdate(contact.id, { aiScore: newScore });
+        await onUpdate(contact.id, {
+          aiScore: newScore,
+          notes: updatedContact.notes
+        });
       }
+
+      researchThinking.complete('✅ AI analysis complete with web research!');
+
     } catch (error) {
       console.error('Analysis failed:', error);
+      researchThinking.complete('❌ Analysis failed - using basic scoring');
+      alert('AI analysis failed. Please check your internet connection and try again.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -468,60 +543,138 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-2 animate-fade-in"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-    >
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div
+        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-2 animate-fade-in"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
       {/* Enlarged Modal Container */}
       <div className="bg-white rounded-xl w-full max-w-[95vw] h-[95vh] overflow-hidden flex animate-scale-in shadow-2xl">
         {/* Enhanced Customer Profile Sidebar */}
         <div className="w-80 bg-gradient-to-b from-gray-50 via-white to-gray-50 border-r border-gray-200 flex flex-col h-full">
           {/* Fixed Header with AI Features */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center">
-              Customer Profile
-              <Sparkles className="w-4 h-4 ml-2 text-purple-500" />
-            </h2>
-            <div className="flex space-x-2">
-              <AIResearchButton
-                searchType="auto"
-                searchQuery={{
-                  email: editedContact.email,
-                  firstName: editedContact.firstName,
-                  lastName: editedContact.lastName,
-                  company: editedContact.company,
-                  linkedinUrl: editedContact.socialProfiles?.linkedin
-                }}
-                onDataFound={handleAIEnrichment}
-                variant="outline"
-                size="sm"
-                className="p-2 bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
-              />
-              <button
-                onClick={handleAnalyzeContact}
-                disabled={isAnalyzing}
-                className="p-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors disabled:opacity-50 relative"
-                title="AI Analysis"
-              >
-                <Brain className="w-4 h-4" />
-                {isAnalyzing && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  </div>
-                )}
-              </button>
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
+           <h2 className="text-lg font-bold text-gray-900 flex items-center">
+             Customer Profile
+             <Sparkles className="w-4 h-4 ml-2 text-purple-500" />
+           </h2>
+           <div className="flex space-x-2">
+             {/* Enhanced AI Research Button with Web Search */}
+             <button
+               onClick={async () => {
+                 researchStatus.startResearch('🔍 Researching contact background...');
+
+                 try {
+                   // Perform web search for company and contact information
+                   const searchQuery = `${editedContact.company} ${editedContact.firstName} ${editedContact.lastName} executive leadership news`;
+                   const systemPrompt = `You are a business intelligence researcher. Find comprehensive information about this contact and their company. Focus on recent news, leadership changes, company performance, and industry context.`;
+                   const userPrompt = `Research this contact: ${editedContact.firstName} ${editedContact.lastName} at ${editedContact.company}. Find recent news, company updates, leadership information, and industry context.`;
+
+                   researchStatus.updateStatus({
+                     stage: 'researching',
+                     message: '🌐 Searching web for company information...'
+                   });
+
+                   const searchResults = await webSearchService.searchWithAI(
+                     searchQuery,
+                     systemPrompt,
+                     userPrompt,
+                     {
+                       includeSources: true,
+                       searchContextSize: 'high'
+                     }
+                   );
+
+                   researchStatus.updateStatus({
+                     stage: 'analyzing',
+                     message: '🧠 Analyzing research data...',
+                     progress: 50
+                   });
+
+                   // Convert search results to citation format
+                   const sources = searchResults.sources.map(source => ({
+                     url: source.url,
+                     title: source.title,
+                     domain: source.domain,
+                     type: 'company' as const,
+                     confidence: 85,
+                     timestamp: new Date(),
+                     snippet: searchResults.content.substring(0, 200) + '...'
+                   }));
+
+                   researchStatus.addSources(sources);
+
+                   // Extract insights from search results
+                   const insights = searchResults.content;
+                   const enrichmentData: ContactEnrichmentData = {
+                     firstName: editedContact.firstName,
+                     lastName: editedContact.lastName,
+                     email: editedContact.email,
+                     company: editedContact.company,
+                     notes: `AI Research: ${insights}`,
+                     confidence: searchResults.searchMetadata.modelUsed === 'gpt-5' ? 95 : 85
+                   };
+
+                   researchStatus.updateStatus({
+                     stage: 'synthesizing',
+                     message: '✨ Synthesizing insights...',
+                     progress: 75
+                   });
+
+                   await handleAIEnrichment(enrichmentData);
+
+                   researchStatus.complete('✅ Research complete! Enhanced with web intelligence.');
+
+                 } catch (error) {
+                   console.error('Web research failed:', error);
+                   researchStatus.setError('Research failed. Using cached data instead.');
+                 }
+               }}
+               disabled={researchStatus.status.isActive}
+               className="p-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50 relative"
+               title="AI Web Research"
+             >
+               <Search className="w-4 h-4" />
+               {researchStatus.status.isActive && (
+                 <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="animate-spin w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full"></div>
+                 </div>
+               )}
+             </button>
+
+             <button
+               onClick={handleAnalyzeContact}
+               disabled={isAnalyzing}
+               className="p-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors disabled:opacity-50 relative"
+               title="AI Analysis"
+             >
+               <Brain className="w-4 h-4" />
+               {isAnalyzing && (
+                 <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                 </div>
+               )}
+             </button>
+             <button
+               onClick={onClose}
+               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+             >
+               <X className="w-5 h-5" />
+             </button>
+           </div>
+         </div>
 
           {/* Scrollable Content Area */}
           <div className="flex-1 overflow-y-auto">
@@ -599,7 +752,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
               
               {/* AI Goals Button */}
               <div className="mb-3">
-                <button className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105">
+                <button
+                  onClick={() => window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank')}
+                  className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105"
+                >
                   <Target className="w-4 h-4 mr-2" />
                   AI Goals
                 </button>
@@ -659,30 +815,106 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* AI Auto-Enrich Button */}
-              <button 
-                onClick={() => {
-                  if (lastEnrichment) {
-                    handleAIEnrichment(lastEnrichment);
-                  } else {
-                    const mockEnrichment: ContactEnrichmentData = {
+              {/* Enhanced AI Auto-Enrich Button */}
+              <button
+                onClick={async () => {
+                  researchStatus.startResearch('🔍 Starting intelligent enrichment...');
+
+                  try {
+                    researchStatus.updateStatus({
+                      stage: 'researching',
+                      message: '🌐 Searching for contact information...'
+                    });
+
+                    // Perform comprehensive web search for contact enrichment
+                    const searchQuery = `${editedContact.firstName} ${editedContact.lastName} ${editedContact.company} contact information phone email linkedin`;
+                    const systemPrompt = `You are a professional contact researcher. Find comprehensive contact information including phone numbers, email addresses, social profiles, and professional details. Focus on accuracy and current information.`;
+                    const userPrompt = `Find detailed contact information for ${editedContact.firstName} ${editedContact.lastName} who works at ${editedContact.company}. Include phone numbers, email addresses, LinkedIn profiles, and other professional contact details.`;
+
+                    const searchResults = await webSearchService.searchWithAI(
+                      searchQuery,
+                      systemPrompt,
+                      userPrompt,
+                      {
+                        includeSources: true,
+                        searchContextSize: 'high'
+                      }
+                    );
+
+                    researchStatus.updateStatus({
+                      stage: 'analyzing',
+                      message: '🧠 Analyzing contact data...',
+                      progress: 50
+                    });
+
+                    // Extract contact information from search results
+                    const enrichmentData: ContactEnrichmentData = {
                       firstName: editedContact.firstName,
                       lastName: editedContact.lastName,
                       email: editedContact.email,
                       company: editedContact.company,
-                      phone: editedContact.phone || `+1-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-                      industry: editedContact.industry || ['Technology', 'Finance', 'Healthcare', 'Education'][Math.floor(Math.random() * 4)],
-                      notes: "Auto-enriched with AI on " + new Date().toLocaleDateString(),
-                      confidence: 85
+                      phone: searchResults.content.match(/\+?1?[-.\s]?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/)?.[0] || editedContact.phone,
+                      industry: editedContact.industry,
+                      notes: `AI Web Research (${new Date().toLocaleDateString()}): ${searchResults.content.substring(0, 500)}...`,
+                      confidence: searchResults.searchMetadata.modelUsed === 'gpt-5' ? 95 : 85
                     };
-                    handleAIEnrichment(mockEnrichment);
+
+                    // Add social profiles if found
+                    const linkedinMatch = searchResults.content.match(/linkedin\.com\/in\/([a-zA-Z0-9-]+)/);
+                    if (linkedinMatch && !editedContact.socialProfiles?.linkedin) {
+                      enrichmentData.socialProfiles = {
+                        linkedin: `https://linkedin.com/in/${linkedinMatch[1]}`
+                      };
+                    }
+
+                    researchStatus.updateStatus({
+                      stage: 'synthesizing',
+                      message: '✨ Synthesizing enrichment data...',
+                      progress: 75
+                    });
+
+                    // Convert search results to citations
+                    const sources = searchResults.sources.map(source => ({
+                      url: source.url,
+                      title: source.title,
+                      domain: source.domain,
+                      type: 'company' as const,
+                      confidence: 85,
+                      timestamp: new Date(),
+                      snippet: searchResults.content.substring(0, 200) + '...'
+                    }));
+
+                    researchStatus.addSources(sources);
+
+                    await handleAIEnrichment(enrichmentData);
+
+                    researchStatus.complete('✅ Contact enriched with web intelligence!');
+
+                  } catch (error) {
+                    console.error('Auto-enrichment failed:', error);
+                    researchStatus.setError('Enrichment failed. Using basic data.');
+
+                    // Fallback to basic enrichment
+                    if (lastEnrichment) {
+                      await handleAIEnrichment(lastEnrichment);
+                    }
                   }
                 }}
-                className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105"
+                disabled={researchStatus.status.isActive}
+                className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-purple-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
               >
-                <Wand2 className="w-4 h-4 mr-2" />
-                AI Auto-Enrich
-                <Sparkles className="w-3 h-3 ml-2 text-yellow-300" />
+                {researchStatus.status.isActive ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                    Researching...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4 mr-2" />
+                    AI Auto-Enrich
+                    <Sparkles className="w-3 h-3 ml-2 text-yellow-300" />
+                  </>
+                )}
               </button>
             </div>
 
@@ -858,9 +1090,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                           const Icon = social.icon;
                           const profileUrl = editedContact.socialProfiles?.[social.key];
                           return (
-                            <div 
-                              key={index} 
-                              className={`${social.color} p-1 rounded-md text-white ${profileUrl ? '' : 'opacity-50'} hover:opacity-80 transition-opacity cursor-pointer`}
+                            <div
+                              key={index}
+                              className={`${social.color} p-1 rounded-md text-white ${profileUrl ? '' : 'opacity-50'} hover:opacity-80 transition-opacity cursor-pointer relative group`}
                               title={profileUrl ? `${social.name}: ${profileUrl}` : `Add ${social.name}`}
                               onClick={() => {
                                 if (profileUrl) {
@@ -1275,15 +1507,16 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                       <Globe className="w-5 h-5 mr-2 text-green-500" />
-                      Social Profiles
+                      Social Profiles & AI Research
                     </h4>
-                    <button 
-                      onClick={() => setShowAddSocial(true)} 
+                    <button
+                      onClick={() => setShowAddSocial(true)}
                       className="text-gray-400 hover:text-gray-600"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
+
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {socialPlatforms.map((platform, index) => {
@@ -1483,5 +1716,6 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };

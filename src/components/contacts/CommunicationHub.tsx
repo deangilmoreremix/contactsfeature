@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { CitationBadge } from '../ui/CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
+import { webSearchService } from '../../services/webSearchService';
 import {
   Mail,
   Phone,
@@ -122,6 +126,11 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
 
+   // Research state management
+   const researchThinking = useResearchThinking();
+   const researchStatus = useResearchStatus();
+   const [researchSources, setResearchSources] = useState<any[]>([]);
+
   const tabs = [
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'compose', label: 'Compose', icon: Send },
@@ -138,23 +147,65 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
     { value: 'social', label: 'Social Media' }
   ];
   const handleQuickCompose = async (type: 'email' | 'call' | 'sms') => {
+    researchThinking.startResearch(`🔍 Researching ${contact.company} for ${type} communication...`);
+
     try {
       setLoading(true);
       setError(null);
 
+      // Perform web research for contextual communication
+      researchThinking.moveToAnalyzing('🌐 Analyzing company news and context...');
+
+      const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} recent news company updates leadership communication preferences`;
+      const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies.`;
+      const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${type} communication. Find recent company news, leadership information, communication preferences, and optimal timing for ${type} contact.`;
+
+      const searchResults = await webSearchService.searchWithAI(
+        searchQuery,
+        systemPrompt,
+        userPrompt,
+        {
+          includeSources: true,
+          searchContextSize: 'high'
+        }
+      );
+
+      researchThinking.moveToSynthesizing('✨ Synthesizing communication insights...');
+
+      // Convert search results to citations
+      const sources = searchResults.sources.map(source => ({
+        url: source.url,
+        title: source.title,
+        domain: source.domain,
+        type: 'company' as const,
+        confidence: 85,
+        timestamp: new Date(),
+        snippet: searchResults.content.substring(0, 200) + '...'
+      }));
+
+      setResearchSources(sources);
+
       if (type === 'email') {
+        researchThinking.moveToOptimizing('📧 Generating personalized email...');
+
         const result = await edgeFunctionService.composeEmail(contact, 'follow-up', {
           tone: 'professional',
-          urgency: 'medium'
+          urgency: 'medium',
+          webResearch: searchResults.content,
+          companyContext: searchResults.sources
         });
         setIsComposing(true);
-        console.log('Generated email:', result);
+        console.log('Generated email with web research:', result);
       } else {
         // For non-email types, we'll implement later
-        console.log(`${type} composition coming soon...`);
+        console.log(`${type} composition with web research coming soon...`);
       }
+
+      researchThinking.complete('✅ Communication prepared with web intelligence!');
+
     } catch (error) {
       console.error(`Failed to generate ${type}:`, error);
+      researchThinking.complete('❌ Communication generation failed');
       setError(`Failed to generate ${type}`);
     } finally {
       setLoading(false);
@@ -194,7 +245,16 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
   };
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -410,5 +470,6 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         </div>
       </div>
     </div>
+    </>
   );
 };

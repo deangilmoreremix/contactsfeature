@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { CitationBadge } from '../ui/CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
+import { webSearchService } from '../../services/webSearchService';
 import {
   BarChart3,
   TrendingUp,
@@ -74,23 +78,69 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
 
+   // Research state management
+   const researchThinking = useResearchThinking();
+   const researchStatus = useResearchStatus();
+   const [researchSources, setResearchSources] = useState<any[]>([]);
+
    useEffect(() => {
      loadAnalyticsData();
    }, [contact, timeRange]);
 
    const loadAnalyticsData = async () => {
+     researchThinking.startResearch('🔍 Researching industry and company analytics...');
+
      try {
        setLoading(true);
        setError(null);
 
-       const result = await edgeFunctionService.getAnalyticsData(contact.id || 'test-contact-123', {
+       researchThinking.moveToAnalyzing('🌐 Analyzing industry trends and benchmarks...');
+
+       // Perform web search for industry and company analytics
+       const searchQuery = `${contact.company} ${contact.industry} industry trends market analysis company performance financials`;
+       const systemPrompt = `You are a business intelligence analyst. Research this company's industry trends, market position, financial performance, and competitive landscape. Provide detailed analytics and insights for sales intelligence.`;
+       const userPrompt = `Research ${contact.company} in the ${contact.industry} industry. Provide market analysis, industry trends, company performance metrics, competitive positioning, and sales intelligence insights.`;
+
+       const searchResults = await webSearchService.searchWithAI(
+         searchQuery,
+         systemPrompt,
+         userPrompt,
+         {
+           includeSources: true,
+           searchContextSize: 'high'
+         }
+       );
+
+       researchThinking.moveToSynthesizing('📊 Synthesizing analytics with industry data...');
+
+       // Convert search results to citations
+       const sources = searchResults.sources.map(source => ({
+         url: source.url,
+         title: source.title,
+         domain: source.domain,
+         type: 'company' as const,
+         confidence: 85,
+         timestamp: new Date(),
+         snippet: searchResults.content.substring(0, 200) + '...'
+       }));
+
+       setResearchSources(sources);
+
+       // Load analytics with enhanced context
+       const result = await edgeFunctionService.createAnalyticsData(contact.id || 'test-contact-123', {
          timeRange,
-         metrics: ['engagement', 'response_time', 'conversion']
+         metrics: ['engagement', 'response_time', 'conversion'],
+         webResearch: searchResults.content,
+         industryContext: searchResults.sources
        });
 
        setAnalyticsData(result);
+
+       researchThinking.complete('✅ Industry-enhanced analytics loaded!');
+
      } catch (err) {
        console.error('Failed to load analytics data:', err);
+       researchThinking.complete('❌ Failed to load analytics');
        setError('Failed to load analytics data');
      } finally {
        setLoading(false);
@@ -133,7 +183,16 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
   ];
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -571,5 +630,6 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
         </div>
       </GlassCard>
     </div>
+    </>
   );
 };

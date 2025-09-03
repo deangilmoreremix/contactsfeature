@@ -5,6 +5,7 @@
 
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
 import { logger } from './logger.service';
+import { webSearchService } from './webSearchService';
 import { Contact } from '../types';
 
 export interface ContactInsight {
@@ -78,11 +79,13 @@ export interface PredictiveAnalytics {
 class ContactAIService {
   
   async scoreContact(
-    contact: Contact, 
-    context?: { 
+    contact: Contact,
+    context?: {
       businessGoals?: string[];
       industryContext?: string;
       competitorInfo?: any;
+      webResearch?: string; // NEW: Web research context
+      companyContext?: any[]; // NEW: Company research sources
     }
   ): Promise<ContactScore> {
     const request: Omit<AIRequest, 'id'> = {
@@ -90,7 +93,9 @@ class ContactAIService {
       priority: 'medium',
       data: {
         contact,
-        context
+        context,
+        webResearch: context?.webResearch,
+        companyContext: context?.companyContext
       },
       context: {
         contactId: contact.id
@@ -125,6 +130,8 @@ class ContactAIService {
       recentInteractions?: any[];
       businessContext?: string;
       goalContext?: string[];
+      webResearch?: string; // NEW: Web research context
+      companyContext?: any[]; // NEW: Company research sources
     }
   ): Promise<ContactInsight[]> {
     const request: Omit<AIRequest, 'id'> = {
@@ -133,7 +140,9 @@ class ContactAIService {
       data: {
         contact,
         insightTypes,
-        context
+        context,
+        webResearch: context?.webResearch,
+        companyContext: context?.companyContext
       },
       context: {
         contactId: contact.id
@@ -347,6 +356,84 @@ class ContactAIService {
     }
     
     return results;
+  }
+
+  // NEW: Web-integrated AI analysis
+  async generateWebInsights(
+    contact: Contact,
+    insightTypes: ContactInsight['type'][] = ['opportunity', 'recommendation'],
+    options: {
+      performWebSearch?: boolean;
+      searchQuery?: string;
+      industryContext?: string;
+      competitorAnalysis?: boolean;
+    } = {}
+  ): Promise<{
+    insights: ContactInsight[];
+    webSources: any[];
+    analysisMetadata: {
+      searchPerformed: boolean;
+      sourcesAnalyzed: number;
+      confidence: number;
+    };
+  }> {
+    logger.info(`Generating web-integrated insights for contact: ${contact.id}`);
+
+    let webResearch = '';
+    let webSources: any[] = [];
+
+    // Perform web search if requested
+    if (options.performWebSearch && contact.company) {
+      try {
+        const searchQuery = options.searchQuery ||
+          `${contact.company} ${contact.firstName || ''} ${contact.lastName || ''} company news industry trends business insights`;
+
+        const systemPrompt = `You are a business intelligence expert. Analyze this contact's company and industry to provide actionable insights for sales and relationship building. Focus on recent developments, market position, and strategic opportunities.`;
+        const userPrompt = `Research ${contact.firstName || ''} ${contact.lastName || ''} at ${contact.company} and provide insights for ${insightTypes.join(', ')}. Include recent company news, industry trends, and strategic opportunities.`;
+
+        const searchResults = await webSearchService.searchWithAI(
+          searchQuery,
+          systemPrompt,
+          userPrompt,
+          {
+            includeSources: true,
+            searchContextSize: 'high'
+          }
+        );
+
+        webResearch = searchResults.content;
+        webSources = searchResults.sources.map(source => ({
+          url: source.url,
+          title: source.title,
+          domain: source.domain,
+          type: 'company' as const,
+          confidence: 85,
+          timestamp: new Date(),
+          snippet: searchResults.content.substring(0, 200) + '...'
+        }));
+
+        logger.info(`Web research completed for ${contact.company}, found ${webSources.length} sources`);
+      } catch (error) {
+        logger.error('Web research failed', error as Error);
+        // Continue without web research
+      }
+    }
+
+    // Generate insights with web research context
+    const insights = await this.generateInsights(contact, insightTypes, {
+      webResearch,
+      companyContext: webSources
+    });
+
+    return {
+      insights,
+      webSources,
+      analysisMetadata: {
+        searchPerformed: options.performWebSearch || false,
+        sourcesAnalyzed: webSources.length,
+        confidence: webSources.length > 0 ? 90 : 75
+      }
+    };
   }
 
   // Utility methods for contact analysis

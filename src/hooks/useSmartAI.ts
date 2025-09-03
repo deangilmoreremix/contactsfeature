@@ -41,7 +41,7 @@ export const useSmartAI = () => {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-      const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      const geminiApiKey = import.meta.env.VITE_GEMMA_API_KEY;
 
       // Debug logging
       console.log('Smart scoring - Environment check:');

@@ -27,6 +27,7 @@ interface AIEnhancedContactCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onClick: () => void;
+  onEdit?: (contact: Contact) => void;
   onAnalyze?: (contact: Contact) => Promise<boolean>;
   isAnalyzing?: boolean;
 }
@@ -67,11 +68,13 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   isSelected,
   onSelect,
   onClick,
+  onEdit,
   onAnalyze,
   isAnalyzing = false
 }) => {
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [localAnalyzing, setLocalAnalyzing] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   
   // Connect to AI services
   const { scoreContact, generateInsights, contactScore, contactInsights, isContactProcessing } = useContactAI(contact.id);
@@ -87,26 +90,43 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   const handleAnalyzeClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isAnalyzing || localAnalyzing || isContactProcessing) return;
-    
+
     setLocalAnalyzing(true);
     console.log('Starting AI analysis for contact:', contact.id);
+
     try {
-      // Use the new AI services
-      const score = await scoreContact(contact);
+      // Check if this is demo/example data that should be protected
+      const isDemoData = contact.isExample || contact.createdBy === 'demo' || contact.mockDataType === 'demo';
+  
+      if (isDemoData) {
+        // For demo/example data, show a message instead of processing
+        alert('This is a demo contact. AI analysis is disabled for demo data to preserve the demo experience.');
+        return;
+      }
+  
+      // Check if this is mock data that should use real AI
+      const isMockData = contact.isMockData || contact.dataSource === 'mock';
+      const shouldUseRealAI = !isMockData || contact.dataSource === 'imported' || contact.createdBy === 'user';
+
+      // Use the new AI services with mock data detection
+      const score = await scoreContact(contact, { skipIfMock: true });
       const insights = await generateInsights(contact, ['opportunity', 'recommendation']);
-      
+
       // Update the contact with AI score
       if (score?.overall) {
-        await updateContact(contact.id, { 
+        await updateContact(contact.id, {
           aiScore: Math.round(score.overall),
-          notes: contact.notes ? 
+          notes: contact.notes ?
             `${contact.notes}\n\nAI Analysis: ${score.reasoning?.join('. ') || 'Analysis completed'}` :
             `AI Analysis: ${score.reasoning?.join('. ') || 'Analysis completed'}`
         });
       }
-      
+
       console.log('AI analysis completed:', { score, insights });
     } catch (error) {
+      console.error('AI analysis failed:', error);
+      // Show user-friendly error message
+      alert('AI analysis failed. Please check your internet connection and try again.');
     } finally {
       setLocalAnalyzing(false);
     }
@@ -157,25 +177,96 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
           </button>
         )}
         
-        <button 
+        <button
           onClick={(e) => {
             e.stopPropagation();
-            // Handle edit action
+            if (onEdit) {
+              onEdit(contact);
+            }
           }}
           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Edit contact"
         >
           <Edit className="w-3 h-3" />
         </button>
-        <button 
+        <button
           onClick={(e) => {
             e.stopPropagation();
-            // Handle more actions
+            setShowMoreActions(!showMoreActions);
           }}
           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          title="More actions"
         >
           <MoreHorizontal className="w-3 h-3" />
         </button>
       </div>
+
+      {/* More Actions Dropdown */}
+      {showMoreActions && (
+        <div className="absolute top-16 right-4 z-20 bg-white border border-gray-200 rounded-lg shadow-xl min-w-48">
+          <div className="py-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Export contact
+                const contactData = JSON.stringify(contact, null, 2);
+                const blob = new Blob([contactData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${contact.name.replace(/\s+/g, '_')}_contact.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setShowMoreActions(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Export Contact
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Duplicate contact
+                if (window.confirm('Create a duplicate of this contact?')) {
+                  // This would need to be implemented in the parent component
+                  console.log('Duplicate contact:', contact.id);
+                }
+                setShowMoreActions(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Duplicate Contact
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Archive contact
+                if (window.confirm('Archive this contact?')) {
+                  console.log('Archive contact:', contact.id);
+                }
+                setShowMoreActions(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Archive Contact
+            </button>
+            <div className="border-t border-gray-200 my-1"></div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Delete contact
+                if (window.confirm('Are you sure you want to delete this contact? This action cannot be undone.')) {
+                  console.log('Delete contact:', contact.id);
+                }
+                setShowMoreActions(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              Delete Contact
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="p-6">
         {/* Avatar and AI Score Section */}
@@ -292,10 +383,28 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 AI Insights
               </h4>
               <div className="flex space-x-1">
-                <button className="p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Positive AI feedback
+                    console.log('Positive AI feedback for contact:', contact.id);
+                    // Could send feedback to improve AI model
+                  }}
+                  className="p-1 bg-gray-100 hover:bg-green-100 hover:text-green-600 rounded text-gray-600 transition-colors"
+                  title="Good AI analysis"
+                >
                   <ThumbsUp className="w-3 h-3" />
                 </button>
-                <button className="p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Negative AI feedback
+                    console.log('Negative AI feedback for contact:', contact.id);
+                    // Could send feedback to improve AI model
+                  }}
+                  className="p-1 bg-gray-100 hover:bg-red-100 hover:text-red-600 rounded text-gray-600 transition-colors"
+                  title="Poor AI analysis"
+                >
                   <ThumbsDown className="w-3 h-3" />
                 </button>
               </div>

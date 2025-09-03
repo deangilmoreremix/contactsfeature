@@ -19,13 +19,25 @@ import {
 } from 'lucide-react';
 
 interface AIResearchButtonProps {
-  searchType: 'email' | 'name' | 'linkedin' | 'auto';
+  searchType: 'email' | 'name' | 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'whatsapp' | 'social' | 'auto';
   searchQuery: {
     email?: string;
     firstName?: string;
     lastName?: string;
     company?: string;
     linkedinUrl?: string;
+    twitterUrl?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    whatsappUrl?: string;
+    socialProfiles?: {
+      linkedin?: string;
+      twitter?: string;
+      facebook?: string;
+      instagram?: string;
+      whatsapp?: string;
+      website?: string;
+    };
   };
   onDataFound: (data: ContactEnrichmentData) => void;
   className?: string;
@@ -50,9 +62,12 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const hasMinimumData = searchQuery.email || searchQuery.firstName || 
-                         searchQuery.linkedinUrl || 
-                         (searchQuery.firstName && searchQuery.company);
+  const hasMinimumData = searchQuery.email || searchQuery.firstName ||
+                          searchQuery.linkedinUrl || searchQuery.twitterUrl ||
+                          searchQuery.facebookUrl || searchQuery.instagramUrl ||
+                          searchQuery.whatsappUrl ||
+                          (searchQuery.firstName && searchQuery.company) ||
+                          (searchQuery.socialProfiles && Object.keys(searchQuery.socialProfiles).length > 0);
 
   // Log available API keys for debugging
   React.useEffect(() => {
@@ -95,14 +110,54 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
           break;
 
         case 'linkedin':
-          if (searchQuery.linkedinUrl) {
-            results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl);
-          } else {
-            throw new Error('LinkedIn URL is required for search');
-          }
-          break;
+           if (searchQuery.linkedinUrl) {
+             results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl);
+           } else {
+             throw new Error('LinkedIn URL is required for search');
+           }
+           break;
 
-        case 'auto':
+         case 'twitter':
+           if (searchQuery.twitterUrl) {
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('twitter', searchQuery.twitterUrl);
+           } else {
+             throw new Error('Twitter URL is required for search');
+           }
+           break;
+
+         case 'facebook':
+           if (searchQuery.facebookUrl) {
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('facebook', searchQuery.facebookUrl);
+           } else {
+             throw new Error('Facebook URL is required for search');
+           }
+           break;
+
+         case 'instagram':
+           if (searchQuery.instagramUrl) {
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('instagram', searchQuery.instagramUrl);
+           } else {
+             throw new Error('Instagram URL is required for search');
+           }
+           break;
+
+         case 'whatsapp':
+           if (searchQuery.whatsappUrl) {
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('whatsapp', searchQuery.whatsappUrl);
+           } else {
+             throw new Error('WhatsApp URL is required for search');
+           }
+           break;
+
+         case 'social':
+           if (searchQuery.socialProfiles && Object.keys(searchQuery.socialProfiles).length > 0) {
+             results = await aiEnrichmentService.enrichContactByMultipleSocialNetworks(searchQuery.socialProfiles);
+           } else {
+             throw new Error('Social profiles are required for search');
+           }
+           break;
+
+         case 'auto':
           // Auto-detect best search method
           if (searchQuery.email) {
             results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email);
@@ -170,7 +225,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
   const getButtonLabel = () => {
     if (isSearching) return 'Researching...';
-    
+
     switch (searchType) {
       case 'email':
         return 'Research by Email';
@@ -178,6 +233,16 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
         return 'Research by Name';
       case 'linkedin':
         return 'Research LinkedIn';
+      case 'twitter':
+        return 'Research Twitter';
+      case 'facebook':
+        return 'Research Facebook';
+      case 'instagram':
+        return 'Research Instagram';
+      case 'whatsapp':
+        return 'Research WhatsApp';
+      case 'social':
+        return 'Research All Social';
       case 'auto':
         return 'AI Auto-Research';
       default:

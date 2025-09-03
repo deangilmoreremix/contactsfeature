@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { useContactAI, useCommunicationAI } from '../../contexts/AIContext';
+import { ResearchThinkingAnimation, useResearchThinking } from './ResearchThinkingAnimation';
+import { CitationBadge } from './CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from './ResearchStatusOverlay';
+import { webSearchService } from '../../services/webSearchService';
 import { 
   BarChart3, 
   Mail, 
@@ -114,7 +118,11 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
-  
+  const [researchSources, setResearchSources] = useState<any[]>([]);
+
+  // Research state management
+  const researchThinking = useResearchThinking();
+
   // Connect to AI services based on entity type
   const contactAI = entityType === 'contact' ? useContactAI(entityId) : null;
   const communicationAI = useCommunicationAI();
@@ -129,47 +137,103 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
 
   const executeAITool = async () => {
     if (isProcessing) return;
-    
+
+    // Check if this is mock data
+    const isMockData = entityData.isMockData || entityData.dataSource === 'mock' || entityData.createdBy === 'demo';
+
+    if (isMockData) {
+      alert('This is a demo contact. AI features are disabled for mock data to preserve the demo experience.');
+      return;
+    }
+
     setIsProcessing(true);
+    researchThinking.startResearch(`🔍 Researching for ${label.toLowerCase()}...`);
+
     try {
       let result;
-      
+      let searchResults: any = null;
+
+      // Perform web search for enhanced context
+      if (entityType === 'contact' && entityData.company) {
+        researchThinking.moveToAnalyzing('🌐 Analyzing company and industry data...');
+
+        const searchQuery = `${entityData.company} ${entityData.firstName || ''} ${entityData.lastName || ''} ${toolName} insights recent news`;
+        const systemPrompt = `You are a business intelligence expert. Research this contact's company and provide insights for ${toolName} operations. Focus on relevant data that would enhance AI analysis for ${toolName}.`;
+        const userPrompt = `Research ${entityData.firstName || ''} ${entityData.lastName || ''} at ${entityData.company} for ${toolName} analysis. Find relevant company data, industry trends, and insights that would improve ${toolName} results.`;
+
+        searchResults = await webSearchService.searchWithAI(
+          searchQuery,
+          systemPrompt,
+          userPrompt,
+          {
+            includeSources: true,
+            searchContextSize: 'high'
+          }
+        );
+
+        // Convert search results to citations
+        const sources = searchResults.sources.map(source => ({
+          url: source.url,
+          title: source.title,
+          domain: source.domain,
+          type: 'company' as const,
+          confidence: 85,
+          timestamp: new Date(),
+          snippet: searchResults.content.substring(0, 200) + '...'
+        }));
+
+        setResearchSources(sources);
+      }
+
+      researchThinking.moveToSynthesizing('🤖 Generating enhanced AI insights...');
+
       switch (toolName) {
         case 'leadScoring':
           if (contactAI) {
-            result = await contactAI.scoreContact(entityData);
+            result = await contactAI.scoreContact(entityData, {
+              skipIfMock: true,
+              webResearch: searchResults?.content,
+              companyContext: searchResults?.sources
+            });
             setLastResult({ type: 'score', value: result.overall });
           }
           break;
-          
+
         case 'emailPersonalization':
-          result = await communicationAI.generateEmail(entityData, 'introduction');
+          result = await communicationAI.generateEmail(entityData, 'introduction', {
+            webResearch: searchResults?.content,
+            companyContext: searchResults?.sources
+          });
           setLastResult({ type: 'email', value: 'Generated' });
           break;
-          
+
         case 'contactEnrichment':
           if (contactAI) {
-            result = await contactAI.enrichContact(entityData);
+            result = await contactAI.enrichContact(entityData, 'basic');
             setLastResult({ type: 'enrichment', value: 'Enhanced' });
           }
           break;
-          
+
         case 'businessIntelligence':
           if (contactAI) {
             result = await contactAI.generateInsights(entityData, ['opportunity', 'prediction']);
             setLastResult({ type: 'insights', value: result.length });
           }
           break;
-          
+
         default:
           console.log(`Executing ${toolName} for ${entityType} ${entityId}`);
       }
-      
-      // Clear result after 3 seconds
-      setTimeout(() => setLastResult(null), 3000);
-      
+
+      researchThinking.complete('✅ AI operation completed with web research!');
+
+      // Clear result after 5 seconds (longer for research-enhanced results)
+      setTimeout(() => setLastResult(null), 5000);
+
     } catch (error) {
       console.error(`AI tool execution failed for ${toolName}:`, error);
+      researchThinking.complete('❌ AI operation failed');
+      alert('AI feature failed. Please check your internet connection and try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -221,14 +285,19 @@ export const AIGoalsButton: React.FC<{
   variant?: 'primary' | 'secondary';
   className?: string;
 }> = ({ entityType, entityId, entityData, size = 'sm', variant = 'primary', className = '' }) => {
+  const handleClick = () => {
+    window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank');
+  };
+
   return (
     <button
+      onClick={handleClick}
       className={`
         ${className}
-        flex items-center justify-center py-2 px-3 
-        bg-gradient-to-r from-indigo-500 to-purple-500 text-white 
-        rounded-lg hover:from-indigo-600 hover:to-purple-600 
-        ${size === 'sm' ? 'text-sm' : 'text-base'} font-medium 
+        flex items-center justify-center py-2 px-3
+        bg-gradient-to-r from-indigo-500 to-purple-500 text-white
+        rounded-lg hover:from-indigo-600 hover:to-purple-600
+        ${size === 'sm' ? 'text-sm' : 'text-base'} font-medium
         transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105
       `}
     >
@@ -250,8 +319,20 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [customQuickActions, setCustomQuickActions] = useState(defaultQuickActions);
 
+  // Research state management
+  const researchStatus = useResearchStatus();
+
   return (
-    <div className="space-y-3">
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div className="space-y-3">
       {/* AI Goals Button */}
       <AIGoalsButton
         entityType={entityType}
@@ -266,6 +347,7 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
       <div className="grid grid-cols-2 gap-1.5">
         {customQuickActions.map((action, index) => {
           const IconComponent = iconMap[action.icon as keyof typeof iconMap];
+          if (!IconComponent) return null;
           return (
             <QuickAIButton
               key={index}
@@ -303,5 +385,6 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
         </div>
       )}
     </div>
+    </>
   );
 };

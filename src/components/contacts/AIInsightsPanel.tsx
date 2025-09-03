@@ -3,6 +3,10 @@ import { useContactAI } from '../../contexts/AIContext';
 import { useAdvancedAI, useIntelligenceEngine } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { CitationBadge } from '../ui/CitationBadge';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { webSearchService } from '../../services/webSearchService';
 import { Contact } from '../../types';
 import { 
   Brain, 
@@ -129,6 +133,11 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'positive' | 'negative'>>({});
   const [activeView, setActiveView] = useState<'insights' | 'intelligence' | 'recommendations'>('insights');
+
+  // Research state management
+  const researchThinking = useResearchThinking();
+  const researchStatus = useResearchStatus();
+  const [researchSources, setResearchSources] = useState<any[]>([]);
   
   // Connect to AI services
   const { 
@@ -157,10 +166,53 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
   }, [contact.id]);
 
   const handleGenerateInsights = async () => {
+    researchThinking.startResearch('🔍 Researching contact and company for insights...');
+
     try {
-      await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction']);
+      researchThinking.moveToAnalyzing('🌐 Searching web for company information...');
+
+      // Perform web search for company and industry context
+      const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} company news industry trends leadership`;
+      const systemPrompt = `You are an expert business intelligence analyst. Analyze this contact's company, industry trends, leadership information, and generate actionable sales insights. Focus on opportunities, risks, predictions, and recommendations.`;
+      const userPrompt = `Analyze ${contact.firstName} ${contact.lastName} at ${contact.company}. Provide insights on company performance, industry trends, leadership changes, competitive landscape, and sales opportunities. Generate specific, actionable insights for sales qualification.`;
+
+      const searchResults = await webSearchService.searchWithAI(
+        searchQuery,
+        systemPrompt,
+        userPrompt,
+        {
+          includeSources: true,
+          searchContextSize: 'high'
+        }
+      );
+
+      researchThinking.moveToSynthesizing('🧠 Synthesizing web research into insights...');
+
+      // Convert search results to citations
+      const sources = searchResults.sources.map(source => ({
+        url: source.url,
+        title: source.title,
+        domain: source.domain,
+        type: 'company' as const,
+        confidence: 85,
+        timestamp: new Date(),
+        snippet: searchResults.content.substring(0, 200) + '...'
+      }));
+
+      setResearchSources(sources);
+
+      // Generate insights with enhanced context from web research
+      await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction'], {
+        webResearch: searchResults.content,
+        industryContext: searchResults.sources,
+        companyNews: searchResults.sources.filter(s => s.type === 'news')
+      });
+
+      researchThinking.complete('✅ Web-enhanced insights generated successfully!');
+
     } catch (error) {
       console.error('Failed to generate insights:', error);
+      researchThinking.complete('❌ Failed to generate insights');
     }
   };
 
@@ -204,7 +256,16 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
     { id: 'recommendations', label: 'Smart Recommendations', icon: Target }
   ];
   return (
-    <div className="space-y-6">
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -640,5 +701,6 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
         </div>
       )}
     </div>
+    </>
   );
 };

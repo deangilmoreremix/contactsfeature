@@ -5,6 +5,7 @@ import { ModernButton } from '../ui/ModernButton';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
+import { SettingsModal } from './SettingsModal';
 import { useContactStore } from '../../store/contactStore';
 import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
@@ -108,6 +109,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Initialize Fuse.js for fuzzy search
   const fuse = useMemo(() => {
@@ -127,12 +129,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
           setIsImportModalOpen(false);
         } else if (isNewContactModalOpen) {
           setIsNewContactModalOpen(false);
+        } else if (isSettingsModalOpen) {
+          setIsSettingsModalOpen(false);
         } else {
           onClose();
         }
       }
     };
-    
+
     if (isOpen) {
       document.addEventListener('keydown', handleEsc, false);
       document.body.style.overflow = 'hidden';
@@ -142,7 +146,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
       document.removeEventListener('keydown', handleEsc, false);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, selectedContact, isImportModalOpen, isNewContactModalOpen]);
+  }, [isOpen, onClose, selectedContact, isImportModalOpen, isNewContactModalOpen, isSettingsModalOpen]);
 
   // Filter and search contacts
   const filteredContacts = useMemo(() => {
@@ -299,6 +303,11 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     setSelectedContact(null);
   };
 
+  const handleEditContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    // The ContactDetailView will handle the editing
+  };
+
   const handleSort = (field: typeof sortBy) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -323,6 +332,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
   const handleNewContactModalClose = () => {
     setIsNewContactModalOpen(false);
+  };
+
+  const handleSettingsClick = () => {
+    setIsSettingsModalOpen(true);
+  };
+
+  const handleSettingsModalClose = () => {
+    setIsSettingsModalOpen(false);
   };
 
   // Export functionality
@@ -542,9 +559,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <span>New Contact</span>
               </ModernButton>
               
-              <ModernButton 
-                variant="outline" 
-                size="sm" 
+              <ModernButton
+                variant="outline"
+                size="sm"
+                onClick={handleSettingsClick}
+                className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Settings</span>
+              </ModernButton>
+
+              <ModernButton
+                variant="outline"
+                size="sm"
                 onClick={onClose}
                 className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
               >
@@ -761,6 +788,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                     isSelected={selectedContacts.includes(contact.id)}
                     onSelect={() => handleContactSelect(contact.id)}
                     onClick={() => handleContactClick(contact)}
+                    onEdit={handleEditContact}
                     onAnalyze={handleAnalyzeContact}
                     isAnalyzing={analyzingContactIds.includes(contact.id)}
                   />
@@ -792,6 +820,12 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
           onUpdate={updateContact}
         />
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={handleSettingsModalClose}
+      />
     </>
   );
 };
