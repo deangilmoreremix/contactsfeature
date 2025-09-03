@@ -24,7 +24,7 @@ export interface AIRequest {
   };
   options?: {
     useCache?: boolean;
-    provider?: 'openai' | 'gemini' | 'auto';
+    provider?: 'openai' | 'auto';
     model?: string;
     timeout?: number;
   };
@@ -47,7 +47,7 @@ export interface AIResponse {
 }
 
 export interface AIProvider {
-  name: 'openai' | 'gemini' | 'supabase';
+  name: 'openai' | 'supabase';
   available: boolean;
   rateLimit: {
     remaining: number;
@@ -61,14 +61,43 @@ export interface AIProvider {
   type: 'direct' | 'edge_function';
 }
 
+// Function Calling Interfaces
+export interface FunctionCall {
+  id: string;
+  name: string;
+  parameters: Record<string, any>;
+  context: {
+    contact_id?: string;
+    user_id: string;
+    session_id: string;
+    trigger_source: string;
+  };
+}
+
+export interface FunctionResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  execution_time: number;
+  fallback_used?: boolean;
+}
+
+export interface FunctionHandler {
+  execute: (params: any, context: FunctionCall['context']) => Promise<any>;
+  validate?: (params: any) => boolean;
+  fallback?: (params: any, context: FunctionCall['context']) => Promise<any>;
+}
+
 class AIOrchestrator {
   private requestQueue: AIRequest[] = [];
   private processing = false;
   private providers: Map<string, AIProvider> = new Map();
   private requestHistory: AIResponse[] = [];
-  
+  private functionRegistry: Map<string, FunctionHandler> = new Map();
+
   constructor() {
     this.initializeProviders();
+    this.initializeFunctionRegistry();
     this.startQueueProcessor();
   }
 
@@ -82,13 +111,6 @@ class AIOrchestrator {
       type: 'direct'
     });
 
-    this.providers.set('gemini', {
-      name: 'gemini',
-      available: !!import.meta.env['VITE_GEMINI_API_KEY'],
-      rateLimit: { remaining: 60, resetTime: Date.now() + 60000 },
-      performance: { avgResponseTime: 1500, successRate: 0.92, costPer1kTokens: 0.0005 },
-      type: 'direct'
-    });
 
     // Initialize Supabase as backup
     this.providers.set('supabase', {
@@ -97,6 +119,59 @@ class AIOrchestrator {
       rateLimit: { remaining: 100, resetTime: Date.now() + 60000 },
       performance: { avgResponseTime: 2000, successRate: 0.85, costPer1kTokens: 0.002 },
       type: 'edge_function'
+    });
+  }
+
+  private initializeFunctionRegistry(): void {
+    // Contact enrichment functions
+    this.functionRegistry.set('enrich_contact_profile', {
+      execute: this.enrichContactProfile.bind(this),
+      validate: this.validateEnrichContactParams.bind(this),
+      fallback: this.enrichContactFallback.bind(this)
+    });
+
+    this.functionRegistry.set('analyze_contact_engagement', {
+      execute: this.analyzeContactEngagement.bind(this),
+      validate: this.validateAnalyzeEngagementParams.bind(this),
+      fallback: this.analyzeEngagementFallback.bind(this)
+    });
+
+    this.functionRegistry.set('validate_contact_data', {
+      execute: this.validateContactData.bind(this),
+      validate: this.validateContactValidationParams.bind(this),
+      fallback: this.contactValidationFallback.bind(this)
+    });
+
+    this.functionRegistry.set('generate_contact_insights', {
+      execute: this.generateContactInsights.bind(this),
+      validate: this.validateGenerateInsightsParams.bind(this),
+      fallback: this.generateInsightsFallback.bind(this)
+    });
+
+    // Task and action functions
+    this.functionRegistry.set('create_followup_task', {
+      execute: this.createFollowupTask.bind(this),
+      validate: this.validateCreateTaskParams.bind(this),
+      fallback: this.createTaskFallback.bind(this)
+    });
+
+    this.functionRegistry.set('update_contact_score', {
+      execute: this.updateContactScore.bind(this),
+      validate: this.validateUpdateScoreParams.bind(this),
+      fallback: this.updateScoreFallback.bind(this)
+    });
+
+    // Communication functions
+    this.functionRegistry.set('generate_personalized_email', {
+      execute: this.generatePersonalizedEmail.bind(this),
+      validate: this.validateGenerateEmailParams.bind(this),
+      fallback: this.generateEmailFallback.bind(this)
+    });
+
+    this.functionRegistry.set('suggest_contact_field', {
+      execute: this.suggestContactField.bind(this),
+      validate: this.validateSuggestFieldParams.bind(this),
+      fallback: this.suggestFieldFallback.bind(this)
     });
   }
 
@@ -274,8 +349,8 @@ class AIOrchestrator {
           if (provider.name === 'openai') score += 5;
           break;
         case 'automation_suggestions':
-          // Gemini is good for simple automation logic
-          if (provider.name === 'gemini') score += 5;
+          // OpenAI is good for automation logic
+          if (provider.name === 'openai') score += 5;
           break;
       }
 
@@ -321,9 +396,7 @@ class AIOrchestrator {
             setTimeout(() => reject(new Error('Request timeout')), fallbackTimeout);
           });
 
-          const apiCall = provider.name === 'openai'
-            ? this.callOpenAI(request)
-            : this.callGemini(request);
+          const apiCall = this.callOpenAI(request);
 
           const result = await Promise.race([apiCall, timeoutPromise]);
 
@@ -544,40 +617,6 @@ class AIOrchestrator {
     return this.parseOpenAIResponse(request.type, response.data);
   }
 
-  private async callGemini(request: AIRequest): Promise<any> {
-    const apiKey = import.meta.env['VITE_GEMINI_API_KEY'];
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const model = import.meta.env['VITE_GEMMA_MODEL'] || 'gemini-1.5-flash';
-
-    // Create prompt based on request type
-    const prompt = this.createPromptForRequest(request);
-
-    const response = await httpClient.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000
-        }
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        timeout: request.options?.timeout || 30000
-      }
-    );
-
-    return this.parseGeminiResponse(request.type, response.data);
-  }
 
   private createPromptForRequest(request: AIRequest): string {
     const { type, data } = request;
@@ -661,29 +700,6 @@ Provide realistic enrichment data based on the contact's role and company.`;
     }
   }
 
-  private parseGeminiResponse(requestType: string, response: any): any {
-    const content = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) {
-      throw new Error('Invalid Gemini response');
-    }
-
-    try {
-      // Try to parse as JSON first
-      const parsed = JSON.parse(content);
-      return {
-        result: parsed,
-        model: response.modelVersion || 'gemini-1.5-flash',
-        confidence: 80
-      };
-    } catch {
-      // If not JSON, create structured response
-      return {
-        result: this.parseTextResponse(requestType, content),
-        model: response.modelVersion || 'gemini-1.5-flash',
-        confidence: 70
-      };
-    }
-  }
 
   private parseTextResponse(requestType: string, content: string): any {
     // Create structured responses based on request type
@@ -889,6 +905,1393 @@ Provide realistic enrichment data based on the contact's role and company.`;
       service: 'ai-orchestrator',
       operation: 'cache_cleared'
     });
+  }
+
+  // Function Handler Implementations
+
+  private async enrichContactProfile(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'contact_enrichment',
+      priority: 'medium',
+      data: { contact: contactData },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    logger.info('Contact profile enriched successfully', undefined, {
+      service: 'ai-orchestrator',
+      operation: 'contact_enrichment'
+    });
+
+    return response.result;
+  }
+
+  private async analyzeContactEngagement(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, engagementData } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'communication_analysis',
+      priority: 'medium',
+      data: {
+        contact: engagementData.contact,
+        interactions: engagementData.interactions || [],
+        timeframe: engagementData.timeframe || '30d'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+    return {
+      engagementScore: response.result.score || 75,
+      analysis: response.result.analysis || 'Contact shows moderate engagement',
+      recommendations: response.result.recommendations || []
+    };
+  }
+
+  private async validateContactData(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactData } = params;
+
+    // Basic validation rules
+    const validation = {
+      isValid: true,
+      errors: [] as string[],
+      warnings: [] as string[],
+      suggestions: [] as string[]
+    };
+
+    // Email validation
+    if (contactData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactData.email)) {
+      validation.errors.push('Invalid email format');
+      validation.isValid = false;
+    }
+
+    // Phone validation (basic)
+    if (contactData.phone && !/^[\+]?[1-9][\d]{0,15}$/.test(contactData.phone.replace(/[\s\-\(\)]/g, ''))) {
+      validation.warnings.push('Phone number format may be invalid');
+    }
+
+    // Required fields
+    if (!contactData.name || contactData.name.trim().length < 2) {
+      validation.errors.push('Name is required and must be at least 2 characters');
+      validation.isValid = false;
+    }
+
+    // AI-powered validation suggestions
+    if (contactData.company && contactData.title) {
+      const request: Omit<AIRequest, 'id'> = {
+        type: 'insights_generation',
+        priority: 'low',
+        data: {
+          contact: contactData,
+          insightTypes: ['data_quality', 'consistency']
+        },
+        context: {
+          userId: context.user_id,
+          sessionId: context.session_id
+        }
+      };
+
+      try {
+        const response = await this.executeImmediate(request);
+        validation.suggestions = response.result.insights?.map((i: any) => i.description) || [];
+      } catch (error) {
+        logger.warn('AI validation failed, using basic validation', error as Error);
+      }
+    }
+
+    return validation;
+  }
+
+  private async generateContactInsights(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData, insightTypes } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'insights_generation',
+      priority: 'medium',
+      data: {
+        contact: contactData,
+        insightTypes: insightTypes || ['opportunities', 'recommendations', 'risks']
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+    return response.result;
+  }
+
+  private async createFollowupTask(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, taskType, priority, dueDate, description } = params;
+
+    // Generate task details using AI
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'automation_suggestions',
+      priority: 'medium',
+      data: {
+        contact: params.contactData,
+        action: taskType,
+        context: description
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    return {
+      taskId: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: taskType,
+      priority: priority || 'medium',
+      dueDate: dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+      description: description || response.result.description || 'Follow up with contact',
+      aiSuggestions: response.result.suggestions || [],
+      created: new Date().toISOString()
+    };
+  }
+
+  private async updateContactScore(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData, scoreFactors } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'contact_scoring',
+      priority: 'high',
+      data: {
+        contact: contactData,
+        factors: scoreFactors
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+    return response.result;
+  }
+
+  private async generatePersonalizedEmail(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData, emailType, context: emailContext } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'email_generation',
+      priority: 'medium',
+      data: {
+        contact: contactData,
+        type: emailType || 'introduction',
+        context: emailContext,
+        tone: params.tone || 'professional'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+    return response.result;
+  }
+
+  private async suggestContactField(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData, fieldType } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'contact_enrichment',
+      priority: 'low',
+      data: {
+        contact: contactData,
+        fieldType: fieldType || 'missing_info'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    // Extract field suggestions from enrichment data
+    const suggestions = [];
+    if (response.result.phone && !contactData.phone) {
+      suggestions.push({ field: 'phone', value: response.result.phone, confidence: 80 });
+    }
+    if (response.result.location && !contactData.location) {
+      suggestions.push({ field: 'location', value: response.result.location, confidence: 75 });
+    }
+    if (response.result.bio && !contactData.bio) {
+      suggestions.push({ field: 'bio', value: response.result.bio, confidence: 70 });
+    }
+
+    return {
+      suggestions,
+      enrichmentData: response.result
+    };
+  }
+
+  // Validation Methods
+
+  private validateEnrichContactParams(params: any): boolean {
+    return !!(params.contactId && params.contactData && params.contactData.name);
+  }
+
+  private validateAnalyzeEngagementParams(params: any): boolean {
+    return !!(params.contactId && params.engagementData);
+  }
+
+  private validateContactValidationParams(params: any): boolean {
+    return !!(params.contactData);
+  }
+
+  private validateGenerateInsightsParams(params: any): boolean {
+    return !!(params.contactId && params.contactData);
+  }
+
+  private validateCreateTaskParams(params: any): boolean {
+    return !!(params.contactId && params.taskType);
+  }
+
+  private validateUpdateScoreParams(params: any): boolean {
+    return !!(params.contactId && params.contactData);
+  }
+
+  private validateGenerateEmailParams(params: any): boolean {
+    return !!(params.contactId && params.contactData && params.emailType);
+  }
+
+  private validateSuggestFieldParams(params: any): boolean {
+    return !!(params.contactId && params.contactData);
+  }
+
+  // Fallback Methods
+
+  private async enrichContactFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for contact enrichment', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    return {
+      phone: null,
+      socialProfiles: {},
+      industry: params.contactData.industry || 'Unknown',
+      location: { city: 'Unknown', state: 'Unknown', country: 'Unknown' },
+      bio: 'Profile enrichment failed - using basic data',
+      notes: 'Fallback enrichment applied due to AI service unavailability'
+    };
+  }
+
+  private async analyzeEngagementFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for engagement analysis', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    return {
+      engagementScore: 50,
+      analysis: 'Basic engagement analysis - AI service unavailable',
+      recommendations: ['Schedule follow-up call', 'Send introductory email']
+    };
+  }
+
+  private async contactValidationFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for contact validation', undefined, {
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    const validation = {
+      isValid: true,
+      errors: [] as string[],
+      warnings: [] as string[],
+      suggestions: ['Consider adding more contact details for better validation']
+    };
+
+    // Basic validation without AI
+    if (!params.contactData.name || params.contactData.name.trim().length < 2) {
+      validation.errors.push('Name is required');
+      validation.isValid = false;
+    }
+
+    if (params.contactData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.contactData.email)) {
+      validation.errors.push('Invalid email format');
+      validation.isValid = false;
+    }
+
+    return validation;
+  }
+
+  private async generateInsightsFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for insights generation', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    return {
+      insights: [
+        {
+          id: 'fallback_insight_1',
+          type: 'recommendation',
+          title: 'Basic Recommendation',
+          description: 'Consider reaching out to this contact for potential opportunities',
+          confidence: 60,
+          impact: 'medium',
+          category: 'General',
+          actionable: true,
+          suggestedActions: ['Schedule a call', 'Send an email'],
+          dataPoints: []
+        }
+      ]
+    };
+  }
+
+  private async createTaskFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for task creation', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    return {
+      taskId: `fallback_task_${Date.now()}`,
+      type: params.taskType,
+      priority: params.priority || 'medium',
+      dueDate: params.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      description: params.description || `Follow up with ${params.contactData?.name || 'contact'}`,
+      aiSuggestions: [],
+      created: new Date().toISOString()
+    };
+  }
+
+  private async updateScoreFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for score update', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    return {
+      score: Math.floor(Math.random() * 40) + 60, // 60-100
+      breakdown: {
+        fitScore: Math.floor(Math.random() * 30) + 70,
+        engagementScore: Math.floor(Math.random() * 40) + 60,
+        conversionProbability: Math.floor(Math.random() * 30) + 70,
+        urgencyScore: Math.floor(Math.random() * 40) + 60
+      },
+      reasoning: ['Basic scoring applied - AI service unavailable'],
+      recommendations: ['Review contact details', 'Schedule follow-up'],
+      nextBestActions: ['Send introduction email', 'Schedule discovery call']
+    };
+  }
+
+  private async generateEmailFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for email generation', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    const contactName = params.contactData.name || 'Valued Contact';
+    const company = params.contactData.company || 'your company';
+
+    return {
+      subject: `Following up on our conversation`,
+      body: `Dear ${contactName},
+
+I hope this email finds you well. I wanted to follow up on our previous conversation and see if there might be an opportunity to work together.
+
+I'd love to schedule a quick call to discuss how we might be able to help ${company} achieve its goals.
+
+Best regards,
+[Your Name]`,
+      tone: params.tone || 'professional',
+      generated: new Date().toISOString()
+    };
+  }
+
+  private async suggestFieldFallback(params: any, context: FunctionCall['context']): Promise<any> {
+    logger.warn('Using fallback for field suggestions', undefined, {
+      
+      service: 'ai-orchestrator',
+      operation: 'fallback_used'
+    });
+
+    const suggestions = [];
+
+    if (!params.contactData.phone) {
+      suggestions.push({
+        field: 'phone',
+        value: '+1-555-0123',
+        confidence: 50
+      });
+    }
+
+    if (!params.contactData.location) {
+      suggestions.push({
+        field: 'location',
+        value: { city: 'Unknown', state: 'Unknown', country: 'Unknown' },
+        confidence: 40
+      });
+    }
+
+    return {
+      suggestions,
+      enrichmentData: {
+        notes: 'Basic field suggestions - AI service unavailable'
+      }
+    };
+  }
+
+  // Contact Analysis & Scoring Functions Implementation
+
+  private async analyzeContactProfile(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData, analysisDepth } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'contact_scoring',
+      priority: 'medium',
+      data: {
+        contact: contactData,
+        analysisDepth: analysisDepth || 'detailed'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    logger.info('Contact profile analyzed successfully', undefined, {
+      service: 'ai-orchestrator',
+      operation: 'contact_analysis'
+    });
+
+    return response.result;
+  }
+
+  private async analyzeBulkEngagement(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactIds, timeframe, segment } = params;
+
+    const results = [];
+    for (const contactId of contactIds) {
+      try {
+        const request: Omit<AIRequest, 'id'> = {
+          type: 'communication_analysis',
+          priority: 'medium',
+          data: {
+            contactId,
+            timeframe: timeframe || '30d',
+            segment: segment || 'all'
+          },
+          context: {
+            contactId,
+            userId: context.user_id,
+            sessionId: context.session_id
+          }
+        };
+
+        const response = await this.executeImmediate(request);
+        results.push({
+          contactId,
+          engagementScore: response.result.score || 0,
+          analysis: response.result.analysis || 'Analysis completed',
+          recommendations: response.result.recommendations || []
+        });
+      } catch (error) {
+        logger.warn(`Failed to analyze engagement for contact ${contactId}`, error as Error);
+        results.push({
+          contactId,
+          engagementScore: 0,
+          analysis: 'Analysis failed',
+          recommendations: []
+        });
+      }
+    }
+
+    return {
+      totalContacts: contactIds.length,
+      analyzedContacts: results.length,
+      results,
+      summary: {
+        highEngagement: results.filter(r => r.engagementScore >= 80).length,
+        mediumEngagement: results.filter(r => r.engagementScore >= 50 && r.engagementScore < 80).length,
+        lowEngagement: results.filter(r => r.engagementScore < 50).length
+      }
+    };
+  }
+
+  private async bulkScoreInactiveContacts(params: any, context: FunctionCall['context']): Promise<any> {
+    const { daysInactive, minScore, createTasks } = params;
+
+    // This would typically query the database for inactive contacts
+    // For now, we'll simulate with a mock response
+    const inactiveContacts = [
+      { id: 'contact_1', name: 'John Doe', lastActivity: '2024-08-01' },
+      { id: 'contact_2', name: 'Jane Smith', lastActivity: '2024-07-15' }
+    ];
+
+    const results = [];
+    for (const contact of inactiveContacts) {
+      try {
+        const request: Omit<AIRequest, 'id'> = {
+          type: 'contact_scoring',
+          priority: 'low',
+          data: {
+            contact: contact,
+            factors: { daysInactive, lastActivity: contact.lastActivity }
+          },
+          context: {
+            contactId: contact.id,
+            userId: context.user_id,
+            sessionId: context.session_id
+          }
+        };
+
+        const response = await this.executeImmediate(request);
+
+        if (response.result.score >= (minScore || 60)) {
+          results.push({
+            contactId: contact.id,
+            score: response.result.score,
+            recommendations: response.result.recommendations || []
+          });
+
+          // Create follow-up task if requested
+          if (createTasks) {
+            await this.createFollowupTask({
+              contactId: contact.id,
+              taskType: 'followup',
+              priority: 'medium',
+              description: `Re-engage inactive contact: ${contact.name}`,
+              contactData: contact
+            }, context);
+          }
+        }
+      } catch (error) {
+        logger.warn(`Failed to score inactive contact ${contact.id}`, error as Error);
+      }
+    }
+
+    return {
+      totalInactiveContacts: inactiveContacts.length,
+      scoredContacts: results.length,
+      results,
+      tasksCreated: createTasks ? results.length : 0
+    };
+  }
+
+  // Contact Enrichment Functions Implementation
+
+  private async bulkEnrichContacts(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactIds, enrichmentPriority, maxContacts } = params;
+
+    const results = [];
+    const limitedContacts = contactIds.slice(0, maxContacts || 50);
+
+    for (const contactId of limitedContacts) {
+      try {
+        // Get contact data (this would typically come from a database)
+        const contactData = { id: contactId, name: `Contact ${contactId}` };
+
+        const request: Omit<AIRequest, 'id'> = {
+          type: 'contact_enrichment',
+          priority: 'medium',
+          data: {
+            contact: contactData,
+            enrichmentPriority: enrichmentPriority || 'missing_data'
+          },
+          context: {
+            contactId,
+            userId: context.user_id,
+            sessionId: context.session_id
+          }
+        };
+
+        const response = await this.executeImmediate(request);
+        results.push({
+          contactId,
+          enriched: true,
+          enrichmentData: response.result,
+          confidence: response.metadata.confidence
+        });
+      } catch (error) {
+        logger.warn(`Failed to enrich contact ${contactId}`, error as Error);
+        results.push({
+          contactId,
+          enriched: false,
+          error: 'Enrichment failed',
+          enrichmentData: null
+        });
+      }
+    }
+
+    return {
+      totalRequested: contactIds.length,
+      processed: limitedContacts.length,
+      successful: results.filter(r => r.enriched).length,
+      results,
+      summary: {
+        enrichedContacts: results.filter(r => r.enriched).length,
+        failedContacts: results.filter(r => !r.enriched).length,
+        averageConfidence: results.filter(r => r.enriched).reduce((sum, r) => sum + (r.confidence || 0), 0) / results.filter(r => r.enriched).length || 0
+      }
+    };
+  }
+
+  private async verifySocialProfiles(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, profiles } = params;
+
+    const verificationResults = [];
+
+    for (const profile of profiles) {
+      try {
+        // This would typically make actual API calls to verify profiles
+        // For now, we'll simulate verification
+        const isValid = Math.random() > 0.2; // 80% success rate
+
+        verificationResults.push({
+          platform: profile.platform,
+          url: profile.url,
+          isValid,
+          status: isValid ? 'active' : 'inactive',
+          lastVerified: new Date().toISOString(),
+          confidence: isValid ? 90 : 30
+        });
+      } catch (error) {
+        verificationResults.push({
+          platform: profile.platform,
+          url: profile.url,
+          isValid: false,
+          status: 'error',
+          error: 'Verification failed',
+          confidence: 0
+        });
+      }
+    }
+
+    return {
+      contactId,
+      totalProfiles: profiles.length,
+      verifiedProfiles: verificationResults.filter(r => r.isValid).length,
+      results: verificationResults,
+      summary: {
+        activeProfiles: verificationResults.filter(r => r.status === 'active').length,
+        inactiveProfiles: verificationResults.filter(r => r.status === 'inactive').length,
+        errorProfiles: verificationResults.filter(r => r.status === 'error').length
+      }
+    };
+  }
+
+  // Communication & Email Functions Implementation
+
+  private async optimizeEmailTiming(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, emailType, urgency } = params;
+
+    // This would analyze contact's email patterns, timezone, and optimal sending times
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'communication_analysis',
+      priority: 'low',
+      data: {
+        contactId,
+        emailType: emailType || 'followup',
+        urgency: urgency || 'medium',
+        analysisType: 'timing_optimization'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    return {
+      contactId,
+      recommendedTime: response.result.optimalTime || '09:00',
+      recommendedDay: response.result.optimalDay || 'Tuesday',
+      timezone: response.result.timezone || 'UTC',
+      confidence: response.result.confidence || 75,
+      reasoning: response.result.reasoning || ['Based on contact engagement patterns'],
+      alternatives: response.result.alternatives || ['10:00', '14:00']
+    };
+  }
+
+  private async analyzeEmailPerformance(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, timeframe, metrics } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'communication_analysis',
+      priority: 'medium',
+      data: {
+        contactId,
+        timeframe: timeframe || '90d',
+        metrics: metrics || ['open_rate', 'response_rate'],
+        analysisType: 'email_performance'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    return {
+      contactId,
+      timeframe,
+      metrics: {
+        openRate: response.result.openRate || 0,
+        clickRate: response.result.clickRate || 0,
+        responseRate: response.result.responseRate || 0,
+        bounceRate: response.result.bounceRate || 0
+      },
+      trends: response.result.trends || [],
+      recommendations: response.result.recommendations || [],
+      insights: response.result.insights || []
+    };
+  }
+
+  // Contact Journey & Timeline Functions Implementation
+
+  private async analyzeContactJourney(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, journeyType, includePredictions } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'predictive_analytics',
+      priority: 'medium',
+      data: {
+        contactId,
+        journeyType: journeyType || 'sales',
+        includePredictions: includePredictions !== false,
+        analysisType: 'journey_analysis'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    return {
+      contactId,
+      journeyType,
+      currentStage: response.result.currentStage || 'prospect',
+      journeyProgress: response.result.progress || 0,
+      milestones: response.result.milestones || [],
+      timeline: response.result.timeline || [],
+      predictions: includePredictions ? response.result.predictions : null,
+      insights: response.result.insights || []
+    };
+  }
+
+  private async predictNextBestAction(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, contactData, currentStage } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'predictive_analytics',
+      priority: 'high',
+      data: {
+        contact: contactData,
+        currentStage: currentStage || 'prospect',
+        predictionType: 'next_best_action'
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    return {
+      contactId,
+      currentStage,
+      predictedAction: response.result.action || 'follow_up_email',
+      confidence: response.result.confidence || 80,
+      reasoning: response.result.reasoning || [],
+      alternatives: response.result.alternatives || [],
+      expectedOutcome: response.result.expectedOutcome || 'Increased engagement',
+      timeline: response.result.timeline || '3-5 days'
+    };
+  }
+
+  private async generateJourneySummary(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactId, summaryType, includeRecommendations } = params;
+
+    const request: Omit<AIRequest, 'id'> = {
+      type: 'insights_generation',
+      priority: 'medium',
+      data: {
+        contactId,
+        summaryType: summaryType || 'detailed',
+        includeRecommendations: includeRecommendations !== false,
+        insightTypes: ['journey_summary', 'performance_analysis']
+      },
+      context: {
+        contactId,
+        userId: context.user_id,
+        sessionId: context.session_id
+      }
+    };
+
+    const response = await this.executeImmediate(request);
+
+    return {
+      contactId,
+      summaryType,
+      executiveSummary: response.result.executiveSummary || '',
+      keyMilestones: response.result.milestones || [],
+      performanceMetrics: response.result.metrics || {},
+      recommendations: includeRecommendations ? response.result.recommendations : [],
+      nextSteps: response.result.nextSteps || [],
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  // Bulk Operations Functions Implementation
+
+  private async bulkAnalyzeSegment(params: any, context: FunctionCall['context']): Promise<any> {
+    const { segment, analysisType, createActionItems } = params;
+
+    // This would typically query contacts by segment from database
+    const segmentContacts = [
+      { id: 'contact_1', name: 'John Doe', company: 'Tech Corp' },
+      { id: 'contact_2', name: 'Jane Smith', company: 'Data Inc' }
+    ];
+
+    const results = [];
+    for (const contact of segmentContacts) {
+      try {
+        const request: Omit<AIRequest, 'id'> = {
+          type: analysisType === 'engagement' ? 'communication_analysis' : 'contact_scoring',
+          priority: 'medium',
+          data: {
+            contact,
+            segment,
+            analysisType
+          },
+          context: {
+            contactId: contact.id,
+            userId: context.user_id,
+            sessionId: context.session_id
+          }
+        };
+
+        const response = await this.executeImmediate(request);
+        results.push({
+          contactId: contact.id,
+          analysis: response.result,
+          score: response.result.score || 0
+        });
+
+        // Create action items if requested
+        if (createActionItems && response.result.recommendations) {
+          for (const recommendation of response.result.recommendations.slice(0, 2)) {
+            await this.createFollowupTask({
+              contactId: contact.id,
+              taskType: 'followup',
+              priority: 'medium',
+              description: recommendation,
+              contactData: contact
+            }, context);
+          }
+        }
+      } catch (error) {
+        logger.warn(`Failed to analyze contact ${contact.id} in segment`, error as Error);
+      }
+    }
+
+    return {
+      segment,
+      analysisType,
+      totalContacts: segmentContacts.length,
+      analyzedContacts: results.length,
+      results,
+      summary: {
+        averageScore: results.reduce((sum, r) => sum + r.score, 0) / results.length || 0,
+        highPriorityContacts: results.filter(r => r.score >= 80).length,
+        actionItemsCreated: createActionItems ? results.length * 2 : 0
+      }
+    };
+  }
+
+  private async smartExportSegment(params: any, context: FunctionCall['context']): Promise<any> {
+    const { segment, exportFormat, includeAnalytics, destination } = params;
+
+    // This would typically query and format contact data
+    const exportData = {
+      segment,
+      contacts: [
+        { id: 'contact_1', name: 'John Doe', email: 'john@techcorp.com', score: 85 },
+        { id: 'contact_2', name: 'Jane Smith', email: 'jane@datainc.com', score: 92 }
+      ],
+      analytics: includeAnalytics ? {
+        averageScore: 88.5,
+        totalContacts: 2,
+        exportDate: new Date().toISOString()
+      } : null
+    };
+
+    // Format data based on export format
+    let formattedData;
+    switch (exportFormat) {
+      case 'csv':
+        formattedData = this.formatAsCSV(exportData);
+        break;
+      case 'excel':
+        formattedData = this.formatAsExcel(exportData);
+        break;
+      case 'json':
+        formattedData = JSON.stringify(exportData, null, 2);
+        break;
+      default:
+        formattedData = JSON.stringify(exportData, null, 2);
+    }
+
+    return {
+      segment,
+      exportFormat,
+      recordCount: exportData.contacts.length,
+      data: formattedData,
+      destination,
+      exportedAt: new Date().toISOString(),
+      includesAnalytics: includeAnalytics
+    };
+  }
+
+  private async bulkApplyTags(params: any, context: FunctionCall['context']): Promise<any> {
+    const { contactIds, tags, criteria } = params;
+
+    const results = [];
+    for (const contactId of contactIds) {
+      try {
+        // Apply tags based on criteria or directly
+        const appliedTags = criteria ? this.evaluateTaggingCriteria(contactId, criteria) : tags;
+
+        results.push({
+          contactId,
+          tagsApplied: appliedTags,
+          success: true
+        });
+      } catch (error) {
+        results.push({
+          contactId,
+          tagsApplied: [],
+          success: false,
+          error: 'Tagging failed'
+        });
+      }
+    }
+
+    return {
+      totalContacts: contactIds.length,
+      successful: results.filter(r => r.success).length,
+      totalTagsApplied: results.reduce((sum, r) => sum + r.tagsApplied.length, 0),
+      results,
+      summary: {
+        mostCommonTag: this.findMostCommonTag(results),
+        tagsDistribution: this.calculateTagDistribution(results)
+      }
+    };
+  }
+
+  private formatAsCSV(data: any): string {
+    // Simple CSV formatting
+    const headers = ['ID', 'Name', 'Email', 'Score'];
+    const rows = data.contacts.map((c: any) => [c.id, c.name, c.email, c.score]);
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  private formatAsExcel(data: any): any {
+    // Mock Excel format - would use a library like xlsx in real implementation
+    return {
+      worksheets: [{
+        name: 'Contacts',
+        data: data.contacts
+      }],
+      metadata: data.analytics
+    };
+  }
+
+  private evaluateTaggingCriteria(contactId: string, criteria: any): string[] {
+    // Mock criteria evaluation
+    const tags = [];
+    if (criteria.score && criteria.score > 80) tags.push('high-value');
+    if (criteria.industry === 'technology') tags.push('tech');
+    return tags.length > 0 ? tags : ['general'];
+  }
+
+  private findMostCommonTag(results: any[]): string {
+    const tagCounts: Record<string, number> = {};
+    results.forEach(result => {
+      result.tagsApplied.forEach((tag: string) => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      });
+    });
+    return Object.entries(tagCounts).sort(([,a], [,b]) => b - a)[0]?.[0] || 'none';
+  }
+
+  private calculateTagDistribution(results: any[]): Record<string, number> {
+    const distribution: Record<string, number> = {};
+    results.forEach(result => {
+      result.tagsApplied.forEach((tag: string) => {
+        distribution[tag] = (distribution[tag] || 0) + 1;
+      });
+    });
+    return distribution;
+  }
+
+  // Search & Filtering Functions Implementation
+
+  private async findSimilarContacts(params: any, context: FunctionCall['context']): Promise<any> {
+    const { referenceContactId, similarityCriteria, maxResults } = params;
+
+    // This would typically search the database for similar contacts
+    const similarContacts = [
+      { id: 'contact_2', name: 'Jane Smith', similarity: 0.85, reasons: ['Same industry', 'Similar title'] },
+      { id: 'contact_3', name: 'Bob Johnson', similarity: 0.78, reasons: ['Same company size', 'Similar role'] }
+    ].slice(0, maxResults || 10);
+
+    return {
+      referenceContactId,
+      criteria: similarityCriteria,
+      totalFound: similarContacts.length,
+      contacts: similarContacts,
+      searchTimestamp: new Date().toISOString()
+    };
+  }
+
+  private async searchByEngagement(params: any, context: FunctionCall['context']): Promise<any> {
+    const { engagementLevel, timeframe, minScore } = params;
+
+    // This would query contacts by engagement level
+    const contacts = [
+      { id: 'contact_1', name: 'John Doe', engagementScore: 85, lastActivity: '2024-09-01' },
+      { id: 'contact_2', name: 'Jane Smith', engagementScore: 92, lastActivity: '2024-09-02' }
+    ].filter(c => c.engagementScore >= (minScore || 0));
+
+    return {
+      engagementLevel,
+      timeframe: timeframe || '30d',
+      minScore: minScore || 0,
+      totalFound: contacts.length,
+      contacts,
+      averageScore: contacts.reduce((sum, c) => sum + c.engagementScore, 0) / contacts.length || 0
+    };
+  }
+
+  private async rankByEngagement(params: any, context: FunctionCall['context']): Promise<any> {
+    const { rankingCriteria, limit, segment } = params;
+
+    // This would rank contacts by engagement criteria
+    const rankedContacts = [
+      { id: 'contact_1', name: 'John Doe', score: 92, rank: 1, criteria: 'overall' },
+      { id: 'contact_2', name: 'Jane Smith', score: 88, rank: 2, criteria: 'overall' },
+      { id: 'contact_3', name: 'Bob Johnson', score: 85, rank: 3, criteria: 'overall' }
+    ].slice(0, limit || 20);
+
+    return {
+      rankingCriteria: rankingCriteria || 'overall',
+      segment: segment || 'all',
+      totalRanked: rankedContacts.length,
+      contacts: rankedContacts,
+      rankingTimestamp: new Date().toISOString()
+    };
+  }
+
+  private getOpenAIFunctionDefinitions(): any[] {
+    return [
+      // 🎯 Contact Analysis & Scoring Functions
+      {
+        name: 'analyze_contact_profile',
+        description: 'Analyze a contact\'s potential as a client with detailed scoring and insights',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                industry: { type: 'string' },
+                interestLevel: { type: 'string', enum: ['hot', 'medium', 'low', 'cold'] }
+              },
+              required: ['name']
+            },
+            analysisDepth: {
+              type: 'string',
+              enum: ['basic', 'detailed', 'comprehensive'],
+              default: 'detailed'
+            }
+          },
+          required: ['contactId', 'contactData']
+        }
+      },
+
+      // 📊 Contact Enrichment Functions
+      {
+        name: 'enrich_contact_profile',
+        description: 'Enrich a contact profile with additional information from various sources',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                email: { type: 'string' }
+              },
+              required: ['name']
+            }
+          },
+          required: ['contactId', 'contactData']
+        }
+      },
+
+      // 📈 Engagement Analysis Functions
+      {
+        name: 'analyze_contact_engagement',
+        description: 'Analyze contact engagement patterns and communication history',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            engagementData: {
+              type: 'object',
+              properties: {
+                contact: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    email: { type: 'string' }
+                  }
+                },
+                interactions: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      type: { type: 'string', enum: ['email', 'call', 'meeting', 'social'] },
+                      date: { type: 'string' },
+                      outcome: { type: 'string' }
+                    }
+                  }
+                },
+                timeframe: { type: 'string', default: '30d' }
+              },
+              required: ['contact']
+            }
+          },
+          required: ['contactId', 'engagementData']
+        }
+      },
+
+      // ✅ Data Validation Functions
+      {
+        name: 'validate_contact_data',
+        description: 'Validate contact data quality and completeness',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                email: { type: 'string' },
+                phone: { type: 'string' },
+                company: { type: 'string' },
+                title: { type: 'string' }
+              },
+              required: ['name']
+            }
+          },
+          required: ['contactData']
+        }
+      },
+
+      // 💡 Insights Generation Functions
+      {
+        name: 'generate_contact_insights',
+        description: 'Generate actionable insights and recommendations for a contact',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                industry: { type: 'string' },
+                interestLevel: { type: 'string' }
+              },
+              required: ['name']
+            },
+            insightTypes: {
+              type: 'array',
+              items: { type: 'string', enum: ['opportunities', 'recommendations', 'risks', 'timing'] },
+              default: ['opportunities', 'recommendations']
+            }
+          },
+          required: ['contactId', 'contactData']
+        }
+      },
+
+      // 📋 Task Management Functions
+      {
+        name: 'create_followup_task',
+        description: 'Create a follow-up task for a contact with AI-generated suggestions',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            taskType: {
+              type: 'string',
+              enum: ['call', 'email', 'meeting', 'research', 'proposal', 'followup']
+            },
+            priority: {
+              type: 'string',
+              enum: ['low', 'medium', 'high', 'urgent'],
+              default: 'medium'
+            },
+            dueDate: { type: 'string', description: 'ISO date string for due date' },
+            description: { type: 'string', description: 'Task description' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                company: { type: 'string' }
+              }
+            }
+          },
+          required: ['contactId', 'taskType']
+        }
+      },
+
+      // 📊 Scoring Functions
+      {
+        name: 'update_contact_score',
+        description: 'Update or recalculate a contact\'s lead scoring',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                industry: { type: 'string' },
+                interestLevel: { type: 'string' }
+              },
+              required: ['name']
+            },
+            scoreFactors: {
+              type: 'object',
+              description: 'Additional scoring factors to consider'
+            }
+          },
+          required: ['contactId', 'contactData']
+        }
+      },
+
+      // 📧 Email Generation Functions
+      {
+        name: 'generate_personalized_email',
+        description: 'Generate a personalized email for a contact',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                email: { type: 'string' }
+              },
+              required: ['name']
+            },
+            emailType: {
+              type: 'string',
+              enum: ['introduction', 'followup', 'proposal', 'nurture', 'reengagement'],
+              default: 'introduction'
+            },
+            context: { type: 'string', description: 'Context for the email' },
+            tone: {
+              type: 'string',
+              enum: ['professional', 'casual', 'friendly', 'formal'],
+              default: 'professional'
+            }
+          },
+          required: ['contactId', 'contactData', 'emailType']
+        }
+      },
+
+      // 💡 Field Suggestion Functions
+      {
+        name: 'suggest_contact_field',
+        description: 'Suggest missing or improved contact field values',
+        parameters: {
+          type: 'object',
+          properties: {
+            contactId: { type: 'string', description: 'Contact identifier' },
+            contactData: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                title: { type: 'string' },
+                company: { type: 'string' },
+                email: { type: 'string' }
+              },
+              required: ['name']
+            },
+            fieldType: {
+              type: 'string',
+              enum: ['phone', 'location', 'social', 'bio', 'missing_info'],
+              default: 'missing_info'
+            }
+          },
+          required: ['contactId', 'contactData']
+        }
+      }
+    ];
   }
 }
 

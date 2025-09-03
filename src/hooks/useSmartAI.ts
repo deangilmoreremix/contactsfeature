@@ -1,4 +1,4 @@
-/**
+ fu/**
  * React Hook for Smart AI Operations
  * Provides easy access to enhanced AI capabilities with automatic model selection
  */
@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { enhancedAI, EnhancedAIAnalysisRequest, SmartBulkRequest } from '../services/enhanced-ai-integration.service';
 import { taskRouter } from '../services/task-router.service';
 import { logger } from '../services/logger.service';
+import { aiOrchestrator, AIRequest } from '../services/ai-orchestrator.service';
 import { Contact } from '../types';
 
 export interface SmartAIState {
@@ -43,24 +44,21 @@ export const useSmartAI = () => {
       const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
       const geminiApiKey = import.meta.env.VITE_GEMMA_API_KEY;
 
-      // Debug logging
-      console.log('Smart scoring - Environment check:');
-      console.log('- VITE_SUPABASE_URL:', supabaseUrl ? 'present' : 'missing');
-      console.log('- VITE_SUPABASE_ANON_KEY:', supabaseKey ? 'present (truncated)' : 'missing');
-      console.log('- VITE_OPENAI_API_KEY:', openaiApiKey ? 'present (truncated)' : 'missing');
-      console.log('- VITE_GEMINI_API_KEY:', geminiApiKey ? 'present (truncated)' : 'missing');
-      
-      if (!supabaseUrl || !supabaseKey) {
-        console.warn('Supabase environment variables not defined, using fallback mode');
-        // Fall back to enhancedAI service
-        const result = await enhancedAI.scoreContact(contactId, contact, urgency);
-        setState(prev => ({
-          ...prev,
-          analyzing: false,
-          results: { ...prev.results, [`score_${contactId}`]: result }
-        }));
-        return result;
-      }
+      // Use AI Orchestrator instead of direct calls
+      const request: Omit<AIRequest, 'id'> = {
+        type: 'contact_scoring',
+        priority: urgency === 'high' ? 'high' : urgency === 'low' ? 'low' : 'medium',
+        data: { contact },
+        context: { contactId }
+      };
+
+      const result = await aiOrchestrator.executeImmediate(request);
+      setState(prev => ({
+        ...prev,
+        analyzing: false,
+        results: { ...prev.results, [`score_${contactId}`]: result.result }
+      }));
+      return result.result;
 
       const endpoint = `${supabaseUrl}/functions/v1/smart-score`;
       console.log(`Calling Edge Function: ${endpoint}`);

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
+import { ConversationalAIWidget } from '../ui/ConversationalAIWidget';
 import { 
   Search, 
   Bell, 
@@ -75,6 +76,7 @@ const contentTools = [
 
 export const EnhancedNavbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [isAIWidgetOpen, setIsAIWidgetOpen] = useState(false);
 
   const toggleDropdown = (dropdown: string) => {
     setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
@@ -196,6 +198,17 @@ export const EnhancedNavbar: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* AI Assistant Widget */}
+      <ConversationalAIWidget
+        isOpen={isAIWidgetOpen}
+        onClose={() => setIsAIWidgetOpen(false)}
+        context={{
+          userId: 'user_123', // This should come from auth context
+          currentPage: 'dashboard',
+          selectedContacts: []
+        }}
+      />
     </GlassCard>
   );
 };
