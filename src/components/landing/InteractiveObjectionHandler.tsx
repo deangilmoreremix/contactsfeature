@@ -1,4 +1,3 @@
-```tsx
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
@@ -21,25 +20,25 @@ export const InteractiveObjectionHandler: React.FC = () => {
 
       if (lowerObjection.includes('price') || lowerObjection.includes('expensive')) {
         generatedResponse = {
-          response: 'I understand budget is important. Many of our clients initially have similar concerns. However, when they look at the long-term ROI and the value our solution brings, they find it’s a strategic investment. Could I walk you through a quick ROI calculation based on your specific needs?',
+          response: 'I understand budget is important. Many of our clients initially have similar concerns. However, when they look at the long-term ROI and the value our solution brings, they find it\'s a strategic investment. Could I walk you through a quick ROI calculation based on your specific needs?',
           strategy: 'Reframe value, focus on ROI, offer to quantify.',
           followUp: 'Offer ROI calculator or case study.'
         };
       } else if (lowerObjection.includes('time') || lowerObjection.includes('busy')) {
         generatedResponse = {
-          response: 'I completely understand you’re busy. I’ll be brief. What’s the single most important thing you’re looking to achieve in the next 30 days? Perhaps we can focus on how our solution helps with that.',
+          response: 'I completely understand you\'re busy. I\'ll be brief. What\'s the single most important thing you\'re looking to achieve in the next 30 days? Perhaps we can focus on how our solution helps with that.',
           strategy: 'Acknowledge, pivot to urgency, focus on immediate value.',
           followUp: 'Offer a very short meeting or send a concise summary.'
         };
       } else if (lowerObjection.includes('current solution') || lowerObjection.includes('happy')) {
         generatedResponse = {
-          response: 'That’s great to hear! Many of our clients were also satisfied with their previous solutions until they discovered how much more efficient and effective they could be. What aspects of your current solution do you value most, and where do you see room for improvement?',
+          response: 'That\'s great to hear! Many of our clients were also satisfied with their previous solutions until they discovered how much more efficient and effective they could be. What aspects of your current solution do you value most, and where do you see room for improvement?',
           strategy: 'Validate, then probe for hidden pain points or areas for improvement.',
           followUp: 'Suggest a comparative analysis or a deeper dive into specific features.'
         };
       } else if (lowerObjection.includes('competitor')) {
         generatedResponse = {
-          response: 'It’s wise to evaluate all options. What specifically about [Competitor Name] caught your attention? We often find that while competitors may offer X, our unique approach to Y provides a more comprehensive solution for Z.',
+          response: 'It\'s wise to evaluate all options. What specifically about [Competitor Name] caught your attention? We often find that while competitors may offer X, our unique approach to Y provides a more comprehensive solution for Z.',
           strategy: 'Acknowledge, differentiate, and highlight unique value.',
           followUp: 'Offer a competitive comparison sheet or a demo focusing on differentiators.'
         };
@@ -126,4 +125,3 @@ export const InteractiveObjectionHandler: React.FC = () => {
     </GlassCard>
   );
 };
-```

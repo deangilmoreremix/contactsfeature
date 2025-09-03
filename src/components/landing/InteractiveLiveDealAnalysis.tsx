@@ -1,4 +1,3 @@
-```tsx
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
@@ -196,4 +195,3 @@ export const InteractiveLiveDealAnalysis: React.FC = () => {
     </GlassCard>
   );
 };
-```

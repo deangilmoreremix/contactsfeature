@@ -47,7 +47,7 @@ export interface AIResponse {
 }
 
 export interface AIProvider {
-  name: 'openai' | 'gemini';
+  name: 'openai' | 'gemini' | 'supabase';
   available: boolean;
   rateLimit: {
     remaining: number;
@@ -58,6 +58,7 @@ export interface AIProvider {
     successRate: number;
     costPer1kTokens: number;
   };
+  type: 'direct' | 'edge_function';
 }
 
 class AIOrchestrator {
@@ -77,14 +78,25 @@ class AIOrchestrator {
       name: 'openai',
       available: !!import.meta.env['VITE_OPENAI_API_KEY'],
       rateLimit: { remaining: 100, resetTime: Date.now() + 60000 }, // GPT-5 has higher limits
-      performance: { avgResponseTime: 1200, successRate: 0.98, costPer1kTokens: 0.003 } // GPT-5 performance
+      performance: { avgResponseTime: 1200, successRate: 0.98, costPer1kTokens: 0.003 }, // GPT-5 performance
+      type: 'direct'
     });
 
     this.providers.set('gemini', {
       name: 'gemini',
       available: !!import.meta.env['VITE_GEMINI_API_KEY'],
       rateLimit: { remaining: 60, resetTime: Date.now() + 60000 },
-      performance: { avgResponseTime: 1500, successRate: 0.92, costPer1kTokens: 0.0005 }
+      performance: { avgResponseTime: 1500, successRate: 0.92, costPer1kTokens: 0.0005 },
+      type: 'direct'
+    });
+
+    // Initialize Supabase as backup
+    this.providers.set('supabase', {
+      name: 'supabase',
+      available: !!(import.meta.env['VITE_SUPABASE_URL'] && import.meta.env['VITE_SUPABASE_ANON_KEY']),
+      rateLimit: { remaining: 100, resetTime: Date.now() + 60000 },
+      performance: { avgResponseTime: 2000, successRate: 0.85, costPer1kTokens: 0.002 },
+      type: 'edge_function'
     });
   }
 
@@ -104,15 +116,16 @@ class AIOrchestrator {
 
     try {
       const response = await this.executeRequest(request);
-      logger.info('AI request completed successfully', { 
-        requestId: request.id, 
-        type: request.type,
-        processingTime: response.metadata.processingTime 
+      logger.info('AI request completed successfully', undefined, {
+        requestId: request.id,
+        service: 'ai-orchestrator',
+        operation: 'request_completed'
       });
     } catch (error) {
-      logger.error('AI request failed', error as Error, { 
-        requestId: request.id, 
-        type: request.type 
+      logger.error('AI request failed', error as Error, undefined, {
+        requestId: request.id,
+        service: 'ai-orchestrator',
+        operation: 'request_failed'
       });
     } finally {
       this.processing = false;
@@ -127,7 +140,11 @@ class AIOrchestrator {
     if (request.options?.useCache !== false) {
       const cached = cacheService.get<AIResponse>('ai_responses', cacheKey);
       if (cached) {
-        logger.debug('AI response served from cache', { requestId: request.id });
+        logger.debug('AI response served from cache', undefined, {
+          requestId: request.id,
+          service: 'ai-orchestrator',
+          operation: 'cache_hit'
+        });
         return {
           ...cached,
           metadata: { ...cached.metadata, cached: true }
@@ -191,18 +208,38 @@ class AIOrchestrator {
       throw new Error('No AI providers available');
     }
 
-    // Auto-select based on request type and urgency
-    if (request.options?.provider === 'auto' || !request.options?.provider) {
-      return this.selectOptimalProvider(request, availableProviders);
+    // Check fallback configuration
+    const fallbackMode = import.meta.env['VITE_AI_FALLBACK_MODE'] || 'direct_first'; // 'direct_first' | 'supabase_first' | 'optimal'
+
+    // If specific provider requested, use it
+    if (request.options?.provider && request.options.provider !== 'auto') {
+      const requestedProvider = availableProviders.find(p => p.name === request.options?.provider);
+      if (requestedProvider) {
+        return requestedProvider;
+      }
     }
 
-    // Use specified provider if available
-    const requestedProvider = availableProviders.find(p => p.name === request.options?.provider);
-    if (requestedProvider) {
-      return requestedProvider;
+    // Apply fallback strategy
+    if (fallbackMode === 'supabase_first') {
+      // Try Supabase edge functions first
+      const supabaseProvider = availableProviders.find(p => p.type === 'edge_function');
+      if (supabaseProvider) {
+        return supabaseProvider;
+      }
+    } else if (fallbackMode === 'direct_first') {
+      // Try direct APIs first (default behavior)
+      const directProviders = availableProviders.filter(p => p.type === 'direct');
+      if (directProviders.length > 0) {
+        return this.selectOptimalProvider(request, directProviders);
+      }
+      // Fallback to Supabase if no direct providers available
+      const supabaseProvider = availableProviders.find(p => p.type === 'edge_function');
+      if (supabaseProvider) {
+        return supabaseProvider;
+      }
     }
 
-    // Fallback to optimal selection
+    // Default to optimal selection
     return this.selectOptimalProvider(request, availableProviders);
   }
 
@@ -259,13 +296,211 @@ class AIOrchestrator {
   }
 
   private async callProvider(provider: AIProvider, request: AIRequest): Promise<any> {
-    // Use direct API calls instead of Supabase edge functions
-    if (provider.name === 'openai') {
-      return this.callOpenAI(request);
-    } else if (provider.name === 'gemini') {
-      return this.callGemini(request);
+    const enableSupabaseBackup = import.meta.env['VITE_AI_ENABLE_SUPABASE_BACKUP'] !== 'false';
+    const fallbackTimeout = parseInt(import.meta.env['VITE_AI_FALLBACK_TIMEOUT'] || '5000');
+    const maxRetries = parseInt(import.meta.env['VITE_AI_MAX_RETRY_ATTEMPTS'] || '2');
+    const debugFallback = import.meta.env['VITE_AI_DEBUG_FALLBACK'] === 'true';
+
+    // Hybrid approach: Try direct APIs first, fallback to Supabase edge functions
+    if (provider.type === 'direct') {
+      let lastError: Error | null = null;
+
+      // Try direct API with retry logic
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          if (debugFallback) {
+            logger.info(`Attempting direct ${provider.name} API (attempt ${attempt}/${maxRetries})`, undefined, {
+              requestId: request.id,
+              service: 'ai-orchestrator',
+              operation: 'direct_api_attempt'
+            });
+          }
+
+          // Set timeout for the request
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Request timeout')), fallbackTimeout);
+          });
+
+          const apiCall = provider.name === 'openai'
+            ? this.callOpenAI(request)
+            : this.callGemini(request);
+
+          const result = await Promise.race([apiCall, timeoutPromise]);
+
+          if (debugFallback) {
+            logger.info(`Direct ${provider.name} API succeeded on attempt ${attempt}`, undefined, {
+              requestId: request.id,
+              service: 'ai-orchestrator',
+              operation: 'direct_api_success'
+            });
+          }
+
+          return result;
+
+        } catch (error) {
+          lastError = error as Error;
+
+          if (debugFallback) {
+            logger.warn(`Direct ${provider.name} API failed on attempt ${attempt}`, {
+              attempt,
+              maxRetries,
+              error: lastError.message
+            }, {
+              requestId: request.id,
+              service: 'ai-orchestrator',
+              operation: 'direct_api_retry'
+            });
+          }
+
+          // If this is not the last attempt, wait before retrying
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+          }
+        }
+      }
+
+      // All direct API attempts failed, try Supabase fallback if enabled
+      if (enableSupabaseBackup) {
+        try {
+          if (debugFallback) {
+            logger.info(`All direct API attempts failed, trying Supabase fallback`, undefined, {
+              requestId: request.id,
+              service: 'ai-orchestrator',
+              operation: 'supabase_fallback_attempt'
+            });
+          }
+
+          return await this.callSupabaseEdgeFunction(provider, request);
+        } catch (supabaseError) {
+          if (debugFallback) {
+            logger.error(`Supabase fallback also failed`, supabaseError as Error, undefined, {
+              requestId: request.id,
+              service: 'ai-orchestrator',
+              operation: 'supabase_fallback_failed'
+            });
+          }
+          throw supabaseError;
+        }
+      } else {
+        throw lastError || new Error(`Direct ${provider.name} API failed after ${maxRetries} attempts`);
+      }
+
+    } else if (provider.type === 'edge_function') {
+      return await this.callSupabaseEdgeFunction(provider, request);
     } else {
-      throw new Error(`Unsupported provider: ${provider.name}`);
+      throw new Error(`Unsupported provider type: ${provider.type}`);
+    }
+  }
+
+  private async callSupabaseEdgeFunction(provider: AIProvider, request: AIRequest): Promise<any> {
+    const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
+    const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration missing for edge function fallback');
+    }
+
+    // Map request types to edge function endpoints
+    const endpointMap: Record<string, string> = {
+      'contact_scoring': 'ai-enrichment',
+      'contact_enrichment': 'ai-enrichment',
+      'email_generation': 'email-composer',
+      'email_analysis': 'email-analyzer',
+      'insights_generation': 'ai-insights',
+      'communication_analysis': 'communication-optimization',
+      'automation_suggestions': 'adaptive-playbook',
+      'predictive_analytics': 'sales-forecasting',
+      'relationship_mapping': 'ai-enrichment'
+    };
+
+    const endpoint = endpointMap[request.type];
+    if (!endpoint) {
+      throw new Error(`No edge function endpoint mapping for request type: ${request.type}`);
+    }
+
+    logger.info(`Using Supabase edge function fallback: ${endpoint}`, undefined, {
+      requestId: request.id,
+      service: 'ai-orchestrator',
+      operation: 'supabase_edge_function'
+    });
+
+    const response = await httpClient.post(
+      `${supabaseUrl}/functions/v1/${endpoint}`,
+      {
+        ...request.data,
+        aiProvider: 'openai', // Default to OpenAI for edge functions
+        options: request.options
+      },
+      {
+        headers: { 'Authorization': `Bearer ${supabaseKey}` },
+        timeout: request.options?.timeout || 30000
+      }
+    );
+
+    // Transform Supabase response to match our expected format
+    return this.transformSupabaseResponse(response.data, request.type);
+  }
+
+  private transformSupabaseResponse(supabaseData: any, requestType: string): any {
+    // Transform Supabase edge function responses to match our internal format
+    if (!supabaseData || !supabaseData.success) {
+      throw new Error('Invalid response from Supabase edge function');
+    }
+
+    const data = supabaseData.data || supabaseData;
+
+    switch (requestType) {
+      case 'contact_scoring':
+        return {
+          result: {
+            score: data.score || data.overall || 0,
+            breakdown: data.breakdown || {
+              fitScore: 0,
+              engagementScore: 0,
+              conversionProbability: 0,
+              urgencyScore: 0
+            },
+            reasoning: data.reasoning || [],
+            recommendations: data.recommendations || [],
+            nextBestActions: data.nextBestActions || []
+          },
+          model: 'supabase-edge-function',
+          confidence: data.confidence || 70
+        };
+
+      case 'insights_generation':
+        return {
+          result: {
+            insights: (data.insights || []).map((insight: any) => ({
+              id: `supabase_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              type: insight.type || 'recommendation',
+              title: insight.title || 'AI Insight',
+              description: insight.description || '',
+              confidence: insight.confidence || 75,
+              impact: insight.impact || 'medium',
+              category: insight.category || 'General',
+              actionable: insight.actionable || false,
+              suggestedActions: insight.suggestedActions || [],
+              dataPoints: insight.dataPoints || []
+            }))
+          },
+          model: 'supabase-edge-function',
+          confidence: 70
+        };
+
+      case 'contact_enrichment':
+        return {
+          result: data,
+          model: 'supabase-edge-function',
+          confidence: 65
+        };
+
+      default:
+        return {
+          result: data,
+          model: 'supabase-edge-function',
+          confidence: 60
+        };
     }
   }
 
@@ -593,10 +828,13 @@ Provide realistic enrichment data based on the contact's role and company.`;
       return priorityOrder[b.priority] - priorityOrder[a.priority];
     });
 
-    logger.info('AI request queued', { 
-      requestId: fullRequest.id, 
-      type: fullRequest.type, 
-      priority: fullRequest.priority 
+    logger.info('AI request queued', {
+      type: fullRequest.type,
+      priority: fullRequest.priority
+    }, {
+      requestId: fullRequest.id,
+      service: 'ai-orchestrator',
+      operation: 'request_queued'
     });
 
     return fullRequest.id;
@@ -647,7 +885,10 @@ Provide realistic enrichment data based on the contact's role and company.`;
 
   clearCache(): void {
     cacheService.deleteByTag('ai');
-    logger.info('AI cache cleared');
+    logger.info('AI cache cleared', undefined, {
+      service: 'ai-orchestrator',
+      operation: 'cache_cleared'
+    });
   }
 }
 
