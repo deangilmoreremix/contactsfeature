@@ -11,11 +11,11 @@ import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import Fuse from 'fuse.js';
-import { 
-  X, 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
+import {
+  X,
+  Search,
+  Filter,
+  MoreHorizontal,
   Edit,
   Plus,
   Users,
@@ -37,7 +37,8 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
-  Info
+  Info,
+  TestTube
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -568,6 +569,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 <Settings className="w-4 h-4" />
                 <span>Settings</span>
               </ModernButton>
+
 
               <ModernButton
                 variant="outline"

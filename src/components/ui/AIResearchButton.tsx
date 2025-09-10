@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ModernButton } from './ModernButton';
+import { SmartTooltip } from './SmartTooltip';
+import { ResearchTooltip } from './AITooltipContent';
 import { ContactEnrichmentData, aiEnrichmentService } from '../../services/aiEnrichmentService';
-import { 
-  Brain, 
-  Search, 
-  Loader2, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Brain,
+  Search,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
   Sparkles,
   Globe,
   User,
@@ -41,7 +43,7 @@ interface AIResearchButtonProps {
   };
   onDataFound: (data: ContactEnrichmentData) => void;
   className?: string;
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'outline' | 'glass' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   showConfidence?: boolean;
   disabled?: boolean;
@@ -74,8 +76,8 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
     if (disabled) return;
     
     console.log("AI Research Button - Environment variables check:");
-    console.log("- VITE_OPENAI_API_KEY present:", !!import.meta.env.VITE_OPENAI_API_KEY);
-    console.log("- VITE_GEMINI_API_KEY present:", !!import.meta.env.VITE_GEMINI_API_KEY);
+    console.log("- VITE_OPENAI_API_KEY present:", !!import.meta.env['VITE_OPENAI_API_KEY']);
+    console.log("- VITE_GEMINI_API_KEY present:", !!import.meta.env['VITE_GEMINI_API_KEY']);
   }, [disabled]);
 
   const handleSearch = async () => {
@@ -258,25 +260,32 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
   const ButtonIcon = getButtonIcon();
 
   // Check if any API keys are configured
-  const noApiKeysConfigured = !import.meta.env.VITE_OPENAI_API_KEY && !import.meta.env.VITE_GEMINI_API_KEY;
+  const noApiKeysConfigured = !import.meta.env['VITE_OPENAI_API_KEY'] && !import.meta.env['VITE_GEMINI_API_KEY'];
 
   // Only show warning in development mode
   const showApiWarning = noApiKeysConfigured && import.meta.env.DEV;
 
   return (
     <div className="relative">
-      {/* Main Research Button */}
-      <ModernButton
-        variant={variant}
-        size={size}
-        onClick={handleSearch}
-        disabled={isSearching || disabled || !hasMinimumData || noApiKeysConfigured}
-        className={`flex items-center space-x-2 ${className}`}
+      {/* Main Research Button with Tooltip */}
+      <SmartTooltip
+        content={<ResearchTooltip />}
+        position="top"
+        delay={500}
+        maxWidth="360px"
       >
-        <ButtonIcon className={`w-4 h-4 ${isSearching ? 'animate-spin' : ''}`} />
-        <span>{getButtonLabel()}</span>
-        {searchType === 'auto' && <Sparkles className="w-3 h-3 text-yellow-400" />}
-      </ModernButton>
+        <ModernButton
+          variant={variant}
+          size={size}
+          onClick={handleSearch}
+          disabled={isSearching || disabled || !hasMinimumData || noApiKeysConfigured}
+          className={`flex items-center space-x-2 ${className}`}
+        >
+          <ButtonIcon className={`w-4 h-4 ${isSearching ? 'animate-spin' : ''}`} />
+          <span>{getButtonLabel()}</span>
+          {searchType === 'auto' && <Sparkles className="w-3 h-3 text-yellow-400" />}
+        </ModernButton>
+      </SmartTooltip>
 
       {/* API Key Configuration Warning */}
       {showApiWarning && (

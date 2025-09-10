@@ -92,33 +92,64 @@ class AIEnrichmentService {
       return this.generateMockData({ email, isMockData: options.isMockData });
     }
 
+    // TEMPORARY WORKAROUND: Use direct OpenAI API call instead of Supabase function
+    // This bypasses the Supabase environment variable issue for testing
     try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'email',
-          email: email,
-          contactId: options.isMockData ? 'mock-enrichment-request' : 'real-enrichment-request',
-          useRealAI: shouldUseRealAI,
-          isMockData: options.isMockData
-        },
+      logger.info('Using direct OpenAI API call for testing (bypassing Supabase)');
+
+      const emailParts = email.split('@');
+      if (emailParts.length !== 2) {
+        throw new Error('Invalid email format');
+      }
+
+      const domain = emailParts[1]!;
+      const prompt = `Based on the email domain "${domain}", provide information about the company in JSON format: {"name": "Company Name", "industry": "Industry", "size": "Company Size (e.g., Small, Medium, Large, Enterprise)", "description": "Brief description"}. If you don't know the company, use generic information based on the domain type.`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-        }
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.openaiApiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 300,
+          temperature: 0.3
+        })
       });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
       }
-      logger.info(`Contact enriched successfully by email (${shouldUseRealAI ? 'real AI' : 'mock'})`);
-      const enrichedData = data.success ? data.data || data : data;
-      return {
-        ...enrichedData,
-        enrichmentType: shouldUseRealAI ? 'real' : 'mock',
-        isMockData: options.isMockData || false
+
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content;
+
+      let enrichedData: ContactEnrichmentData = {
+        email,
+        confidence: 75,
+        enrichmentType: 'real',
+        isMockData: false
       };
+
+      if (aiResponse) {
+        try {
+          const companyData = JSON.parse(aiResponse);
+          enrichedData.company = companyData.name || domain.split('.')[0];
+          enrichedData.industry = companyData.industry || 'Unknown';
+          enrichedData.notes = `AI Enrichment: ${companyData.description || 'Company information retrieved from domain analysis'}`;
+        } catch (parseError) {
+          logger.warn('Failed to parse AI response, using basic enrichment');
+          enrichedData.notes = 'AI enrichment completed with basic analysis';
+        }
+      }
+
+      logger.info('Contact enriched successfully using direct OpenAI API');
+      return enrichedData;
+
     } catch (error) {
-      logger.error('Contact enrichment by email failed', error as Error);
-      // Return graceful fallback data instead of throwing error
+      logger.error('Direct OpenAI API call failed, falling back to mock data', error as Error);
       return this.generateMockData({ email, isMockData: options.isMockData });
     }
   }

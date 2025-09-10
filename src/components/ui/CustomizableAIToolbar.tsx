@@ -3,6 +3,8 @@ import { useContactAI, useCommunicationAI } from '../../contexts/AIContext';
 import { ResearchThinkingAnimation, useResearchThinking } from './ResearchThinkingAnimation';
 import { CitationBadge } from './CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from './ResearchStatusOverlay';
+import { SmartTooltip } from './SmartTooltip';
+import { ToolbarTooltip, GoalsTooltip } from './AITooltipContent';
 import { webSearchService } from '../../services/webSearchService';
 import { 
   BarChart3, 
@@ -172,7 +174,7 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
         );
 
         // Convert search results to citations
-        const sources = searchResults.sources.map(source => ({
+        const sources = searchResults.sources.map((source: any) => ({
           url: source.url,
           title: source.title,
           domain: source.domain,
@@ -333,15 +335,22 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
       />
 
       <div className="space-y-3">
-      {/* AI Goals Button */}
-      <AIGoalsButton
-        entityType={entityType}
-        entityId={entityId}
-        entityData={entityData}
-        size={size}
-        variant="primary"
-        className="w-full justify-center"
-      />
+      {/* AI Goals Button with Tooltip */}
+      <SmartTooltip
+        content={<GoalsTooltip />}
+        position="top"
+        delay={300}
+        maxWidth="320px"
+      >
+        <AIGoalsButton
+          entityType={entityType}
+          entityId={entityId}
+          entityData={entityData}
+          size={size}
+          variant="primary"
+          className="w-full justify-center"
+        />
+      </SmartTooltip>
 
       {/* Quick AI Actions Grid */}
       <div className="grid grid-cols-2 gap-1.5">
@@ -349,18 +358,25 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
           const IconComponent = iconMap[action.icon as keyof typeof iconMap];
           if (!IconComponent) return null;
           return (
-            <QuickAIButton
+            <SmartTooltip
               key={index}
-              icon={IconComponent}
-              label={action.label}
-              toolName={action.toolName}
-              entityType={entityType}
-              entityId={entityId}
-              entityData={entityData}
-              size={size}
-              variant={action.variant as 'primary' | 'secondary'}
-              className="w-full justify-center text-center"
-            />
+              content={<ToolbarTooltip toolName={action.toolName} />}
+              position="top"
+              delay={300}
+              maxWidth="320px"
+            >
+              <QuickAIButton
+                icon={IconComponent}
+                label={action.label}
+                toolName={action.toolName}
+                entityType={entityType}
+                entityId={entityId}
+                entityData={entityData}
+                size={size}
+                variant={action.variant as 'primary' | 'secondary'}
+                className="w-full justify-center text-center"
+              />
+            </SmartTooltip>
           );
         })}
       </div>

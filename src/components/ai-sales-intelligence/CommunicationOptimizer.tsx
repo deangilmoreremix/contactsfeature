@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Send, TrendingUp, AlertTriangle, CheckCircle, Zap, MessageSquare } from 'lucide-react';
+import { Send, TrendingUp, AlertTriangle, CheckCircle, Zap, MessageSquare, Sparkles, Brain } from 'lucide-react';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 
 interface CommunicationContext {
   type: 'email' | 'call_script' | 'social_message' | 'proposal_followup';
@@ -56,25 +58,40 @@ export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
   const [loading, setLoading] = useState(false);
   const [appliedOptimizations, setAppliedOptimizations] = useState<Set<string>>(new Set());
 
+  // Research state management (matching AIInsightsPanel pattern)
+  const researchThinking = useResearchThinking();
+  const researchStatus = useResearchStatus();
+
   const optimizeCommunication = async () => {
     setLoading(true);
+    researchThinking.startResearch('⚡ Optimizing communication with GPT-5...');
+
     try {
+      researchThinking.moveToAnalyzing('🧠 Analyzing content and context for optimization...');
+
       const response = await supabase.functions.invoke('communication-optimization', {
         body: {
           content,
           context,
           optimizationGoals: getOptimizationGoals(context),
-          targetMetrics: getTargetMetrics(context.type)
+          targetMetrics: getTargetMetrics(context.type),
+          model: 'gpt-5' // Use GPT-5 for advanced communication analysis
         }
       });
+
+      researchThinking.moveToSynthesizing('📊 Generating optimization recommendations...');
 
       if (response.data?.optimization) {
         const result = response.data.optimization;
         setOptimization(result);
         onOptimize?.(result);
+        researchThinking.complete('✅ Communication optimized successfully!');
+      } else {
+        throw new Error('No optimization data received');
       }
     } catch (error) {
       console.error('Failed to optimize communication:', error);
+      researchThinking.complete('❌ Failed to optimize communication');
     } finally {
       setLoading(false);
     }

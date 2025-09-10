@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@originjs/vite-plugin-federation": "^1.4.1",
+    "@floating-ui/dom": "^1.7.4",
+    "@floating-ui/react": "^0.27.16",
     "@supabase/supabase-js": "^2.39.3",
     "@tanstack/react-table": "^8.11.0",
     "buffer": "^6.0.3",

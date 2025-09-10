@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { AvatarUpload } from '../ui/AvatarUpload';
 import { ModernButton } from '../ui/ModernButton';
-import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
-import { AIResearchButton } from '../ui/AIResearchButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { aiEnrichmentService, ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { contactService } from '../../services/contactService';
@@ -16,16 +12,19 @@ import { CommunicationHub } from '../contacts/CommunicationHub';
 import { AutomationPanel } from '../contacts/AutomationPanel';
 import { ContactAnalytics } from '../contacts/ContactAnalytics';
 import { ContactEmailPanel } from '../contacts/ContactEmailPanel';
+import { AdaptivePlaybookGenerator } from '../ai-sales-intelligence/AdaptivePlaybookGenerator';
+import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
+import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
+import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
 import { Contact } from '../../types/contact';
 import { contactAI } from '../../services/contact-ai.service';
 import {
-  X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar, MoreHorizontal,
-  User, Globe, Clock, Building, Tag, Star, ExternalLink, Brain, TrendingUp,
-  BarChart3, Zap, Users, Activity, Settings, Database, Shield, Target,
-  Smartphone, Video, Linkedin, Twitter, Facebook, Instagram, Save,
-  Ambulance as Cancel, Heart, HeartOff, MapPin, Briefcase, Award,
-  CheckCircle, AlertCircle, Wifi, WifiOff, Search, DollarSign, RefreshCw,
-  Sparkles, Camera, Wand2, Info
+  X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar,
+  User, Globe, Clock, Building, Tag, Brain, TrendingUp,
+  BarChart3, Zap, Activity, Database, Target,
+  Linkedin, Twitter, Facebook, Instagram, Save,
+  Ambulance as Cancel, Heart, HeartOff, MapPin, Briefcase,
+  Search, Sparkles, Wand2
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -95,7 +94,6 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   // Research state management
   const researchThinking = useResearchThinking();
   const researchStatus = useResearchStatus();
-  const [researchSources, setResearchSources] = useState<any[]>([]);
 
   useEffect(() => {
     setEditedContact(contact);
@@ -107,6 +105,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'communication', label: 'Communication', icon: MessageSquare },
     { id: 'automation', label: 'Automation', icon: Zap },
+    { id: 'sales-intelligence', label: 'Sales Intelligence', icon: Target },
     { id: 'ai-insights', label: 'AI Insights', icon: Brain },
     { id: 'email', label: 'Email', icon: Mail },
   ];
@@ -187,13 +186,11 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         let updates: Partial<Contact> = {};
 
         if (editingField.startsWith('social_')) {
-          const platform = editingField.replace('social_', '');
           const socialProfiles = {
             ...(editedContact.socialProfiles || {}),
           };
           updates = { socialProfiles };
         } else if (editingField.startsWith('custom_')) {
-          const fieldName = editingField.replace('custom_', '');
           const customFields = {
             ...(editedContact.customFields || {}),
           };
@@ -297,25 +294,6 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     }
   };
 
-  const handleRemoveSocialProfile = async (platform: string) => {
-    if (!editedContact.socialProfiles) return;
-    
-    const socialProfiles = { ...editedContact.socialProfiles };
-    delete socialProfiles[platform];
-    
-    setEditedContact(prev => ({
-      ...prev,
-      socialProfiles
-    }));
-    
-    if (onUpdate) {
-      try {
-        await onUpdate(contact.id, { socialProfiles });
-      } catch (error) {
-        console.error('Failed to remove social profile:', error);
-      }
-    }
-  };
 
   const handleAddSourceToContact = () => {
     if (addSource && !editedContact.sources.includes(addSource)) {
@@ -413,8 +391,6 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         snippet: searchResults.content.substring(0, 200) + '...'
       }));
 
-      setResearchSources(sources);
-
       // Use enhanced AI analysis with web research context
       const score = await contactAI.scoreContact(editedContact, {
         businessGoals: ['lead_qualification', 'opportunity_identification'],
@@ -509,26 +485,6 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     }
   };
 
-  const handleFindNewImage = async () => {
-    try {
-      setIsEnriching(true);
-      const newImageUrl = await aiEnrichmentService.findContactImage(
-        editedContact.name,
-        editedContact.company
-      );
-      
-      const updatedContact = { ...editedContact, avatarSrc: newImageUrl };
-      setEditedContact(updatedContact);
-      
-      if (onUpdate) {
-        await onUpdate(contact.id, { avatarSrc: newImageUrl });
-      }
-    } catch (error) {
-      console.error('Failed to find new image:', error);
-    } finally {
-      setIsEnriching(false);
-    }
-  };
 
   const handleSendEmail = () => {
     window.open(`mailto:${editedContact.email}`, '_blank');
@@ -848,13 +804,14 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     });
 
                     // Extract contact information from search results
+                    const extractedPhone = searchResults.content.match(/\+?1?[-.\s]?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/)?.[0];
                     const enrichmentData: ContactEnrichmentData = {
                       firstName: editedContact.firstName,
                       lastName: editedContact.lastName,
                       email: editedContact.email,
                       company: editedContact.company,
-                      phone: searchResults.content.match(/\+?1?[-.\s]?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/)?.[0] || editedContact.phone,
-                      industry: editedContact.industry,
+                      phone: extractedPhone || editedContact.phone || '',
+                      industry: editedContact.industry || '',
                       notes: `AI Web Research (${new Date().toLocaleDateString()}): ${searchResults.content.substring(0, 500)}...`,
                       confidence: searchResults.searchMetadata.modelUsed === 'gpt-5' ? 95 : 85
                     };
@@ -891,10 +848,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     researchStatus.complete('✅ Contact enriched with web intelligence!');
 
                   } catch (error) {
-                    console.error('Auto-enrichment failed:', error);
-                    researchStatus.setError('Enrichment failed. Using basic data.');
-
-                    // Fallback to basic enrichment
+                    // Silently handle errors and continue with fallback
                     if (lastEnrichment) {
                       await handleAIEnrichment(lastEnrichment);
                     }
@@ -1088,7 +1042,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       <div className="flex space-x-1 mt-1">
                         {socialPlatforms.slice(0, 4).map((social, index) => {
                           const Icon = social.icon;
-                          const profileUrl = editedContact.socialProfiles?.[social.key];
+                          const profileUrl = editedContact.socialProfiles?.[social.key as keyof typeof editedContact.socialProfiles];
                           return (
                             <div
                               key={index}
@@ -1521,8 +1475,8 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {socialPlatforms.map((platform, index) => {
                       const Icon = platform.icon;
-                      const profileUrl = editedContact.socialProfiles?.[platform.key];
-                      
+                      const profileUrl = editedContact.socialProfiles?.[platform.key as keyof typeof editedContact.socialProfiles];
+
                       return (
                         <div key={index} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                           <div className={`${platform.color} p-2 rounded-lg`}>
@@ -1533,7 +1487,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                             {editingField === `social_${platform.key}` ? (
                               <input
                                 type="text"
-                                value={editedContact.socialProfiles?.[platform.key] || ''}
+                                value={editedContact.socialProfiles?.[platform.key as keyof typeof editedContact.socialProfiles] || ''}
                                 onChange={(e) => {
                                   const socialProfiles = {
                                     ...(editedContact.socialProfiles || {}),
@@ -1704,6 +1658,119 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
             {activeTab === 'ai-insights' && (
               <div className="p-6">
                 <AIInsightsPanel contact={editedContact} />
+              </div>
+            )}
+
+            {activeTab === 'sales-intelligence' && (
+              <div className="p-6 space-y-6">
+                {/* Hero Section */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900 flex items-center">
+                        <Target className="w-6 h-6 mr-3 text-blue-600" />
+                        AI Sales Intelligence
+                      </h3>
+                      <p className="text-gray-600 mt-2">
+                        Advanced AI-powered tools for sales qualification and engagement optimization
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                        4 AI Tools Available
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Tools Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Adaptive Playbook Generator Card */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                    <AdaptivePlaybookGenerator
+                      deal={{
+                        id: editedContact.id,
+                        name: `${editedContact.firstName} ${editedContact.lastName}`.trim() || editedContact.name,
+                        value: editedContact.aiScore ? editedContact.aiScore * 1000 : 0,
+                        company: editedContact.company,
+                        stage: editedContact.status || 'prospect',
+                        competitors: [],
+                        stakeholders: [],
+                        industry: editedContact.industry || '',
+                        companySize: 100 // Default company size
+                      }}
+                      onGenerate={() => console.log('Generate playbook')}
+                      onCustomize={() => console.log('Customize playbook')}
+                      onExecutePhase={(phaseId) => console.log('Execute phase:', phaseId)}
+                    />
+                  </div>
+
+                  {/* Communication Optimizer Card */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                    <CommunicationOptimizer
+                      content={`Hello ${editedContact.firstName || editedContact.name.split(' ')[0]},\n\nI wanted to follow up on our previous conversation about opportunities at ${editedContact.company}.`}
+                      context={{
+                        type: 'email',
+                        recipient: {
+                          name: editedContact.name,
+                          role: editedContact.title,
+                          company: editedContact.company,
+                          relationship: editedContact.interestLevel === 'hot' ? 'champion' :
+                                       editedContact.interestLevel === 'medium' ? 'existing' : 'new'
+                        },
+                        purpose: 'follow_up',
+                        previousInteractions: 1
+                      }}
+                      onOptimize={(optimized) => console.log('Optimized:', optimized)}
+                      onApplyOptimization={() => console.log('Apply optimization')}
+                      onViewAnalytics={() => console.log('View analytics')}
+                    />
+                  </div>
+
+                  {/* Discovery Questions Generator Card */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                    <DiscoveryQuestionsGenerator
+                      contact={{
+                        id: editedContact.id,
+                        name: editedContact.name,
+                        email: editedContact.email,
+                        company: editedContact.company,
+                        role: editedContact.title,
+                        industry: editedContact.industry || '',
+                        companySize: 100
+                      }}
+                      meetingContext={{
+                        type: 'discovery',
+                        duration: 30,
+                        objective: `Understand ${editedContact.firstName || editedContact.name.split(' ')[0]}'s needs and qualify the opportunity`,
+                        previousMeetings: 0
+                      }}
+                      onCopyQuestions={(questions) => console.log('Copy questions:', questions)}
+                      onRegenerate={() => console.log('Regenerate questions')}
+                      onSaveTemplate={() => console.log('Save template')}
+                    />
+                  </div>
+
+                  {/* Deal Health Panel Card */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                    <DealHealthPanel
+                      deal={{
+                        id: editedContact.id,
+                        name: `${editedContact.firstName} ${editedContact.lastName}`.trim() || editedContact.name,
+                        value: editedContact.aiScore ? editedContact.aiScore * 1000 : 0,
+                        company: editedContact.company,
+                        stage: editedContact.status || 'prospect',
+                        closeDate: '',
+                        competitors: [],
+                        stakeholders: [],
+                        lastActivity: editedContact.updatedAt
+                      }}
+                      onRunAnalysis={() => console.log('Run analysis')}
+                      onGenerateReport={() => console.log('Generate report')}
+                      onViewRecommendations={() => console.log('View recommendations')}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

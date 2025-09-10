@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { BookOpen, Target, TrendingUp, CheckCircle, Clock, Users, DollarSign } from 'lucide-react';
+import { BookOpen, Target, TrendingUp, CheckCircle, Clock, Users, DollarSign, Sparkles, Brain } from 'lucide-react';
+import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 
 interface Deal {
   id: string;
@@ -84,23 +86,38 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   const [loading, setLoading] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
 
+  // Research state management (matching AIInsightsPanel pattern)
+  const researchThinking = useResearchThinking();
+  const researchStatus = useResearchStatus();
+
   const generatePlaybook = async () => {
     setLoading(true);
+    researchThinking.startResearch('🎯 Generating AI-powered sales playbook...');
+
     try {
+      researchThinking.moveToAnalyzing('🧠 Analyzing deal data and market conditions...');
+
       const response = await supabase.functions.invoke('adaptive-playbook', {
         body: {
           dealData: deal,
           companyProfile: getCompanyProfile(deal.company),
           competitiveAnalysis: getCompetitiveAnalysis(deal.competitors || []),
-          historicalData: getSimilarDeals(deal)
+          historicalData: getSimilarDeals(deal),
+          model: 'gpt-5' // Use GPT-5 for advanced reasoning
         }
       });
 
+      researchThinking.moveToSynthesizing('📋 Synthesizing strategic recommendations...');
+
       if (response.data?.playbook) {
         setPlaybook(response.data.playbook);
+        researchThinking.complete('✅ AI playbook generated successfully!');
+      } else {
+        throw new Error('No playbook data received');
       }
     } catch (error) {
       console.error('Failed to generate playbook:', error);
+      researchThinking.complete('❌ Failed to generate playbook');
     } finally {
       setLoading(false);
     }
@@ -168,26 +185,40 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   };
 
   return (
-    <GlassCard className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-100 rounded-lg">
-            <BookOpen className="w-5 h-5 text-indigo-600" />
+    <>
+      {/* Research Status Overlay */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
+      <GlassCard className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg">
+              <BookOpen className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                Adaptive Sales Playbook
+                <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
+              </h2>
+              <p className="text-sm text-gray-600">GPT-5 powered strategy for {deal.name}</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Adaptive Sales Playbook</h2>
-            <p className="text-sm text-gray-600">AI-generated strategy for {deal.name}</p>
-          </div>
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={generatePlaybook}
+            loading={loading}
+            className="flex items-center space-x-2"
+          >
+            <Brain className="w-4 h-4" />
+            <span>{loading ? 'Generating...' : '🎯 Generate'}</span>
+          </ModernButton>
         </div>
-        <ModernButton
-          variant="outline"
-          size="sm"
-          onClick={generatePlaybook}
-          loading={loading}
-        >
-          {loading ? 'Generating...' : '🎯 Generate'}
-        </ModernButton>
-      </div>
 
       {/* Deal Summary */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
@@ -302,10 +333,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
                         <ModernButton
                           variant="outline"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onExecutePhase?.(phase.id);
-                          }}
+                          onClick={() => onExecutePhase?.(phase.id)}
                         >
                           Execute
                         </ModernButton>
@@ -484,5 +512,6 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
         </div>
       )}
     </GlassCard>
+    </>
   );
 };

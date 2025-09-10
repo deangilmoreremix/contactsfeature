@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ModernButton } from './ModernButton';
 import { AIResearchButton } from './AIResearchButton';
+import { SmartTooltip } from './SmartTooltip';
+import { AutoFillTooltip } from './AITooltipContent';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
-import { 
-  Wand2, 
-  Brain, 
-  Sparkles, 
-  AlertCircle, 
+import {
+  Wand2,
+  Brain,
+  Sparkles,
+  AlertCircle,
   CheckCircle,
   Settings,
   ChevronDown,
@@ -125,20 +127,27 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
 
   return (
     <div className={`relative ${className}`}>
-      {/* Main Auto-Fill Button */}
+      {/* Main Auto-Fill Button with Tooltip */}
       <div className="flex items-center space-x-2">
-        <ModernButton
-          variant="primary"
-          size={size}
-          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          disabled={!hasMinimumData}
-          className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+        <SmartTooltip
+          content={<AutoFillTooltip />}
+          position="top"
+          delay={500}
+          maxWidth="360px"
         >
-          <Wand2 className="w-4 h-4" />
-          <span>AI Auto-Fill</span>
-          <Sparkles className="w-3 h-3 text-yellow-300" />
-          <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-        </ModernButton>
+          <ModernButton
+            variant="primary"
+            size={size}
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            disabled={!hasMinimumData}
+            className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            <Wand2 className="w-4 h-4" />
+            <span>AI Auto-Fill</span>
+            <Sparkles className="w-3 h-3 text-yellow-300" />
+            <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </ModernButton>
+        </SmartTooltip>
 
         {/* Settings Button */}
         <ModernButton
@@ -148,11 +157,10 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
             // Toggle auto-fill mode
             const modes: Array<typeof autoFillMode> = ['smart', 'conservative', 'aggressive'];
             const currentIndex = modes.indexOf(autoFillMode);
-            const nextMode = modes[(currentIndex + 1) % modes.length];
+            const nextMode = modes[(currentIndex + 1) % modes.length]!;
             setAutoFillMode(nextMode);
           }}
           className="flex items-center space-x-1"
-          title={`Mode: ${autoFillMode}`}
         >
           <Settings className="w-4 h-4" />
           <span className="text-xs capitalize">{autoFillMode}</span>
