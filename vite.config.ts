@@ -7,23 +7,13 @@ export default defineConfig({
   plugins: [
     react(),
     federation({
-      // 👇 unique name for this remote
-      name: "contacts",
-      filename: "remoteEntry.js",
-
-      // 👇 expose components/modules the host will consume
+      name: 'ContactsApp',
+      filename: 'remoteEntry.js',
       exposes: {
-        "./ContactsApp": "./src/ContactsApp.tsx",
-        "./ContactsWidget": "./src/components/ContactsWidget.tsx",
+        './ContactsApp': './src/App.tsx'
       },
-
-      // 👇 ensure React/Supabase are shared
-      shared: {
-        react: { singleton: true, eager: true, requiredVersion: "^18.0.0" },
-        "react-dom": { singleton: true, eager: true, requiredVersion: "^18.0.0" },
-        "@supabase/supabase-js": { singleton: true, eager: true },
-      },
-    }),
+      shared: ['react', 'react-dom']
+    })
   ],
 
   optimizeDeps: {
