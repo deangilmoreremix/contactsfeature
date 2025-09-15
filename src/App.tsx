@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useState } from 'react';
+import { useDarkMode } from './hooks/useDarkMode';
 import { AIProvider } from './contexts/AIContext';
 import { GuidanceProvider, useGuidance } from './contexts/GuidanceContext';
 import { ContactsModal } from './components/modals/ContactsModal';
@@ -26,15 +27,28 @@ interface RemoteAppProps {
 
 function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate }: RemoteAppProps) {
   const [currentView, setCurrentView] = useState<'app' | 'landing' | 'test' | 'ai-test' | 'tooltip-test'>('app');
-  const [localTheme, setLocalTheme] = useState(theme);
   const [localSharedData, setLocalSharedData] = useState(sharedData);
   const { state, setWelcomeVisible } = useGuidance();
 
-  // Apply theme
+  // Initialize dark mode (starts in light mode by default)
+  const { isDarkMode, toggleDarkMode, setDarkMode } = useDarkMode();
+
+  // Determine the effective theme (Module Federation props take precedence)
+  const effectiveTheme = theme !== 'light' ? theme : (isDarkMode ? 'dark' : 'light');
+
+  // Apply theme (integrate both systems)
   useEffect(() => {
-    document.body.className = `theme-${localTheme} mode-${mode}`;
-    document.documentElement.setAttribute('data-theme', localTheme);
-  }, [localTheme, mode]);
+    // Apply Module Federation theme classes
+    document.body.className = `theme-${effectiveTheme} mode-${mode}`;
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
+
+    // Also apply legacy dark-mode class for backward compatibility
+    if (effectiveTheme === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [effectiveTheme, mode]);
 
   // Handle shared data updates
   useEffect(() => {
@@ -58,8 +72,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
     // Check URL parameters for theme
     const urlTheme = urlParams.get('theme');
     if (urlTheme) {
-      setLocalTheme(urlTheme);
-      document.body.className = `theme-${urlTheme}`;
+      setDarkMode(urlTheme === 'dark');
     }
   }, []);
 
@@ -70,8 +83,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
 
       switch (type) {
         case 'SET_THEME':
-          setLocalTheme(data.theme);
-          document.body.className = `theme-${data.theme}`;
+          setDarkMode(data.theme === 'dark');
           break;
         case 'INITIAL_DATA_SYNC':
           setLocalSharedData(data);
@@ -137,7 +149,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
 
   return (
     <AIProvider>
-      <div className={`h-screen theme-${localTheme}`}>
+      <div className={`h-screen theme-${effectiveTheme}`}>
         {/* Welcome Experience for new users */}
         {state.showWelcome && (
           <WelcomeExperience

@@ -10,7 +10,8 @@ import { InteractiveSmartSearch } from './InteractiveSmartSearch';
 import { InteractiveLiveDealAnalysis } from './InteractiveLiveDealAnalysis';
 import { InteractiveObjectionHandler } from './InteractiveObjectionHandler';
 import { InteractiveInstantAIResponse } from './InteractiveInstantAIResponse';
-import { 
+import { InteractiveContactDemo } from './InteractiveContactDemo';
+import {
   X,
   ArrowRight,
   Sparkles,
@@ -38,7 +39,9 @@ import {
   Eye,
   Heart,
   Star,
-  DollarSign
+  DollarSign,
+  Book,
+  User
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -50,158 +53,133 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
 
   const features = [
     {
-      id: 'ai-scoring',
-      title: 'AI-Powered Contact Scoring',
-      description: 'Intelligent contact scoring using advanced AI models from OpenAI and Google Gemini. Automatically prioritize your hottest leads.',
+      id: 'ai-contact-scoring',
+      title: 'AI Contact Scoring',
+      description: 'Advanced AI-powered contact scoring with visual indicators, interest level tracking, and predictive lead qualification using OpenAI and Google Gemini.',
       image: 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       icon: Brain,
       color: 'from-purple-500 to-blue-500',
       interactive: true
     },
     {
-      id: 'email-composer',
-      title: 'AI Email Composer',
-      description: 'Generate personalized emails with AI. Multiple tone options, purpose-driven content, and real-time quality analysis.',
+      id: 'contact-detail-view',
+      title: 'Comprehensive Contact Detail View',
+      description: 'Complete contact management with 8 specialized tabs: Overview, Journey Timeline, Analytics, Communication Hub, Automation, Sales Intelligence, AI Insights, and Email.',
+      image: 'https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: User,
+      color: 'from-blue-500 to-indigo-500',
+      interactive: true
+    },
+    {
+      id: 'ai-enrichment',
+      title: 'AI Contact Enrichment',
+      description: 'Automatically enrich contact profiles with AI web research. Find emails, phone numbers, social profiles, and company data using advanced search algorithms.',
+      image: 'https://images.pexels.com/photos/3861964/pexels-photo-3861964.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Sparkles,
+      color: 'from-teal-500 to-blue-500',
+      interactive: true
+    },
+    {
+      id: 'ai-insights-analytics',
+      title: 'AI Insights & Analytics',
+      description: 'Deep contact analytics with AI-powered insights, predictive behavior analysis, engagement tracking, and conversion probability forecasting.',
+      image: 'https://images.pexels.com/photos/3861972/pexels-photo-3861972.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: BarChart3,
+      color: 'from-orange-500 to-red-500',
+      interactive: true
+    },
+    {
+      id: 'communication-hub',
+      title: 'Unified Communication Hub',
+      description: 'Centralized communication management across email, phone, SMS, and social media with AI-powered interaction tracking and response suggestions.',
+      image: 'https://images.pexels.com/photos/3760066/pexels-photo-3760066.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: MessageSquare,
+      color: 'from-pink-500 to-purple-500',
+      interactive: true
+    },
+    {
+      id: 'ai-automation',
+      title: 'AI Automation Workflows',
+      description: 'Intelligent automation with AI-suggested workflows, automated follow-ups, smart lead nurturing, and personalized communication sequences.',
+      image: 'https://images.pexels.com/photos/3861958/pexels-photo-3861958.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Zap,
+      color: 'from-yellow-500 to-orange-500',
+      interactive: true
+    },
+    {
+      id: 'sales-intelligence-tools',
+      title: 'AI Sales Intelligence Tools',
+      description: 'Advanced sales intelligence with adaptive playbooks, communication optimization, deal health analysis, and AI-generated discovery questions.',
+      image: 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Target,
+      color: 'from-emerald-500 to-teal-500',
+      interactive: true
+    },
+    {
+      id: 'contact-journey-timeline',
+      title: 'Contact Journey Timeline',
+      description: 'Visual timeline of all contact interactions, AI-powered pattern recognition, engagement analysis, and predictive next-step recommendations.',
+      image: 'https://images.pexels.com/photos/3861968/pexels-photo-3861968.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: TrendingUp,
+      color: 'from-indigo-500 to-purple-500',
+      interactive: true
+    },
+    {
+      id: 'customizable-ai-toolbar',
+      title: 'Customizable AI Toolbar',
+      description: 'Personalized AI tool selection with quick-access buttons for scoring, enrichment, insights, email generation, and communication optimization.',
+      image: 'https://images.pexels.com/photos/3184325/pexels-photo-3184325.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Settings,
+      color: 'from-violet-500 to-purple-500',
+      interactive: true
+    },
+    {
+      id: 'social-integration',
+      title: 'Advanced Social Integration',
+      description: 'Complete social media integration with LinkedIn, Twitter, Facebook, Instagram, and WhatsApp with AI-powered content optimization.',
+      image: 'https://images.pexels.com/photos/3861965/pexels-photo-3861965.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+      icon: Globe,
+      color: 'from-cyan-500 to-blue-500',
+      interactive: true
+    },
+    {
+      id: 'ai-email-generation',
+      title: 'AI Email Generation',
+      description: 'Context-aware email generation with multiple tones, personalization, and real-time quality analysis and optimization.',
       image: 'https://images.pexels.com/photos/5325757/pexels-photo-5325757.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       icon: Mail,
       color: 'from-green-500 to-blue-500',
       interactive: true
     },
     {
-      id: 'smart-filtering',
-      title: 'Smart Filtering & Search',
-      description: 'Advanced search with fuzzy matching, intelligent filters, and bulk operations. Find exactly what you need instantly.',
+      id: 'smart-search-filtering',
+      title: 'Smart Search & Filtering',
+      description: 'Advanced search with fuzzy matching, AI-powered relevance ranking, intelligent filters, bulk operations, and natural language queries.',
       image: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       icon: Search,
       color: 'from-blue-500 to-green-500',
       interactive: true
-    },
-    {
-      id: 'smart-search',
-      title: 'AI Smart Search',
-      description: 'Find contacts, companies, and documents with natural language queries and AI-powered relevance.',
-      image: 'https://images.pexels.com/photos/3861970/pexels-photo-3861970.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Search,
-      color: 'from-teal-500 to-cyan-500',
-      interactive: true
-    },
-    {
-      id: 'live-deal-analysis',
-      title: 'Live Deal Analysis',
-      description: 'Get real-time AI insights on deal health, risks, and next best actions to close deals faster.',
-      image: 'https://images.pexels.com/photos/3861968/pexels-photo-3861968.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: DollarSign,
-      color: 'from-orange-500 to-yellow-500',
-      interactive: true
-    },
-    {
-      id: 'objection-handler',
-      title: 'AI Objection Handler',
-      description: 'Instantly generate AI-powered responses to common sales objections, tailored to your context.',
-      image: 'https://images.pexels.com/photos/3861966/pexels-photo-3861966.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: MessageSquare,
-      color: 'from-red-500 to-pink-500',
-      interactive: true
-    },
-    {
-      id: 'instant-ai-response',
-      title: 'Instant AI Response',
-      description: 'Get immediate, context-aware AI-generated replies for any message or query.',
-      image: 'https://images.pexels.com/photos/3861967/pexels-photo-3861967.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Zap,
-      color: 'from-indigo-500 to-purple-500',
-      interactive: true
-    },
-    {
-      id: 'contact-management',
-      title: 'Comprehensive Contact Management',
-      description: 'Complete contact lifecycle management with AI-enhanced profiles, social integration, and custom fields.',
-      image: 'https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Users,
-      color: 'from-indigo-500 to-purple-500'
-    },
-    {
-      id: 'ai-insights',
-      title: 'Advanced AI Insights & Analytics',
-      description: 'Deep analytics powered by multiple AI models. Predictive insights, trend analysis, and risk assessment.',
-      image: 'https://images.pexels.com/photos/3861972/pexels-photo-3861972.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: BarChart3,
-      color: 'from-orange-500 to-red-500'
-    },
-    {
-      id: 'automation',
-      title: 'Intelligent Automation',
-      description: 'Smart workflow automation with AI suggestions. Automate follow-ups, scoring, and lead nurturing.',
-      image: 'https://images.pexels.com/photos/3861958/pexels-photo-3861958.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Zap,
-      color: 'from-yellow-500 to-orange-500'
-    },
-    {
-      id: 'communication-hub',
-      title: 'Unified Communication Hub',
-      description: 'Centralized communication across email, phone, SMS, and social media. Track all interactions in one place.',
-      image: 'https://images.pexels.com/photos/3760066/pexels-photo-3760066.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: MessageSquare,
-      color: 'from-pink-500 to-purple-500'
-    },
-    {
-      id: 'ai-enrichment',
-      title: 'AI Contact Enrichment',
-      description: 'Automatically enrich contact profiles with AI. Find emails, phone numbers, social profiles, and company data.',
-      image: 'https://images.pexels.com/photos/3861964/pexels-photo-3861964.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Sparkles,
-      color: 'from-teal-500 to-blue-500'
-    },
-    {
-      id: 'import-export',
-      title: 'Smart Import & Export',
-      description: 'Intelligent CSV import with validation, duplicate detection, and AI-powered data enhancement.',
-      image: 'https://images.pexels.com/photos/3861963/pexels-photo-3861963.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Upload,
-      color: 'from-green-500 to-teal-500'
-    },
-    {
-      id: 'multi-model-ai',
-      title: 'Multi-Model AI Integration',
-      description: 'Smart routing between OpenAI GPT-4, Google Gemini, and Gemma models for optimal performance and cost.',
-      image: 'https://images.pexels.com/photos/3861957/pexels-photo-3861957.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Layers,
-      color: 'from-purple-500 to-pink-500'
-    },
-    {
-      id: 'predictive-analytics',
-      title: 'Predictive Analytics',
-      description: 'AI-powered predictions for conversion probability, response times, and deal sizes. Stay ahead of the game.',
-      image: 'https://images.pexels.com/photos/3861971/pexels-photo-3861971.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: TrendingUp,
-      color: 'from-blue-500 to-indigo-500'
-    },
-    {
-      id: 'social-messaging',
-      title: 'AI Social Messaging',
-      description: 'Generate personalized messages for LinkedIn, Twitter, SMS, and WhatsApp with platform-specific optimization.',
-      image: 'https://images.pexels.com/photos/3861965/pexels-photo-3861965.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      icon: Globe,
-      color: 'from-cyan-500 to-blue-500'
     }
   ];
 
   const renderInteractiveDemo = (featureId: string) => {
     switch (featureId) {
-      case 'ai-scoring':
+      case 'ai-contact-scoring':
         return <InteractiveContactScorer />;
-      case 'email-composer':
+      case 'ai-email-generation':
         return <InteractiveEmailComposer />;
-      case 'smart-filtering':
+      case 'smart-search-filtering':
         return <InteractiveFilterDemo />;
-      case 'smart-search':
+      case 'ai-insights-analytics':
         return <InteractiveSmartSearch />;
-      case 'live-deal-analysis':
+      case 'contact-journey-timeline':
         return <InteractiveLiveDealAnalysis />;
-      case 'objection-handler':
+      case 'communication-hub':
         return <InteractiveObjectionHandler />;
-      case 'instant-ai-response':
+      case 'ai-automation':
         return <InteractiveInstantAIResponse />;
+      case 'ai-contact-scoring':
+        return <InteractiveContactDemo />;
       default:
         return null;
     }
@@ -218,8 +196,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 <span className="text-white font-bold text-lg">S</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Smart CRM Dashboard</h1>
-                <p className="text-gray-600">AI-Powered Customer Relationship Management</p>
+                <h1 className="text-2xl font-bold text-gray-900">AI-Powered Contacts Management</h1>
+                <p className="text-gray-600">Intelligent Contact Management & Sales Intelligence</p>
               </div>
             </div>
             
@@ -248,13 +226,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="text-center mb-16">
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
-            The Future of
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> AI-Powered </span>
-            CRM
+            The Complete
+            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> AI Contact Management </span>
+            Platform
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Experience the next generation of customer relationship management with advanced AI integration, 
-            intelligent automation, and predictive analytics that transform how you manage your sales pipeline.
+            Experience the most comprehensive AI-powered contact management solution with intelligent scoring,
+            automated enrichment, predictive analytics, unified communication, and advanced sales intelligence tools.
           </p>
           <div className="flex items-center justify-center space-x-4">
             <ModernButton
@@ -279,9 +257,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
 
         {/* Features Grid */}
         <div className="mb-16">
-          <h3 className="text-3xl font-bold text-gray-900 text-center mb-4">Complete Feature Suite</h3>
+          <h3 className="text-3xl font-bold text-gray-900 text-center mb-4">Complete AI Contact Management Suite</h3>
           <p className="text-lg text-gray-600 text-center mb-12 max-w-2xl mx-auto">
-            Discover every powerful feature that makes Smart CRM the ultimate solution for modern sales teams.
+            Discover every powerful feature that makes our platform the ultimate AI-powered solution for intelligent contact management and sales teams.
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -435,6 +413,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
               </div>
               <InteractiveInstantAIResponse />
             </div>
+
+            {/* AI Contact Intelligence Demo */}
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl">
+                  <User className="w-6 h-6 text-white" />
+                </div>
+                <h4 className="text-2xl font-bold text-gray-900">AI Contact Intelligence Demo</h4>
+              </div>
+              <InteractiveContactDemo />
+            </div>
           </div>
         </div>
 
@@ -446,7 +435,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 Powered by Advanced AI Models
               </h3>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Smart CRM integrates with the latest AI models for optimal performance, accuracy, and cost efficiency.
+                Our Contact Management Platform integrates with the latest AI models from OpenAI, Google, and more for optimal performance, accuracy, and cost efficiency across all contact features.
               </p>
             </div>
 
@@ -501,33 +490,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
 
         {/* Key Benefits Section */}
         <div className="mb-16">
-          <h3 className="text-3xl font-bold text-gray-900 text-center mb-12">Why Choose Smart CRM?</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <h3 className="text-3xl font-bold text-gray-900 text-center mb-12">Why Choose AI Contact Management?</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
                 icon: Brain,
-                title: 'AI-First Approach',
-                description: 'Every feature is enhanced with cutting-edge AI for maximum efficiency.',
+                title: 'AI-Powered Contact Intelligence',
+                description: 'Advanced AI scoring, enrichment, and insights that automatically qualify and prioritize your contacts.',
                 color: 'from-purple-500 to-blue-500'
               },
               {
-                icon: Target,
-                title: 'Smart Automation',
-                description: 'Intelligent workflows that learn and adapt to your sales process.',
-                color: 'from-green-500 to-teal-500'
+                icon: User,
+                title: 'Complete Contact Lifecycle Management',
+                description: 'Comprehensive contact management from initial capture to conversion with detailed journey tracking.',
+                color: 'from-blue-500 to-indigo-500'
               },
               {
                 icon: BarChart3,
-                title: 'Predictive Analytics',
-                description: 'Stay ahead with AI-powered predictions and trend analysis.',
+                title: 'Predictive Contact Analytics',
+                description: 'AI-powered analytics that predict engagement, conversion probability, and optimal contact timing.',
                 color: 'from-orange-500 to-red-500'
               },
               {
-                icon: Shield,
-                title: 'Enterprise Ready',
-                description: 'Scalable, secure, and built for teams of all sizes.',
-                color: 'from-blue-500 to-indigo-500'
+                icon: Sparkles,
+                title: 'Automated Contact Enrichment',
+                description: 'Automatically enrich contact profiles with web research, social data, and company intelligence.',
+                color: 'from-teal-500 to-blue-500'
+              },
+              {
+                icon: MessageSquare,
+                title: 'Unified Communication Hub',
+                description: 'Centralized communication across all channels with AI-powered response suggestions and tracking.',
+                color: 'from-pink-500 to-purple-500'
+              },
+              {
+                icon: Target,
+                title: 'Intelligent Lead Qualification',
+                description: 'Smart lead scoring and qualification that adapts to your sales process and improves over time.',
+                color: 'from-emerald-500 to-teal-500'
               }
             ].map((benefit, index) => {
               const Icon = benefit.icon;
@@ -548,11 +549,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
         <div className="text-center">
           <GlassCard className="p-12 bg-gradient-to-r from-blue-50 to-purple-50">
             <h3 className="text-4xl font-bold text-gray-900 mb-6">
-              Ready to Transform Your Sales Process?
+              Ready to Transform Your Contact Management?
             </h3>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Join thousands of sales teams already using Smart CRM to close more deals, 
-              save time, and make data-driven decisions.
+              Join thousands of sales and marketing teams already using our AI Contact Management Platform to qualify leads faster,
+              enrich contact data automatically, and make intelligent decisions across the entire customer journey.
             </p>
             <div className="flex items-center justify-center space-x-4">
               <ModernButton
@@ -562,7 +563,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600"
               >
                 <Sparkles className="w-5 h-5" />
-                <span>Start Using Smart CRM</span>
+                <span>Start Using Contact Management Platform</span>
               </ModernButton>
               <ModernButton
                 variant="outline"
