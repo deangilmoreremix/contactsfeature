@@ -308,3 +308,101 @@ The system continuously learns and optimizes based on actual performance:
 - **Cost Efficiency**: Tracks cost per successful operation and optimizes accordingly
 
 This intelligent system ensures that your CRM always uses the most appropriate AI model for each specific task, maximizing both performance and cost efficiency.
+
+## Interactive Features
+
+### AI Sales Intelligence Demo
+
+The interactive AI sales intelligence component provides a live demonstration of advanced sales analysis capabilities:
+
+**Features:**
+- Real-time sales forecasting based on contact data
+- Communication optimization suggestions
+- Deal health analysis with predictive insights
+- Adaptive playbook generation for different sales scenarios
+
+**Technical Implementation:**
+```typescript
+// Interactive demo component usage
+import { InteractiveAISalesIntelligence } from '../components/landing/InteractiveAISalesIntelligence';
+
+// The component integrates with the smart AI system
+// to provide real-time analysis of sales scenarios
+<InteractiveAISalesIntelligence
+  onAnalysisComplete={(results) => {
+    console.log('Sales analysis:', results);
+  }}
+/>
+```
+
+**AI Models Used:**
+- Forecasting: GPT-4o, Gemini 1.5 Pro
+- Communication: Claude 3.5 Sonnet, GPT-4o
+- Deal Analysis: GPT-4o, Gemini 1.5 Pro
+
+### Contact Management Demo
+
+The interactive contact demo showcases intelligent contact processing and enrichment:
+
+**Features:**
+- Live contact scoring with confidence metrics
+- Automated categorization and tagging
+- Relationship mapping visualization
+- Bulk analysis capabilities
+
+**Technical Implementation:**
+```typescript
+// Interactive contact demo usage
+import { InteractiveContactDemo } from '../components/landing/InteractiveContactDemo';
+
+// Demonstrates real-time contact analysis
+<InteractiveContactDemo
+  onContactAnalyzed={(contact, analysis) => {
+    console.log('Contact analysis:', analysis);
+  }}
+/>
+```
+
+**AI Models Used:**
+- Scoring: Gemini 2.0 Flash, GPT-4o Mini
+- Categorization: Gemma 2 2B, Gemini 1.5 Flash 8B
+- Enrichment: GPT-4o, Gemini 1.5 Pro
+
+### Performance in Interactive Mode
+
+**Real-time Requirements:**
+- Response time: <2 seconds for interactive feel
+- Preferred models: Gemini Flash series, GPT-4o Mini
+- Fallback strategy: Automatic model switching for reliability
+
+**Optimization Strategies:**
+- Model pre-warming for faster initial responses
+- Caching of common analysis patterns
+- Progressive loading of analysis results
+- Background processing for complex operations
+
+### Integration with Smart AI System
+
+The interactive components leverage the full smart AI integration system:
+
+```typescript
+// Example of how interactive components use the AI system
+const handleInteractiveAnalysis = async (inputData) => {
+  // Use smart AI for optimal model selection
+  const result = await enhancedAI.smartAnalyzeContact({
+    contactId: inputData.id,
+    contact: inputData,
+    analysisTypes: ['scoring', 'categorization', 'insights'],
+    urgency: 'high', // Fast response for interactive use
+    requirements: {
+      accuracy: 'high',
+      speed: 'realtime',
+      cost: 'medium'
+    }
+  });
+
+  return result;
+};
+```
+
+This ensures that interactive demos provide accurate, fast results while demonstrating the system's intelligent model selection capabilities.
