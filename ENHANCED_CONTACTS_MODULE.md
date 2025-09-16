@@ -1,8 +1,8 @@
-# Smart CRM - AI-Powered Contact Management & Sales Intelligence Platform
+# Enhanced Contacts Module for SmartCRM
 
-A comprehensive, AI-driven CRM platform that combines intelligent contact management with advanced sales intelligence tools, real-time AI assistance, and interactive demonstrations. Built for modern sales teams and businesses seeking to leverage AI for enhanced productivity and insights.
+A comprehensive, AI-driven contact management module that combines intelligent contact scoring with advanced AI enrichment, real-time web research, and interactive demonstrations. Built for modern sales teams seeking to leverage AI for enhanced contact intelligence and productivity.
 
-**🎯 Latest Update**: Complete Gemini AI Image Generation with Supabase Storage Integration - Generate, save, and manage AI-powered marketing visuals directly within your CRM.
+**🎯 Latest Update**: Complete Gemini AI Image Generation with Supabase Storage Integration - Generate, save, and manage AI-powered marketing visuals directly within your contacts module.
 
 ## 🌟 Key Features
 
