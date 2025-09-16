@@ -254,523 +254,235 @@ Historical Contact Data
 - **date-fns**: Modern date utility library
 - **uuid**: Universally unique identifier generation
 
-## 📋 Complete Feature Matrix & Application Modules
-
-This comprehensive feature matrix details all applications, modules, and functionalities within the Smart CRM platform. Each module is analyzed from the codebase structure, providing detailed feature breakdowns and integration points.
-
-### 🏗️ Core Platform Architecture
-
-#### **Module Federation System**
-- **Independent Deployment**: Each app can be deployed separately
-- **Runtime Integration**: Dynamic loading and communication between modules
-- **Shared Dependencies**: Optimized bundle sizes through code sharing
-- **Version Management**: Independent versioning and updates
-- **Cross-App Navigation**: Seamless user experience across modules
-- **State Synchronization**: Real-time data sharing between applications
-
-#### **AI Integration Framework**
-- **Multi-Provider Support**: OpenAI, Google Gemini/Gemma, Anthropic Claude
-- **Smart Model Routing**: Automatic model selection based on task requirements
-- **Cost Optimization**: Intelligent provider switching for cost efficiency
-- **Performance Monitoring**: Real-time AI model performance tracking
-- **Fallback Systems**: Automatic failover between AI providers
-- **Caching Layer**: Response caching and duplicate request prevention
-
----
-
-## 🏢 Core Business Applications
-
-### 1. **Dashboard** (`src/pages/Dashboard.tsx`)
-**Analytics & Business Intelligence Hub**
-
-**Core Functions:**
-- **Real-time KPI Dashboard**: Live metrics with auto-refresh capabilities
-- **Interactive Data Visualization**: Charts, graphs, and trend analysis
-- **Performance Benchmarking**: Goal tracking and achievement monitoring
-- **Revenue Analytics**: Sales forecasting and financial projections
-- **Lead Conversion Tracking**: Funnel analysis and conversion optimization
-- **Custom Widget System**: Drag-and-drop dashboard customization
-
-**AI Features:**
-- **Predictive Analytics**: AI-powered trend forecasting and insights
-- **Anomaly Detection**: Automated identification of performance anomalies
-- **Recommendation Engine**: AI suggestions for performance improvement
-- **Automated Reporting**: AI-generated executive summaries and insights
-
-**Integration Points:**
-- Connects with all CRM modules for unified data view
-- Real-time sync with Pipeline, Contacts, and Tasks modules
-- API endpoints for external dashboard embedding
-
-### 2. **Contacts** (`src/pages/Contacts.tsx`)
-**AI-Powered Contact Database & Management**
-
-**Core Functions:**
-- **Intelligent Contact Scoring**: AI-driven lead qualification (0-100 scale)
-- **Advanced Search & Filtering**: Fuzzy search, multi-criteria filtering
-- **Bulk Operations**: Mass updates, tagging, and categorization
-- **Contact Enrichment**: Automatic data completion from public sources
-- **Relationship Mapping**: Professional network analysis and visualization
-- **Segmentation Engine**: Dynamic contact grouping and targeting
-
-**AI Features:**
-- **Smart Categorization**: Automatic industry, role, and interest classification
-- **Duplicate Detection**: AI-powered duplicate contact identification
-- **Sentiment Analysis**: Communication tone and engagement scoring
-- **Engagement Prediction**: Likelihood of response and conversion forecasting
-
-**Integration Points:**
-- Syncs with Pipeline for deal association
-- Integrates with Email and Text Messages for communication history
-- Feeds data to Lead Automation for nurturing campaigns
-
-### 3. **AI Tools** (`src/pages/AITools.tsx`)
-**Comprehensive AI Toolkit & Real-Time Assistants**
-
-**Core Functions:**
-- **Unified AI Interface**: Single access point for all AI capabilities
-- **Tool Orchestration**: Intelligent tool selection and chaining
-- **Real-Time Processing**: Live AI assistance and responses
-- **Custom Workflow Builder**: Drag-and-drop AI workflow creation
-- **Performance Analytics**: AI tool usage and effectiveness tracking
-
-**AI Features:**
-- **16+ Specialized AI Tools**:
-  - **Streaming Chat**: Real-time conversational AI assistant
-  - **Voice Analysis**: Speech-to-text with sentiment analysis
-  - **Semantic Search**: Natural language content discovery
-  - **Vision Analyzer**: Image and document intelligence
-  - **Instant Response Generator**: Quick AI reply generation
-  - **Live Deal Analysis**: Real-time sales opportunity evaluation
-  - **Market Trend Content**: AI-curated industry insights
-  - **Meeting Summary**: Automatic meeting transcription and summarization
-  - **Objection Handler**: AI-powered sales objection responses
-  - **Email Composer**: Intelligent email drafting and optimization
-  - **Form Validation**: Dynamic form assistance and error correction
-  - **Reasoning Engine**: Complex problem-solving and analysis
-  - **Sales Forecasting**: Predictive sales analytics
-  - **Sales Insights**: Deep sales data analysis
-  - **Smart Search**: Advanced content discovery
-  - **Subject Line Generator**: AI-optimized email subjects
-- **Multi-Modal Processing**: Text, voice, image, and video AI analysis
-
-**Integration Points:**
-- Powers AI features across all CRM modules
-- Integrates with Content Library for AI-generated content
-- Connects with Communication tools for AI-enhanced messaging
-
-### 4. **Pipeline** (`src/pages/Pipeline.tsx`)
-**Sales Pipeline Management & Forecasting**
-
-**Core Functions:**
-- **Visual Pipeline View**: Kanban-style deal progression tracking
-- **Stage Management**: Customizable pipeline stages and workflows
-- **Deal Analytics**: Conversion rates and bottleneck identification
-- **Revenue Forecasting**: Projected revenue based on pipeline health
-- **Quota Tracking**: Individual and team performance monitoring
-- **Automated Alerts**: Pipeline health and deal status notifications
-
-**AI Features:**
-- **Predictive Deal Outcomes**: AI forecasting of deal closure probability
-- **Optimal Path Analysis**: Recommended actions for deal advancement
-- **Competitor Intelligence**: Market position analysis and recommendations
-- **Automated Stage Transitions**: AI-triggered workflow progression
-
-**Integration Points:**
-- Syncs with Contacts for deal association and contact data
-- Integrates with Tasks for deal-related activity tracking
-- Connects with Dashboard for pipeline metrics and KPIs
-
-### 5. **Tasks** (`src/pages/Tasks.tsx`)
-**Intelligent Task Management & Automation**
-
-**Core Functions:**
-- **Smart Task Creation**: AI-suggested tasks based on contact interactions
-- **Automated Sequences**: Follow-up task chains and reminders
-- **Priority Scoring**: AI-driven task importance ranking
-- **Time Tracking**: Task duration and effort monitoring
-- **Team Collaboration**: Task assignment and progress sharing
-- **Calendar Integration**: Automated calendar event creation
-
-**AI Features:**
-- **Task Optimization**: AI recommendations for task scheduling and prioritization
-- **Automated Task Generation**: Context-aware task creation from interactions
-- **Progress Prediction**: Estimated completion times and success probabilities
-- **Smart Reminders**: Intelligent follow-up timing and messaging
-
-**Integration Points:**
-- Links with Pipeline for deal-related task management
-- Connects with Appointments for meeting preparation tasks
-- Integrates with Communication tools for follow-up task creation
-
-### 6. **Appointments** (`src/pages/Appointments.tsx`)
-**AI-Powered Scheduling & Meeting Management**
-
-**Core Functions:**
-- **Smart Scheduling**: AI-optimized time slot recommendations
-- **Calendar Integration**: Sync with Google Calendar, Outlook, etc.
-- **Automated Reminders**: Multi-channel reminder system (email, SMS, push)
-- **Meeting Analytics**: Attendance tracking and engagement metrics
-- **Resource Booking**: Conference room and equipment reservation
-- **Virtual Meeting Integration**: Zoom, Teams, Google Meet connectivity
-
-**AI Features:**
-- **Optimal Timing**: AI analysis of best meeting times based on participant data
-- **Meeting Preparation**: AI-generated agendas and talking points
-- **Follow-up Automation**: Post-meeting action item extraction and assignment
-- **No-show Prediction**: AI identification of high-risk cancellations
-
-**Integration Points:**
-- Syncs with Contacts for participant information and history
-- Integrates with Tasks for meeting-related action items
-- Connects with Communication tools for automated reminders
-
-### 7. **Invoicing** (`src/pages/Invoicing.tsx`)
-**Automated Billing & Financial Management**
-
-**Core Functions:**
-- **Invoice Generation**: Automated invoice creation from deals and projects
-- **Payment Processing**: Integration with Stripe, PayPal, and other gateways
-- **Recurring Billing**: Subscription and recurring payment management
-- **Tax Calculation**: Automated tax computation and compliance
-- **Payment Tracking**: Overdue payment monitoring and dunning sequences
-- **Financial Reporting**: Revenue analytics and cash flow projections
-
-**AI Features:**
-- **Payment Prediction**: AI forecasting of payment timing and probability
-- **Pricing Optimization**: Dynamic pricing recommendations
-- **Invoice Optimization**: AI-improved invoice language and presentation
-- **Financial Insights**: Automated financial trend analysis and recommendations
-
-**Integration Points:**
-- Connects with Pipeline for deal-to-invoice conversion
-- Integrates with Dashboard for financial KPIs and reporting
-- Syncs with Communication tools for payment reminders
-
-### 8. **Text Messages** (`src/pages/TextMessages.tsx`)
-**SMS Marketing & Communication Platform**
-
-**Core Functions:**
-- **Bulk SMS Campaigns**: Mass messaging with personalization
-- **SMS Templates**: Pre-built message templates and sequences
-- **Delivery Tracking**: Real-time SMS delivery and engagement analytics
-- **Two-Way Conversations**: SMS reply handling and conversation management
-- **Compliance Management**: Opt-in/out tracking and regulatory compliance
-- **SMS Automation**: Triggered messaging based on user actions
-
-**AI Features:**
-- **Message Personalization**: AI-driven content customization
-- **Optimal Timing**: AI analysis of best SMS send times
-- **Response Prediction**: AI forecasting of SMS engagement rates
-- **Content Optimization**: AI-improved message wording and effectiveness
-
-**Integration Points:**
-- Syncs with Contacts for SMS recipient data and preferences
-- Integrates with Lead Automation for SMS nurturing sequences
-- Connects with Appointments for SMS reminders
-
-### 9. **Video Email** (`src/pages/VideoEmail.tsx`)
-**Personal Video Communication Platform**
-
-**Core Functions:**
-- **Video Recording**: In-browser video capture and editing
-- **Video Templates**: Pre-built video email templates and branding
-- **Video Analytics**: Engagement tracking and performance metrics
-- **Automated Sequences**: Video email drip campaigns and follow-ups
-- **Video Library**: Centralized storage and organization of video content
-- **Multi-Format Support**: Support for various video formats and resolutions
-
-**AI Features:**
-- **Video Content Analysis**: AI transcription and content summarization
-- **Optimal Length**: AI recommendations for video duration and pacing
-- **Personalization Engine**: AI-driven video content customization
-- **Performance Optimization**: AI analysis of video engagement patterns
-
-**Integration Points:**
-- Connects with Contacts for personalized video content
-- Integrates with Email systems for video email delivery
-- Syncs with Content Library for video asset management
-
-### 10. **Lead Automation** (`src/pages/LeadAutomation.tsx`)
-**Automated Lead Nurturing & Qualification**
-
-**Core Functions:**
-- **Lead Scoring Engine**: Multi-factor lead qualification system
-- **Automated Workflows**: Drag-and-drop lead nurturing sequence builder
-- **Lead Routing**: Intelligent lead assignment based on rules and AI
-- **Source Tracking**: Comprehensive lead source attribution and analytics
-- **Conversion Optimization**: A/B testing and optimization of nurturing sequences
-- **Lead Lifecycle Management**: Complete lead journey tracking and analysis
-
-**AI Features:**
-- **Predictive Lead Scoring**: AI forecasting of lead quality and conversion probability
-- **Content Recommendations**: AI-suggested content for different lead stages
-- **Optimal Timing**: AI analysis of best contact timing and frequency
-- **Personalization Engine**: AI-driven communication customization
-
-**Integration Points:**
-- Pulls data from Contacts for lead profile enrichment
-- Integrates with Email and SMS for multi-channel nurturing
-- Connects with Pipeline for lead-to-opportunity conversion
-
-### 11. **Circle Prospecting** (`src/pages/CircleProspecting.tsx`)
-**Advanced Prospect Research & Outreach**
-
-**Core Functions:**
-- **Social Prospecting**: LinkedIn and social media lead generation
-- **Prospect Research**: Deep profile analysis and intelligence gathering
-- **List Building**: Advanced prospect list creation and segmentation
-- **Outreach Automation**: Multi-channel prospecting sequences
-- **Engagement Tracking**: Comprehensive prospect interaction monitoring
-- **Compliance Tools**: GDPR and privacy regulation compliance management
-
-**AI Features:**
-- **Prospect Intelligence**: AI-powered profile analysis and insights
-- **Optimal Outreach**: AI recommendations for messaging and timing
-- **Relationship Mapping**: AI analysis of professional networks and connections
-- **Engagement Prediction**: AI forecasting of prospect response likelihood
-
-**Integration Points:**
-- Feeds prospect data to Contacts for database enrichment
-- Integrates with Lead Automation for prospect nurturing
-- Connects with Communication tools for outreach execution
-
-### 12. **Forms & Surveys** (`src/pages/FormsAndSurveys.tsx`)
-**Dynamic Form Builder & Survey Platform**
-
-**Core Functions:**
-- **Visual Form Builder**: Drag-and-drop form creation interface
-- **Advanced Survey Logic**: Conditional questions and branching logic
-- **Response Analytics**: Comprehensive form performance and conversion tracking
-- **Multi-Page Forms**: Complex form workflows with progress tracking
-- **Integration APIs**: Webhook and API integration for form submissions
-- **A/B Testing**: Form optimization through split testing
-
-**AI Features:**
-- **Smart Form Design**: AI recommendations for form structure and questions
-- **Response Analysis**: AI-powered survey response sentiment and trend analysis
-- **Form Optimization**: AI-driven improvements to conversion rates
-- **Automated Follow-ups**: AI-triggered actions based on form responses
-
-**Integration Points:**
-- Syncs form data with Contacts for lead capture
-- Integrates with Lead Automation for form-based nurturing
-- Connects with Dashboard for form performance analytics
-
-### 13. **Content Library** (`src/pages/ContentLibrary/ContentLibrary.tsx`)
-**AI-Powered Content Management System**
-
-**Core Functions:**
-- **Content Repository**: Centralized storage for all marketing and sales content
-- **Content Organization**: Advanced tagging, categorization, and search
-- **Version Control**: Content versioning and approval workflows
-- **Multi-Format Support**: Text, images, videos, documents, and templates
-- **Content Analytics**: Usage tracking and performance metrics
-- **Distribution Management**: Automated content sharing and syndication
-
-**AI Features:**
-- **Content Generation**: AI-powered content creation and optimization
-- **Content Recommendations**: AI suggestions for content based on context
-- **Performance Analysis**: AI insights into content effectiveness
-- **Automated Tagging**: AI-driven content categorization and metadata
-
-**Integration Points:**
-- Powers content for Email, SMS, and Video Email modules
-- Integrates with AI Tools for content generation capabilities
-- Connects with Dashboard for content performance metrics
-
-### 14. **FAQ** (`src/pages/FAQ.tsx`)
-**Intelligent Knowledge Base & Support**
-
-**Core Functions:**
-- **Dynamic FAQ Database**: Comprehensive knowledge base with search
-- **User Feedback System**: FAQ effectiveness tracking and improvement
-- **Multi-Language Support**: Localized FAQ content and search
-- **Analytics Dashboard**: FAQ usage patterns and popular topics
-- **Integration APIs**: Help desk and support ticket system integration
-- **Content Management**: Easy FAQ creation and updating workflows
-
-**AI Features:**
-- **Smart Search**: Natural language FAQ discovery and recommendations
-- **Content Generation**: AI-assisted FAQ creation and optimization
-- **User Intent Analysis**: AI understanding of user questions and needs
-- **Automated Responses**: AI-powered suggested answers and solutions
-
-**Integration Points:**
-- Supports all CRM modules with contextual help
-- Integrates with Guidance system for contextual assistance
-- Connects with Communication tools for automated support responses
-
----
-
-## 🎨 Marketing & Presentation Layer
-
-### 15. **Landing Page** (`src/pages/Landing/LandingPage.tsx`)
-**Main Marketing Hub & Product Showcase**
-
-**Core Functions:**
-- **Interactive Demos**: Live product demonstrations and walkthroughs
-- **Feature Showcase**: Comprehensive feature presentation and benefits
-- **Lead Capture**: Conversion-optimized forms and CTAs
-- **Social Proof**: Customer testimonials, case studies, and reviews
-- **Pricing Display**: Dynamic pricing tables and plan comparisons
-- **SEO Optimization**: Search engine optimized content and metadata
-
-**AI Features:**
-- **Personalized Content**: AI-driven content adaptation based on visitor behavior
-- **Lead Scoring**: Real-time visitor qualification and intent analysis
-- **A/B Testing**: AI-optimized content and design variations
-- **Conversion Optimization**: AI recommendations for improving conversion rates
-
-**Integration Points:**
-- Showcases all CRM modules and their capabilities
-- Connects with Lead Automation for captured lead processing
-- Integrates with Content Library for dynamic content display
-
-### 16-21. **Feature Showcase Pages**
-**Specialized Product Demonstrations**
-
-**AI Assistant Feature Page** (`AiAssistantFeaturePage.tsx`):
-- Live AI assistant interactions and demonstrations
-- Use case scenarios and workflow examples
-- Performance metrics and capability showcases
-- Integration code samples and API documentation
-
-**Contacts Feature Page** (`ContactsFeaturePage.tsx`):
-- Contact management workflow demonstrations
-- AI enrichment examples and data quality improvements
-- Search and filtering capability showcases
-- Bulk operation demonstrations and performance metrics
-
-**Function Assistant Feature Page** (`FunctionAssistantFeaturePage.tsx`):
-- Custom automation workflow builder demos
-- Function creation and testing interfaces
-- Performance monitoring and optimization tools
-- Integration capability demonstrations
-
-**Image Generator Feature Page** (`ImageGeneratorFeaturePage.tsx`):
-- Live AI image generation with style controls
-- Quality and speed comparison demonstrations
-- Brand customization and template features
-- Integration examples with marketing tools
-
-**Pipeline Feature Page** (`PipelineFeaturePage.tsx`):
-- Interactive pipeline visualization and management demos
-- Deal progression analytics and forecasting displays
-- Mobile and desktop experience comparisons
-- Integration demonstrations with sales tools
-
-**Semantic Search Feature Page** (`SemanticSearchFeaturePage.tsx`):
-- Advanced search capability demonstrations
-- Natural language query processing examples
-- Result relevance and ranking showcases
-- Enterprise search integration examples
-
----
-
-## 🔐 Authentication & User Management
-
-### 22. **Registration System** (`src/pages/Auth/Register.tsx`)
-**Multi-Tenant User Onboarding**
-
-**Core Functions:**
-- **Multi-Step Registration**: Guided user setup with progress tracking
-- **Social Login Integration**: OAuth integration with Google, LinkedIn, etc.
-- **Email Verification**: Secure account activation and validation
-- **Account Preferences**: Initial user preference and notification setup
-- **Onboarding Workflows**: Automated welcome sequences and tutorials
-- **Security Compliance**: GDPR, CCPA, and security standard compliance
-
-**AI Features:**
-- **User Profiling**: AI analysis of user needs and preferences
-- **Onboarding Optimization**: AI-driven tutorial personalization
-- **Security Analysis**: AI-powered account security monitoring
-- **Usage Prediction**: AI forecasting of user engagement and feature adoption
-
-**Integration Points:**
-- Foundation for all authenticated CRM module access
-- Triggers Guidance system for personalized onboarding
-- Connects with Dashboard for user-specific analytics
-
----
-
-## 🧪 Development & Testing Infrastructure
-
-### 23. **Test Web Search** (App.tsx - `?test=true`)
-**AI Web Search Testing Environment**
-
-**Core Functions:**
-- **AI Search Engine**: Natural language web search capabilities
-- **Result Ranking**: AI-powered search result relevance scoring
-- **Performance Testing**: Search speed and accuracy benchmarking
-- **API Integration Testing**: External search API reliability validation
-- **Result Validation**: Automated accuracy and quality assessment
-
-**AI Features:**
-- **Query Understanding**: Advanced natural language processing
-- **Context Awareness**: Search intent analysis and result personalization
-- **Quality Scoring**: AI evaluation of search result credibility
-- **Performance Optimization**: Continuous search algorithm improvement
-
-### 24. **AI Testing Suite** (App.tsx - `?ai-test=true`)
-**Comprehensive AI Model Testing Platform**
-
-**Core Functions:**
-- **Model Performance Testing**: Comparative analysis across AI providers
-- **Response Quality Evaluation**: Automated assessment of AI output quality
-- **Latency Measurement**: Real-time response time and throughput testing
-- **Error Handling Validation**: Fallback system and error recovery testing
-- **Cost Analysis**: AI usage cost tracking and optimization recommendations
-
-**AI Features:**
-- **Automated Testing**: Self-running AI capability assessments
-- **Performance Benchmarking**: Standardized AI model comparison metrics
-- **Quality Assurance**: AI output validation and consistency checking
-- **Optimization Recommendations**: AI-driven model selection and configuration advice
-
-### 25. **Tooltip Test Suite** (App.tsx - `?tooltip-test=true`)
-**UI/UX Component Testing Interface**
-
-**Core Functions:**
-- **Tooltip Positioning**: Dynamic positioning algorithm testing
-- **Accessibility Validation**: WCAG compliance and screen reader testing
-- **Performance Monitoring**: UI component rendering speed analysis
-- **Cross-Browser Testing**: Compatibility validation across browsers
-- **User Experience Optimization**: Interaction flow and usability testing
-
-**AI Features:**
-- **Automated Testing**: AI-powered test case generation and execution
-- **User Behavior Analysis**: AI analysis of user interaction patterns
-- **Optimization Recommendations**: AI-driven UI/UX improvement suggestions
-- **Accessibility Enhancement**: AI-powered accessibility issue detection
-
----
-
-## 🔗 Integration Architecture
-
-### **Cross-Module Data Flow**
-- **Unified Data Model**: Consistent data structure across all modules
-- **Real-Time Synchronization**: Live data updates between connected modules
-- **Event-Driven Architecture**: Message-based communication between apps
-- **API Gateway**: Centralized API management and rate limiting
-- **Shared Services**: Common functionality accessible across modules
-
-### **AI Service Integration**
-- **Centralized AI Orchestration**: Single point of AI model management
-- **Dynamic Provider Switching**: Automatic failover and optimization
-- **Usage Analytics**: Comprehensive AI usage tracking and reporting
-- **Cost Management**: AI spending monitoring and budget controls
-- **Performance Optimization**: Continuous AI system improvement
-
-### **External System Integrations**
-- **Email Providers**: SendGrid, Mailchimp, Outlook, Gmail
-- **Calendar Systems**: Google Calendar, Outlook Calendar, Apple Calendar
-- **Payment Processors**: Stripe, PayPal, Authorize.net
-- **Communication APIs**: Twilio (SMS), Zoom (Video), Slack (Team comms)
-- **Social Platforms**: LinkedIn, Twitter, Facebook for social selling
-- **Cloud Storage**: AWS S3, Google Cloud Storage for file management
-
-This comprehensive feature matrix represents the complete Smart CRM ecosystem, with each module designed for specific business functions while maintaining seamless integration and AI-powered intelligence throughout the platform.
+## 📱 Remote Apps & Modules
+
+The Smart CRM platform consists of multiple interconnected remote applications, each serving specific business functions. These modules can be deployed independently and communicate through Module Federation.
+
+### Core Business Applications
+
+#### 🏠 **Dashboard** (`src/pages/Dashboard.tsx`)
+**Main Analytics Hub**
+- Real-time KPI tracking and performance metrics
+- Interactive charts and data visualizations
+- Lead analytics and conversion tracking
+- Revenue forecasting and trend analysis
+- Custom dashboard widgets and layouts
+- Performance benchmarking against goals
+
+#### 👥 **Contacts** (`src/pages/Contacts.tsx`)
+**AI-Powered Contact Management**
+- Intelligent contact database with AI scoring
+- Advanced search and filtering capabilities
+- Bulk contact operations and management
+- Contact enrichment from public sources
+- Relationship mapping and network analysis
+- Contact segmentation and categorization
+
+#### 🤖 **AI Tools** (`src/pages/AITools.tsx`)
+**Comprehensive AI Toolkit**
+- Access to all 16+ real-time AI tools
+- Streaming chat and conversational AI
+- Voice analysis and transcription
+- Semantic search across all data
+- Vision analysis for images and documents
+- Content generation and reasoning tools
+- Real-time form validation and assistance
+
+#### 📊 **Pipeline** (`src/pages/Pipeline.tsx`)
+**Sales Pipeline Management**
+- Visual pipeline stages and deal tracking
+- Deal progression analytics and forecasting
+- Automated stage transitions and notifications
+- Revenue projection and quota tracking
+- Pipeline health monitoring and alerts
+- Custom pipeline configurations
+
+#### ✅ **Tasks** (`src/pages/Tasks.tsx`)
+**Task Management & Automation**
+- Intelligent task creation and assignment
+- Automated follow-up sequences
+- Task prioritization and scheduling
+- Progress tracking and completion analytics
+- Integration with calendar and reminders
+- Team collaboration and task delegation
+
+#### 📅 **Appointments** (`src/pages/Appointments.tsx`)
+**Appointment Scheduling System**
+- AI-powered scheduling optimization
+- Calendar integration and availability management
+- Automated meeting reminders and follow-ups
+- Appointment analytics and no-show tracking
+- Virtual meeting integration (Zoom, Teams, etc.)
+- Resource and room booking management
+
+#### 💰 **Invoicing** (`src/pages/Invoicing.tsx`)
+**Invoice Management & Billing**
+- Automated invoice generation and sending
+- Payment tracking and overdue management
+- Tax calculation and compliance
+- Recurring billing and subscription management
+- Invoice templates and customization
+- Financial reporting and analytics
+
+#### 💬 **Text Messages** (`src/pages/TextMessages.tsx`)
+**SMS Communication Hub**
+- Bulk SMS campaigns and messaging
+- AI-powered message personalization
+- SMS analytics and delivery tracking
+- Automated SMS sequences and drip campaigns
+- Two-way SMS conversations
+- SMS template management
+
+#### 🎥 **Video Email** (`src/pages/VideoEmail.tsx`)
+**Video Email Platform**
+- Personal video email recording and sending
+- Video analytics and engagement tracking
+- Video template library and customization
+- Automated video follow-up sequences
+- Integration with email marketing tools
+- Video performance analytics
+
+#### ⚡ **Lead Automation** (`src/pages/LeadAutomation.tsx`)
+**Automated Lead Management**
+- Lead scoring and qualification automation
+- Automated email sequences and nurturing
+- Lead routing and assignment rules
+- Lead source tracking and attribution
+- Automated follow-up workflows
+- Lead conversion optimization
+
+#### 🎯 **Circle Prospecting** (`src/pages/CircleProspecting.tsx`)
+**Advanced Prospecting Tools**
+- LinkedIn and social media prospecting
+- AI-powered lead research and enrichment
+- Prospect list building and management
+- Outreach sequence automation
+- Prospect engagement tracking
+- Compliance and privacy management
+
+#### 📝 **Forms & Surveys** (`src/pages/FormsAndSurveys.tsx`)
+**Form Builder & Survey Platform**
+- Drag-and-drop form builder
+- Advanced survey creation with logic
+- Form analytics and response tracking
+- Integration with CRM data
+- Automated follow-up sequences
+- A/B testing for form optimization
+
+#### 📚 **Content Library** (`src/pages/ContentLibrary/ContentLibrary.tsx`)
+**Content Management System**
+- Centralized content storage and organization
+- AI-powered content generation and optimization
+- Content performance analytics
+- Multi-format content support (text, images, video)
+- Content approval workflows
+- Content distribution and sharing
+
+#### ❓ **FAQ** (`src/pages/FAQ.tsx`)
+**Knowledge Base & Support**
+- Comprehensive FAQ database
+- AI-powered search and recommendations
+- User feedback and improvement tracking
+- Multi-language support
+- Integration with help desk systems
+- Analytics on frequently accessed topics
+
+### Landing & Marketing Pages
+
+#### 🏠 **Landing Page** (`src/pages/Landing/LandingPage.tsx`)
+**Main Marketing Landing Page**
+- Interactive product demonstrations
+- Feature showcase and benefits
+- Customer testimonials and social proof
+- Pricing information and plans
+- Lead capture forms and CTAs
+- SEO-optimized content
+
+#### 🤖 **AI Assistant Feature Page** (`src/pages/Landing/FeaturePage/AiAssistantFeaturePage.tsx`)
+**AI Assistant Showcase**
+- Live AI assistant demonstrations
+- Use case examples and scenarios
+- Performance metrics and capabilities
+- Integration examples and code samples
+- Customer success stories
+
+#### 👥 **Contacts Feature Page** (`src/pages/Landing/FeaturePage/ContactsFeaturePage.tsx`)
+**Contact Management Showcase**
+- Contact management workflow demos
+- AI enrichment examples
+- Search and filtering demonstrations
+- Bulk operation capabilities
+- Integration with other tools
+
+#### ⚙️ **Function Assistant Feature Page** (`src/pages/Landing/FeaturePage/FunctionAssistantFeaturePage.tsx`)
+**Function Assistant Showcase**
+- Custom function creation demos
+- Automation workflow examples
+- Integration capabilities
+- Performance and reliability metrics
+- Use case studies
+
+#### 🖼️ **Image Generator Feature Page** (`src/pages/Landing/FeaturePage/ImageGeneratorFeaturePage.tsx`)
+**AI Image Generation Showcase**
+- Live image generation demos
+- Style and customization options
+- Quality and speed comparisons
+- Integration examples
+- Brand customization features
+
+#### 📈 **Pipeline Feature Page** (`src/pages/Landing/FeaturePage/PipelineFeaturePage.tsx`)
+**Pipeline Management Showcase**
+- Pipeline visualization demos
+- Deal tracking examples
+- Analytics and reporting features
+- Mobile and desktop experiences
+- Integration with sales tools
+
+#### 🔍 **Semantic Search Feature Page** (`src/pages/Landing/FeaturePage/SemanticSearchFeaturePage.tsx`)
+**Semantic Search Showcase**
+- Advanced search capability demos
+- Natural language query examples
+- Search result relevance demonstrations
+- Performance metrics and speed
+- Enterprise search integration
+
+### Authentication & User Management
+
+#### 🔐 **Registration** (`src/pages/Auth/Register.tsx`)
+**User Registration System**
+- Multi-step registration process
+- Social login integration
+- Email verification and validation
+- Account setup and preferences
+- Onboarding flow initiation
+- Security and compliance features
+
+### Development & Testing Modules
+
+#### 🧪 **Test Web Search** (App.tsx - test mode)
+**Web Search Testing Interface**
+- AI-powered web search capabilities
+- Search result analysis and ranking
+- Performance testing and optimization
+- Integration testing with search APIs
+- Result validation and accuracy metrics
+
+#### 🧪 **AI Testing Suite** (App.tsx - ai-test mode)
+**Comprehensive AI Testing Platform**
+- AI model performance testing
+- Response quality evaluation
+- Speed and latency measurements
+- Error handling and fallback testing
+- Integration testing across providers
+- Cost analysis and optimization
+
+#### 🧪 **Tooltip Test Suite** (App.tsx - tooltip-test mode)
+**UI Component Testing Interface**
+- Tooltip positioning and behavior testing
+- Accessibility compliance validation
+- Performance testing for UI components
+- Cross-browser compatibility testing
+- User experience optimization
 
 ## 📁 Project Structure
 
@@ -1041,6 +753,10 @@ We welcome contributions! Please follow these steps:
 - [Smart AI Integration Guide](src/docs/smart-ai-integration-guide.md)
 - [API Documentation](src/docs/integration-api-docs.md)
 - [AI Models Guide](src/docs/ai-models-guide.md)
+- [Gemini Image Generation Guide](src/lib/promptTemplates.ts) - SmartCRM prompt templates
+- [Image Storage Service](src/services/imageStorage.service.ts) - Supabase storage integration
+- [Contact AI Features](src/components/contacts/) - Enhanced contact management
+- [Database Migrations](supabase/migrations/) - Supabase schema setup
 
 ## 🧪 Testing
 
