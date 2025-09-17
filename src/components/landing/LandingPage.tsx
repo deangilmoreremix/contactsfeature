@@ -178,7 +178,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
         return <InteractiveObjectionHandler />;
       case 'ai-automation':
         return <InteractiveInstantAIResponse />;
-      case 'ai-contact-scoring':
+      case 'contact-detail-view':
         return <InteractiveContactDemo />;
       default:
         return null;

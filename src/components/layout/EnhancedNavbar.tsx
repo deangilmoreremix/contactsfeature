@@ -3,10 +3,11 @@ import { GlassCard } from '../ui/GlassCard';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import { ConversationalAIWidget } from '../ui/ConversationalAIWidget';
-import { 
-  Search, 
-  Bell, 
-  Settings, 
+import GeminiImageModal from '../GeminiImageModal';
+import {
+  Search,
+  Bell,
+  Settings,
   ChevronDown,
   BarChart3,
   Users,
@@ -20,10 +21,12 @@ import {
   Zap,
   Video,
   PieChart,
-  Globe
+  Globe,
+  Image as ImageIcon
 } from 'lucide-react';
 
 const aiTools = [
+  { name: 'AI Image Generator', icon: ImageIcon, action: 'openImageGenerator' },
   { name: 'Email Composer', icon: Mail },
   { name: 'Email Analysis', icon: BarChart3 },
   { name: 'Meeting Summary', icon: Calendar },
@@ -77,9 +80,18 @@ const contentTools = [
 export const EnhancedNavbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [isAIWidgetOpen, setIsAIWidgetOpen] = useState(false);
+  const [isImageGeneratorOpen, setIsImageGeneratorOpen] = useState(false);
 
   const toggleDropdown = (dropdown: string) => {
     setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
+  };
+
+  const handleToolClick = (item: any) => {
+    if (item.action === 'openImageGenerator') {
+      setIsImageGeneratorOpen(true);
+      setActiveDropdown(null); // Close the dropdown
+    }
+    // Add other actions here as needed
   };
 
   const Dropdown = ({ title, items, isOpen }: { title: string; items: any[]; isOpen: boolean }) => (
@@ -91,7 +103,7 @@ export const EnhancedNavbar: React.FC = () => {
         <span>{title}</span>
         <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-      
+
       {isOpen && (
         <div className="absolute top-full left-0 mt-2 w-72 bg-white/95 backdrop-blur-md border border-white/20 rounded-xl shadow-lg z-50 max-h-96 overflow-y-auto">
           <div className="p-2">
@@ -100,6 +112,7 @@ export const EnhancedNavbar: React.FC = () => {
               return (
                 <button
                   key={index}
+                  onClick={() => handleToolClick(item)}
                   className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                 >
                   <Icon className="w-4 h-4" />
@@ -208,6 +221,12 @@ export const EnhancedNavbar: React.FC = () => {
           currentPage: 'dashboard',
           selectedContacts: []
         }}
+      />
+
+      {/* Gemini Image Generator Modal */}
+      <GeminiImageModal
+        open={isImageGeneratorOpen}
+        onClose={() => setIsImageGeneratorOpen(false)}
       />
     </GlassCard>
   );

@@ -32,7 +32,9 @@ export const sampleContacts: Contact[] = [
       'Decision Timeline': 'Q3 2025'
     },
     createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-15T14:30:00Z'
+    updatedAt: '2024-01-15T14:30:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '2',
@@ -54,7 +56,9 @@ export const sampleContacts: Contact[] = [
     tags: ['Finance', 'Cost-Conscious', 'Mid-Market'],
     isFavorite: true,
     createdAt: '2024-01-02T00:00:00Z',
-    updatedAt: '2024-01-12T16:15:00Z'
+    updatedAt: '2024-01-12T16:15:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '3',
@@ -76,7 +80,9 @@ export const sampleContacts: Contact[] = [
     tags: ['Operations', 'Manufacturing'],
     isFavorite: false,
     createdAt: '2024-01-03T00:00:00Z',
-    updatedAt: '2024-01-08T11:00:00Z'
+    updatedAt: '2024-01-08T11:00:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '4',
@@ -98,7 +104,9 @@ export const sampleContacts: Contact[] = [
     tags: ['Developer', 'Referral', 'Technical'],
     isFavorite: true,
     createdAt: '2024-01-04T00:00:00Z',
-    updatedAt: '2024-01-16T09:45:00Z'
+    updatedAt: '2024-01-16T09:45:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '5',
@@ -124,7 +132,9 @@ export const sampleContacts: Contact[] = [
       website: 'https://globalhealth.org'
     },
     createdAt: '2024-01-05T00:00:00Z',
-    updatedAt: '2024-01-20T15:20:00Z'
+    updatedAt: '2024-01-20T15:20:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '6',
@@ -155,7 +165,9 @@ export const sampleContacts: Contact[] = [
       'Team Size': '45 developers'
     },
     createdAt: '2024-01-06T00:00:00Z',
-    updatedAt: '2024-01-22T10:15:00Z'
+    updatedAt: '2024-01-22T10:15:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '7',
@@ -177,7 +189,9 @@ export const sampleContacts: Contact[] = [
     tags: ['Former Customer', 'Churned', 'Price Sensitive'],
     isFavorite: false,
     createdAt: '2023-06-10T00:00:00Z',
-    updatedAt: '2023-12-15T13:30:00Z'
+    updatedAt: '2023-12-15T13:30:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '8',
@@ -203,7 +217,9 @@ export const sampleContacts: Contact[] = [
       twitter: 'https://twitter.com/rchen'
     },
     createdAt: '2024-01-08T00:00:00Z',
-    updatedAt: '2024-01-19T16:45:00Z'
+    updatedAt: '2024-01-19T16:45:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '9',
@@ -234,7 +250,9 @@ export const sampleContacts: Contact[] = [
       'User Count': '15,000 students, 2,000 staff'
     },
     createdAt: '2024-01-09T00:00:00Z',
-    updatedAt: '2024-01-21T14:00:00Z'
+    updatedAt: '2024-01-21T14:00:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   },
   {
     id: '10',
@@ -259,6 +277,8 @@ export const sampleContacts: Contact[] = [
       linkedin: 'https://linkedin.com/in/diannerussell'
     },
     createdAt: '2024-01-10T00:00:00Z',
-    updatedAt: '2024-01-14T10:30:00Z'
+    updatedAt: '2024-01-14T10:30:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   }
 ];

@@ -99,9 +99,9 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
       const isDemoData = contact.isExample || contact.createdBy === 'demo' || contact.mockDataType === 'demo';
   
       if (isDemoData) {
-        // For demo/example data, show a message instead of processing
-        alert('This is a demo contact. AI analysis is disabled for demo data to preserve the demo experience.');
-        return;
+        // Allow AI analysis for demo contacts with mock citation data
+        // alert('This is a demo contact. AI analysis is disabled for demo data to preserve the demo experience.');
+        // return;
       }
   
       // Check if this is mock data that should use real AI

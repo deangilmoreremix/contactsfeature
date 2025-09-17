@@ -43,7 +43,8 @@ export const TestWebSearch: React.FC = () => {
     'OpenAI GPT-5 features and capabilities',
     'Latest developments in AI technology 2024',
     'React 18 new features and improvements',
-    'TypeScript 5.0 release notes'
+    'TypeScript 5.0 release notes',
+    'Demo citation test - this should show mock citations'
   ];
 
   return (

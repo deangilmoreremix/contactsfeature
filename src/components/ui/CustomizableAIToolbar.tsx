@@ -143,10 +143,11 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
     // Check if this is mock data
     const isMockData = entityData.isMockData || entityData.dataSource === 'mock' || entityData.createdBy === 'demo';
 
-    if (isMockData) {
-      alert('This is a demo contact. AI features are disabled for mock data to preserve the demo experience.');
-      return;
-    }
+    // Allow AI features for demo contacts with mock citation data
+    // if (isMockData) {
+    //   alert('This is a demo contact. AI features are disabled for mock data to preserve the demo experience.');
+    //   return;
+    // }
 
     setIsProcessing(true);
     researchThinking.startResearch(`🔍 Researching for ${label.toLowerCase()}...`);
