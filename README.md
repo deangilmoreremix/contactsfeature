@@ -472,6 +472,32 @@ Comprehensive Tracking
 
 ## 🚀 AI Integration Architecture
 
+### Hybrid Serverless Architecture
+**Latest Update**: Complete migration to secure Netlify Functions + Supabase hybrid architecture for enhanced security and performance.
+
+#### Architecture Overview
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   React Client  │────│ Netlify Functions│────│  AI APIs        │
+│   (Frontend)    │    │  (Serverless)    │    │ OpenAI/Gemini   │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │
+         └───────────────────────┼──────────────────────────────┐
+                                 │                              │
+                    ┌────────────▼────────────┐    ┌────────────▼────────────┐
+                    │     Supabase           │    │   Supabase Storage     │
+                    │   Database/Auth        │    │   Files/Images         │
+                    │   Edge Functions       │    │   Real-time            │
+                    └────────────────────────┘    └─────────────────────────┘
+```
+
+#### Security Benefits
+- ✅ **API Keys Secured**: No client-side exposure of OpenAI/Gemini keys
+- ✅ **Server-side Processing**: All AI calls handled securely on Netlify
+- ✅ **Rate Limiting**: Built-in protection against abuse
+- ✅ **Cost Control**: Better monitoring and optimization
+- ✅ **CORS Protection**: Automatic cross-origin handling
+
 ### Supported AI Providers
 - **OpenAI**: GPT-4o, GPT-4o Mini, GPT-4 Turbo, GPT-3.5 Turbo
 - **Google Gemini & Gemma**: Gemini 2.0 Flash, Gemini 1.5 Pro, Gemma 2 models
@@ -491,6 +517,14 @@ Comprehensive Tracking
 - **Communication**: Email optimization, subject lines, personalization
 - **Search & Discovery**: Semantic search, market trends, insights
 - **Image Generation**: AI-powered marketing visuals with SmartCRM branding
+
+### Netlify Functions Integration
+- **Contact Analysis**: `/netlify/functions/openai-contact-analysis`
+- **Contact Research**: `/netlify/functions/gemini-contact-research`
+- **Email Templates**: `/netlify/functions/openai-email-template`
+- **Environment Variables**: Secure API key storage in Netlify dashboard
+- **CORS Handling**: Automatic cross-origin request management
+- **Error Handling**: Comprehensive fallback mechanisms
 
 ## 🎨 Gemini AI Image Generation System
 
@@ -903,24 +937,29 @@ npm run preview
 
 ## 🔧 Configuration
 
-### AI Provider Setup
-Configure AI providers in your environment variables:
+### Netlify Functions Setup
+For the secure AI integration, configure environment variables in your Netlify dashboard:
+
+1. **Access Netlify Dashboard**: Go to [netlify.com](https://netlify.com) → Your Project → Site Settings → Environment Variables
+2. **Add Variables**:
+   - `OPENAI_API_KEY`: Your OpenAI API key (for contact analysis and email templates)
+   - `GEMINI_API_KEY`: Your Google Gemini API key (for contact research)
+3. **Deploy Functions**: Run `npm run netlify:deploy` to deploy the serverless functions
+
+### Local Development Setup
+For local development, configure these environment variables:
 
 ```env
-# OpenAI
-VITE_OPENAI_API_KEY=your_openai_key
-
-# Google AI (for Gemini Image Generation)
-VITE_GOOGLE_AI_API_KEY=your_google_ai_key
-
-# Anthropic
-VITE_ANTHROPIC_API_KEY=your_anthropic_key
+# Netlify Functions (Server-side - move to Netlify dashboard for production)
+OPENAI_API_KEY=your_openai_key
+GEMINI_API_KEY=your_gemini_api_key
 
 # Supabase (Database & Storage)
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Optional: Gemini API Key (if different from Google AI)
+# Legacy AI Keys (for backward compatibility - will be phased out)
+VITE_OPENAI_API_KEY=your_openai_key
 VITE_GEMINI_API_KEY=your_gemini_api_key
 ```
 
@@ -931,7 +970,17 @@ Control feature availability through environment variables:
 VITE_ENABLE_AI_TOOLS=true
 VITE_ENABLE_DASHBOARD_ANALYTICS=true
 VITE_ENABLE_INTERACTIVE_DEMOS=true
+VITE_ENABLE_NETLIFY_FUNCTIONS=true
 ```
+
+### Testing Netlify Functions
+Run the test suite to verify your Netlify Functions setup:
+
+```bash
+npm run test:functions
+```
+
+This will test all AI functions and report any configuration issues.
 
 ## 📊 Usage Examples
 

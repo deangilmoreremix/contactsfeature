@@ -12,7 +12,12 @@
     "supabase:login": "npx supabase login",
     "supabase:link": "echo 'Please run: npx supabase link --project-ref YOUR_PROJECT_REF (replace YOUR_PROJECT_REF with your actual project reference)'",
     "supabase:deploy": "echo 'Please run: npx supabase functions deploy FUNCTION_NAME --project-ref YOUR_PROJECT_REF (replace with your actual project reference)'",
-    "deploy:instructions": "echo 'To deploy functions, first connect to Supabase with: npx supabase login && npx supabase link --project-ref YOUR_PROJECT_REF'"
+    "deploy:instructions": "echo 'To deploy functions, first connect to Supabase with: npx supabase login && npx supabase link --project-ref YOUR_PROJECT_REF'",
+    "netlify:login": "npx netlify login",
+    "netlify:link": "npx netlify link",
+    "netlify:deploy": "npx netlify deploy --prod",
+    "netlify:deploy:preview": "npx netlify deploy --build",
+    "test:functions": "node test-netlify-functions.js"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.4",
