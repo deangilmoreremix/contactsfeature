@@ -191,4 +191,6 @@ Return a JSON object with the following structure:
       body: JSON.stringify(result)
     };
   }
-};
+}
+
+export { handler };

@@ -126,4 +126,6 @@ Best regards,
       body: JSON.stringify(fallbackResult)
     };
   }
-};
+}
+
+export { handler };
