@@ -1,5 +1,4 @@
 exports.handler = async (event, context) => {
-  const fetch = (await import('node-fetch')).default;
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
