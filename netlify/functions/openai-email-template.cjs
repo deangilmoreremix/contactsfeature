@@ -7,8 +7,13 @@ exports.handler = async (event, context) => {
     };
   }
 
+  let contact, purpose, templateType = 'professional';
+
   try {
-    const { contact, purpose, templateType = 'professional' } = JSON.parse(event.body);
+    const parsed = JSON.parse(event.body);
+    contact = parsed.contact;
+    purpose = parsed.purpose;
+    templateType = parsed.templateType || 'professional';
 
     if (!contact || !purpose) {
       return {
