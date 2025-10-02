@@ -1,5 +1,6 @@
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
 exports.handler = async (event, context) => {
-  const fetch = (await import('node-fetch')).default;
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
@@ -191,6 +192,4 @@ Return a JSON object with the following structure:
       body: JSON.stringify(result)
     };
   }
-}
-
-export { handler };
+};

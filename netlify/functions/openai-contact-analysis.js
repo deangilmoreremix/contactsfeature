@@ -1,5 +1,6 @@
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
 exports.handler = async (event, context) => {
-  const fetch = (await import('node-fetch')).default;
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
@@ -113,6 +114,4 @@ exports.handler = async (event, context) => {
       body: JSON.stringify(fallbackResult)
     };
   }
-}
-
-export { handler };
+};
