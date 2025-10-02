@@ -600,7 +600,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         }}
       >
       {/* Enlarged Modal Container */}
-      <div className="bg-white rounded-xl w-full max-w-[95vw] h-[95vh] overflow-hidden flex animate-scale-in shadow-2xl">
+      <div data-testid="contact-detail-modal" className="bg-white rounded-xl w-full max-w-[95vw] h-[95vh] overflow-hidden flex animate-scale-in shadow-2xl">
         {/* Enhanced Customer Profile Sidebar */}
         <div className="w-80 bg-gradient-to-b from-gray-50 via-white to-gray-50 border-r border-gray-200 flex flex-col h-full">
           {/* Fixed Header with AI Features */}
@@ -1553,11 +1553,12 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   return (
                     <button
                       key={tab.id}
+                      data-testid={`${tab.id}-tab`}
                       onClick={() => setActiveTab(tab.id)}
                       className={`
                         flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200
-                        ${activeTab === tab.id 
-                          ? 'bg-blue-100 text-blue-700 shadow-sm' 
+                        ${activeTab === tab.id
+                          ? 'bg-blue-100 text-blue-700 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                         }
                       `}
@@ -1582,9 +1583,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                 
                 {isEditing ? (
                   <div className="flex items-center space-x-2">
-                    <ModernButton 
-                      variant="primary" 
-                      size="sm" 
+                    <ModernButton
+                      variant="primary"
+                      size="sm"
                       onClick={handleSave}
                       loading={isSaving}
                       className="flex items-center space-x-2"
@@ -1592,9 +1593,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       <Save className="w-4 h-4" />
                       <span>Save</span>
                     </ModernButton>
-                    <ModernButton 
-                      variant="outline" 
-                      size="sm" 
+                    <ModernButton
+                      variant="outline"
+                      size="sm"
                       onClick={handleCancel}
                       className="flex items-center space-x-2"
                     >
@@ -1603,9 +1604,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     </ModernButton>
                   </div>
                 ) : (
-                  <ModernButton 
-                    variant="primary" 
-                    size="sm" 
+                  <ModernButton
+                    data-testid="modal-edit-contact-button"
+                    variant="primary"
+                    size="sm"
                     onClick={() => setIsEditing(true)}
                     className="flex items-center space-x-2"
                   >

@@ -1,0 +1,178 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Landing Page Screenshots', () => {
+  test('capture landing page hero section', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Wait for landing page to load (look for a landing page element)
+    await page.waitForSelector('h1', { state: 'visible' });
+
+    // Take screenshot of hero section
+    await page.screenshot({
+      path: 'screenshots/landing-hero.png',
+      fullPage: false,
+      clip: { x: 0, y: 0, width: 1200, height: 600 }
+    });
+  });
+
+  test('capture AI Contact Scoring demo', async ({ page }) => {
+    console.log('Starting AI Contact Scoring demo test');
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    console.log('Page loaded, network idle');
+
+    // Click on AI Contact Scoring feature card
+    console.log('Clicking on AI Contact Scoring feature card');
+    await page.click('text=AI Contact Scoring');
+
+    // Wait for demo to load
+    console.log('Waiting for demo to load');
+    await page.waitForTimeout(2000);
+
+    // Check if demo is interactive
+    const demoElements = await page.locator('[data-testid*="demo"], input, button').count();
+    console.log(`Found ${demoElements} potential interactive elements in demo`);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/ai-contact-scoring-demo.png',
+      fullPage: true
+    });
+    console.log('Screenshot taken');
+  });
+
+  test('capture AI Email Composer demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on AI Email Composer feature card
+    await page.click('text=AI Email Generation');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/ai-email-composer-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture Smart Filtering & Search demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on Smart Search & Filtering feature card
+    await page.click('text=Smart Search & Filtering');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/smart-filtering-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture AI Smart Search demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on AI Insights & Analytics feature card
+    await page.click('text=AI Insights & Analytics');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/ai-smart-search-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture Live Deal Analysis demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on Contact Journey Timeline feature card
+    await page.click('text=Contact Journey Timeline');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/live-deal-analysis-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture AI Objection Handler demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on Unified Communication Hub feature card
+    await page.click('text=Unified Communication Hub');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/ai-objection-handler-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture Instant AI Response demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on AI Automation Workflows feature card
+    await page.click('text=AI Automation Workflows');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/instant-ai-response-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture AI Contact Intelligence demo', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Click on Comprehensive Contact Detail View feature card
+    await page.click('text=Comprehensive Contact Detail View');
+
+    // Wait for demo to load
+    await page.waitForTimeout(2000);
+
+    // Take screenshot of the demo
+    await page.screenshot({
+      path: 'screenshots/ai-contact-intelligence-demo.png',
+      fullPage: true
+    });
+  });
+
+  test('capture features grid', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Scroll to features grid
+    await page.locator('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3').scrollIntoViewIfNeeded();
+
+    // Take screenshot of features grid
+    await page.screenshot({
+      path: 'screenshots/features-grid.png',
+      fullPage: false,
+      clip: { x: 0, y: 400, width: 1200, height: 800 }
+    });
+  });
+});

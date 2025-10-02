@@ -257,11 +257,12 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
 
   return (
     <button
+      data-testid={`${toolName.toLowerCase().replace(/\s+/g, '-')}-button`}
       onClick={handleClick}
       disabled={isProcessing}
       className={`
         ${sizeClasses} ${variantClasses} ${className}
-        flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 
+        flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200
         border shadow-sm hover:shadow-md hover:scale-105 min-h-[3rem] disabled:opacity-50 disabled:cursor-not-allowed
         ${variant === 'primary' ? 'border-blue-300/50' : 'border-gray-200/50'}
       `}

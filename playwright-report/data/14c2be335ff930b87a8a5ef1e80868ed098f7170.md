@@ -1,0 +1,59 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]
+  - main [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e14]:
+        - img [ref=e17]
+        - heading "Sign in to GitHub" [level=1] [ref=e20]
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]: Username or email address
+            - textbox "Username or email address" [active] [ref=e25]
+          - generic [ref=e26]:
+            - generic [ref=e27]: Password
+            - textbox "Password" [ref=e28]
+            - link "Forgot password?" [ref=e29] [cursor=pointer]:
+              - /url: /password_reset
+          - button "Sign in" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]:
+          - generic [ref=e34]: or
+          - button "Continue with Google" [ref=e36] [cursor=pointer]:
+            - generic [ref=e37] [cursor=pointer]:
+              - generic:
+                - img:
+                  - img
+              - generic [ref=e38] [cursor=pointer]: Continue with Google
+      - generic [ref=e39]:
+        - paragraph [ref=e41]:
+          - text: New to GitHub?
+          - link "Create an account" [ref=e42] [cursor=pointer]:
+            - /url: /signup?return_to=https%3A%2F%2Fgithub.com%2Fcodespaces%2Ffuzzy-broccoli-g4pgg564jwqf9jp5%3Fid%3Dgiant-river-ptkvqg3%26cluster%3Duse2%26name%3Dfuzzy-broccoli-g4pgg564jwqf9jp5%26port%3D5173%26pb%3Dhttps%253A%252F%252Ffuzzy-broccoli-g4pgg564jwqf9jp5-5173.app.github.dev%252Fauth%252Fpostback%252Ftunnel%253Ftunnel%253D1%26cid%3D22a9349c-96cf-4486-8419-b4c1500d2c91%26type%3Dbasis&source=login
+        - paragraph [ref=e44]:
+          - button "Sign in with a passkey" [ref=e45] [cursor=pointer]:
+            - generic [ref=e47] [cursor=pointer]: Sign in with a passkey
+  - contentinfo [ref=e48]:
+    - list [ref=e49]:
+      - listitem [ref=e50]:
+        - link "Terms" [ref=e51] [cursor=pointer]:
+          - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+      - listitem [ref=e52]:
+        - link "Privacy" [ref=e53] [cursor=pointer]:
+          - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+      - listitem [ref=e54]:
+        - link "Docs" [ref=e55] [cursor=pointer]:
+          - /url: https://docs.github.com
+      - listitem [ref=e56]:
+        - link "Contact GitHub Support" [ref=e57] [cursor=pointer]:
+          - /url: https://support.github.com
+      - listitem [ref=e58]:
+        - button "Manage cookies" [ref=e60] [cursor=pointer]
+      - listitem [ref=e61]:
+        - button "Do not share my personal information" [ref=e63] [cursor=pointer]
+```

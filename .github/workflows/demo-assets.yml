@@ -1,0 +1,63 @@
+name: Generate Demo Assets
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  demo-assets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright walkthrough tests
+        env:
+          CI: true
+        run: npx playwright test tests/playwright/contact-cards-ai-walkthrough.spec.ts --project=chromium --reporter=line
+
+      - name: Collect screenshots
+        run: |
+          mkdir -p gifs
+          # copy known screenshot dir to working dir for gif generation
+          if [ -d screenshots/walkthroughs/contact-card-ai ]; then
+            cp -r screenshots/walkthroughs/contact-card-ai gifs/src || true
+          fi
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg gifsicle
+
+      - name: Generate GIF from screenshots
+        run: |
+          set -e
+          mkdir -p gifs/out
+          SRC_DIR=gifs/src
+          if [ -d "$SRC_DIR" ]; then
+            # create a GIF from the sequence of PNGs (sorted lexicographically)
+            ffmpeg -y -framerate 2 -pattern_type glob -i "$SRC_DIR/*.png" -vf "scale=iw:-1:flags=lanczos" gifs/out/contact-card-ai.gif || true
+            # optimize GIF (if gifsicle installed)
+            if command -v gifsicle >/dev/null 2>&1; then
+              gifsicle -O3 gifs/out/contact-card-ai.gif -o gifs/out/contact-card-ai-optimized.gif || true
+            fi
+          else
+            echo "No screenshots found at $SRC_DIR"
+          fi
+
+      - name: Upload demo GIFs
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-gifs
+          path: gifs/out/

@@ -136,6 +136,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 
   return (
     <div
+      data-testid="contact-card"
       onClick={handleCardClick}
       className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden text-gray-900"
     >
@@ -156,12 +157,13 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
       <div className="absolute top-4 right-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
         {/* AI Analysis Button - Prominently Featured */}
         {onAnalyze && (
-          <button 
+          <button
+            data-testid="ai-analyze-button"
             onClick={handleAnalyzeClick}
             disabled={analyzing}
             className={`p-2 rounded-lg transition-all duration-200 relative ${
-              contact.aiScore 
-                ? 'bg-purple-100 text-purple-600 hover:bg-purple-200' 
+              contact.aiScore
+                ? 'bg-purple-100 text-purple-600 hover:bg-purple-200'
                 : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg'
             }`}
             title={contact.aiScore ? 'Re-analyze with AI' : 'Analyze with AI'}
@@ -178,6 +180,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
         )}
         
         <button
+          data-testid="edit-contact-button"
           onClick={(e) => {
             e.stopPropagation();
             if (onEdit) {
@@ -190,6 +193,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
           <Edit className="w-3 h-3" />
         </button>
         <button
+          data-testid="more-actions-button"
           onClick={(e) => {
             e.stopPropagation();
             setShowMoreActions(!showMoreActions);
@@ -297,12 +301,16 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
           {/* AI Score Display */}
           <div className="flex flex-col items-center space-y-2">
             {contact.aiScore ? (
-              <div className={`h-12 w-12 rounded-full ${getScoreColor(contact.aiScore)} text-white flex items-center justify-center font-bold text-lg shadow-lg ring-2 ring-white relative`}>
+              <div
+                data-testid="ai-score-display"
+                className={`h-12 w-12 rounded-full ${getScoreColor(contact.aiScore)} text-white flex items-center justify-center font-bold text-lg shadow-lg ring-2 ring-white relative`}
+              >
                 {contact.aiScore}
                 <Sparkles className="absolute -top-1 -right-1 w-3 h-3 text-yellow-300" />
               </div>
             ) : (
               <button
+                data-testid="ai-score-button"
                 onClick={handleAnalyzeClick}
                 disabled={analyzing}
                 className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center font-bold text-lg shadow-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 hover:scale-110 relative"
@@ -376,7 +384,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 
         {/* AI Insights Section */}
         {(contact.aiScore || contactScore) && (
-          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+          <div data-testid="ai-insights-section" className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-sm font-medium text-gray-900 flex items-center">
                 <BarChart className="w-4 h-4 mr-2 text-blue-500" />
@@ -440,7 +448,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 
         {/* AI Tools Section */}
         {(contact.aiScore || contactScore) && (
-          <div className="mb-4">
+          <div data-testid="ai-tools-section" className="mb-4">
             <CustomizableAIToolbar
               entityType="contact"
               entityId={contact.id}

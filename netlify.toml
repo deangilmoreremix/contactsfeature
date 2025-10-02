@@ -1,0 +1,16 @@
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/old-path"
+  to = "/new-path"
+  status = 301

@@ -67,6 +67,8 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
       setCurrentView('ai-test');
     } else if (urlParams.get('tooltip-test') === 'true') {
       setCurrentView('tooltip-test');
+    } else if (urlParams.get('app') === 'true') {
+      setCurrentView('app');
     }
 
     // Check URL parameters for theme

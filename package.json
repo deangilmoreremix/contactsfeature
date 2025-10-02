@@ -17,7 +17,15 @@
     "netlify:link": "npx netlify link",
     "netlify:deploy": "npx netlify deploy --prod",
     "netlify:deploy:preview": "npx netlify deploy --build",
-    "test:functions": "node test-netlify-functions.js"
+    "test:functions": "node test-netlify-functions.js",
+    "test:screenshots": "playwright test --grep screenshots",
+    "test:walkthrough": "playwright test --grep walkthrough",
+    "test:demo": "playwright test full-demo-walkthrough.spec.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "generate-gifs": "node scripts/generate-gifs.js",
+    "rename-videos": "node scripts/rename-videos.js"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.4",
@@ -46,6 +54,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@playwright/test": "^1.55.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.1.0",
     "@types/react": "^18.3.5",
