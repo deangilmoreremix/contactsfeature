@@ -7,8 +7,15 @@ exports.handler = async (event, context) => {
     };
   }
 
+  let firstName, lastName, company, linkedinUrl, researchType = 'basic';
+
   try {
-    const { firstName, lastName, company, linkedinUrl, researchType = 'basic' } = JSON.parse(event.body);
+    const parsed = JSON.parse(event.body);
+    firstName = parsed.firstName;
+    lastName = parsed.lastName;
+    company = parsed.company;
+    linkedinUrl = parsed.linkedinUrl;
+    researchType = parsed.researchType || 'basic';
 
     if (!firstName && !lastName && !linkedinUrl) {
       return {
