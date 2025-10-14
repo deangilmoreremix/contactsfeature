@@ -30,7 +30,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
   const [localSharedData, setLocalSharedData] = useState(sharedData);
   const { state, setWelcomeVisible } = useGuidance();
 
-  // Initialize dark mode (starts in light mode by default)
+  // Initialize dark mode (starts in dark mode by default)
   const { isDarkMode, toggleDarkMode, setDarkMode } = useDarkMode();
 
   // Determine the effective theme (Module Federation props take precedence)

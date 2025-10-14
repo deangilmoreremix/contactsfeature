@@ -10,7 +10,7 @@ export const useDarkMode = (): UseDarkModeReturn => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     // Check if we're in the browser environment
     if (typeof window === 'undefined') {
-      return false;
+      return true;
     }
 
     // First, check localStorage for saved preference
@@ -19,8 +19,8 @@ export const useDarkMode = (): UseDarkModeReturn => {
       return savedTheme === 'true';
     }
 
-    // If no saved preference, check system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Default to dark mode
+    return true;
   });
 
   useEffect(() => {
