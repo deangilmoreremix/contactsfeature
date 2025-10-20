@@ -1,8 +1,21 @@
+/**
+ * Contact Store Hook
+ *
+ * Centralized state management for contacts using Zustand.
+ * Provides CRUD operations, search, import/export functionality.
+ *
+ * @deprecated This implementation is deprecated. Use the hooks-based approach instead.
+ * Components should migrate to using individual hooks like useContactStore from hooks/useContactStore.ts
+ */
+
 import { create } from 'zustand';
 import { Contact } from '../types';
 import { contactAPI } from '../services/contact-api.service';
+import { automationService } from '../services/automation.service';
 import { logger } from '../services/logger.service';
 import { sampleContacts } from './sampleContacts';
+import { useDebounce } from './useDebounce';
+import { handleError, logError, withErrorHandling, ERROR_CODES, createError } from '../utils/errorHandling';
 
 interface ContactState {
   contacts: Contact[];
@@ -35,23 +48,25 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   hasMore: false,
 
   fetchContacts: async (filters = {}) => {
-    set({ isLoading: true, error: null });
-    try {
+    return withErrorHandling(async () => {
+      set({ isLoading: true, error: null });
+
       const response = await contactAPI.getContacts(filters);
-      
+
       set({
         contacts: response.contacts,
         isLoading: false,
         totalCount: response.total,
         hasMore: response.hasMore
       });
-      
+
       logger.info('Contacts fetched successfully', { count: response.contacts.length });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch contacts';
-      set({ error: errorMessage, isLoading: false });
-      logger.error('Failed to fetch contacts', error as Error);
-      
+    }, { operation: 'fetchContacts', filters }).catch((error) => {
+      const appError = handleError(error, { operation: 'fetchContacts', filters });
+      logError(appError);
+
+      set({ error: appError.message, isLoading: false });
+
       // Keep sample contacts if API fails
       if (get().contacts.length === 0) {
         set({
@@ -59,30 +74,38 @@ export const useContactStore = create<ContactStore>((set, get) => ({
           totalCount: sampleContacts.length
         });
       }
-    }
+    });
   },
 
   createContact: async (contactData) => {
-    set({ isLoading: true, error: null });
-    
-    try {
+    return withErrorHandling(async () => {
+      set({ isLoading: true, error: null });
+
       const contact = await contactAPI.createContact(contactData);
-      
+
       set(state => ({
         contacts: [contact, ...state.contacts],
         isLoading: false,
         totalCount: state.totalCount + 1
       }));
-      
+
       logger.info('Contact created successfully', { contactId: contact.id });
+
+      // Trigger automations for contact creation (non-blocking)
+      automationService.processContactAutomation(contact, 'contact_created')
+        .catch(automationError => {
+          logger.warn('Contact creation automation failed', { contactId: contact.id, error: automationError });
+        });
+
       return contact;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create contact';
-      set({ error: errorMessage, isLoading: false });
-      logger.error('Failed to create contact', error as Error);
-      
+    }, { operation: 'createContact', contactData }).catch((error) => {
+      const appError = handleError(error, { operation: 'createContact', contactData });
+      logError(appError);
+
+      set({ error: appError.message, isLoading: false });
+
       // Generate a mock contact when in development/fallback mode
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
+      if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
         const mockContact: Contact = {
           ...contactData as any,
           id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -90,60 +113,67 @@ export const useContactStore = create<ContactStore>((set, get) => ({
           updatedAt: new Date().toISOString(),
           aiScore: 0
         };
-        
+
         set(state => ({
           contacts: [mockContact, ...state.contacts],
           isLoading: false,
           totalCount: state.totalCount + 1
         }));
-        
+
         logger.info('Created mock contact in development mode', { contactId: mockContact.id });
         return mockContact;
       }
-      
-      throw error;
-    }
+
+      throw appError;
+    });
   },
 
   updateContact: async (id, updates) => {
-    try {
+    return withErrorHandling(async () => {
       const contact = await contactAPI.updateContact(id, updates);
-      
+
       set(state => ({
         contacts: state.contacts.map(c => c.id === id ? contact : c),
         selectedContact: state.selectedContact?.id === id ? contact : state.selectedContact
       }));
-      
+
       logger.info('Contact updated successfully', { contactId: id });
+
+      // Trigger automations for contact updates (non-blocking)
+      automationService.processContactAutomation(contact, 'contact_updated', Object.keys(updates))
+        .catch(automationError => {
+          logger.warn('Contact update automation failed', { contactId: id, error: automationError });
+        });
+
       return contact;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update contact';
-      logger.error('Failed to update contact', error as Error);
-      
+    }, { operation: 'updateContact', contactId: id, updates }).catch((error) => {
+      const appError = handleError(error, { operation: 'updateContact', contactId: id, updates });
+      logError(appError);
+
       // Update locally in development/fallback mode
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
+      if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
         const contactIndex = get().contacts.findIndex(c => c.id === id);
         if (contactIndex === -1) {
-          throw new Error(`Contact with ID ${id} not found`);
+          throw createError(ERROR_CODES.CONTACT_NOT_FOUND, `Contact with ID ${id} not found`);
         }
-        
-        const updatedContact = {
+
+        const updatedContact: Contact = {
           ...get().contacts[contactIndex],
           ...updates,
           updatedAt: new Date().toISOString()
         };
-        
+
         set(state => ({
           contacts: state.contacts.map(c => c.id === id ? updatedContact : c),
           selectedContact: state.selectedContact?.id === id ? updatedContact : state.selectedContact
         }));
-        
+
         logger.info('Updated contact locally in development mode', { contactId: id });
         return updatedContact;
       }
-      
-      throw new Error(errorMessage);
-    }
+
+      throw appError;
+    });
   },
 
   deleteContact: async (id) => {
@@ -316,39 +346,42 @@ export const useContactStore = create<ContactStore>((set, get) => ({
 
   searchContacts: async (query: string) => {
     set({ isLoading: true, error: null });
-    
+
     try {
+      // Use server-side search with debouncing via API
       const response = await contactAPI.searchContacts(query);
-      
+
       set({
         contacts: response.contacts,
         isLoading: false,
         totalCount: response.total,
         hasMore: response.hasMore
       });
-      
-      logger.info('Contacts search completed', { query, resultCount: response.contacts.length });
+
+      logger.info('Server-side search completed', { query, resultCount: response.contacts.length });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to search contacts';
       set({ error: errorMessage, isLoading: false });
       logger.error('Failed to search contacts', error as Error);
-      
-      // If API search fails, do a client-side search on the sample contacts
+
+      // Fallback to client-side search on error
       if (query) {
         const lowerQuery = query.toLowerCase();
-        const filteredContacts = sampleContacts.filter(contact => 
+        const filteredContacts = sampleContacts.filter(contact =>
           contact.name.toLowerCase().includes(lowerQuery) ||
           contact.email.toLowerCase().includes(lowerQuery) ||
           contact.company.toLowerCase().includes(lowerQuery) ||
           (contact.title && contact.title.toLowerCase().includes(lowerQuery)) ||
           (contact.industry && contact.industry.toLowerCase().includes(lowerQuery))
         );
-        
+
         set({
           contacts: filteredContacts,
           totalCount: filteredContacts.length,
           hasMore: false
         });
+
+        logger.info('Fallback client-side search completed', { query, resultCount: filteredContacts.length });
       }
     }
   }

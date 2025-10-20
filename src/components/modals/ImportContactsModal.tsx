@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ModernButton } from '../ui/ModernButton';
-import { useContactStore } from '../../store/contactStore';
+import { useContactStore } from '../../hooks/useContactStore';
 import { Contact } from '../../types';
 import { 
   X, 

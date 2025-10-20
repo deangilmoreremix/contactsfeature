@@ -6,7 +6,7 @@ import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { SettingsModal } from './SettingsModal';
-import { useContactStore } from '../../store/contactStore';
+import { useContactStore } from '../../hooks/useContactStore';
 import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
 import { DarkModeToggle } from '../ui/DarkModeToggle';

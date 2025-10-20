@@ -8,7 +8,7 @@ interface CacheEntry<T = any> {
   timestamp: number;
   ttl: number;
   key: string;
-  tags?: string[];
+  tags: string[];
 }
 
 interface CacheStats {
@@ -27,9 +27,23 @@ class CacheService {
   constructor(maxSize = 1000, defaultTTL = 300000) {
     this.maxSize = maxSize;
     this.defaultTTL = defaultTTL;
-    
+
     // Cleanup expired entries every 5 minutes
-    setInterval(() => this.cleanup(), 300000);
+    const cleanupInterval = setInterval(() => this.cleanup(), 300000);
+
+    // Store interval reference for cleanup
+    (this as any).cleanupInterval = cleanupInterval;
+  }
+
+  /**
+   * Cleanup method to clear intervals and prevent memory leaks
+   */
+  destroy(): void {
+    if ((this as any).cleanupInterval) {
+      clearInterval((this as any).cleanupInterval);
+      (this as any).cleanupInterval = null;
+    }
+    this.clear();
   }
   
   private generateKey(namespace: string, identifier: string | object): string {
@@ -67,19 +81,19 @@ class CacheService {
   }
   
   set<T>(
-    namespace: string, 
-    identifier: string | object, 
-    data: T, 
-    ttl?: number, 
-    tags?: string[]
+    namespace: string,
+    identifier: string | object,
+    data: T,
+    ttl?: number,
+    tags: string[] = []
   ): void {
     const key = this.generateKey(namespace, identifier);
-    
+
     // Evict if at capacity
     if (this.cache.size >= this.maxSize) {
       this.evictOldest();
     }
-    
+
     const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
@@ -87,7 +101,7 @@ class CacheService {
       key,
       tags,
     };
-    
+
     this.cache.set(key, entry);
     this.updateStats();
   }
@@ -200,8 +214,50 @@ class CacheService {
   }
   
   invalidateContact(contactId: string): void {
+    // Only delete the specific contact, not all contact-related cache
     this.delete('contact', contactId);
-    this.deleteByTag('contact'); // Also clear related lists
+    // Clear AI analysis for this contact
+    this.delete('ai_analysis', contactId);
+  }
+
+  /**
+   * Invalidate all contact-related cache entries
+  */
+  invalidateAllContacts(): void {
+    this.deleteByTag('contact');
+    this.deleteByTag('list');
+    this.deleteByTag('ai');
+  }
+
+  /**
+   * Get cache size for a specific namespace
+   */
+  getNamespaceSize(namespace: string): number {
+    let count = 0;
+    for (const [key] of this.cache.entries()) {
+      if (key.startsWith(`${namespace}:`)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Set maximum cache size
+   */
+  setMaxSize(maxSize: number): void {
+    this.maxSize = maxSize;
+    // If current size exceeds new max, evict oldest entries
+    while (this.cache.size > this.maxSize) {
+      this.evictOldest();
+    }
+  }
+
+  /**
+   * Force cleanup of expired entries
+   */
+  forceCleanup(): void {
+    this.cleanup();
   }
 }
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { AIAutoFillButton } from '../ui/AIAutoFillButton';
 import { AIResearchButton } from '../ui/AIResearchButton';
-import { useContactStore } from '../../store/contactStore';
+import { useContactStore } from '../../hooks/useContactStore';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { Contact } from '../../types';
 import { 

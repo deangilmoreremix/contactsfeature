@@ -1,3 +1,41 @@
+/**
+ * Activity log entry for tracking contact interactions
+ */
+export interface ActivityLogEntry {
+  id: string;
+  type: 'email' | 'call' | 'meeting' | 'note' | 'ai_analysis' | 'import' | 'export';
+  description: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Custom fields with proper typing
+ */
+export interface CustomFields {
+  [key: string]: string | number | boolean | Date | null;
+}
+
+/**
+ * Gamification statistics for user engagement
+ */
+export interface GamificationStats {
+  points: number;
+  level: number;
+  badges: string[];
+  achievements: Array<{
+    id: string;
+    name: string;
+    description: string;
+    unlockedAt: string;
+  }>;
+  streak: {
+    current: number;
+    longest: number;
+    lastActivity: string;
+  };
+}
+
 export interface Contact {
   id: string;
   firstName: string;
@@ -25,14 +63,14 @@ export interface Contact {
     facebook?: string;
     instagram?: string;
   };
-  customFields?: Record<string, any>;
+  customFields?: CustomFields;
   createdAt: string;
   updatedAt: string;
-  activityLog?: any[];
+  activityLog?: ActivityLogEntry[];
   nextSendDate?: string;
   isTeamMember?: boolean;
   role?: string;
-  gamificationStats?: Record<string, any>;
+  gamificationStats?: GamificationStats;
 
   // NEW: Mock data classification fields
   isMockData?: boolean;           // Flag for mock/example data
@@ -59,7 +97,7 @@ export interface ContactCreateRequest {
   tags?: string[];
   isFavorite?: boolean;
   socialProfiles?: Contact['socialProfiles'];
-  customFields?: Record<string, any>;
+  customFields?: CustomFields;
 
   // NEW: Mock data classification fields
   isMockData?: boolean;
@@ -88,7 +126,7 @@ export interface ContactUpdateRequest {
   tags?: string[];
   isFavorite?: boolean;
   socialProfiles?: Contact['socialProfiles'];
-  customFields?: Record<string, any>;
+  customFields?: CustomFields;
 
   // NEW: Mock data classification fields
   isMockData?: boolean;

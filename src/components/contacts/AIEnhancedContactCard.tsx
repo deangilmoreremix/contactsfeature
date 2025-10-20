@@ -5,7 +5,7 @@ import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
 import { AIErrorBoundary } from '../ui/ErrorBoundary';
 import { ContactCardSkeleton } from '../ui/LoadingSkeleton';
 import { Contact } from '../../types';
-import { useContactStore } from '../../store/contactStore';
+import { useContactStore } from '../../hooks/useContactStore';
 import {
   AI_SCORE_COLORS,
   AI_SCORE_THRESHOLDS,

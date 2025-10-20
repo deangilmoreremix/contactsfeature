@@ -1,6 +1,27 @@
 /**
  * Contact API Service
  * RESTful contact management with full CRUD operations
+ *
+ * This service provides a unified interface for contact operations,
+ * supporting both Supabase database and localStorage fallbacks.
+ * It includes caching, validation, encryption, and comprehensive error handling.
+ *
+ * @example
+ * ```typescript
+ * import { contactAPI } from './services/contact-api.service';
+ *
+ * // Create a contact
+ * const contact = await contactAPI.createContact({
+ *   firstName: 'John',
+ *   lastName: 'Doe',
+ *   email: 'john@example.com',
+ *   title: 'Developer',
+ *   company: 'Tech Corp'
+ * });
+ *
+ * // Search contacts
+ * const results = await contactAPI.searchContacts('john');
+ * ```
  */
 
 import { httpClient } from './http-client.service';
@@ -8,6 +29,7 @@ import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
 import { supabase } from './supabaseClient';
+import { encryptionService } from '../utils/encryption';
 import { Contact } from '../types/contact';
 import apiConfig from '../config/api.config';
 
@@ -81,14 +103,15 @@ class ContactAPIService {
   // Initialize local storage with sample data if needed
   private initializeLocalStorage(): Contact[] {
     try {
-      const stored = localStorage.getItem('contacts');
+      const stored = encryptionService.getDecryptedItem('contacts');
       if (stored) {
-        return JSON.parse(stored);
+        return stored;
       }
     } catch (e) {
       // If localStorage is corrupted, reset it
+      logger.warn('Failed to decrypt contacts from localStorage, resetting data');
     }
-    
+
     // Default sample data
     const sampleContacts: Contact[] = [
       {
@@ -232,12 +255,13 @@ class ContactAPIService {
   // Get all contacts from localStorage
   private getLocalContacts(): Contact[] {
     try {
-      const stored = localStorage.getItem('contacts');
+      const stored = encryptionService.getDecryptedItem('contacts');
       if (stored) {
-        return JSON.parse(stored);
+        return stored;
       }
     } catch (e) {
       // If localStorage is corrupted, reinitialize
+      logger.warn('Failed to decrypt contacts from localStorage, reinitializing');
     }
     return this.initializeLocalStorage();
   }
@@ -245,13 +269,33 @@ class ContactAPIService {
   // Save contacts to localStorage
   private saveLocalContacts(contacts: Contact[]): void {
     try {
-      localStorage.setItem('contacts', JSON.stringify(contacts));
+      encryptionService.setEncryptedItem('contacts', contacts);
     } catch (e) {
-      logger.error('Failed to save contacts to localStorage', e as Error);
+      logger.error('Failed to save encrypted contacts to localStorage', e as Error);
     }
   }
   
-  // CRUD Operations
+  /**
+   * Create a new contact
+   *
+   * Validates input data, sanitizes it, and creates a new contact record.
+   * Supports both Supabase database and localStorage fallback modes.
+   *
+   * @param contactData - Contact data without system-generated fields
+   * @returns Promise resolving to the created contact
+   * @throws {ContactError} When validation fails or creation fails
+   *
+   * @example
+   * ```typescript
+   * const contact = await contactAPI.createContact({
+   *   firstName: 'John',
+   *   lastName: 'Doe',
+   *   email: 'john@example.com',
+   *   title: 'Developer',
+   *   company: 'Tech Corp'
+   * });
+   * ```
+   */
   async createContact(contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
     // Validate input
     const sanitized = validationService.sanitizeContact(contactData);
@@ -359,9 +403,9 @@ class ContactAPIService {
     
     // Update cache
     cacheService.setContact(contactId, updatedContact);
-    
-    // Invalidate lists
-    cacheService.deleteByTag('list');
+
+    // Invalidate related cache entries
+    cacheService.invalidateAllContacts();
     
     logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
     
@@ -386,122 +430,84 @@ class ContactAPIService {
     logger.info('Contact deleted successfully', { contactId });
   }
   
-  // List and Search Operations
+  /**
+   * Retrieve contacts with optional filtering, sorting, and pagination
+   *
+   * Fetches contacts from cache first, then database or localStorage.
+   * Supports complex filtering by search terms, status, industry, etc.
+   *
+   * @param filters - Optional filters for search, status, industry, etc.
+   * @returns Promise resolving to paginated contact list with metadata
+   *
+   * @example
+   * ```typescript
+   * // Get all contacts
+   * const allContacts = await contactAPI.getContacts();
+   *
+   * // Search with filters
+   * const filtered = await contactAPI.getContacts({
+   *   search: 'john',
+   *   status: 'active',
+   *   limit: 20,
+   *   sortBy: 'name'
+   * });
+   * ```
+   */
   async getContacts(filters: ContactFilters = {}): Promise<ContactListResponse> {
-    const cacheKey = JSON.stringify(filters);
-
-    // Check cache
+    // Check cache first
     const cached = cacheService.getContactList(filters);
     if (cached) {
       return cached;
     }
 
     if (this.shouldUseFallback()) {
-      // Local storage fallback
-      logger.info('Using local storage for contacts list');
-      let contacts = this.getLocalContacts();
-
-      // Apply filters
-      if (filters.search) {
-        const search = filters.search.toLowerCase();
-        contacts = contacts.filter(c =>
-          c.name.toLowerCase().includes(search) ||
-          c.email.toLowerCase().includes(search) ||
-          c.company.toLowerCase().includes(search)
-        );
-      }
-
-      if (filters.interestLevel && filters.interestLevel !== 'all') {
-        contacts = contacts.filter(c => c.interestLevel === filters.interestLevel);
-      }
-
-      if (filters.status && filters.status !== 'all') {
-        contacts = contacts.filter(c => c.status === filters.status);
-      }
-
-      if (filters.hasAIScore !== undefined) {
-        contacts = contacts.filter(c =>
-          filters.hasAIScore ? !!c.aiScore : !c.aiScore
-        );
-      }
-
-      // Apply sorting
-      if (filters.sortBy) {
-        contacts.sort((a: any, b: any) => {
-          const aValue = a[filters.sortBy!];
-          const bValue = b[filters.sortBy!];
-
-          if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
-          if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
-          return 0;
-        });
-      }
-
-      // Apply pagination
-      const limit = filters.limit || 50;
-      const offset = filters.offset || 0;
-
-      const paginatedContacts = contacts.slice(offset, offset + limit);
-
-      const result: ContactListResponse = {
-        contacts: paginatedContacts,
-        total: contacts.length,
-        limit,
-        offset,
-        hasMore: offset + paginatedContacts.length < contacts.length
-      };
-
-      // Cache individual contacts
-      paginatedContacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact, 300000);
-      });
-
-      // Cache the list
-      cacheService.setContactList(filters, result);
-
-      return result;
+      return this.getContactsFromLocalStorage(filters);
     }
 
+    return this.getContactsFromSupabase(filters);
+  }
+
+  /**
+   * Get contacts from local storage with filtering, sorting, and pagination
+   */
+  private async getContactsFromLocalStorage(filters: ContactFilters): Promise<ContactListResponse> {
+    logger.info('Using local storage for contacts list');
+    let contacts = this.getLocalContacts();
+
+    // Apply all filters
+    contacts = this.applyFilters(contacts, filters);
+
+    // Apply sorting
+    contacts = this.applySorting(contacts, filters);
+
+    // Apply pagination
+    const result = this.applyPagination(contacts, filters);
+
+    // Cache results
+    this.cacheContactsResult(result, filters);
+
+    return result;
+  }
+
+  /**
+   * Get contacts from Supabase with filtering, sorting, and pagination
+   */
+  private async getContactsFromSupabase(filters: ContactFilters): Promise<ContactListResponse> {
     try {
-      // Use Supabase
       logger.info('Using Supabase for contacts list');
 
       let query = supabase
         .from('contacts')
         .select('*', { count: 'exact' });
 
-      // Apply filters
-      if (filters.search) {
-        const search = filters.search.toLowerCase();
-        query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
-      }
-
-      if (filters.interestLevel && filters.interestLevel !== 'all') {
-        query = query.eq('interestLevel', filters.interestLevel);
-      }
-
-      if (filters.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status);
-      }
-
-      if (filters.hasAIScore !== undefined) {
-        if (filters.hasAIScore) {
-          query = query.not('aiScore', 'is', null);
-        } else {
-          query = query.is('aiScore', null);
-        }
-      }
+      // Apply filters to query
+      query = this.applySupabaseFilters(query, filters);
 
       // Apply sorting
-      if (filters.sortBy) {
-        query = query.order(filters.sortBy, { ascending: filters.sortOrder === 'asc' });
-      } else {
-        query = query.order('created_at', { ascending: false });
-      }
+      query = this.applySupabaseSorting(query, filters);
 
       // Apply pagination
-      const limit = filters.limit || 50;
-      const offset = filters.offset || 0;
+      const { limit, offset } = this.getPaginationParams(filters);
       query = query.range(offset, offset + limit - 1);
 
       const { data, error, count } = await query;
@@ -519,19 +525,124 @@ class ContactAPIService {
         hasMore: (count || 0) > offset + (data?.length || 0)
       };
 
-      // Cache individual contacts
-      result.contacts.forEach(contact => {
-        cacheService.setContact(contact.id, contact, 300000);
-      });
-
-      // Cache the list
-      cacheService.setContactList(filters, result);
+      // Cache results
+      this.cacheContactsResult(result, filters);
 
       return result;
     } catch (error) {
       logger.error('Contacts list failed', error as Error);
       throw error;
     }
+  }
+
+
+  private applyFilters(contacts: Contact[], filters: ContactFilters): Contact[] {
+    let filteredContacts = [...contacts];
+
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      filteredContacts = filteredContacts.filter(c =>
+        c.name.toLowerCase().includes(search) ||
+        c.email.toLowerCase().includes(search) ||
+        c.company.toLowerCase().includes(search)
+      );
+    }
+
+    if (filters.interestLevel && filters.interestLevel !== 'all') {
+      filteredContacts = filteredContacts.filter(c => c.interestLevel === filters.interestLevel);
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      filteredContacts = filteredContacts.filter(c => c.status === filters.status);
+    }
+
+    if (filters.hasAIScore !== undefined) {
+      filteredContacts = filteredContacts.filter(c =>
+        filters.hasAIScore ? !!c.aiScore : !c.aiScore
+      );
+    }
+
+    return filteredContacts;
+  }
+
+  private applySorting(contacts: Contact[], filters: ContactFilters): Contact[] {
+    if (!filters.sortBy) return contacts;
+
+    return [...contacts].sort((a: any, b: any) => {
+      const aValue = a[filters.sortBy!];
+      const bValue = b[filters.sortBy!];
+
+      if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  private applyPagination(contacts: Contact[], filters: ContactFilters): ContactListResponse {
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+
+    const paginatedContacts = contacts.slice(offset, offset + limit);
+
+    return {
+      contacts: paginatedContacts,
+      total: contacts.length,
+      limit,
+      offset,
+      hasMore: offset + paginatedContacts.length < contacts.length
+    };
+  }
+
+  private applySupabaseFilters(query: any, filters: ContactFilters): any {
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
+    }
+
+    if (filters.interestLevel && filters.interestLevel !== 'all') {
+      query = query.eq('interestLevel', filters.interestLevel);
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters.hasAIScore !== undefined) {
+      if (filters.hasAIScore) {
+        query = query.not('aiScore', 'is', null);
+      } else {
+        query = query.is('aiScore', null);
+      }
+    }
+
+    return query;
+  }
+
+  private applySupabaseSorting(query: any, filters: ContactFilters): any {
+    if (filters.sortBy) {
+      query = query.order(filters.sortBy, { ascending: filters.sortOrder === 'asc' });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+
+    return query;
+  }
+
+  private getPaginationParams(filters: ContactFilters): { limit: number; offset: number } {
+    return {
+      limit: filters.limit || 50,
+      offset: filters.offset || 0
+    };
+  }
+
+  private cacheContactsResult(result: ContactListResponse, filters: ContactFilters): void {
+    // Cache individual contacts
+    result.contacts.forEach(contact => {
+      cacheService.setContact(contact.id, contact, 300000);
+    });
+
+    // Cache the list
+    cacheService.setContactList(filters, result);
   }
   
   async searchContacts(query: string, filters: Partial<ContactFilters> = {}): Promise<ContactListResponse> {
@@ -619,8 +730,8 @@ class ContactAPIService {
         cacheService.setContact(contact.id, contact);
       });
 
-      // Invalidate lists
-      cacheService.deleteByTag('list');
+      // Invalidate all contact-related cache
+      cacheService.invalidateAllContacts();
 
       return data || [];
     } catch (error) {

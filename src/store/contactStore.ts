@@ -3,6 +3,9 @@ import { Contact } from '../types';
 import { contactAPI } from '../services/contact-api.service';
 import { logger } from '../services/logger.service';
 
+// DEPRECATED: This store is deprecated in favor of useContactStore hook
+// TODO: Remove this file in v2.0.0 - all components should use useContactStore from hooks/
+
 interface ContactStore {
   contacts: Contact[];
   isLoading: boolean;
