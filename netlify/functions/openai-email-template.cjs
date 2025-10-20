@@ -45,24 +45,14 @@ Contact details: ${JSON.stringify(contact, null, 2)}`;
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        tools: [
-          {
-            type: 'web_search',
-            search_context_size: 'low'
-          }
-        ],
-        input: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: userPrompt
-          }
-        ],
+        instructions: systemPrompt,
+        input: userPrompt,
         temperature: templateType === 'creative' ? 0.7 : 0.3,
-        response_format: { type: "json_object" }
+        text: {
+          format: {
+            type: "json_object"
+          }
+        }
       })
     });
 
@@ -71,7 +61,22 @@ Contact details: ${JSON.stringify(contact, null, 2)}`;
     }
 
     const data = await response.json();
-    const content = JSON.parse(data.output[0].content[0].text);
+
+    // Handle different response formats - check if output exists or fallback to output_text
+    let content;
+    if (data.output && data.output.length > 0) {
+      // Find the message item in output array
+      const messageItem = data.output.find(item => item.type === 'message');
+      if (messageItem && messageItem.content && messageItem.content.length > 0) {
+        content = JSON.parse(messageItem.content[0].text);
+      } else {
+        throw new Error('No message content found in response output');
+      }
+    } else if (data.output_text) {
+      content = JSON.parse(data.output_text);
+    } else {
+      throw new Error('No response content found');
+    }
 
     const result = {
       subject: content.subject || `Following up on ${purpose} - ${contact.company}`,

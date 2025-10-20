@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useContactAI } from '../../contexts/AIContext';
 import { useAdvancedAI, useIntelligenceEngine } from '../../hooks/useAdvancedAI';
 import { GlassCard } from '../ui/GlassCard';
@@ -8,14 +8,16 @@ import { CitationBadge } from '../ui/CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { webSearchService } from '../../services/webSearchService';
 import { Contact } from '../../types';
-import { 
-  Brain, 
-  TrendingUp, 
-  AlertTriangle, 
-  Target, 
-  Clock, 
-  DollarSign, 
-  Users, 
+import { AIErrorBoundary } from '../ui/ErrorBoundary';
+import { ContactCardSkeleton } from '../ui/LoadingSkeleton';
+import {
+  Brain,
+  TrendingUp,
+  AlertTriangle,
+  Target,
+  Clock,
+  DollarSign,
+  Users,
   BarChart3,
   Lightbulb,
   RefreshCw,
@@ -31,6 +33,290 @@ import {
   Sparkles
 } from 'lucide-react';
 
+// Inline components for now - will be extracted later
+const InsightsView = ({ insights, filteredInsights, selectedCategory, feedbackGiven, handleFeedback, avgConfidence }: any) => (
+  <div className="space-y-4">
+    {insights.length === 0 ? (
+      <GlassCard className="p-8">
+        <div className="text-center">
+          <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">No AI insights available yet</p>
+          <ModernButton variant="primary" className="flex items-center space-x-2">
+            <Sparkles className="w-4 h-4" />
+            <span>Generate AI Insights</span>
+          </ModernButton>
+        </div>
+      </GlassCard>
+    ) : (
+      filteredInsights.map((insight: any) => {
+        const Icon = insightIcons[insight.type as keyof typeof insightIcons];
+        const iconColor = insightColors[insight.type as keyof typeof insightColors];
+        const impactColor = impactColors[insight.impact as keyof typeof impactColors];
+        const userFeedback = feedbackGiven[insight.id];
+
+        return (
+          <GlassCard key={insight.id} className="p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-start space-x-4">
+              <div className={`p-3 rounded-lg ${iconColor}`}>
+                <Icon className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">{insight.title}</h4>
+                    <div className="flex items-center space-x-3 mt-1">
+                      <span className="text-sm text-gray-500">{insight.category}</span>
+                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${impactColor}`}>
+                        {insight.impact.toUpperCase()} IMPACT
+                      </span>
+                      {insight.actionable && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                          ACTIONABLE
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-300"
+                          style={{ width: `${insight.confidence}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">{insight.confidence}%</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Confidence</p>
+                  </div>
+                </div>
+                <p className="text-gray-700 mb-4">{insight.description}</p>
+                {insight.suggestedActions && insight.suggestedActions.length > 0 && (
+                  <div className="mb-4">
+                    <h5 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
+                      <Zap className="w-4 h-4 mr-1 text-yellow-500" />
+                      Suggested Actions:
+                    </h5>
+                    <ul className="space-y-1">
+                      {insight.suggestedActions.map((action: string, index: number) => (
+                        <li key={index} className="flex items-start space-x-2 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>{action}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <ModernButton variant="primary" size="sm" className="flex items-center space-x-2">
+                      <Target className="w-4 h-4" />
+                      <span>Take Action</span>
+                    </ModernButton>
+                    <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+                      <Eye className="w-4 h-4" />
+                      <span>View Details</span>
+                    </ModernButton>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-500">Was this helpful?</span>
+                    <button
+                      onClick={() => handleFeedback(insight.id, 'positive')}
+                      className={`p-1 rounded transition-colors ${
+                        userFeedback === 'positive'
+                          ? 'bg-green-100 text-green-600'
+                          : 'text-gray-400 hover:text-green-600'
+                      }`}
+                    >
+                      <ThumbsUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleFeedback(insight.id, 'negative')}
+                      className={`p-1 rounded transition-colors ${
+                        userFeedback === 'negative'
+                          ? 'bg-red-100 text-red-600'
+                          : 'text-gray-400 hover:text-red-600'
+                      }`}
+                    >
+                      <ThumbsDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+        );
+      })
+    )}
+  </div>
+);
+
+const IntelligenceView = ({ intelligence, isIntelligenceAnalyzing, handleGenerateIntelligence }: any) => (
+  <div className="space-y-4">
+    {isIntelligenceAnalyzing ? (
+      <GlassCard className="p-8">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600">Cross-component intelligence analysis in progress...</p>
+          <p className="text-sm text-gray-500 mt-2">Correlating insights from multiple sources</p>
+        </div>
+      </GlassCard>
+    ) : intelligence.length === 0 ? (
+      <GlassCard className="p-8">
+        <div className="text-center">
+          <Layers className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">No intelligence correlations available</p>
+          <ModernButton
+            variant="primary"
+            onClick={handleGenerateIntelligence}
+            className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600"
+          >
+            <Brain className="w-4 h-4" />
+            <span>Generate Intelligence</span>
+          </ModernButton>
+        </div>
+      </GlassCard>
+    ) : (
+      intelligence.map((intel: any) => (
+        <GlassCard key={intel.id} className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+          <div className="flex items-start space-x-4">
+            <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+              <Brain className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">{intel.metaInsight.title}</h4>
+                  <div className="flex items-center space-x-3 mt-1">
+                    <span className="text-sm text-gray-500 capitalize">{intel.correlationType}</span>
+                    <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                      intel.metaInsight.actionPriority === 'urgent' ? 'bg-red-100 text-red-800' :
+                      intel.metaInsight.actionPriority === 'high' ? 'bg-orange-100 text-orange-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {intel.metaInsight.actionPriority.toUpperCase()} PRIORITY
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-purple-600">{intel.metaInsight.confidence}%</div>
+                  <p className="text-xs text-gray-500">Intelligence Confidence</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-4">{intel.metaInsight.description}</p>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-blue-900">Predicted Outcome:</p>
+                <p className="text-sm text-blue-800">{intel.metaInsight.predictedOutcome}</p>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      ))
+    )}
+  </div>
+);
+
+const RecommendationsView = ({ recommendations, handleFeedback }: any) => (
+  <div className="space-y-4">
+    {recommendations.length === 0 ? (
+      <GlassCard className="p-8">
+        <div className="text-center">
+          <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">No smart recommendations available</p>
+          <ModernButton
+            variant="primary"
+            className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-blue-600"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Generate Recommendations</span>
+          </ModernButton>
+        </div>
+      </GlassCard>
+    ) : (
+      recommendations.map((rec: any) => (
+        <GlassCard key={rec.id} className="p-6 bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+          <div className="flex items-start space-x-4">
+            <div className={`p-3 rounded-lg ${
+              rec.type === 'action' ? 'bg-green-500' :
+              rec.type === 'communication' ? 'bg-blue-500' :
+              rec.type === 'automation' ? 'bg-purple-500' :
+              'bg-orange-500'
+            }`}>
+              <Target className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">{rec.title}</h4>
+                  <div className="flex items-center space-x-3 mt-1">
+                    <span className="text-sm text-gray-500 capitalize">{rec.type}</span>
+                    <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                      rec.urgency === 'immediate' ? 'bg-red-100 text-red-800' :
+                      rec.urgency === 'this_week' ? 'bg-orange-100 text-orange-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {rec.urgency.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                      rec.impact === 'high' ? 'bg-green-100 text-green-800' :
+                      rec.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {rec.impact.toUpperCase()} IMPACT
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-green-600">{rec.confidence}%</div>
+                  <p className="text-xs text-gray-500">Confidence</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-3">{rec.description}</p>
+              <div className="bg-white p-3 rounded-lg mb-3">
+                <p className="text-sm font-semibold text-gray-900 mb-1">Expected Outcome:</p>
+                <p className="text-sm text-gray-700">{rec.expectedOutcome}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-1">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    <span>Effort: {rec.effort}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <TrendingUp className="w-4 h-4 text-gray-500" />
+                    <span>Priority: {rec.priority}</span>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <ModernButton
+                    variant="primary"
+                    size="sm"
+                    className="flex items-center space-x-1"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Implement</span>
+                  </ModernButton>
+                  <button
+                    onClick={() => handleFeedback(rec.id, 'positive')}
+                    className="p-1 bg-white hover:bg-gray-50 rounded text-green-600"
+                  >
+                    <ThumbsUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleFeedback(rec.id, 'negative')}
+                    className="p-1 bg-white hover:bg-gray-50 rounded text-red-600"
+                  >
+                    <ThumbsDown className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      ))
+    )}
+  </div>
+);
+
 interface AIInsightsPanelProps {
   contact: Contact;
 }
@@ -39,14 +325,16 @@ const insightIcons = {
   prediction: TrendingUp,
   recommendation: Lightbulb,
   risk: AlertTriangle,
-  opportunity: Target
+  opportunity: Target,
+  pattern: Activity
 };
 
 const insightColors = {
   prediction: 'bg-blue-500',
   recommendation: 'bg-green-500',
   risk: 'bg-red-500',
-  opportunity: 'bg-purple-500'
+  opportunity: 'bg-purple-500',
+  pattern: 'bg-orange-500'
 };
 
 const impactColors = {
@@ -56,6 +344,18 @@ const impactColors = {
 };
 
 // Sample AI insights
+interface AIInsight {
+  id: string;
+  type: 'prediction' | 'recommendation' | 'risk' | 'opportunity' | 'pattern';
+  title: string;
+  description: string;
+  confidence: number;
+  impact: 'high' | 'medium' | 'low';
+  category: string;
+  actionable: boolean;
+  suggestedActions?: string[];
+}
+
 const generateInsights = (contact: Contact): AIInsight[] => [
   {
     id: '1',
@@ -202,11 +502,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       setResearchSources(sources);
 
       // Generate insights with enhanced context from web research
-      await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction'], {
-        webResearch: searchResults.content,
-        industryContext: searchResults.sources,
-        companyNews: searchResults.sources.filter(s => s.type === 'news')
-      });
+      await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction']);
 
       researchThinking.complete('✅ Web-enhanced insights generated successfully!');
 

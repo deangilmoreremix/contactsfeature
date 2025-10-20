@@ -7,10 +7,10 @@ export default defineConfig({
   plugins: [
     react(),
     federation({
-      name: 'ContactsApp',
+      name: 'CalendarApp',
       filename: 'remoteEntry.js',
       exposes: {
-        './ContactsApp': './src/App.tsx'
+        './CalendarApp': './src/CalendarApp.tsx'
       },
       shared: ['react', 'react-dom']
     })
@@ -26,7 +26,7 @@ export default defineConfig({
 
   server: {
     host: true,
-    port: 5173, // 👈 each remote should ideally use a different port in dev
+    port: 5174, // 👈 each remote should ideally use a different port in dev
   },
 
   build: {

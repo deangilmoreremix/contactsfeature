@@ -1,5 +1,7 @@
 // GPT-5 Tools Service - Email and Communication Integration
 import { logger } from './logger.service';
+import { aiCache } from '../utils/cache';
+import { sanitizeString } from '../utils/validation';
 
 interface EmailData {
   to: string;
@@ -21,7 +23,9 @@ interface CallData {
 
 export class GPT5ToolsService {
   private apiKey = import.meta.env['VITE_OPENAI_API_KEY'];
-  private model = import.meta.env['VITE_OPENAI_MODEL'] || 'gpt-5';
+  private model = import.meta.env['VITE_OPENAI_MODEL'] || 'gpt-4'; // Use valid model
+  private maxRetries = 3;
+  private retryDelay = 1000; // 1 second
 
   constructor() {
     logger.info('GPT-5 Tools Service initialized', {
@@ -31,37 +35,42 @@ export class GPT5ToolsService {
   }
 
   /**
-   * Send email using GPT-5 tools to open Gmail
-   */
-  async sendEmail(emailData: EmailData): Promise<{ success: boolean; message: string; gmailUrl?: string }> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
+    * Prepare email using GPT-5 tools to open Gmail compose window
+    */
+   async prepareEmail(emailData: EmailData): Promise<{ success: boolean; message: string; gmailUrl?: string }> {
+     if (!this.apiKey) {
+       throw new Error('OpenAI API key is not configured');
+     }
 
-    try {
-      logger.info('Sending email via GPT-5 tools', { to: emailData.to, subject: emailData.subject });
+     try {
+       logger.info('Preparing email via GPT-5 tools', { to: emailData.to, subject: emailData.subject });
 
-      // Use GPT-5 tools to generate Gmail compose URL
-      const gmailUrl = this.generateGmailComposeUrl(emailData);
+       // Check cache first
+       const cacheKey = aiCache.getEmailCacheKey(emailData);
+       let enhancedEmail = aiCache.get(cacheKey);
 
-      // Use GPT-5 to validate and enhance the email
-      const enhancedEmail = await this.enhanceEmailWithGPT5(emailData);
+       if (!enhancedEmail) {
+         // Use GPT-5 to validate and enhance the email
+         enhancedEmail = await this.enhanceEmailWithGPT5(emailData);
+         // Cache the result
+         aiCache.set(cacheKey, enhancedEmail);
+       }
 
-      logger.info('Email enhanced with GPT-5', { originalSubject: emailData.subject, enhancedSubject: enhancedEmail.subject });
+       logger.info('Email enhanced with GPT-5', { originalSubject: emailData.subject, enhancedSubject: enhancedEmail.subject });
 
-      return {
-        success: true,
-        message: 'Email prepared successfully. Opening Gmail...',
-        gmailUrl: this.generateGmailComposeUrl(enhancedEmail)
-      };
-    } catch (error) {
-      logger.error('Failed to send email via GPT-5 tools', error as Error);
-      return {
-        success: false,
-        message: `Failed to prepare email: ${(error as Error).message}`
-      };
-    }
-  }
+       return {
+         success: true,
+         message: 'Email prepared successfully. Opening Gmail compose window...',
+         gmailUrl: this.generateGmailComposeUrl(enhancedEmail)
+       };
+     } catch (error) {
+       logger.error('Failed to prepare email via GPT-5 tools', error as Error);
+       return {
+         success: false,
+         message: `Failed to prepare email: ${(error as Error).message}`
+       };
+     }
+   }
 
   /**
    * Send SMS using GPT-5 tools
@@ -129,20 +138,21 @@ export class GPT5ToolsService {
    * Generate Gmail compose URL with email data
    */
   private generateGmailComposeUrl(emailData: EmailData): string {
+    // Properly encode URL parameters to handle special characters
     const params = new URLSearchParams({
       view: 'cm',
       fs: '1',
-      to: emailData.to,
-      su: emailData.subject,
-      body: emailData.body
+      to: encodeURIComponent(emailData.to),
+      su: encodeURIComponent(emailData.subject),
+      body: encodeURIComponent(emailData.body)
     });
 
     if (emailData.cc && emailData.cc.length > 0) {
-      params.set('cc', emailData.cc.join(','));
+      params.set('cc', emailData.cc.map(email => encodeURIComponent(email)).join(','));
     }
 
     if (emailData.bcc && emailData.bcc.length > 0) {
-      params.set('bcc', emailData.bcc.join(','));
+      params.set('bcc', emailData.bcc.map(email => encodeURIComponent(email)).join(','));
     }
 
     return `https://mail.google.com/mail/u/0/?${params.toString()}`;
@@ -166,26 +176,27 @@ export class GPT5ToolsService {
   }
 
   /**
-   * Use GPT-5 to enhance email content
+   * Use GPT-5 to enhance email content with retry logic
    */
   private async enhanceEmailWithGPT5(emailData: EmailData): Promise<EmailData> {
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert email copywriter. Enhance the provided email to make it more professional, engaging, and effective. Keep the core message but improve the language, structure, and persuasiveness.'
-            },
-            {
-              role: 'user',
-              content: `Please enhance this email:
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an expert email copywriter. Enhance the provided email to make it more professional, engaging, and effective. Keep the core message but improve the language, structure, and persuasiveness.'
+              },
+              {
+                role: 'user',
+                content: `Please enhance this email:
 
 Subject: ${emailData.subject}
 
@@ -193,29 +204,44 @@ Body:
 ${emailData.body}
 
 Return the enhanced email in JSON format with "subject" and "body" fields.`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000
-        })
-      });
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 1000
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error(`GPT-5 API error: ${response.statusText}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`OpenAI API error: ${response.status} ${response.statusText}. ${errorData.error?.message || ''}`);
+        }
+
+        const data = await response.json();
+        const enhancedContent = JSON.parse(data.choices[0].message.content);
+
+        // Sanitize AI-generated content
+        const sanitizedSubject = sanitizeString(enhancedContent.subject || emailData.subject);
+        const sanitizedBody = sanitizeString(enhancedContent.body || emailData.body);
+
+        return {
+          ...emailData,
+          subject: sanitizedSubject,
+          body: sanitizedBody
+        };
+      } catch (error) {
+        logger.warn(`Email enhancement attempt ${attempt} failed:`, error as Error);
+
+        if (attempt === this.maxRetries) {
+          logger.warn('All email enhancement attempts failed, using original content');
+          return emailData;
+        }
+
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, attempt - 1)));
       }
-
-      const data = await response.json();
-      const enhancedContent = JSON.parse(data.choices[0].message.content);
-
-      return {
-        ...emailData,
-        subject: enhancedContent.subject || emailData.subject,
-        body: enhancedContent.body || emailData.body
-      };
-    } catch (error) {
-      logger.warn('Failed to enhance email with GPT-5, using original', error as Error);
-      return emailData;
     }
+
+    return emailData;
   }
 
   /**

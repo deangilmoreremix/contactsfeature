@@ -3,7 +3,7 @@
  * Run this to verify your AI functions are working correctly
  */
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 const BASE_URL = process.env.NETLIFY_URL || 'http://localhost:8888';
 
@@ -135,11 +135,11 @@ async function runTests() {
 }
 
 // Run tests if this script is executed directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   runTests().catch(console.error);
 }
 
-module.exports = {
+export {
   testOpenAIContactAnalysis,
   testGeminiContactResearch,
   testOpenAIEmailTemplate,

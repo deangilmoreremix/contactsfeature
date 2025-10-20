@@ -1,17 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useContactAI } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { CustomizableAIToolbar } from '../ui/CustomizableAIToolbar';
+import { AIErrorBoundary } from '../ui/ErrorBoundary';
+import { ContactCardSkeleton } from '../ui/LoadingSkeleton';
 import { Contact } from '../../types';
 import { useContactStore } from '../../store/contactStore';
-import { 
-  Edit, 
-  MoreHorizontal, 
-  Mail, 
-  Phone, 
-  User, 
-  BarChart, 
-  ThumbsUp, 
+import {
+  AI_SCORE_COLORS,
+  AI_SCORE_THRESHOLDS,
+  INTEREST_LEVELS,
+  INTEREST_COLORS,
+  INTEREST_LABELS,
+  SOURCE_COLORS,
+  ERROR_MESSAGES
+} from '../../utils/constants';
+import { validateContactData, safeClipboardWrite, sanitizeString } from '../../utils/validation';
+import {
+  Edit,
+  MoreHorizontal,
+  Mail,
+  Phone,
+  User,
+  BarChart,
+  ThumbsUp,
   ThumbsDown,
   ExternalLink,
   Star,
@@ -32,38 +44,31 @@ interface AIEnhancedContactCardProps {
   isAnalyzing?: boolean;
 }
 
-const interestColors = {
-  hot: 'bg-red-500',
-  medium: 'bg-yellow-500',
-  low: 'bg-blue-500',
-  cold: 'bg-gray-400'
+// Status mapping for AvatarWithStatus component
+const getStatusForAvatar = (contactStatus: string): "active" | "pending" | "inactive" | "error" | "success" | "warning" => {
+  switch (contactStatus) {
+    case 'active':
+    case 'customer':
+      return 'active';
+    case 'lead':
+    case 'prospect':
+      return 'pending';
+    case 'inactive':
+    case 'churned':
+      return 'inactive';
+    default:
+      return 'pending';
+  }
 };
 
-const interestLabels = {
-  hot: 'Hot Client',
-  medium: 'Medium Interest',
-  low: 'Low Interest',
-  cold: 'Non Interest'
+const getScoreColor = (score: number): string => {
+  if (score >= AI_SCORE_THRESHOLDS.EXCELLENT) return AI_SCORE_COLORS.EXCELLENT;
+  if (score >= AI_SCORE_THRESHOLDS.GOOD) return AI_SCORE_COLORS.GOOD;
+  if (score >= AI_SCORE_THRESHOLDS.FAIR) return AI_SCORE_COLORS.FAIR;
+  return AI_SCORE_COLORS.POOR;
 };
 
-const sourceColors: { [key: string]: string } = {
-  'LinkedIn': 'bg-blue-600',
-  'Facebook': 'bg-blue-500',
-  'Email': 'bg-green-500',
-  'Website': 'bg-purple-500',
-  'Referral': 'bg-orange-500',
-  'Typeform': 'bg-pink-500',
-  'Cold Call': 'bg-gray-600'
-};
-
-const getScoreColor = (score: number) => {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 60) return 'bg-blue-500';
-  if (score >= 40) return 'bg-yellow-500';
-  return 'bg-red-500';
-};
-
-export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
+export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = React.memo(({
   contact,
   isSelected,
   onSelect,
@@ -75,35 +80,51 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [localAnalyzing, setLocalAnalyzing] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
-  
+  const [error, setError] = useState<string | null>(null);
+
   // Connect to AI services
   const { scoreContact, generateInsights, contactScore, contactInsights, isContactProcessing } = useContactAI(contact.id);
   const { updateContact } = useContactStore();
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  // Validate contact data on mount
+  useEffect(() => {
+    const validation = validateContactData(contact);
+    if (!validation.isValid) {
+      console.warn('Invalid contact data:', validation.errors);
+    }
+  }, [contact]);
+
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input')) {
       return;
     }
     onClick();
-  };
+  }, [onClick]);
 
-  const handleAnalyzeClick = async (e: React.MouseEvent) => {
+  const handleAnalyzeClick = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isAnalyzing || localAnalyzing || isContactProcessing) return;
 
     setLocalAnalyzing(true);
+    setError(null);
     console.log('Starting AI analysis for contact:', contact.id);
 
     try {
+      // Validate contact data before analysis
+      const validation = validateContactData(contact);
+      if (!validation.isValid) {
+        throw new Error(`Invalid contact data: ${validation.errors.join(', ')}`);
+      }
+
       // Check if this is demo/example data that should be protected
       const isDemoData = contact.isExample || contact.createdBy === 'demo' || contact.mockDataType === 'demo';
-  
+
       if (isDemoData) {
         // Allow AI analysis for demo contacts with mock citation data
         // alert('This is a demo contact. AI analysis is disabled for demo data to preserve the demo experience.');
         // return;
       }
-  
+
       // Check if this is mock data that should use real AI
       const isMockData = contact.isMockData || contact.dataSource === 'mock';
       const shouldUseRealAI = !isMockData || contact.dataSource === 'imported' || contact.createdBy === 'user';
@@ -117,29 +138,41 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
         await updateContact(contact.id, {
           aiScore: Math.round(score.overall),
           notes: contact.notes ?
-            `${contact.notes}\n\nAI Analysis: ${score.reasoning?.join('. ') || 'Analysis completed'}` :
-            `AI Analysis: ${score.reasoning?.join('. ') || 'Analysis completed'}`
+            `${contact.notes}\n\nAI Analysis: ${sanitizeString(score.reasoning?.join('. ') || 'Analysis completed')}` :
+            `AI Analysis: ${sanitizeString(score.reasoning?.join('. ') || 'Analysis completed')}`
         });
       }
 
       console.log('AI analysis completed:', { score, insights });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.AI_ANALYSIS_FAILED;
       console.error('AI analysis failed:', error);
+      setError(errorMessage);
       // Show user-friendly error message
-      alert('AI analysis failed. Please check your internet connection and try again.');
+      alert(errorMessage);
     } finally {
       setLocalAnalyzing(false);
     }
-  };
+  }, [isAnalyzing, localAnalyzing, isContactProcessing, contact, scoreContact, generateInsights, updateContact]);
 
   const analyzing = isAnalyzing || localAnalyzing || isContactProcessing;
 
   return (
-    <div
-      data-testid="contact-card"
-      onClick={handleCardClick}
-      className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden text-gray-900"
-    >
+    <AIErrorBoundary>
+      <div
+        data-testid="contact-card"
+        onClick={handleCardClick}
+        className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden text-gray-900"
+        role="button"
+        tabIndex={0}
+        aria-label={`Contact card for ${contact.name}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+      >
       {/* Selection Checkbox */}
       <div className="absolute top-4 left-4 z-10">
         <input
@@ -150,6 +183,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
             onSelect();
           }}
           className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500 bg-white border-gray-300"
+          aria-label={`Select contact ${contact.name}`}
         />
       </div>
 
@@ -281,7 +315,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
                 src={contact.avatarSrc}
                 alt={contact.name}
                 size="lg"
-                status={contact.status}
+                status={getStatusForAvatar(contact.status)}
               />
               
               {/* Analysis Loading Indicator */}
@@ -336,9 +370,9 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
 
         {/* Interest Level */}
         <div className="flex items-center justify-center space-x-2 mb-4">
-          <div className={`w-2 h-2 rounded-full ${interestColors[contact.interestLevel]} animate-pulse`} />
+          <div className={`w-2 h-2 rounded-full ${INTEREST_COLORS[contact.interestLevel as keyof typeof INTEREST_COLORS] || INTEREST_COLORS.cold} animate-pulse`} />
           <span className="text-xs text-gray-600 font-medium">
-            {interestLabels[contact.interestLevel]}
+            {INTEREST_LABELS[contact.interestLevel as keyof typeof INTEREST_LABELS] || INTEREST_LABELS.cold}
           </span>
         </div>
 
@@ -350,7 +384,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
               <span
                 key={index}
                 className={`
-                  ${sourceColors[source] || 'bg-gray-600'} 
+                  ${SOURCE_COLORS[source as keyof typeof SOURCE_COLORS] || 'bg-gray-600'}
                   text-white text-xs px-2 py-1 rounded-md font-medium hover:scale-110 transition-transform cursor-pointer
                 `}
               >
@@ -373,8 +407,8 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
               <div
                 key={i}
                 className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                  isActive 
-                    ? `${interestColors[contact.interestLevel]} shadow-lg` 
+                  isActive
+                    ? `${INTEREST_COLORS[contact.interestLevel as keyof typeof INTEREST_COLORS] || INTEREST_COLORS.cold} shadow-lg`
                     : 'bg-gray-300 hover:bg-gray-400'
                 }`}
               />
@@ -498,9 +532,18 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = ({
             {(contact.aiScore || contactScore) ? 'Click to view details' : 'Click AI button to score • Click card for details'}
           </p>
         </div>
+
+        {/* Error display */}
+        {error && (
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+            {error}
+          </div>
+        )}
       </div>
-    </div>
+    </AIErrorBoundary>
   );
-};
+});
+
+AIEnhancedContactCard.displayName = 'AIEnhancedContactCard';
 
 export default AIEnhancedContactCard;

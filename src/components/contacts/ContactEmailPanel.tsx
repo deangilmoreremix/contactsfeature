@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useCommunicationAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { AIErrorBoundary } from '../ui/ErrorBoundary';
+import { useToast } from '../ui/Toast';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { CitationBadge } from '../ui/CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
@@ -12,6 +14,9 @@ import { EmailTemplateSelector } from '../email/EmailTemplateSelector';
 import { SocialMessageGenerator } from '../email/SocialMessageGenerator';
 import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
+import { ERROR_MESSAGES, LOADING_MESSAGES } from '../../utils/constants';
+import { isValidEmail, safeClipboardWrite } from '../../utils/validation';
+import { useResearchOperations } from '../../hooks/useResearchOperations';
 import {
   Mail,
   MessageSquare,
@@ -24,7 +29,9 @@ import {
   Save,
   Trash2,
   Brain,
-  Sparkles
+  Sparkles,
+  Mail as MailIcon,
+  Smartphone
 } from 'lucide-react';
 
 interface ContactEmailPanelProps {
@@ -33,19 +40,27 @@ interface ContactEmailPanelProps {
 
 type ActiveTab = 'compose' | 'templates' | 'analyzer' | 'social';
 
-export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact }) => {
-   const [activeTab, setActiveTab] = useState<ActiveTab>('compose');
-   const [emailSubject, setEmailSubject] = useState('');
-   const [emailBody, setEmailBody] = useState('');
-   const [isDrafting, setIsDrafting] = useState(false);
+export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({ contact }) => {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('compose');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPreparingEmail, setIsPreparingEmail] = useState(false);
 
-   // Connect to Communication AI
-   const { generateEmail, analyzeEmail, isProcessing } = useCommunicationAI();
+  // Toast notifications
+  const { showToast } = useToast();
 
-   // Research state management
-   const researchThinking = useResearchThinking();
-   const researchStatus = useResearchStatus();
-   const [researchSources, setResearchSources] = useState<any[]>([]);
+  // Connect to Communication AI
+  const { generateEmail, analyzeEmail, isProcessing } = useCommunicationAI();
+
+  // Research operations hook
+  const { performResearch, isResearching } = useResearchOperations();
+
+  // Research state management
+  const researchThinking = useResearchThinking();
+  const researchStatus = useResearchStatus();
+  const [researchSources, setResearchSources] = useState<any[]>([]);
 
   const handleSelectTemplate = (subject: string, body: string) => {
     setEmailSubject(subject);
@@ -60,7 +75,8 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
     setIsDrafting(true);
   };
 
-  const handleQuickGenerate = async (purpose: 'introduction' | 'follow-up' | 'proposal') => {
+  const handleQuickGenerate = useCallback(async (purpose: 'introduction' | 'follow-up' | 'proposal') => {
+    setError(null);
     researchThinking.startResearch(`🔍 Researching ${contact.company} for ${purpose} email...`);
 
     try {
@@ -71,15 +87,10 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
       const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective ${purpose} communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies for ${purpose} emails.`;
       const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${purpose} email. Find recent company news, leadership information, communication preferences, and optimal timing for ${purpose} contact.`;
 
-      const searchResults = await webSearchService.searchWithAI(
-        searchQuery,
-        systemPrompt,
-        userPrompt,
-        {
-          includeSources: true,
-          searchContextSize: 'high'
-        }
-      );
+      const searchResults = await performResearch(searchQuery, systemPrompt, userPrompt, {
+        includeSources: true,
+        searchContextSize: 'high'
+      });
 
       researchThinking.moveToSynthesizing('📧 Generating personalized email content...');
 
@@ -113,24 +124,37 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
       researchThinking.complete('✅ Research-powered email generated!');
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.AI_ANALYSIS_FAILED;
       console.error('Quick email generation failed:', error);
+      setError(errorMessage);
       researchThinking.complete('❌ Email generation failed');
     }
-  };
-  const handleSendEmail = async () => {
+  }, [contact, performResearch, generateEmail, researchThinking]);
+  const handleSendEmail = useCallback(async () => {
     if (!emailSubject.trim() || !emailBody.trim()) {
-      alert('Please enter both subject and body for the email');
+      showToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'Please enter both subject and body for the email'
+      });
       return;
     }
 
-    if (!contact.email) {
-      alert('Contact does not have an email address');
+    if (!contact.email || !isValidEmail(contact.email)) {
+      showToast({
+        type: 'error',
+        title: 'Invalid Email',
+        message: ERROR_MESSAGES.NO_EMAIL_ADDRESS
+      });
       return;
     }
+
+    setError(null);
+    setIsPreparingEmail(true);
 
     try {
-      // Use GPT-5 tools to send email via Gmail
-      const result = await gpt5ToolsService.sendEmail({
+      // Use GPT-5 tools to prepare email for Gmail
+      const result = await gpt5ToolsService.prepareEmail({
         to: contact.email,
         subject: emailSubject,
         body: emailBody
@@ -139,20 +163,35 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
       if (result.success && result.gmailUrl) {
         // Open Gmail compose window
         window.open(result.gmailUrl, '_blank');
-        alert('Gmail compose window opened with your email draft!');
-      } else {
-        alert(result.message || 'Failed to prepare email');
-      }
+        showToast({
+          type: 'success',
+          title: 'Email Prepared',
+          message: 'Gmail compose window opened with your enhanced email draft!'
+        });
 
-      // Clear the draft
-      setEmailSubject('');
-      setEmailBody('');
-      setIsDrafting(false);
+        // Clear the draft
+        setEmailSubject('');
+        setEmailBody('');
+        setIsDrafting(false);
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Preparation Failed',
+          message: result.message || 'Failed to prepare email'
+        });
+      }
     } catch (error) {
-      console.error('Failed to send email:', error);
-      alert('Failed to send email. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.EMAIL_SEND_FAILED;
+      console.error('Failed to prepare email:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: errorMessage
+      });
+    } finally {
+      setIsPreparingEmail(false);
     }
-  };
+  }, [emailSubject, emailBody, contact.email, showToast]);
 
   const handleDiscardDraft = () => {
     if (confirm('Are you sure you want to discard this draft?')) {
@@ -170,7 +209,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
   ];
 
   return (
-    <>
+    <AIErrorBoundary>
       {/* Research Status Overlay */}
       <ResearchStatusOverlay
         status={researchStatus.status}
@@ -229,10 +268,21 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
             <ModernButton
               variant="outline"
               size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(`Subject: ${emailSubject}\n\n${emailBody}`)
-                  .then(() => alert('Email copied to clipboard'))
-                  .catch(() => alert('Failed to copy to clipboard'));
+              onClick={async () => {
+                const success = await safeClipboardWrite(`Subject: ${emailSubject}\n\n${emailBody}`);
+                if (success) {
+                  showToast({
+                    type: 'success',
+                    title: 'Copied',
+                    message: 'Email draft copied to clipboard'
+                  });
+                } else {
+                  showToast({
+                    type: 'error',
+                    title: 'Copy Failed',
+                    message: ERROR_MESSAGES.CLIPBOARD_NOT_SUPPORTED
+                  });
+                }
               }}
               className="flex items-center space-x-1"
             >
@@ -244,10 +294,11 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
               variant="primary"
               size="sm"
               onClick={handleSendEmail}
+              loading={isPreparingEmail}
               className="flex items-center space-x-1 bg-green-600 hover:bg-green-700"
             >
               <Send className="w-4 h-4" />
-              <span>Send Email</span>
+              <span>{isPreparingEmail ? 'Preparing...' : 'Open Gmail'}</span>
             </ModernButton>
           </div>
         )}
@@ -350,30 +401,24 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <a
-              href={`https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${contact.email}&su=`}
+              href={`https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${encodeURIComponent(contact.email)}&su=`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              aria-label="Open Gmail compose"
             >
-              <img 
-                src="https://workspace.google.com/static/img/products/gmail.svg"
-                alt="Gmail"
-                className="w-5 h-5 mr-2"
-              />
+              <MailIcon className="w-5 h-5 mr-2 text-red-500" />
               <span className="text-sm">Gmail</span>
             </a>
             
             <a
-              href={`https://outlook.office.com/mail/deeplink/compose?to=${contact.email}`}
+              href={`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(contact.email)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              aria-label="Open Outlook compose"
             >
-              <img 
-                src="https://img.icons8.com/color/48/000000/ms-outlook.png"
-                alt="Outlook"
-                className="w-5 h-5 mr-2"
-              />
+              <MailIcon className="w-5 h-5 mr-2 text-blue-600" />
               <span className="text-sm">Outlook</span>
             </a>
             
@@ -385,23 +430,42 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = ({ contact })
               <span className="text-sm">Mail App</span>
             </a>
             
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                navigator.clipboard.writeText(contact.email)
-                  .then(() => alert('Email copied to clipboard'))
-                  .catch(() => alert('Failed to copy to clipboard'));
+            <button
+              onClick={async () => {
+                const success = await safeClipboardWrite(contact.email);
+                if (success) {
+                  showToast({
+                    type: 'success',
+                    title: 'Copied',
+                    message: 'Email address copied to clipboard'
+                  });
+                } else {
+                  showToast({
+                    type: 'error',
+                    title: 'Copy Failed',
+                    message: ERROR_MESSAGES.CLIPBOARD_NOT_SUPPORTED
+                  });
+                }
               }}
               className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              aria-label="Copy email address"
             >
               <Copy className="w-5 h-5 mr-2 text-gray-600" />
               <span className="text-sm">Copy Email</span>
-            </a>
+            </button>
           </div>
         </div>
       )}
+
+      {/* Inline error display for specific operations */}
+      {error && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+          {error}
+        </div>
+      )}
     </div>
-    </>
+    </AIErrorBoundary>
   );
-};
+});
+
+ContactEmailPanel.displayName = 'ContactEmailPanel';

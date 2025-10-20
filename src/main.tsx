@@ -1,10 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
+import CalendarApp from './CalendarApp';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
+// Export for Module Federation
+export { default } from './CalendarApp';
+
+// Render for standalone use
+const root = createRoot(document.getElementById('root')!);
+root.render(
   <StrictMode>
-    <App />
+    <CalendarApp />
   </StrictMode>
 );
