@@ -221,6 +221,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
 }
 
 function App(props: RemoteAppProps) {
+  console.log('App.tsx: Rendering App component');
   return (
     <GuidanceProvider>
       <AppContent {...props} />

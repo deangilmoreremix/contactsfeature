@@ -129,6 +129,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   },
 
   updateContact: async (id, updates) => {
+    console.log('useContactStore updateContact called with id:', id, 'updates:', updates);
     return withErrorHandling(async () => {
       const contact = await contactAPI.updateContact(id, updates);
 

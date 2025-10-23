@@ -19,19 +19,17 @@ test.describe('Contact Cards AI Walkthrough - 30 Second Demo', () => {
 
     // Ensure contacts are visible
     await page.waitForSelector('text=Contacts', { state: 'visible' });
-    await page.waitForSelector('[data-testid="contact-card"]', { state: 'visible' });
+    await page.waitForSelector('.contact-card', { state: 'visible' });
 
     // Click first contact card to open detail
-    const firstCard = page.locator('[data-testid="contact-card"]').first();
+    const firstCard = page.locator('.contact-card').first();
     await firstCard.click();
-    await page.waitForSelector('[data-testid="contact-detail-modal"]', { state: 'visible' });
+    await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
     await page.screenshot({ path: path.join(outDir, '01-contact-open.png'), fullPage: false });
 
     // Demonstrate AI Web Research
-    const webResearchBtn = page.locator('button').filter({ hasText: 'AI Web Research' }).or(
-      page.locator('[title="AI Web Research"]')
-    ).first();
-    if (await webResearchBtn.isVisible({ timeout: 2000 })) {
+    const webResearchBtn = page.locator('[title="AI Web Research"]').first();
+    if (await webResearchBtn.isVisible()) {
       await webResearchBtn.click();
       await page.waitForTimeout(2000);
       await page.screenshot({ path: path.join(outDir, '02-ai-web-research-open.png') });
@@ -41,26 +39,24 @@ test.describe('Contact Cards AI Walkthrough - 30 Second Demo', () => {
     }
 
     // Demonstrate AI Auto-Enrich
-    const autoEnrichBtn = page.locator('button').filter({ hasText: 'AI Auto-Enrich' });
-    if (await autoEnrichBtn.isVisible({ timeout: 2000 })) {
+    const autoEnrichBtn = page.locator('text=AI Auto-Enrich').first();
+    if (await autoEnrichBtn.isVisible()) {
       await autoEnrichBtn.click();
       await page.waitForTimeout(3000);
       await page.screenshot({ path: path.join(outDir, '04-ai-auto-enrich.png') });
     }
 
     // Demonstrate Enrich tool
-    const enrichBtn = page.locator('[data-testid="contact-enrichment-button"]');
-    if (await enrichBtn.isVisible({ timeout: 2000 })) {
+    const enrichBtn = page.locator('text=Enrich').first();
+    if (await enrichBtn.isVisible()) {
       await enrichBtn.click();
       await page.waitForTimeout(3000);
       await page.screenshot({ path: path.join(outDir, '05-enrich-tool.png') });
     }
 
     // Demonstrate AI Analysis / Scoring
-    const aiAnalysisBtn = page.locator('button').filter({ hasText: 'AI Analysis' }).or(
-      page.locator('[title="AI Analysis"]')
-    ).first();
-    if (await aiAnalysisBtn.isVisible({ timeout: 2000 })) {
+    const aiAnalysisBtn = page.locator('[title="AI Analysis"]').first();
+    if (await aiAnalysisBtn.isVisible()) {
       await aiAnalysisBtn.click();
       await page.waitForTimeout(3000);
       await page.screenshot({ path: path.join(outDir, '06-ai-analysis.png') });

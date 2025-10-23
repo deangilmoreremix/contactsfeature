@@ -79,6 +79,8 @@ class ContactAPIService {
     this.supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
     this.isMockMode = false; // Use Supabase instead of local storage
 
+    console.log('ContactAPI Constructor: Supabase key loaded?', !!this.supabaseKey);
+    console.log('ContactAPI Constructor: isMockMode?', this.isMockMode);
     console.log('Using Supabase for contact management');
   }
   
@@ -97,7 +99,9 @@ class ContactAPIService {
   
   // Check if we should use fallback mode
   private shouldUseFallback(): boolean {
-    return !this.supabaseKey || this.isMockMode; // Use Supabase if key is available
+    const fallback = !this.supabaseKey || this.isMockMode; // Use Supabase if key is available
+    console.log('ContactAPI shouldUseFallback:', fallback, 'supabaseKey:', !!this.supabaseKey, 'isMockMode:', this.isMockMode);
+    return fallback;
   }
   
   // Initialize local storage with sample data if needed
@@ -379,37 +383,74 @@ class ContactAPIService {
     if (Object.keys(updates).length === 0) {
       throw new Error('No updates provided');
     }
-    
-    const sanitized = validationService.sanitizeContact(updates);
-    
-    // Local storage fallback
-    logger.info('Using local storage for contact update');
-    const contacts = this.getLocalContacts();
-    const contactIndex = contacts.findIndex(c => c.id === contactId);
-    
-    if (contactIndex === -1) {
-      throw new Error(`Contact with ID ${contactId} not found`);
-    }
-    
-    // Apply updates
-    const updatedContact: Contact = {
-      ...contacts[contactIndex],
-      ...sanitized as any,
-      updatedAt: new Date().toISOString()
-    };
-    
-    contacts[contactIndex] = updatedContact;
-    this.saveLocalContacts(contacts);
-    
-    // Update cache
-    cacheService.setContact(contactId, updatedContact);
 
-    // Invalidate related cache entries
-    cacheService.invalidateAllContacts();
-    
-    logger.info('Contact updated successfully', { contactId, updates: Object.keys(updates) });
-    
-    return updatedContact;
+    const sanitized = validationService.sanitizeContact(updates);
+
+    // Check if using fallback mode
+    const usingFallback = this.shouldUseFallback();
+    console.log('ContactAPI updateContact: Using fallback mode?', usingFallback);
+    console.log('ContactAPI updateContact: Supabase key available?', !!this.supabaseKey);
+    console.log('ContactAPI updateContact: isMockMode?', this.isMockMode);
+
+    if (usingFallback) {
+      // Local storage fallback
+      logger.info('Using local storage for contact update');
+      const contacts = this.getLocalContacts();
+      const contactIndex = contacts.findIndex(c => c.id === contactId);
+
+      if (contactIndex === -1) {
+        throw new Error(`Contact with ID ${contactId} not found`);
+      }
+
+      // Apply updates
+      const updatedContact: Contact = {
+        ...contacts[contactIndex],
+        ...sanitized as any,
+        updatedAt: new Date().toISOString()
+      };
+
+      contacts[contactIndex] = updatedContact;
+      this.saveLocalContacts(contacts);
+
+      // Update cache
+      cacheService.setContact(contactId, updatedContact);
+
+      // Invalidate related cache entries
+      cacheService.invalidateAllContacts();
+
+      logger.info('Contact updated successfully via localStorage', { contactId, updates: Object.keys(updates) });
+
+      return updatedContact;
+    } else {
+      // Use Supabase
+      logger.info('Using Supabase for contact update');
+      try {
+        const { data, error } = await supabase
+          .from('contacts')
+          .update(sanitized)
+          .eq('id', contactId)
+          .select()
+          .single();
+
+        if (error) {
+          logger.error('Supabase contact update failed', error);
+          throw error;
+        }
+
+        // Update cache
+        cacheService.setContact(contactId, data);
+
+        // Invalidate related cache entries
+        cacheService.invalidateAllContacts();
+
+        logger.info('Contact updated successfully via Supabase', { contactId, updates: Object.keys(updates) });
+
+        return data;
+      } catch (error) {
+        logger.error('Contact update failed', error as Error);
+        throw error;
+      }
+    }
   }
   
   async deleteContact(contactId: string): Promise<void> {

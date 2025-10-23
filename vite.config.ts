@@ -7,10 +7,10 @@ export default defineConfig({
   plugins: [
     react(),
     federation({
-      name: 'CalendarApp',
+      name: 'contacts',
       filename: 'remoteEntry.js',
       exposes: {
-        './CalendarApp': './src/CalendarApp.tsx'
+        './App': './src/App.tsx'
       },
       shared: ['react', 'react-dom']
     })

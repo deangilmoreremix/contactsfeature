@@ -68,7 +68,7 @@ const getScoreColor = (score: number): string => {
   return AI_SCORE_COLORS.POOR;
 };
 
-export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = React.memo(({
+const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
   contact,
   isSelected,
   onSelect,
@@ -158,8 +158,7 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = React
   const analyzing = isAnalyzing || localAnalyzing || isContactProcessing;
 
   return (
-    <AIErrorBoundary>
-      <div
+    <div
         data-testid="contact-card"
         onClick={handleCardClick}
         className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden text-gray-900"
@@ -540,9 +539,10 @@ export const AIEnhancedContactCard: React.FC<AIEnhancedContactCardProps> = React
           </div>
         )}
       </div>
-    </AIErrorBoundary>
   );
-});
+};
+
+export const AIEnhancedContactCard = AIEnhancedContactCardComponent;
 
 AIEnhancedContactCard.displayName = 'AIEnhancedContactCard';
 
