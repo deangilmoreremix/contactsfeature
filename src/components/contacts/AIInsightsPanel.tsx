@@ -177,41 +177,46 @@ const IntelligenceView = ({ intelligence, isIntelligenceAnalyzing, handleGenerat
         </div>
       </GlassCard>
     ) : (
-      intelligence.map((intel: any) => (
-        <GlassCard key={intel.id} className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-          <div className="flex items-start space-x-4">
-            <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-              <Brain className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900">{intel.metaInsight.title}</h4>
-                  <div className="flex items-center space-x-3 mt-1">
-                    <span className="text-sm text-gray-500 capitalize">{intel.correlationType}</span>
-                    <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                      intel.metaInsight.actionPriority === 'urgent' ? 'bg-red-100 text-red-800' :
-                      intel.metaInsight.actionPriority === 'high' ? 'bg-orange-100 text-orange-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {intel.metaInsight.actionPriority.toUpperCase()} PRIORITY
-                    </span>
+      intelligence.map((intel: any) => {
+        if (!intel || !intel.metaInsight) {
+          return null;
+        }
+        return (
+          <GlassCard key={intel.id} className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+            <div className="flex items-start space-x-4">
+              <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">{intel.metaInsight.title}</h4>
+                    <div className="flex items-center space-x-3 mt-1">
+                      <span className="text-sm text-gray-500 capitalize">{intel.correlationType}</span>
+                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                        intel.metaInsight.actionPriority === 'urgent' ? 'bg-red-100 text-red-800' :
+                        intel.metaInsight.actionPriority === 'high' ? 'bg-orange-100 text-orange-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {intel.metaInsight.actionPriority.toUpperCase()} PRIORITY
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-purple-600">{intel.metaInsight.confidence}%</div>
+                    <p className="text-xs text-gray-500">Intelligence Confidence</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-purple-600">{intel.metaInsight.confidence}%</div>
-                  <p className="text-xs text-gray-500">Intelligence Confidence</p>
+                <p className="text-gray-700 mb-4">{intel.metaInsight.description}</p>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-blue-900">Predicted Outcome:</p>
+                  <p className="text-sm text-blue-800">{intel.metaInsight.predictedOutcome}</p>
                 </div>
               </div>
-              <p className="text-gray-700 mb-4">{intel.metaInsight.description}</p>
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-blue-900">Predicted Outcome:</p>
-                <p className="text-sm text-blue-800">{intel.metaInsight.predictedOutcome}</p>
-              </div>
             </div>
-          </div>
-        </GlassCard>
-      ))
+          </GlassCard>
+        );
+      })
     )}
   </div>
 );

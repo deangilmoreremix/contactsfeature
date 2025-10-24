@@ -154,90 +154,141 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
       setLoading(true);
       setError(null);
 
-      // Perform web research for contextual communication
-      researchThinking.moveToAnalyzing('🌐 Analyzing company news and context...');
+      // Check if this is mock data (similar to other components)
+      const isMockData = contact.name.includes('Demo') || contact.company === 'Demo Company' || contact.name.startsWith('Mock');
 
-      const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} recent news company updates leadership communication preferences`;
-      const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies.`;
-      const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${type} communication. Find recent company news, leadership information, communication preferences, and optimal timing for ${type} contact.`;
+      if (isMockData) {
+        // For mock contacts, simulate communication preparation
+        researchThinking.moveToAnalyzing('🌐 Analyzing company news and context...');
 
-      const searchResults = await webSearchService.searchWithAI(
-        searchQuery,
-        systemPrompt,
-        userPrompt,
-        {
-          includeSources: true,
-          searchContextSize: 'high'
-        }
-      );
+        // Simulate research delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
-      researchThinking.moveToSynthesizing('✨ Synthesizing communication insights...');
+        researchThinking.moveToSynthesizing('✨ Synthesizing communication insights...');
 
-      // Convert search results to citations
-      const sources = searchResults.sources.map(source => ({
-        url: source.url,
-        title: source.title,
-        domain: source.domain,
-        type: 'company' as const,
-        confidence: 85,
-        timestamp: new Date(),
-        snippet: searchResults.content.substring(0, 200) + '...'
-      }));
+        // Mock sources
+        const mockSources = [
+          {
+            url: `https://www.${contact.company.toLowerCase().replace(/\s+/g, '')}.com/news`,
+            title: `${contact.company} - Latest News`,
+            domain: `${contact.company.toLowerCase().replace(/\s+/g, '')}.com`,
+            type: 'company' as const,
+            confidence: 92,
+            timestamp: new Date(),
+            snippet: `Recent company updates and news from ${contact.company}.`
+          }
+        ];
 
-      setResearchSources(sources);
+        setResearchSources(mockSources);
 
-      if (type === 'email') {
-        researchThinking.moveToOptimizing('📧 Generating personalized email...');
-
-        const result = await edgeFunctionService.composeEmail(contact, 'follow-up', {
-          tone: 'professional',
-          urgency: 'medium',
-          webResearch: searchResults.content,
-          companyContext: searchResults.sources
-        });
-        setIsComposing(true);
-        console.log('Generated email with web research:', result);
-      } else if (type === 'sms') {
-        researchThinking.moveToOptimizing('📱 Generating personalized SMS...');
-
-        if (!contact.phone) {
-          throw new Error('Contact does not have a phone number for SMS');
+        if (type === 'email') {
+          researchThinking.moveToOptimizing('📧 Generating personalized email...');
+          setIsComposing(true);
+          console.log('Mock email generated for demo contact');
+        } else if (type === 'sms') {
+          researchThinking.moveToOptimizing('📱 Generating personalized SMS...');
+          if (!contact.phone) {
+            alert('Demo contact does not have a phone number for SMS');
+          } else {
+            alert('SMS app would open with personalized message for demo contact!');
+          }
+        } else if (type === 'call') {
+          researchThinking.moveToOptimizing('📞 Preparing call with research insights...');
+          if (!contact.phone) {
+            alert('Demo contact does not have a phone number for calling');
+          } else {
+            alert('Calling app would open with research insights for demo contact!');
+          }
         }
 
-        // Generate SMS content using GPT-5
-        const smsResult = await gpt5ToolsService.sendSMS({
-          to: contact.phone,
-          message: `Hi ${contact.firstName || contact.name}, following up on our recent conversation. Would you be available for a quick call this week?`
-        });
+        researchThinking.complete('✅ Mock communication prepared successfully!');
+      } else {
+        // Real communication preparation for non-mock contacts
+        // Perform web research for contextual communication
+        researchThinking.moveToAnalyzing('🌐 Analyzing company news and context...');
 
-        if (smsResult.success && smsResult.smsAppUrl) {
-          window.open(smsResult.smsAppUrl, '_blank');
-          alert('SMS app opened with your personalized message!');
-        } else {
-          alert(smsResult.message || 'Failed to prepare SMS');
+        const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} recent news company updates leadership communication preferences`;
+        const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies.`;
+        const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${type} communication. Find recent company news, leadership information, communication preferences, and optimal timing for ${type} contact.`;
+
+        const searchResults = await webSearchService.searchWithAI(
+          searchQuery,
+          systemPrompt,
+          userPrompt,
+          {
+            includeSources: true,
+            searchContextSize: 'high'
+          }
+        );
+
+        researchThinking.moveToSynthesizing('✨ Synthesizing communication insights...');
+
+        // Convert search results to citations
+        const sources = searchResults.sources.map(source => ({
+          url: source.url,
+          title: source.title,
+          domain: source.domain,
+          type: 'company' as const,
+          confidence: 85,
+          timestamp: new Date(),
+          snippet: searchResults.content.substring(0, 200) + '...'
+        }));
+
+        setResearchSources(sources);
+
+        if (type === 'email') {
+          researchThinking.moveToOptimizing('📧 Generating personalized email...');
+
+          const result = await edgeFunctionService.composeEmail(contact, 'follow-up', {
+            tone: 'professional',
+            urgency: 'medium',
+            webResearch: searchResults.content,
+            companyContext: searchResults.sources
+          });
+          setIsComposing(true);
+          console.log('Generated email with web research:', result);
+        } else if (type === 'sms') {
+          researchThinking.moveToOptimizing('📱 Generating personalized SMS...');
+
+          if (!contact.phone) {
+            throw new Error('Contact does not have a phone number for SMS');
+          }
+
+          // Generate SMS content using GPT-5
+          const smsResult = await gpt5ToolsService.sendSMS({
+            to: contact.phone,
+            message: `Hi ${contact.firstName || contact.name}, following up on our recent conversation. Would you be available for a quick call this week?`
+          });
+
+          if (smsResult.success && smsResult.smsAppUrl) {
+            window.open(smsResult.smsAppUrl, '_blank');
+            alert('SMS app opened with your personalized message!');
+          } else {
+            alert(smsResult.message || 'Failed to prepare SMS');
+          }
+        } else if (type === 'call') {
+          researchThinking.moveToOptimizing('📞 Preparing call with research insights...');
+
+          if (!contact.phone) {
+            throw new Error('Contact does not have a phone number for calling');
+          }
+
+          // Prepare call with GPT-5 enhanced notes
+          const callResult = await gpt5ToolsService.makeCall({
+            to: contact.phone,
+            notes: `Call preparation for ${contact.firstName || contact.name} at ${contact.company}. Recent research: ${searchResults.content.substring(0, 200)}...`
+          });
+
+          if (callResult.success && callResult.callUrl) {
+            window.open(callResult.callUrl, '_blank');
+            alert('Calling app opened with research insights!');
+          } else {
+            alert(callResult.message || 'Failed to prepare call');
+          }
         }
-      } else if (type === 'call') {
-        researchThinking.moveToOptimizing('📞 Preparing call with research insights...');
 
-        if (!contact.phone) {
-          throw new Error('Contact does not have a phone number for calling');
-        }
-
-        // Prepare call with GPT-5 enhanced notes
-        const callResult = await gpt5ToolsService.makeCall({
-          to: contact.phone,
-          notes: `Call preparation for ${contact.firstName || contact.name} at ${contact.company}. Recent research: ${searchResults.content.substring(0, 200)}...`
-        });
-
-        if (callResult.success && callResult.callUrl) {
-          window.open(callResult.callUrl, '_blank');
-          alert('Calling app opened with research insights!');
-        } else {
-          alert(callResult.message || 'Failed to prepare call');
-        }
+        researchThinking.complete('✅ Communication prepared with web intelligence!');
       }
-
-      researchThinking.complete('✅ Communication prepared with web intelligence!');
 
     } catch (error) {
       console.error(`Failed to generate ${type}:`, error);

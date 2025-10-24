@@ -379,7 +379,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
   };
 
   const getEventIcon = (type: JourneyEvent['type']) => {
-    const Icon = eventIcons[type];
+    const Icon = eventIcons[type] || AlertCircle;
     return Icon;
   };
 
@@ -575,6 +575,9 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           {filteredEvents.map((event, index) => {
             const Icon = getEventIcon(event.type);
             const isLast = index === journeyEvents.length - 1;
+            if (!Icon) {
+              return null;
+            }
 
             return (
               <div key={event.id} className="relative">
