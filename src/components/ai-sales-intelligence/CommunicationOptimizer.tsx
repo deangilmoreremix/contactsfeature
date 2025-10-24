@@ -69,25 +69,102 @@ export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
     try {
       researchThinking.moveToAnalyzing('🧠 Analyzing content and context for optimization...');
 
-      const response = await supabase.functions.invoke('communication-optimization', {
-        body: {
-          content,
-          context,
-          optimizationGoals: getOptimizationGoals(context),
-          targetMetrics: getTargetMetrics(context.type),
-          model: 'gpt-5' // Use GPT-5 for advanced communication analysis
-        }
-      });
+      // Check if this is mock data (similar to other components)
+      const isMockData = context.recipient.name.includes('Demo') || context.recipient.company === 'Demo Company' || context.recipient.name.startsWith('Mock');
 
-      researchThinking.moveToSynthesizing('📊 Generating optimization recommendations...');
+      if (isMockData) {
+        // For mock contacts, simulate optimization with mock data
+        researchThinking.moveToAnalyzing('🔍 Analyzing communication patterns...');
 
-      if (response.data?.optimization) {
-        const result = response.data.optimization;
-        setOptimization(result);
-        onOptimize?.(result);
-        researchThinking.complete('✅ Communication optimized successfully!');
+        // Simulate research delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        researchThinking.moveToSynthesizing('📊 Generating optimization recommendations...');
+
+        // Generate mock optimization data
+        const mockOptimization: OptimizationResult = {
+          score: 78,
+          suggestions: [
+            {
+              aspect: 'Subject Line',
+              score: 65,
+              feedback: 'Current subject is generic and may not grab attention',
+              suggestion: 'Make it more specific and benefit-focused: "How to Increase Your Team\'s Productivity by 40%"'
+            },
+            {
+              aspect: 'Opening',
+              score: 82,
+              feedback: 'Good personal connection but could be stronger',
+              suggestion: 'Start with a specific pain point: "I noticed your team is struggling with..."'
+            },
+            {
+              aspect: 'Value Proposition',
+              score: 88,
+              feedback: 'Clear value but could be more quantified',
+              suggestion: 'Add specific metrics: "Our clients see 40% improvement in..."'
+            },
+            {
+              aspect: 'Call to Action',
+              score: 70,
+              feedback: 'CTA is present but could be more compelling',
+              suggestion: 'Make it more specific: "Schedule a 15-minute demo this week"'
+            }
+          ],
+          optimizedContent: {
+            subject: `How ${context.recipient.name} Can Increase Team Productivity by 40%`,
+            body: `Hi ${context.recipient.name},
+
+I hope this email finds you well. I noticed from your recent LinkedIn activity that you're focused on improving team productivity at ${context.recipient.company}.
+
+Many of our clients in ${context.recipient.company}'s industry have been struggling with the same challenges. That's why I wanted to share how our platform has helped similar teams achieve:
+
+• 40% increase in productivity
+• 60% reduction in manual tasks
+• 25% improvement in team satisfaction
+
+Would you be open to a quick 15-minute call this week to discuss how we might help your team achieve similar results?
+
+Best regards,
+[Your Name]`
+          },
+          performance: {
+            openRate: 0.28,
+            responseRate: 0.12,
+            conversionPotential: 0.35
+          },
+          insights: [
+            'Personalization increases open rates by 25%',
+            'Benefit-focused subject lines perform 30% better',
+            'Including specific metrics builds credibility',
+            'Clear next steps improve response rates'
+          ]
+        };
+
+        setOptimization(mockOptimization);
+        onOptimize?.(mockOptimization);
+        researchThinking.complete('✅ Mock communication optimized successfully!');
       } else {
-        throw new Error('No optimization data received');
+        // Real optimization for non-mock contacts
+        const response = await supabase.functions.invoke('communication-optimization', {
+          body: {
+            content,
+            context,
+            optimizationGoals: getOptimizationGoals(context),
+            targetMetrics: getTargetMetrics(context.type),
+            model: 'gpt-5' // Use GPT-5 for advanced communication analysis
+          }
+        });
+
+        researchThinking.moveToSynthesizing('📊 Generating optimization recommendations...');
+
+        if (response.data?.optimization) {
+          const result = response.data.optimization;
+          setOptimization(result);
+          onOptimize?.(result);
+          researchThinking.complete('✅ Communication optimized successfully!');
+        } else {
+          throw new Error('No optimization data received');
+        }
       }
     } catch (error) {
       console.error('Failed to optimize communication:', error);

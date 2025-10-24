@@ -60,27 +60,116 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
   const generateQuestions = async () => {
     setLoading(true);
     try {
-      const response = await supabase.functions.invoke('discovery-questions', {
-        body: {
-          contact: {
-            name: contact.name,
-            role: contact.role,
-            company: contact.company,
-            industry: contact.industry,
-            companySize: contact.companySize
-          },
-          meetingContext,
-          preferences: {
-            questionCount: 12,
-            includeTechnical: meetingContext.type === 'demo',
-            includePersonal: meetingContext.type === 'discovery',
-            focusAreas: getFocusAreas(meetingContext.type)
-          }
-        }
-      });
+      // Check if this is mock data (similar to other components)
+      const isMockData = contact.name.includes('Demo') || contact.company === 'Demo Company' || contact.name.startsWith('Mock');
 
-      if (response.data?.questions) {
-        setQuestions(response.data.questions);
+      if (isMockData) {
+        // For mock contacts, simulate question generation with mock data
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Generate mock questions data
+        const mockQuestions: GeneratedQuestions = {
+          questions: [
+            {
+              id: 'q1',
+              question: `What are the biggest challenges ${contact.name} is facing in ${contact.role} at ${contact.company}?`,
+              category: 'business',
+              priority: 'high',
+              reasoning: 'Understanding pain points helps tailor the solution and demonstrate value.'
+            },
+            {
+              id: 'q2',
+              question: 'How does your current process work for handling [specific business challenge]?',
+              category: 'technical',
+              priority: 'high',
+              reasoning: 'Reveals current workflow and identifies integration opportunities.'
+            },
+            {
+              id: 'q3',
+              question: `What are ${contact.company}'s top priorities for the next 6-12 months?`,
+              category: 'business',
+              priority: 'medium',
+              reasoning: 'Aligns solution with company goals and timeline expectations.'
+            },
+            {
+              id: 'q4',
+              question: 'Who else at your organization would be involved in this decision?',
+              category: 'decision_making',
+              priority: 'high',
+              reasoning: 'Identifies all stakeholders and decision-making process.'
+            },
+            {
+              id: 'q5',
+              question: 'What would success look like for you in this area?',
+              category: 'personal',
+              priority: 'medium',
+              reasoning: 'Uncovers personal motivations and success criteria.'
+            },
+            {
+              id: 'q6',
+              question: 'Have you evaluated any other solutions? What did you like/dislike about them?',
+              category: 'business',
+              priority: 'medium',
+              reasoning: 'Reveals competitive landscape and differentiation opportunities.'
+            },
+            {
+              id: 'q7',
+              question: 'What\'s your timeline for implementing a solution?',
+              category: 'decision_making',
+              priority: 'high',
+              reasoning: 'Establishes urgency and helps prioritize follow-up actions.'
+            },
+            {
+              id: 'q8',
+              question: 'What budget have you allocated for this type of solution?',
+              category: 'business',
+              priority: 'medium',
+              reasoning: 'Qualifies budget fit and pricing expectations.'
+            }
+          ],
+          summary: {
+            totalQuestions: 8,
+            categories: {
+              business: 3,
+              technical: 1,
+              personal: 1,
+              decision_making: 3
+            },
+            estimatedDuration: 25,
+            keyThemes: [
+              'Current challenges and pain points',
+              'Decision-making process and stakeholders',
+              'Timeline and budget considerations',
+              'Success criteria and expectations'
+            ]
+          }
+        };
+
+        setQuestions(mockQuestions);
+      } else {
+        // Real question generation for non-mock contacts
+        const response = await supabase.functions.invoke('discovery-questions', {
+          body: {
+            contact: {
+              name: contact.name,
+              role: contact.role,
+              company: contact.company,
+              industry: contact.industry,
+              companySize: contact.companySize
+            },
+            meetingContext,
+            preferences: {
+              questionCount: 12,
+              includeTechnical: meetingContext.type === 'demo',
+              includePersonal: meetingContext.type === 'discovery',
+              focusAreas: getFocusAreas(meetingContext.type)
+            }
+          }
+        });
+
+        if (response.data?.questions) {
+          setQuestions(response.data.questions);
+        }
       }
     } catch (error) {
       console.error('Failed to generate questions:', error);

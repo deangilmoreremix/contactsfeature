@@ -98,23 +98,226 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
     try {
       researchThinking.moveToAnalyzing('🧠 Analyzing deal data and market conditions...');
 
-      const response = await supabase.functions.invoke('adaptive-playbook', {
-        body: {
-          dealData: deal,
-          companyProfile: getCompanyProfile(deal.company),
-          competitiveAnalysis: getCompetitiveAnalysis(deal.competitors || []),
-          historicalData: getSimilarDeals(deal),
-          model: 'gpt-5' // Use GPT-5 for advanced reasoning
-        }
-      });
+      // Check if this is mock data (similar to other components)
+      const isMockData = deal.id.startsWith('mock') || deal.company === 'Demo Company' || deal.name.includes('Demo');
 
-      researchThinking.moveToSynthesizing('📋 Synthesizing strategic recommendations...');
+      if (isMockData) {
+        // For mock contacts, simulate playbook generation with mock data
+        researchThinking.moveToAnalyzing('🔍 Researching company and market data...');
 
-      if (response.data?.playbook) {
-        setPlaybook(response.data.playbook);
-        researchThinking.complete('✅ AI playbook generated successfully!');
+        // Simulate research delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        researchThinking.moveToSynthesizing('📋 Synthesizing strategic recommendations...');
+
+        // Generate mock playbook data
+        const mockPlaybook: PlaybookStrategy = {
+          dealId: deal.id,
+          strategy: {
+            name: 'Strategic Growth Playbook',
+            description: `Comprehensive sales strategy for ${deal.name} at ${deal.company}. Focus on relationship building and value demonstration.`,
+            confidence: 0.85,
+            rationale: 'Based on industry analysis and company profile, this strategy emphasizes consultative selling and ROI-focused messaging.'
+          },
+          phases: [
+            {
+              id: 'phase-1',
+              name: 'Discovery & Research',
+              timeline: 'Week 1-2',
+              objectives: [
+                'Understand business challenges and goals',
+                'Identify key decision makers and influencers',
+                'Map current technology stack and processes'
+              ],
+              tactics: [
+                {
+                  id: 'tactic-1',
+                  name: 'Stakeholder Mapping',
+                  description: 'Identify and research all stakeholders involved in the decision process',
+                  priority: 'high',
+                  estimatedEffort: '2-3 hours',
+                  successMetrics: ['Stakeholder map completed', 'Key contacts identified'],
+                  dependencies: []
+                },
+                {
+                  id: 'tactic-2',
+                  name: 'Needs Assessment',
+                  description: 'Conduct thorough discovery to understand pain points and requirements',
+                  priority: 'high',
+                  estimatedEffort: '1-2 hours',
+                  successMetrics: ['Discovery call completed', 'Requirements documented'],
+                  dependencies: ['Stakeholder Mapping']
+                }
+              ],
+              milestones: [
+                {
+                  id: 'milestone-1',
+                  name: 'Initial Discovery Complete',
+                  description: 'Complete stakeholder mapping and needs assessment',
+                  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                  owner: 'Sales Rep',
+                  status: 'pending'
+                }
+              ]
+            },
+            {
+              id: 'phase-2',
+              name: 'Solution Presentation',
+              timeline: 'Week 3-4',
+              objectives: [
+                'Present tailored solution addressing identified needs',
+                'Demonstrate ROI and value proposition',
+                'Address objections and concerns'
+              ],
+              tactics: [
+                {
+                  id: 'tactic-3',
+                  name: 'Customized Demo',
+                  description: 'Deliver personalized product demonstration based on discovery findings',
+                  priority: 'high',
+                  estimatedEffort: '2-3 hours',
+                  successMetrics: ['Demo delivered', 'Feedback collected'],
+                  dependencies: ['Needs Assessment']
+                },
+                {
+                  id: 'tactic-4',
+                  name: 'ROI Analysis',
+                  description: 'Present detailed ROI analysis and business case',
+                  priority: 'medium',
+                  estimatedEffort: '1-2 hours',
+                  successMetrics: ['ROI document shared', 'Business case accepted'],
+                  dependencies: ['Customized Demo']
+                }
+              ],
+              milestones: [
+                {
+                  id: 'milestone-2',
+                  name: 'Solution Presented',
+                  description: 'Complete demo and ROI presentation',
+                  dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                  owner: 'Sales Rep',
+                  status: 'pending'
+                }
+              ]
+            },
+            {
+              id: 'phase-3',
+              name: 'Negotiation & Close',
+              timeline: 'Week 5-6',
+              objectives: [
+                'Negotiate terms and pricing',
+                'Overcome final objections',
+                'Secure commitment and close deal'
+              ],
+              tactics: [
+                {
+                  id: 'tactic-5',
+                  name: 'Contract Negotiation',
+                  description: 'Negotiate terms, pricing, and implementation timeline',
+                  priority: 'high',
+                  estimatedEffort: '3-5 hours',
+                  successMetrics: ['Terms agreed', 'Contract drafted'],
+                  dependencies: ['Solution Presented']
+                },
+                {
+                  id: 'tactic-6',
+                  name: 'Final Close',
+                  description: 'Secure signature and transition to implementation',
+                  priority: 'high',
+                  estimatedEffort: '1-2 hours',
+                  successMetrics: ['Contract signed', 'Deal closed'],
+                  dependencies: ['Contract Negotiation']
+                }
+              ],
+              milestones: [
+                {
+                  id: 'milestone-3',
+                  name: 'Deal Closed',
+                  description: 'Contract signed and deal completed',
+                  dueDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+                  owner: 'Sales Rep',
+                  status: 'pending'
+                }
+              ]
+            }
+          ],
+          riskMitigation: [
+            {
+              risk: 'Budget constraints',
+              probability: 0.3,
+              impact: 'High - may delay or cancel purchase',
+              mitigation: 'Emphasize ROI and offer flexible payment terms. Prepare alternative pricing tiers.'
+            },
+            {
+              risk: 'Competitor activity',
+              probability: 0.4,
+              impact: 'Medium - may influence decision',
+              mitigation: 'Highlight unique differentiators and provide competitive analysis. Schedule regular check-ins.'
+            }
+          ],
+          successIndicators: [
+            {
+              metric: 'Engagement Score',
+              target: '85%',
+              current: '72%',
+              status: 'on_track'
+            },
+            {
+              metric: 'Response Time',
+              target: '< 24 hours',
+              current: '< 12 hours',
+              status: 'on_track'
+            },
+            {
+              metric: 'Meeting Attendance',
+              target: '100%',
+              current: '100%',
+              status: 'on_track'
+            }
+          ],
+          competitivePositioning: {
+            strengths: [
+              'Superior customer support and implementation',
+              'Advanced AI capabilities',
+              'Flexible pricing and payment options',
+              'Strong industry expertise'
+            ],
+            weaknesses: [],
+            differentiation: [
+              'AI-powered insights and automation',
+              'Proactive customer success management',
+              'Industry-specific solutions'
+            ],
+            winThemes: [
+              'ROI-focused messaging',
+              'Partnership approach',
+              'Innovation and technology leadership'
+            ]
+          }
+        };
+
+        setPlaybook(mockPlaybook);
+        researchThinking.complete('✅ Mock playbook generated successfully!');
       } else {
-        throw new Error('No playbook data received');
+        // Real playbook generation for non-mock contacts
+        const response = await supabase.functions.invoke('adaptive-playbook', {
+          body: {
+            dealData: deal,
+            companyProfile: getCompanyProfile(deal.company),
+            competitiveAnalysis: getCompetitiveAnalysis(deal.competitors || []),
+            historicalData: getSimilarDeals(deal),
+            model: 'gpt-5' // Use GPT-5 for advanced reasoning
+          }
+        });
+
+        researchThinking.moveToSynthesizing('📋 Synthesizing strategic recommendations...');
+
+        if (response.data?.playbook) {
+          setPlaybook(response.data.playbook);
+          researchThinking.complete('✅ AI playbook generated successfully!');
+        } else {
+          throw new Error('No playbook data received');
+        }
       }
     } catch (error) {
       console.error('Failed to generate playbook:', error);
