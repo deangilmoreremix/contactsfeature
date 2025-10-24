@@ -30,7 +30,8 @@ import {
   Activity,
   Award,
   Layers,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 
 // Inline components for now - will be extracted later
@@ -586,6 +587,9 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                       ? 'bg-purple-600 text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
+                  aria-label={`Switch to ${view.label} view`}
+                  role="tab"
+                  aria-selected={activeView === view.id}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{view.label}</span>
@@ -608,14 +612,32 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           <ModernButton
             variant="outline"
             size="sm"
+            onClick={() => {
+              // Export insights as JSON
+              const dataStr = JSON.stringify(insights, null, 2);
+              const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+              const exportFileDefaultName = `ai-insights-${contact.name}.json`;
+              const linkElement = document.createElement('a');
+              linkElement.setAttribute('href', dataUri);
+              linkElement.setAttribute('download', exportFileDefaultName);
+              linkElement.click();
+            }}
+            className="flex items-center space-x-2"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Insights</span>
+          </ModernButton>
+          <ModernButton
+            variant="outline"
+            size="sm"
             onClick={activeView === 'insights' ? handleGenerateInsights : handleGenerateIntelligence}
             loading={isContactProcessing || isIntelligenceAnalyzing}
             className="flex items-center space-x-2"
           >
             <RefreshCw className="w-4 h-4" />
             <span>
-              {(isContactProcessing || isIntelligenceAnalyzing) ? 'Analyzing...' : 
-               activeView === 'insights' ? 'Refresh Insights' : 
+              {(isContactProcessing || isIntelligenceAnalyzing) ? 'Analyzing...' :
+               activeView === 'insights' ? 'Refresh Insights' :
                'Generate Intelligence'}
             </span>
           </ModernButton>
@@ -777,11 +799,21 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                       {/* Actions */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <ModernButton variant="primary" size="sm" className="flex items-center space-x-2">
+                          <ModernButton
+                            variant="primary"
+                            size="sm"
+                            className="flex items-center space-x-2"
+                            onClick={() => console.log('Take action for insight:', insight.id)}
+                          >
                             <Target className="w-4 h-4" />
                             <span>Take Action</span>
                           </ModernButton>
-                          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+                          <ModernButton
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center space-x-2"
+                            onClick={() => console.log('View details for insight:', insight.id)}
+                          >
                             <Eye className="w-4 h-4" />
                             <span>View Details</span>
                           </ModernButton>
@@ -793,20 +825,22 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                           <button
                             onClick={() => handleFeedback(insight.id, 'positive')}
                             className={`p-1 rounded transition-colors ${
-                              userFeedback === 'positive' 
-                                ? 'bg-green-100 text-green-600' 
+                              userFeedback === 'positive'
+                                ? 'bg-green-100 text-green-600'
                                 : 'text-gray-400 hover:text-green-600'
                             }`}
+                            aria-label="Mark insight as helpful"
                           >
                             <ThumbsUp className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleFeedback(insight.id, 'negative')}
                             className={`p-1 rounded transition-colors ${
-                              userFeedback === 'negative' 
-                                ? 'bg-red-100 text-red-600' 
+                              userFeedback === 'negative'
+                                ? 'bg-red-100 text-red-600'
                                 : 'text-gray-400 hover:text-red-600'
                             }`}
+                            aria-label="Mark insight as not helpful"
                           >
                             <ThumbsDown className="w-4 h-4" />
                           </button>

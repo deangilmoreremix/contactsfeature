@@ -570,7 +570,25 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
 
 
   const handleSendEmail = () => {
-    window.open(`mailto:${editedContact.email}`, '_blank');
+    // Validate email before opening mailto link
+    if (!editedContact.email || editedContact.email.trim() === '') {
+      alert('No email address available for this contact. Please add an email address first.');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editedContact.email)) {
+      alert('Invalid email address format. Please correct the email address.');
+      return;
+    }
+
+    try {
+      window.open(`mailto:${editedContact.email}`, '_blank');
+    } catch (error) {
+      console.error('Failed to open email client:', error);
+      alert('Failed to open email client. Please check your email application settings.');
+    }
   };
 
   const handleMakeCall = () => {

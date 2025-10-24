@@ -85,6 +85,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   const [playbook, setPlaybook] = useState<PlaybookStrategy | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
+  const [draggedPhase, setDraggedPhase] = useState<string | null>(null);
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
@@ -184,6 +185,35 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
     }
   };
 
+  const handleDragStart = (phaseId: string) => {
+    setDraggedPhase(phaseId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetPhaseId: string) => {
+    e.preventDefault();
+    if (!draggedPhase || draggedPhase === targetPhaseId) return;
+
+    setPlaybook(prev => {
+      if (!prev) return prev;
+      const phases = [...prev.phases];
+      const draggedIndex = phases.findIndex(p => p.id === draggedPhase);
+      const targetIndex = phases.findIndex(p => p.id === targetPhaseId);
+
+      const [draggedPhaseData] = phases.splice(draggedIndex, 1);
+      if (draggedPhaseData) {
+        phases.splice(targetIndex, 0, draggedPhaseData);
+      }
+
+      return { ...prev, phases };
+    });
+
+    setDraggedPhase(null);
+  };
+
   return (
     <>
       {/* Research Status Overlay */}
@@ -214,6 +244,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
             onClick={generatePlaybook}
             loading={loading}
             className="flex items-center space-x-2"
+            aria-label="Generate adaptive sales playbook"
           >
             <Brain className="w-4 h-4" />
             <span>{loading ? 'Generating...' : '🎯 Generate'}</span>
@@ -307,7 +338,14 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
             <h3 className="text-lg font-medium text-gray-900 mb-4">Strategy Phases</h3>
             <div className="space-y-4">
               {playbook.phases.map((phase, index) => (
-                <div key={phase.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div
+                  key={phase.id}
+                  className="border border-gray-200 rounded-lg overflow-hidden"
+                  draggable
+                  onDragStart={() => handleDragStart(phase.id)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, phase.id)}
+                >
                   <div
                     className="p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
                     onClick={() => setSelectedPhase(
@@ -334,6 +372,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
                           variant="outline"
                           size="sm"
                           onClick={() => onExecutePhase?.(phase.id)}
+                          aria-label={`Execute phase ${phase.name}`}
                         >
                           Execute
                         </ModernButton>
@@ -482,6 +521,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
               variant="primary"
               onClick={onCustomize || (() => {})}
               className="flex-1"
+              aria-label="Customize the sales strategy"
             >
               🎨 Customize Strategy
             </ModernButton>
@@ -489,6 +529,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
               variant="outline"
               onClick={onGenerate || (() => {})}
               className="flex-1"
+              aria-label="Regenerate the playbook"
             >
               🔄 Regenerate
             </ModernButton>
@@ -506,6 +547,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           <ModernButton
             variant="primary"
             onClick={generatePlaybook}
+            aria-label="Generate adaptive sales playbook"
           >
             🎯 Generate Playbook
           </ModernButton>
@@ -515,3 +557,4 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
     </>
   );
 };
+

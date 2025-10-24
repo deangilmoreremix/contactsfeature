@@ -5,9 +5,10 @@ interface CitationSource {
   url: string;
   title: string;
   domain: string;
-  type: 'news' | 'company' | 'social' | 'industry' | 'academic' | 'government';
+  type: 'news' | 'company' | 'social' | 'industry' | 'academic' | 'government' | string;
   confidence: number;
-  timestamp: Date;
+  // incoming timestamp may be a Date or an ISO string/number, normalize before display
+  timestamp: Date | string | number;
   snippet?: string;
 }
 
@@ -64,6 +65,25 @@ const sourceTypeConfig = {
   }
 };
 
+const defaultSourceConfig = {
+  icon: Globe,
+  color: 'text-gray-600',
+  bgColor: 'bg-gray-50',
+  borderColor: 'border-gray-200',
+  label: 'Source'
+};
+
+const formatDate = (ts?: Date | string | number) => {
+  if (!ts) return '';
+  try {
+    const d = ts instanceof Date ? ts : new Date(ts);
+    if (Number.isNaN(d.getTime())) return String(ts);
+    return d.toLocaleDateString();
+  } catch {
+    return String(ts);
+  }
+};
+
 export const CitationBadge: React.FC<CitationBadgeProps> = ({
   sources,
   size = 'sm',
@@ -94,21 +114,25 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
     <div className={`inline-flex items-center space-x-1 ${className}`}>
       {/* Citation Icons */}
       {displaySources.map((source, index) => {
-        const config = sourceTypeConfig[source.type];
+        const config = (sourceTypeConfig as any)[source.type] ?? defaultSourceConfig;
         const Icon = config.icon;
 
         return (
-          <div
+          <a
             key={index}
-            className={`
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={
+              `
               relative inline-flex items-center space-x-1
               ${config.bgColor} ${config.borderColor} border rounded-full
-              ${sizeClasses[size]} cursor-pointer
+              ${sizeClasses[size]} group focus:outline-none focus:ring-2 focus:ring-offset-1
               hover:shadow-sm transition-all duration-200
-              group
-            `}
-            onClick={() => window.open(source.url, '_blank')}
+            `
+            }
             title={`View source: ${source.title}`}
+            aria-label={`Open source: ${source.title}`}
           >
             <Icon className={`${iconSizes[size]} ${config.color} flex-shrink-0`} />
 
@@ -124,17 +148,17 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
               </span>
             </div>
 
-            {/* Tooltip */}
+            {/* Tooltip (also visible on focus) */}
             {showTooltip && (
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                <div className="bg-gray-900 text-white text-xs rounded-lg px-2 py-1 whitespace-nowrap shadow-lg">
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 group-focus:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-10" role="tooltip">
+                <div className="bg-gray-900 text-white text-xs rounded-lg px-2 py-1 whitespace-normal shadow-lg max-w-xs">
                   <div className="font-medium">{source.title}</div>
                   <div className="text-gray-300">{source.domain}</div>
                   <div className="text-gray-400 text-xs mt-1">
-                    {source.confidence}% confidence • {source.timestamp.toLocaleDateString()}
+                    {source.confidence}% confidence • {formatDate(source.timestamp)}
                   </div>
                   {source.snippet && (
-                    <div className="text-gray-300 text-xs mt-1 max-w-xs truncate">
+                    <div className="text-gray-300 text-xs mt-1 max-w-xs">
                       {source.snippet}
                     </div>
                   )}
@@ -142,7 +166,7 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </a>
         );
       })}
 
@@ -153,7 +177,7 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
           bg-gray-50 border border-gray-200 rounded-full
           ${sizeClasses[size]} cursor-pointer
           hover:bg-gray-100 transition-colors
-        `}>
+        `} role="button" tabIndex={0} aria-label={`${remainingCount} more sources`}>
           <span className="text-gray-600 font-medium">+{remainingCount}</span>
         </div>
       )}
@@ -162,11 +186,13 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
       {showTooltip && sources.length > 1 && (
         <button
           onClick={() => setShowTooltipContent(!showTooltipContent)}
+          aria-expanded={showTooltipContent}
+          aria-controls="citation-modal"
           className={`
             inline-flex items-center justify-center
             bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-full
             ${size === 'xs' ? 'w-4 h-4' : size === 'sm' ? 'w-5 h-5' : 'w-6 h-6'}
-            transition-colors
+            transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1
           `}
           title="View all citations"
         >
@@ -176,14 +202,15 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
 
       {/* Detailed citations modal/popup */}
       {showTooltipContent && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div id="citation-modal" className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Research Sources</h3>
                 <button
                   onClick={() => setShowTooltipContent(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                  aria-label="Close citations dialog"
                 >
                   ✕
                 </button>
@@ -191,14 +218,16 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
 
               <div className="space-y-3">
                 {sources.map((source, index) => {
-                  const config = sourceTypeConfig[source.type];
+                  const config = (sourceTypeConfig as any)[source.type] ?? defaultSourceConfig;
                   const Icon = config.icon;
 
                   return (
-                    <div
+                    <a
                       key={index}
-                      className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                      onClick={() => window.open(source.url, '_blank')}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                       <div className={`${config.bgColor} p-2 rounded-lg`}>
                         <Icon className="w-4 h-4 text-current" />
@@ -218,7 +247,7 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
                           <span>{source.domain}</span>
                           <div className="flex items-center space-x-1">
                             <Calendar className="w-3 h-3" />
-                            <span>{source.timestamp.toLocaleDateString()}</span>
+                            <span>{formatDate(source.timestamp)}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <div className={`
@@ -238,7 +267,7 @@ export const CitationBadge: React.FC<CitationBadgeProps> = ({
                       </div>
 
                       <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    </div>
+                    </a>
                   );
                 })}
               </div>

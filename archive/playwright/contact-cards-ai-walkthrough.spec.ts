@@ -63,4 +63,3 @@ test.describe('Contact Cards AI Walkthrough', () => {
     await page.screenshot({ path: `${shotsDir}/05-final.png` });
   });
 });
-

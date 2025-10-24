@@ -151,11 +151,12 @@ const automationTemplates = [
 export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => {
    const [activeTab, setActiveTab] = useState('active');
    const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
-   const [showCreateModal, setShowCreateModal] = useState(false);
-   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+   // Removed unused state: showCreateModal, selectedTemplate
    const [suggestions, setSuggestions] = useState<any[]>([]);
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
+   const [isOptimizing, setIsOptimizing] = useState(false);
+   const [draggedAction, setDraggedAction] = useState<{ automationId: string; actionIndex: number } | null>(null);
 
    // Research state management
    const researchThinking = useResearchThinking();
@@ -173,6 +174,22 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     setAutomations(prev => prev.map(auto => 
       auto.id === id ? { ...auto, isActive: !auto.isActive } : auto
     ));
+  };
+
+  const optimizeRule = async (ruleId: string, suggestions: any[]) => {
+    setIsOptimizing(true);
+    try {
+      console.log('Optimizing rule:', ruleId, suggestions);
+      // Update the automation with optimizations
+      setAutomations(prev => prev.map(auto =>
+        auto.id === ruleId ? { ...auto, successRate: Math.min(100, auto.successRate + 10) } : auto
+      ));
+      // In real implementation, call API to optimize
+    } catch (error) {
+      console.error('Failed to optimize rule:', error);
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const handleGenerateSuggestions = async () => {
@@ -215,12 +232,20 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
       setResearchSources(sources);
 
       // Generate automation suggestions with enhanced context
+      console.log('Calling edgeFunctionService.getAutomationRules with:', {
+        contactId: contact.id || 'test-contact-123',
+        action: 'suggestions',
+        contactData: contact,
+        webResearch: searchResults.content,
+        companyContext: searchResults.sources
+      });
       const result = await edgeFunctionService.getAutomationRules(contact.id || 'test-contact-123', {
         action: 'suggestions',
         contactData: contact,
         webResearch: searchResults.content,
         companyContext: searchResults.sources
       });
+      console.log('edgeFunctionService response:', result);
 
       setSuggestions(result.data || []);
 
@@ -228,6 +253,12 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
     } catch (error) {
       console.error('Failed to generate automation suggestions:', error);
+      console.log('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        contact: contact.name,
+        contactId: contact.id
+      });
       researchThinking.complete('❌ Failed to generate suggestions');
       setError('Failed to generate automation suggestions');
     } finally {
@@ -244,6 +275,33 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     if (successRate >= 80) return 'text-green-600 bg-green-100';
     if (successRate >= 60) return 'text-yellow-600 bg-yellow-100';
     return 'text-red-600 bg-red-100';
+  };
+
+  const handleActionDragStart = (automationId: string, actionIndex: number) => {
+    setDraggedAction({ automationId, actionIndex });
+  };
+
+  const handleActionDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleActionDrop = (e: React.DragEvent, automationId: string, targetIndex: number) => {
+    e.preventDefault();
+    if (!draggedAction || draggedAction.automationId !== automationId) return;
+
+    setAutomations(prev => prev.map(auto => {
+      if (auto.id === automationId) {
+        const actions = [...auto.actions];
+        const [draggedActionData] = actions.splice(draggedAction.actionIndex, 1);
+        if (draggedActionData) {
+          actions.splice(targetIndex, 0, draggedActionData);
+        }
+        return { ...auto, actions };
+      }
+      return auto;
+    }));
+
+    setDraggedAction(null);
   };
 
   return (
@@ -282,10 +340,10 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
               <Sparkles className="w-3 h-3 text-yellow-500" />
             </ModernButton>
           </ModernButton>
-          <ModernButton 
-            variant="primary" 
-            size="sm" 
-            onClick={() => setShowCreateModal(true)}
+          <ModernButton
+            variant="primary"
+            size="sm"
+            onClick={() => console.log('Create new rule')}
             className="flex items-center space-x-2"
           >
             <Plus className="w-4 h-4" />
@@ -296,7 +354,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
       {/* Automation Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <GlassCard className="p-4">
+        <GlassCard className="p-4" aria-label={`${automations.filter(a => a.isActive).length} active automation rules`}>
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Zap className="w-5 h-5 text-blue-600" />
@@ -363,6 +421,9 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
+                aria-label={`Switch to ${tab.label} tab`}
+                role="tab"
+                aria-selected={activeTab === tab.id}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
@@ -404,17 +465,31 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                   <button
                     onClick={() => toggleAutomation(automation.id)}
                     className={`p-2 rounded-lg transition-colors ${
-                      automation.isActive 
-                        ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                      automation.isActive
+                        ? 'bg-green-100 text-green-600 hover:bg-green-200'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
+                    aria-label={automation.isActive ? `Pause automation rule ${automation.name}` : `Activate automation rule ${automation.name}`}
                   >
                     {automation.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </button>
-                  <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                  <button
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    onClick={() => console.log('Edit automation:', automation.id)}
+                    aria-label={`Edit automation rule ${automation.name}`}
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  <button
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete the automation rule "${automation.name}"?`)) {
+                        console.log('Delete automation:', automation.id);
+                        // Add delete logic here
+                      }
+                    }}
+                    aria-label={`Delete automation rule ${automation.name}`}
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -430,7 +505,13 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                     
                     return (
                       <React.Fragment key={index}>
-                        <div className="flex flex-col items-center space-y-1 min-w-0 flex-shrink-0">
+                        <div
+                          className="flex flex-col items-center space-y-1 min-w-0 flex-shrink-0 cursor-move"
+                          draggable
+                          onDragStart={() => handleActionDragStart(automation.id, index)}
+                          onDragOver={handleActionDragOver}
+                          onDrop={(e) => handleActionDrop(e, automation.id, index)}
+                        >
                           <div className={`w-8 h-8 rounded-lg ${color} flex items-center justify-center`}>
                             <Icon className="w-4 h-4 text-white" />
                           </div>
@@ -530,7 +611,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                     <div className="bg-blue-50 p-3 rounded-lg mb-4">
                       <h5 className="font-medium text-blue-900 mb-2">AI Reasoning:</h5>
                       <ul className="space-y-1">
-                        {suggestion.reasoning.map((reason, idx) => (
+                        {suggestion.reasoning.map((reason: string, idx: number) => (
                           <li key={idx} className="text-sm text-blue-800 flex items-start">
                             <span className="text-blue-500 mr-2">•</span>
                             <span>{reason}</span>
@@ -551,6 +632,10 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                           variant="outline"
                           size="sm"
                           className="flex items-center space-x-1"
+                          onClick={() => {
+                            console.log('Review button clicked for suggestion:', suggestion.id, suggestion.title);
+                            // Add review logic here
+                          }}
                         >
                           <Eye className="w-4 h-4" />
                           <span>Review</span>
@@ -559,6 +644,10 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                           variant="primary"
                           size="sm"
                           className="flex items-center space-x-1 bg-gradient-to-r from-purple-600 to-blue-600"
+                          onClick={() => {
+                            console.log('Implement button clicked for suggestion:', suggestion.id, suggestion.title);
+                            // Add implement logic here
+                          }}
                         >
                           <CheckCircle className="w-4 h-4" />
                           <span>Implement</span>
@@ -579,7 +668,11 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
             <GlassCard key={index} className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-start justify-between mb-3">
                 <h4 className="text-lg font-semibold text-gray-900">{template.name}</h4>
-                <ModernButton variant="outline" size="sm">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => console.log('Use template:', template.name)}
+                >
                   Use Template
                 </ModernButton>
               </div>

@@ -95,7 +95,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       researchThinking.moveToSynthesizing('📧 Generating personalized email content...');
 
       // Convert search results to citations
-      const sources = searchResults.sources.map(source => ({
+      const sources = searchResults.sources.map((source: any) => ({
         url: source.url,
         title: source.title,
         domain: source.domain,
@@ -318,6 +318,9 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
+              aria-label={`Switch to ${tab.label} tab`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
             >
               <Icon className="w-4 h-4" />
               <span className="hidden md:inline">{tab.label}</span>
@@ -422,13 +425,24 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
               <span className="text-sm">Outlook</span>
             </a>
             
-            <a
-              href={`mailto:${contact.email}`}
+            <button
+              onClick={() => {
+                if (!contact.email || !isValidEmail(contact.email)) {
+                  showToast({
+                    type: 'error',
+                    title: 'Invalid Email',
+                    message: 'No valid email address available for this contact'
+                  });
+                  return;
+                }
+                window.open(`mailto:${contact.email}`, '_blank');
+              }}
               className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              aria-label="Open default mail application"
             >
               <Mail className="w-5 h-5 mr-2 text-blue-500" />
               <span className="text-sm">Mail App</span>
-            </a>
+            </button>
             
             <button
               onClick={async () => {

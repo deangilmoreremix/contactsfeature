@@ -149,10 +149,12 @@ const sampleJourneyEvents: JourneyEvent[] = [
 
 export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ contact }) => {
    const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>(sampleJourneyEvents);
-   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-   const [isUploading, setIsUploading] = useState(false);
-   const [showFileUpload, setShowFileUpload] = useState(false);
-   const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [showFileUpload, setShowFileUpload] = useState(false);
+    const [filterType, setFilterType] = useState<string>('all');
+    const [filterDateRange, setFilterDateRange] = useState<string>('all');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
    // Research state management
    const researchThinking = useResearchThinking();
@@ -274,6 +276,17 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
 
     try {
       for (const file of Array.from(files)) {
+        // Validate file size (10MB max)
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`File ${file.name} is too large. Maximum size is 10MB.`);
+          continue;
+        }
+        // Validate file type
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/gif'];
+        if (!allowedTypes.includes(file.type)) {
+          alert(`File type ${file.type} is not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, PNG, GIF.`);
+          continue;
+        }
         // In a real implementation, you would upload to your storage service
         // For now, we'll simulate the upload
         const uploadedFile: UploadedFile = {
@@ -370,6 +383,18 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     return Icon;
   };
 
+  const filteredEvents = journeyEvents.filter(event => {
+    if (filterType !== 'all' && event.type !== filterType) return false;
+    if (filterDateRange !== 'all') {
+      const eventDate = new Date(event.timestamp);
+      const now = new Date();
+      const daysDiff = Math.floor((now.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (filterDateRange === 'week' && daysDiff > 7) return false;
+      if (filterDateRange === 'month' && daysDiff > 30) return false;
+    }
+    return true;
+  });
+
   return (
     <>
       {/* Research Status Overlay */}
@@ -388,10 +413,35 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           <p className="text-sm text-gray-600">Timeline of interactions, milestones, and uploaded files for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter events by type"
+          >
+            <option value="all">All Types</option>
+            <option value="interaction">Interactions</option>
+            <option value="milestone">Milestones</option>
+            <option value="status_change">Status Changes</option>
+            <option value="ai_insight">AI Insights</option>
+            <option value="file_upload">File Uploads</option>
+          </select>
+          <select
+            value={filterDateRange}
+            onChange={(e) => setFilterDateRange(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter events by date range"
+          >
+            <option value="all">All Time</option>
+            <option value="week">Last Week</option>
+            <option value="month">Last Month</option>
+          </select>
+          <div className="flex items-center space-x-3">
           {/* File Upload Button */}
           <button
             onClick={() => setShowFileUpload(!showFileUpload)}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            aria-label={showFileUpload ? "Hide file upload" : "Show file upload"}
           >
             <Upload className="w-4 h-4" />
             <span>Upload Files</span>
@@ -417,6 +467,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
               <span>{contact.company}</span>
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -521,7 +572,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       {/* Journey Timeline */}
       <GlassCard className="p-6">
         <div className="space-y-6">
-          {journeyEvents.map((event, index) => {
+          {filteredEvents.map((event, index) => {
             const Icon = getEventIcon(event.type);
             const isLast = index === journeyEvents.length - 1;
 
@@ -598,18 +649,18 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         <div className="mt-8 pt-6 border-t border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{journeyEvents.length}</div>
-              <div className="text-sm text-gray-600">Total Events</div>
+              <div className="text-2xl font-bold text-blue-600">{filteredEvents.length}</div>
+              <div className="text-sm text-gray-600">Filtered Events</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {journeyEvents.filter(e => e.status === 'completed').length}
+                {filteredEvents.filter(e => e.status === 'completed').length}
               </div>
               <div className="text-sm text-gray-600">Completed</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {journeyEvents.filter(e => e.type === 'interaction').length}
+                {filteredEvents.filter(e => e.type === 'interaction').length}
               </div>
               <div className="text-sm text-gray-600">Interactions</div>
             </div>
