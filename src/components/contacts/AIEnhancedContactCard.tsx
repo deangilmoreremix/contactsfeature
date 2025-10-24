@@ -539,6 +539,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
           </div>
         )}
       </div>
+    </div>
   );
 };
 
