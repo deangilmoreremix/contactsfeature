@@ -7,6 +7,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
+import { analyticsService } from '../../services/analyticsService';
 import {
   Zap,
   Play,
@@ -623,16 +624,17 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   };
 
   const handleCreateRule = () => {
-    setRuleForm({
-      name: '',
-      description: '',
-      trigger: '',
-      isActive: true,
-      actions: []
-    });
-    setEditingRule(null);
-    setShowCreateModal(true);
-  };
+     setRuleForm({
+       name: '',
+       description: '',
+       trigger: '',
+       isActive: true,
+       category: '',
+       actions: []
+     });
+     setEditingRule(null);
+     setShowCreateModal(true);
+   };
 
   const handleEditRule = (rule: AutomationRule) => {
     setRuleForm({
@@ -1803,47 +1805,124 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
        )}
 
       {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          <GlassCard className="p-6">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
-              Automation Performance Analytics
-            </h4>
-            <div className="space-y-4">
-              {automations.map((automation) => (
-                <div key={automation.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <h5 className="font-medium text-gray-900">{automation.name}</h5>
-                    <p className="text-sm text-gray-600">{automation.triggerCount} triggers</p>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">{automation.successRate}%</p>
-                      <p className="text-xs text-gray-500">Success Rate</p>
-                    </div>
-                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500"
-                        style={{ width: `${automation.successRate}%` }}
-                      />
-                    </div>
-                    <ModernButton
-                      variant="outline"
-                      size="sm"
-                      onClick={() => optimizeRule(automation.id, [])}
-                      loading={isOptimizing}
-                      className="flex items-center space-x-1"
-                    >
-                      <Brain className="w-3 h-3" />
-                      <span>Optimize</span>
-                    </ModernButton>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </div>
-      )}
+         <div className="space-y-6">
+           <GlassCard className="p-6">
+             <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+               <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
+               Automation Performance Analytics
+             </h4>
+             <div className="space-y-4">
+               {automations.map((automation) => {
+                 // Get real analytics data for non-mock contacts
+                 const isMockData = contact.isMockData || contact.dataSource === 'mock' || contact.createdBy === 'demo';
+                 const analyticsData = isMockData ? null : analyticsService.getToolMetrics(`automation-${automation.id}`);
+
+                 return (
+                   <div key={automation.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                     <div>
+                       <h5 className="font-medium text-gray-900">{automation.name}</h5>
+                       <p className="text-sm text-gray-600">
+                         {analyticsData ? analyticsData.usageCount : automation.triggerCount} triggers
+                         {analyticsData && (
+                           <span className="ml-2 text-xs text-blue-600">
+                             ({analyticsData.averageResponseTime.toFixed(0)}ms avg response)
+                           </span>
+                         )}
+                       </p>
+                       {automation.category && (
+                         <span className="inline-block mt-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                           {automation.category}
+                         </span>
+                       )}
+                     </div>
+                     <div className="flex items-center space-x-4">
+                       <div className="text-right">
+                         <p className="text-sm font-medium text-gray-900">
+                           {analyticsData ? Math.round(analyticsData.successRate) : automation.successRate}%
+                         </p>
+                         <p className="text-xs text-gray-500">Success Rate</p>
+                         {analyticsData && analyticsData.errorRate > 0 && (
+                           <p className="text-xs text-red-500">
+                             {analyticsData.errorRate.toFixed(1)}% errors
+                           </p>
+                         )}
+                       </div>
+                       <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                         <div
+                           className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500"
+                           style={{ width: `${analyticsData ? analyticsData.successRate : automation.successRate}%` }}
+                         />
+                       </div>
+                       <ModernButton
+                         variant="outline"
+                         size="sm"
+                         onClick={async () => {
+                           if (!isMockData) {
+                             const sessionId = analyticsService.startTracking('automation-optimization', 'optimize-rule', contact.id);
+                             try {
+                               await optimizeRule(automation.id, []);
+                               analyticsService.endTracking(sessionId, true, undefined, 'automation-engine');
+                             } catch (error) {
+                               analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
+                             }
+                           } else {
+                             await optimizeRule(automation.id, []);
+                           }
+                         }}
+                         loading={isOptimizing}
+                         className="flex items-center space-x-1"
+                       >
+                         <Brain className="w-3 h-3" />
+                         <span>Optimize</span>
+                       </ModernButton>
+                     </div>
+                   </div>
+                 );
+               })}
+             </div>
+           </GlassCard>
+
+           {/* Overall Analytics Summary */}
+           {(() => {
+             const isMockData = contact.isMockData || contact.dataSource === 'mock' || contact.createdBy === 'demo';
+             return !isMockData ? (
+               <GlassCard className="p-6">
+                 <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                   <Award className="w-5 h-5 mr-2 text-green-500" />
+                   Overall Automation Performance
+                 </h4>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                   {(() => {
+                     const overallMetrics = analyticsService.getMetrics();
+                     return (
+                       <>
+                         <div className="text-center">
+                           <p className="text-2xl font-bold text-blue-600">{overallMetrics.totalRequests}</p>
+                           <p className="text-sm text-gray-600">Total Actions</p>
+                         </div>
+                         <div className="text-center">
+                           <p className="text-2xl font-bold text-green-600">
+                             {overallMetrics.totalRequests > 0 ? Math.round((overallMetrics.successfulRequests / overallMetrics.totalRequests) * 100) : 0}%
+                           </p>
+                           <p className="text-sm text-gray-600">Success Rate</p>
+                         </div>
+                         <div className="text-center">
+                           <p className="text-2xl font-bold text-purple-600">{Math.round(overallMetrics.averageResponseTime)}ms</p>
+                           <p className="text-sm text-gray-600">Avg Response</p>
+                         </div>
+                         <div className="text-center">
+                           <p className="text-2xl font-bold text-orange-600">{overallMetrics.failedRequests}</p>
+                           <p className="text-sm text-gray-600">Failed Actions</p>
+                         </div>
+                       </>
+                     );
+                   })()}
+                 </div>
+               </GlassCard>
+             ) : null;
+           })()}
+         </div>
+       )}
     </div>
     </>
   );
