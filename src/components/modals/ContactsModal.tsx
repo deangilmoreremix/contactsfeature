@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAI } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { ModernButton } from '../ui/ModernButton';
+import { SmartTooltip } from '../ui/SmartTooltip';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
@@ -457,32 +458,36 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               {/* AI Analysis Buttons */}
               <div className="flex items-center space-x-2">
                 {/* Analyze All Button */}
-                <ModernButton
-                  variant="primary"
-                  size="sm"
-                  onClick={handleAnalyzeAll}
-                  disabled={isAnalyzing || contactsWithoutScores === 0}
-                  className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                >
-                  <Brain className="w-4 h-4" />
-                  <span>
-                    {isAnalyzing ? 'Analyzing...' : `AI Score All (${contactsWithoutScores})`}
-                  </span>
-                  <Sparkles className="w-3 h-3 text-yellow-300" />
-                </ModernButton>
+                <SmartTooltip featureId="ai_score_all_button">
+                  <ModernButton
+                    variant="primary"
+                    size="sm"
+                    onClick={handleAnalyzeAll}
+                    disabled={isAnalyzing || contactsWithoutScores === 0}
+                    className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    <Brain className="w-4 h-4" />
+                    <span>
+                      {isAnalyzing ? 'Analyzing...' : `AI Score All (${contactsWithoutScores})`}
+                    </span>
+                    <Sparkles className="w-3 h-3 text-yellow-300" />
+                  </ModernButton>
+                </SmartTooltip>
 
                 {/* Analyze Selected Button */}
                 {selectedContacts.length > 0 && (
-                  <ModernButton
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAnalyzeSelected}
-                    disabled={isAnalyzing}
-                    className="flex items-center space-x-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
-                  >
-                    <Target className="w-4 h-4" />
-                    <span>{isAnalyzing ? 'Processing...' : `Analyze Selected (${selectedContacts.length})`}</span>
-                  </ModernButton>
+                  <SmartTooltip featureId="ai_analyze_selected_button">
+                    <ModernButton
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAnalyzeSelected}
+                      disabled={isAnalyzing}
+                      className="flex items-center space-x-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                    >
+                      <Target className="w-4 h-4" />
+                      <span>{isAnalyzing ? 'Processing...' : `Analyze Selected (${selectedContacts.length})`}</span>
+                    </ModernButton>
+                  </SmartTooltip>
                 )}
               </div>
 
@@ -530,59 +535,71 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               )}
 
               {/* Import/Export */}
-              <ModernButton 
-                variant="outline" 
-                size="sm" 
-                onClick={handleImportClick}
-                className="flex items-center space-x-2 bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Import</span>
-              </ModernButton>
-              
-              <ModernButton 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                onClick={handleExportContacts}
-              >
-                <Download className="w-4 h-4" />
-                <span>Export</span>
-              </ModernButton>
-              
-              <ModernButton 
-                variant="primary" 
-                size="sm" 
-                onClick={handleNewContactClick}
-                className="flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Contact</span>
-              </ModernButton>
-              
-              <ModernButton
-                variant="outline"
-                size="sm"
-                onClick={handleSettingsClick}
-                className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
-              >
-                <Settings className="w-4 h-4" />
-                <span>Settings</span>
-              </ModernButton>
+              <SmartTooltip featureId="contacts_import_button">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={handleImportClick}
+                  className="flex items-center space-x-2 bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Import</span>
+                </ModernButton>
+              </SmartTooltip>
+
+              <SmartTooltip featureId="contacts_export_button">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                  onClick={handleExportContacts}
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </ModernButton>
+              </SmartTooltip>
+
+              <SmartTooltip featureId="contacts_new_button">
+                <ModernButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleNewContactClick}
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Contact</span>
+                </ModernButton>
+              </SmartTooltip>
+
+              <SmartTooltip featureId="contacts_settings_button">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSettingsClick}
+                  className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </ModernButton>
+              </SmartTooltip>
 
 
-              <ModernButton
-                variant="outline"
-                size="sm"
-                onClick={onClose}
-                className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-              >
-                <Info className="w-4 h-4" />
-                <span>Learn More</span>
-              </ModernButton>
-              
+              <SmartTooltip featureId="learn_more_button">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={onClose}
+                  className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                >
+                  <Info className="w-4 h-4" />
+                  <span>Learn More</span>
+                </ModernButton>
+              </SmartTooltip>
+
               {/* Dark Mode Toggle */}
-              <DarkModeToggle size="sm" />
+              <SmartTooltip featureId="dark_mode_toggle">
+                <DarkModeToggle size="sm" />
+              </SmartTooltip>
               
               <button
                 onClick={onClose}

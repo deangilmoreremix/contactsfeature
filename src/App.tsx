@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useDarkMode } from './hooks/useDarkMode';
 import { AIProvider } from './contexts/AIContext';
 import { GuidanceProvider, useGuidance } from './contexts/GuidanceContext';
+import { TooltipProvider } from './contexts/TooltipContext';
 import { ContactsModal } from './components/modals/ContactsModal';
 import { LandingPage } from './components/landing/LandingPage';
 import { TestWebSearch } from './components/TestWebSearch';
@@ -223,9 +224,11 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
 function App(props: RemoteAppProps) {
   console.log('App.tsx: Rendering App component');
   return (
-    <GuidanceProvider>
-      <AppContent {...props} />
-    </GuidanceProvider>
+    <TooltipProvider>
+      <GuidanceProvider>
+        <AppContent {...props} />
+      </GuidanceProvider>
+    </TooltipProvider>
   );
 }
 
