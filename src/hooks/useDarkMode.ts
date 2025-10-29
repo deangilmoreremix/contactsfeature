@@ -24,13 +24,16 @@ export const useDarkMode = (): UseDarkModeReturn => {
   });
 
   useEffect(() => {
-    // Apply or remove dark mode class to body
+    // Apply or remove dark mode class to body and html
     const body = document.body;
-    
+    const html = document.documentElement;
+
     if (isDarkMode) {
       body.classList.add('dark-mode');
+      html.classList.add('dark');
     } else {
       body.classList.remove('dark-mode');
+      html.classList.remove('dark');
     }
 
     // Save preference to localStorage

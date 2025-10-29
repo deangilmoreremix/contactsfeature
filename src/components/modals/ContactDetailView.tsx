@@ -974,7 +974,7 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
               <div className="mb-3">
                 <button
                   onClick={() => window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank')}
-                  className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105"
+                  className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 dark:hover:from-indigo-700 dark:hover:to-purple-700 text-sm font-medium transition-all duration-200 border border-indigo-300/50 dark:border-indigo-600/50 shadow-sm hover:shadow-md hover:scale-105"
                 >
                   <Target className="w-4 h-4 mr-2" />
                   AI Goals
@@ -984,18 +984,18 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
               {/* Quick AI Actions Grid */}
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {/* Lead Score */}
-                <button 
+                <button
                   onClick={handleAnalyzeContact}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-blue-300/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 border-blue-300/50 dark:border-blue-600/50"
                 >
                   <BarChart3 className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Lead Score</span>
                 </button>
                 
                 {/* Email AI */}
-                <button 
+                <button
                   onClick={handleSendEmail}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-700 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500 border-gray-200/50 dark:border-slate-600/50"
                 >
                   <Mail className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Email AI</span>
@@ -1019,16 +1019,16 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                       confidence: 75
                     });
                   }}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-700 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500 border-gray-200/50 dark:border-slate-600/50"
                 >
                   <Search className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Enrich</span>
                 </button>
                 
                 {/* Insights */}
-                <button 
+                <button
                   onClick={() => setActiveTab('ai-insights')}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200 border-gray-200/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-700 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500 border-gray-200/50 dark:border-slate-600/50"
                 >
                   <TrendingUp className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Insights</span>

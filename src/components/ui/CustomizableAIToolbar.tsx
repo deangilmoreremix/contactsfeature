@@ -243,16 +243,16 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
   };
 
   const sizeClasses = size === 'sm' ? 'p-2 text-xs' : 'p-3 text-sm';
-  
+
   let variantClasses;
   if (lastResult) {
-    variantClasses = 'bg-gradient-to-r from-green-50 to-green-100 text-green-700 border-green-200';
+    variantClasses = 'bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-green-800/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700';
   } else if (isProcessing) {
-    variantClasses = 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200';
+    variantClasses = 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700';
   } else if (variant === 'primary') {
-    variantClasses = 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700';
+    variantClasses = 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800';
   } else {
-    variantClasses = 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-900 hover:from-gray-100 hover:to-gray-200';
+    variantClasses = 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-900 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500';
   }
 
   return (
@@ -264,7 +264,7 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
         ${sizeClasses} ${variantClasses} ${className}
         flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200
         border shadow-sm hover:shadow-md hover:scale-105 min-h-[3rem] disabled:opacity-50 disabled:cursor-not-allowed
-        ${variant === 'primary' ? 'border-blue-300/50' : 'border-gray-200/50'}
+        ${variant === 'primary' ? 'border-blue-300/50 dark:border-blue-600/50' : 'border-gray-200/50 dark:border-slate-600/50'}
       `}
     >
       {isProcessing ? (
@@ -299,10 +299,10 @@ export const AIGoalsButton: React.FC<{
       className={`
         ${className}
         flex items-center justify-center py-2 px-3
-        bg-gradient-to-r from-indigo-500 to-purple-500 text-white
-        rounded-lg hover:from-indigo-600 hover:to-purple-600
+        bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 text-white
+        rounded-lg hover:from-indigo-600 hover:to-purple-600 dark:hover:from-indigo-700 dark:hover:to-purple-700
         ${size === 'sm' ? 'text-sm' : 'text-base'} font-medium
-        transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105
+        transition-all duration-200 border border-indigo-300/50 dark:border-indigo-600/50 shadow-sm hover:shadow-md hover:scale-105
       `}
     >
       <Target size={size === 'sm' ? 14 : 16} className="mr-2" />
@@ -385,14 +385,14 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowCustomizeModal(true)}
-            className="flex-1 flex items-center justify-center py-2 px-3 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-lg hover:from-indigo-100 hover:to-purple-100 text-sm font-medium transition-all duration-200 border border-indigo-200/50 shadow-sm border-dashed mr-2"
+            className="flex-1 flex items-center justify-center py-2 px-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:from-indigo-100 hover:to-purple-100 dark:hover:from-indigo-900/50 dark:hover:to-purple-900/50 text-sm font-medium transition-all duration-200 border border-indigo-200/50 dark:border-indigo-700/50 shadow-sm border-dashed mr-2"
           >
             <Plus size={14} className="mr-2" />
             Add Custom AI Goals
           </button>
           <button
             onClick={() => setShowCustomizeModal(true)}
-            className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
             title="Customize buttons"
           >
             <Settings size={16} />

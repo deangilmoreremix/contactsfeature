@@ -22,6 +22,14 @@
   --glass-bg: rgba(255, 255, 255, 0.8);
   --glass-border: rgba(255, 255, 255, 0.2);
   --shadow-color: rgba(0, 0, 0, 0.1);
+
+  /* Button-specific colors for light theme */
+  --btn-secondary-from: #f9fafb;
+  --btn-secondary-to: #f3f4f6;
+  --btn-secondary-hover-from: #f3f4f6;
+  --btn-secondary-hover-to: #e5e7eb;
+  --btn-secondary-text: #374151;
+  --btn-secondary-border: #e5e7eb;
 }
 
 /* Dark theme colors */
@@ -43,6 +51,14 @@ body.dark-mode {
   --glass-bg: rgba(30, 41, 59, 0.8);
   --glass-border: rgba(148, 163, 184, 0.2);
   --shadow-color: rgba(0, 0, 0, 0.3);
+
+  /* Button-specific colors for dark theme */
+  --btn-secondary-from: #334155;
+  --btn-secondary-to: #475569;
+  --btn-secondary-hover-from: #475569;
+  --btn-secondary-hover-to: #64748b;
+  --btn-secondary-text: #f8fafc;
+  --btn-secondary-border: #475569;
 }
 
 /* Smooth transitions for theme switching */

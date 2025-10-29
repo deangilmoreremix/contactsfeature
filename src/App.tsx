@@ -46,8 +46,10 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
     // Also apply legacy dark-mode class for backward compatibility
     if (effectiveTheme === 'dark') {
       document.body.classList.add('dark-mode');
+      document.documentElement.classList.add('dark');
     } else {
       document.body.classList.remove('dark-mode');
+      document.documentElement.classList.remove('dark');
     }
   }, [effectiveTheme, mode]);
 
