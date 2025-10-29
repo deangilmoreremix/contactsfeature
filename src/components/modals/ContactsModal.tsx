@@ -4,6 +4,7 @@ import { AIProvider } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
+import { ToastProvider } from '../ui/Toast';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
@@ -849,16 +850,18 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
       {/* Contact Detail Modal */}
       {selectedContact && (
         <AIProvider>
-          <SmartTooltip featureId="contact_detail_view" position="top">
-            <div>
-              <ContactDetailView
-                contact={selectedContact}
-                isOpen={!!selectedContact}
-                onClose={handleContactDetailClose}
-                onUpdate={updateContact}
-              />
-            </div>
-          </SmartTooltip>
+          <ToastProvider>
+            <SmartTooltip featureId="contact_detail_view" position="top">
+              <div>
+                <ContactDetailView
+                  contact={selectedContact}
+                  isOpen={!!selectedContact}
+                  onClose={handleContactDetailClose}
+                  onUpdate={updateContact}
+                />
+              </div>
+            </SmartTooltip>
+          </ToastProvider>
         </AIProvider>
       )}
 
