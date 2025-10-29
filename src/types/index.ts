@@ -1,6 +1,7 @@
 // Central export for all types
 export * from './contact';
 export * from './deal';
+export * from './view';
 
 // Additional utility types
 export interface ApiResponse<T = any> {

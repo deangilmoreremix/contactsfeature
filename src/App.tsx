@@ -4,6 +4,7 @@ import { useDarkMode } from './hooks/useDarkMode';
 import { AIProvider } from './contexts/AIContext';
 import { GuidanceProvider, useGuidance } from './contexts/GuidanceContext';
 import { TooltipProvider } from './contexts/TooltipContext';
+import { ViewProvider } from './contexts/ViewContext';
 import { ContactsModal } from './components/modals/ContactsModal';
 import { LandingPage } from './components/landing/LandingPage';
 import { TestWebSearch } from './components/TestWebSearch';
@@ -228,7 +229,9 @@ function App(props: RemoteAppProps) {
   return (
     <TooltipProvider>
       <GuidanceProvider>
-        <AppContent {...props} />
+        <ViewProvider>
+          <AppContent {...props} />
+        </ViewProvider>
       </GuidanceProvider>
     </TooltipProvider>
   );
