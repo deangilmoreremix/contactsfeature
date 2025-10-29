@@ -161,7 +161,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
     <div
         data-testid="contact-card"
         onClick={handleCardClick}
-        className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 hover:border-gray-300 overflow-hidden text-gray-900"
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group relative border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 overflow-hidden text-gray-900 dark:text-gray-100"
         role="button"
         tabIndex={0}
         aria-label={`Contact card for ${contact.name}`}
@@ -240,7 +240,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
 
       {/* More Actions Dropdown */}
       {showMoreActions && (
-        <div className="absolute top-16 right-4 z-20 bg-white border border-gray-200 rounded-lg shadow-xl min-w-48">
+        <div className="absolute top-16 right-4 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl min-w-48">
           <div className="py-2">
             <button
               onClick={(e) => {
@@ -256,7 +256,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                 URL.revokeObjectURL(url);
                 setShowMoreActions(false);
               }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               Export Contact
             </button>
@@ -270,7 +270,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                 }
                 setShowMoreActions(false);
               }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               Duplicate Contact
             </button>
@@ -283,11 +283,11 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                 }
                 setShowMoreActions(false);
               }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               Archive Contact
             </button>
-            <div className="border-t border-gray-200 my-1"></div>
+            <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -297,7 +297,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                 }
                 setShowMoreActions(false);
               }}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
               Delete Contact
             </button>
@@ -324,11 +324,11 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                 </div>
               )}
             </div>
-            <h3 className="text-gray-900 font-semibold text-lg mb-1 group-hover:text-blue-600 transition-colors">
+            <h3 className="text-gray-900 dark:text-gray-100 font-semibold text-lg mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
               {contact.name}
             </h3>
-            <p className="text-gray-600 text-sm">{contact.title}</p>
-            <p className="text-gray-500 text-xs">{contact.company}</p>
+            <p className="text-gray-600 dark:text-gray-300 text-sm">{contact.title}</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs">{contact.company}</p>
           </div>
           
           {/* AI Score Display */}
@@ -361,7 +361,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                 )}
               </button>
             )}
-            <span className="text-xs text-gray-500 font-medium">
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
               {contact.aiScore ? 'AI Score' : 'Click to Score'}
             </span>
           </div>
@@ -370,14 +370,14 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
         {/* Interest Level */}
         <div className="flex items-center justify-center space-x-2 mb-4">
           <div className={`w-2 h-2 rounded-full ${INTEREST_COLORS[contact.interestLevel as keyof typeof INTEREST_COLORS] || INTEREST_COLORS.cold} animate-pulse`} />
-          <span className="text-xs text-gray-600 font-medium">
+          <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
             {INTEREST_LABELS[contact.interestLevel as keyof typeof INTEREST_LABELS] || INTEREST_LABELS.cold}
           </span>
         </div>
 
         {/* Sources */}
         <div className="mb-4">
-          <p className="text-xs text-gray-500 mb-2 text-center">Source</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 text-center">Source</p>
           <div className="flex justify-center flex-wrap gap-1">
             {contact.sources.map((source, index) => (
               <span
@@ -417,10 +417,10 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
 
         {/* AI Insights Section */}
         {(contact.aiScore || contactScore) && (
-          <div data-testid="ai-insights-section" className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+          <div data-testid="ai-insights-section" className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
             <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-medium text-gray-900 flex items-center">
-                <BarChart className="w-4 h-4 mr-2 text-blue-500" />
+              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center">
+                <BarChart className="w-4 h-4 mr-2 text-blue-500 dark:text-blue-400" />
                 AI Insights
               </h4>
               <div className="flex space-x-1">
@@ -431,7 +431,7 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                     console.log('Positive AI feedback for contact:', contact.id);
                     // Could send feedback to improve AI model
                   }}
-                  className="p-1 bg-gray-100 hover:bg-green-100 hover:text-green-600 rounded text-gray-600 transition-colors"
+                  className="p-1 bg-gray-100 dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 rounded text-gray-600 dark:text-gray-300 transition-colors"
                   title="Good AI analysis"
                 >
                   <ThumbsUp className="w-3 h-3" />
@@ -443,14 +443,14 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
                     console.log('Negative AI feedback for contact:', contact.id);
                     // Could send feedback to improve AI model
                   }}
-                  className="p-1 bg-gray-100 hover:bg-red-100 hover:text-red-600 rounded text-gray-600 transition-colors"
+                  className="p-1 bg-gray-100 dark:bg-gray-700 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 rounded text-gray-600 dark:text-gray-300 transition-colors"
                   title="Poor AI analysis"
                 >
                   <ThumbsDown className="w-3 h-3" />
                 </button>
               </div>
             </div>
-            <p className="text-xs text-gray-900">
+            <p className="text-xs text-gray-900 dark:text-gray-100">
               {(() => {
                 const score = contact.aiScore || contactScore?.overall || 0;
                 if (score >= 80) return 'High conversion potential - prioritize for immediate follow-up.';
@@ -461,11 +461,11 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
             </p>
             {contactInsights && contactInsights.length > 0 && (
               <div className="mt-2">
-                <p className="text-xs text-blue-700 font-medium">Latest AI Insights:</p>
-                <ul className="text-xs text-gray-700 mt-1">
+                <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Latest AI Insights:</p>
+                <ul className="text-xs text-gray-700 dark:text-gray-300 mt-1">
                   {contactInsights.slice(0, 2).map((insight, index) => (
                     <li key={index} className="flex items-start">
-                      <span className="text-blue-500 mr-1">•</span>
+                      <span className="text-blue-500 dark:text-blue-400 mr-1">•</span>
                       <span>{insight.title}</span>
                     </li>
                   ))}
@@ -473,8 +473,8 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
               </div>
             )}
             <div className="mt-2 flex items-center space-x-1">
-              <Sparkles className="w-3 h-3 text-purple-500" />
-              <span className="text-xs text-purple-700 font-medium">AI-powered analysis</span>
+              <Sparkles className="w-3 h-3 text-purple-500 dark:text-purple-400" />
+              <span className="text-xs text-purple-700 dark:text-purple-300 font-medium">AI-powered analysis</span>
             </div>
           </div>
         )}
@@ -527,14 +527,14 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = ({
 
         {/* Click indicator */}
         <div className="mt-3 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <p className="text-xs text-blue-500 font-medium">
+          <p className="text-xs text-blue-500 dark:text-blue-400 font-medium">
             {(contact.aiScore || contactScore) ? 'Click to view details' : 'Click AI button to score • Click card for details'}
           </p>
         </div>
 
         {/* Error display */}
         {error && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
             {error}
           </div>
         )}
