@@ -23,14 +23,14 @@ export const ModernButton: React.FC<ModernButtonProps> = ({
   const getVariantClass = () => {
     switch (variant) {
       case 'glass':
-        return 'bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30';
+        return 'bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 dark:bg-gray-800/40 dark:border-gray-600/50 dark:hover:bg-gray-700/50';
       case 'outline':
-        return 'bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50';
+        return 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600';
       case 'ghost':
-        return 'bg-transparent text-gray-700 hover:bg-gray-100';
+        return 'bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700';
       case 'primary':
       default:
-        return 'bg-blue-600 text-white hover:bg-blue-700';
+        return 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600';
     }
   };
 
