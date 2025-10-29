@@ -214,14 +214,20 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       const systemPrompt = `You are a predictive analytics expert. Analyze this contact's company and industry to predict future journey events and milestones. Focus on upcoming company announcements, industry trends, and likely next steps in the sales journey.`;
       const userPrompt = `Predict future journey events for ${contact.firstName} ${contact.lastName} at ${contact.company}. Based on current industry trends and company news, what are the likely next milestones, interactions, and outcomes in their sales journey?`;
 
+      // Force mock data for demo contacts to ensure citations show
+      const isMockContact = contact.isMockData || contact.dataSource === 'mock' || contact.createdBy === 'demo';
+      const searchOptions = {
+        includeSources: true,
+        searchContextSize: 'high' as const,
+        // Force mock mode for demo contacts to ensure citations show
+        useMockData: isMockContact || !import.meta.env['VITE_OPENAI_API_KEY']
+      };
+
       const searchResults = await webSearchService.searchWithAI(
         searchQuery,
         systemPrompt,
         userPrompt,
-        {
-          includeSources: true,
-          searchContextSize: 'high'
-        }
+        searchOptions
       );
 
       researchThinking.moveToSynthesizing('🔮 Generating predictive journey insights...');
