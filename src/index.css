@@ -30,6 +30,32 @@
   --btn-secondary-hover-to: #e5e7eb;
   --btn-secondary-text: #374151;
   --btn-secondary-border: #e5e7eb;
+
+  /* Color shade variants for light theme */
+  --blue-50: #eff6ff;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --purple-50: #faf5ff;
+  --purple-500: #a855f7;
+  --purple-600: #9333ea;
+  --purple-700: #7e22ce;
+  --green-50: #f0fdf4;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --red-50: #fef2f2;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+  --orange-50: #fff7ed;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --orange-700: #c2410c;
+  --yellow-50: #fefce8;
+  --yellow-500: #eab308;
+  --yellow-600: #ca8a04;
+  --yellow-700: #a16207;
 }
 
 /* Dark theme colors */
@@ -59,6 +85,32 @@ body.dark-mode {
   --btn-secondary-hover-to: #64748b;
   --btn-secondary-text: #f8fafc;
   --btn-secondary-border: #475569;
+
+  /* Color shade variants for dark theme */
+  --blue-50: #1e3a5f;
+  --blue-500: #60a5fa;
+  --blue-600: #3b82f6;
+  --blue-700: #2563eb;
+  --purple-50: #2d1b4e;
+  --purple-500: #c084fc;
+  --purple-600: #a855f7;
+  --purple-700: #9333ea;
+  --green-50: #1a3d2d;
+  --green-500: #4ade80;
+  --green-600: #22c55e;
+  --green-700: #16a34a;
+  --red-50: #3d1a1a;
+  --red-500: #f87171;
+  --red-600: #ef4444;
+  --red-700: #dc2626;
+  --orange-50: #3d2a1a;
+  --orange-500: #fb923c;
+  --orange-600: #f97316;
+  --orange-700: #ea580c;
+  --yellow-50: #3d3a1a;
+  --yellow-500: #facc15;
+  --yellow-600: #eab308;
+  --yellow-700: #ca8a04;
 }
 
 /* Smooth transitions for theme switching */
@@ -128,6 +180,177 @@ body {
 
 .border-gray-100 {
   border-color: var(--bg-tertiary) !important;
+}
+
+/* Color shade utilities with theme support */
+.bg-blue-50 {
+  background-color: var(--blue-50) !important;
+}
+
+.bg-blue-500 {
+  background-color: var(--blue-500) !important;
+}
+
+.bg-blue-600 {
+  background-color: var(--blue-600) !important;
+}
+
+.bg-blue-700 {
+  background-color: var(--blue-700) !important;
+}
+
+.bg-purple-50 {
+  background-color: var(--purple-50) !important;
+}
+
+.bg-purple-500 {
+  background-color: var(--purple-500) !important;
+}
+
+.bg-purple-600 {
+  background-color: var(--purple-600) !important;
+}
+
+.bg-purple-700 {
+  background-color: var(--purple-700) !important;
+}
+
+.bg-green-50 {
+  background-color: var(--green-50) !important;
+}
+
+.bg-green-500 {
+  background-color: var(--green-500) !important;
+}
+
+.bg-green-600 {
+  background-color: var(--green-600) !important;
+}
+
+.bg-green-700 {
+  background-color: var(--green-700) !important;
+}
+
+.bg-red-50 {
+  background-color: var(--red-50) !important;
+}
+
+.bg-red-500 {
+  background-color: var(--red-500) !important;
+}
+
+.bg-red-600 {
+  background-color: var(--red-600) !important;
+}
+
+.bg-red-700 {
+  background-color: var(--red-700) !important;
+}
+
+.bg-orange-50 {
+  background-color: var(--orange-50) !important;
+}
+
+.bg-orange-500 {
+  background-color: var(--orange-500) !important;
+}
+
+.bg-orange-600 {
+  background-color: var(--orange-600) !important;
+}
+
+.bg-orange-700 {
+  background-color: var(--orange-700) !important;
+}
+
+.bg-yellow-50 {
+  background-color: var(--yellow-50) !important;
+}
+
+.bg-yellow-500 {
+  background-color: var(--yellow-500) !important;
+}
+
+.bg-yellow-600 {
+  background-color: var(--yellow-600) !important;
+}
+
+.bg-yellow-700 {
+  background-color: var(--yellow-700) !important;
+}
+
+/* Text color utilities */
+.text-blue-600 {
+  color: var(--blue-600) !important;
+}
+
+.text-blue-700 {
+  color: var(--blue-700) !important;
+}
+
+.text-purple-600 {
+  color: var(--purple-600) !important;
+}
+
+.text-purple-700 {
+  color: var(--purple-700) !important;
+}
+
+.text-green-600 {
+  color: var(--green-600) !important;
+}
+
+.text-green-700 {
+  color: var(--green-700) !important;
+}
+
+.text-green-800 {
+  color: var(--green-700) !important;
+}
+
+.text-green-900 {
+  color: var(--green-700) !important;
+}
+
+.text-red-600 {
+  color: var(--red-600) !important;
+}
+
+.text-red-700 {
+  color: var(--red-700) !important;
+}
+
+.text-red-800 {
+  color: var(--red-700) !important;
+}
+
+.text-red-900 {
+  color: var(--red-700) !important;
+}
+
+.text-orange-600 {
+  color: var(--orange-600) !important;
+}
+
+.text-yellow-600 {
+  color: var(--yellow-600) !important;
+}
+
+/* Border color utilities */
+.border-blue-500 {
+  border-color: var(--blue-500) !important;
+}
+
+.border-purple-500 {
+  border-color: var(--purple-500) !important;
+}
+
+.border-green-500 {
+  border-color: var(--green-500) !important;
+}
+
+.border-red-500 {
+  border-color: var(--red-500) !important;
 }
 
 /* Glass morphism with theme support */
@@ -213,4 +436,45 @@ th, td {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* Gradient utilities with theme support */
+.from-purple-50 {
+  --tw-gradient-from: var(--purple-50) !important;
+  --tw-gradient-to: rgb(0 0 0 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-purple-50 {
+  --tw-gradient-to: var(--purple-50) !important;
+}
+
+.from-purple-600 {
+  --tw-gradient-from: var(--purple-600) !important;
+  --tw-gradient-to: rgb(0 0 0 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-purple-600 {
+  --tw-gradient-to: var(--purple-600) !important;
+}
+
+.from-purple-700 {
+  --tw-gradient-from: var(--purple-700) !important;
+  --tw-gradient-to: rgb(0 0 0 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-purple-700 {
+  --tw-gradient-to: var(--purple-700) !important;
+}
+
+.hover\:from-purple-700:hover {
+  --tw-gradient-from: var(--purple-700) !important;
+  --tw-gradient-to: rgb(0 0 0 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.hover\:to-purple-700:hover {
+  --tw-gradient-to: var(--purple-700) !important;
 }

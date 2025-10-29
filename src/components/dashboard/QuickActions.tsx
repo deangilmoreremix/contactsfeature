@@ -9,25 +9,25 @@ export const QuickActions: React.FC = () => {
       title: 'New Deal',
       description: 'Create a new sales opportunity',
       icon: Plus,
-      color: 'bg-blue-500'
+      color: 'bg-blue-600'
     },
     {
       title: 'New Contact',
       description: 'Add a new contact to CRM',
       icon: UserPlus,
-      color: 'bg-green-500'
+      color: 'bg-green-600'
     },
     {
       title: 'Schedule Meeting',
       description: 'AI-powered meeting agenda',
       icon: Calendar,
-      color: 'bg-purple-500'
+      color: 'bg-blue-600'
     },
     {
       title: 'Send Email',
       description: 'AI email composer tool',
       icon: Mail,
-      color: 'bg-yellow-500'
+      color: 'bg-yellow-600'
     }
   ];
 

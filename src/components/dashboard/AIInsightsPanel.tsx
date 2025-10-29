@@ -44,7 +44,7 @@ export const AIInsightsPanel: React.FC = () => {
     <GlassCard className="p-6 mb-8">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-purple-500 rounded-lg">
+          <div className="p-2 bg-blue-600 rounded-lg">
             <Bot className="w-6 h-6 text-white" />
           </div>
           <div>

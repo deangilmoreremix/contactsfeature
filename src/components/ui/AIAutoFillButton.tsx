@@ -140,7 +140,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
             size={size}
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             disabled={!hasMinimumData}
-            className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
           >
             <Wand2 className="w-4 h-4" />
             <span>AI Auto-Fill</span>
@@ -177,9 +177,9 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
       {isDropdownOpen && (
         <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden">
           {/* Header */}
-          <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b border-gray-200">
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-200">
             <h4 className="font-semibold text-gray-900 flex items-center">
-              <Brain className="w-4 h-4 mr-2 text-purple-600" />
+              <Brain className="w-4 h-4 mr-2 text-blue-600" />
               AI Contact Research
             </h4>
             <p className="text-sm text-gray-600 mt-1">

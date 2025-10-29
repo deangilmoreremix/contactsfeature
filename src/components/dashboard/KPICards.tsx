@@ -9,7 +9,7 @@ const kpiData = [
     change: '+12.5%',
     trend: 'up',
     icon: Target,
-    color: 'bg-blue-500'
+    color: 'bg-blue-600'
   },
   {
     title: 'Pipeline Value',
@@ -17,7 +17,7 @@ const kpiData = [
     change: '+18.2%',
     trend: 'up',
     icon: DollarSign,
-    color: 'bg-green-500'
+    color: 'bg-green-600'
   },
   {
     title: 'Average Deal Size',
@@ -25,7 +25,7 @@ const kpiData = [
     change: '+5.7%',
     trend: 'up',
     icon: TrendingUp,
-    color: 'bg-purple-500'
+    color: 'bg-blue-600'
   },
   {
     title: 'Won Value',
@@ -33,7 +33,7 @@ const kpiData = [
     change: '-2.3%',
     trend: 'down',
     icon: Trophy,
-    color: 'bg-yellow-500'
+    color: 'bg-yellow-600'
   }
 ];
 

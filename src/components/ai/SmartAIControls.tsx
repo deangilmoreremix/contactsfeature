@@ -190,7 +190,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                     selectedOperation === op.id
                       ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                      : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center space-x-3 mb-2">
@@ -234,7 +234,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
                   onClick={() => setUrgency(option.value as any)}
                   className={`flex-1 p-3 rounded-lg border text-center transition-colors ${
                     urgency === option.value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-blue-500 bg-blue-50 text-blue-600'
                       : 'border-gray-300 hover:border-gray-400'
                   }`}
                 >
@@ -261,20 +261,20 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
 
           {/* Results Display */}
           {contactAI?.contactScore && (
-            <div className="mt-6 p-4 bg-green-50 rounded-lg">
-              <h4 className="font-semibold text-green-900 mb-2 flex items-center">
+            <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-500">
+              <h4 className="font-semibold text-green-600 mb-2 flex items-center">
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Analysis Complete
               </h4>
               <div className="space-y-2">
                 <div className="text-sm">
-                  <span className="font-medium text-green-800">Score:</span>
-                  <span className="text-green-700 ml-2">{contactAI.contactScore.overall}/100</span>
+                  <span className="font-medium text-green-600">Score:</span>
+                  <span className="text-green-600 ml-2">{contactAI.contactScore.overall}/100</span>
                 </div>
                 {contactAI.contactInsights && (
                   <div className="text-sm">
-                    <span className="font-medium text-green-800">Insights:</span>
-                    <span className="text-green-700 ml-2">{contactAI.contactInsights.length} generated</span>
+                    <span className="font-medium text-green-600">Insights:</span>
+                    <span className="text-green-600 ml-2">{contactAI.contactInsights.length} generated</span>
                   </div>
                 )}
               </div>
@@ -283,12 +283,12 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
 
           {/* Errors Display */}
           {contactAI?.contactError && (
-            <div className="mt-6 p-4 bg-red-50 rounded-lg">
-              <h4 className="font-semibold text-red-900 mb-2 flex items-center">
+            <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-500">
+              <h4 className="font-semibold text-red-600 mb-2 flex items-center">
                 <AlertCircle className="w-4 h-4 mr-2" />
                 Analysis Errors
               </h4>
-              <p className="text-sm text-red-700">{contactAI.contactError}</p>
+              <p className="text-sm text-red-600">{contactAI.contactError}</p>
             </div>
           )}
         </GlassCard>
@@ -338,20 +338,20 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
 
           {/* Estimated Metrics */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3 bg-blue-50 rounded-lg text-center">
+            <div className="p-3 bg-blue-50 rounded-lg text-center border border-blue-500">
               <DollarSign className="w-4 h-4 text-blue-600 mx-auto mb-1" />
-              <div className="text-sm font-medium text-blue-900">Est. Cost</div>
-              <div className="text-xs text-blue-700">${(contacts.length * 0.05).toFixed(2)}</div>
+              <div className="text-sm font-medium text-blue-600">Est. Cost</div>
+              <div className="text-xs text-blue-600">${(contacts.length * 0.05).toFixed(2)}</div>
             </div>
-            <div className="p-3 bg-green-50 rounded-lg text-center">
+            <div className="p-3 bg-green-50 rounded-lg text-center border border-green-500">
               <Clock className="w-4 h-4 text-green-600 mx-auto mb-1" />
-              <div className="text-sm font-medium text-green-900">Est. Time</div>
-              <div className="text-xs text-green-700">{Math.ceil(contacts.length / 10)}s</div>
+              <div className="text-sm font-medium text-green-600">Est. Time</div>
+              <div className="text-xs text-green-600">{Math.ceil(contacts.length / 10)}s</div>
             </div>
-            <div className="p-3 bg-purple-50 rounded-lg text-center">
-              <Brain className="w-4 h-4 text-purple-600 mx-auto mb-1" />
-              <div className="text-sm font-medium text-purple-900">Auto Model</div>
-              <div className="text-xs text-purple-700">Optimized</div>
+            <div className="p-3 bg-blue-50 rounded-lg text-center border border-blue-500">
+              <Brain className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+              <div className="text-sm font-medium text-blue-600">Auto Model</div>
+              <div className="text-xs text-blue-600">Optimized</div>
             </div>
           </div>
 
