@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GlassCard } from '../ui/GlassCard';
+import { ModernButton } from '../ui/ModernButton';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { CitationBadge } from '../ui/CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { webSearchService } from '../../services/webSearchService';
+import { useDocumentSummarization } from '../../hooks/useDocumentSummarization';
 import {
   Mail,
   Phone,
@@ -25,7 +27,9 @@ import {
   Download,
   Eye,
   Plus,
-  Sparkles
+  Sparkles,
+  Brain,
+  BookOpen
 } from 'lucide-react';
 
 interface JourneyEvent {
@@ -148,18 +152,30 @@ const sampleJourneyEvents: JourneyEvent[] = [
 ];
 
 export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ contact }) => {
-   const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>(sampleJourneyEvents);
-    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
-    const [showFileUpload, setShowFileUpload] = useState(false);
-    const [filterType, setFilterType] = useState<string>('all');
-    const [filterDateRange, setFilterDateRange] = useState<string>('all');
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>(sampleJourneyEvents);
+     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+     const [isUploading, setIsUploading] = useState(false);
+     const [showFileUpload, setShowFileUpload] = useState(false);
+     const [filterType, setFilterType] = useState<string>('all');
+     const [filterDateRange, setFilterDateRange] = useState<string>('all');
+     const [summarizingFileId, setSummarizingFileId] = useState<string | null>(null);
+     const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
+     const fileInputRef = useRef<HTMLInputElement>(null);
 
-   // Research state management
-   const researchThinking = useResearchThinking();
-   const researchStatus = useResearchStatus();
-   const [researchSources, setResearchSources] = useState<any[]>([]);
+    // Research state management
+    const researchThinking = useResearchThinking();
+    const researchStatus = useResearchStatus();
+    const [researchSources, setResearchSources] = useState<any[]>([]);
+
+    // Document summarization hook
+    const {
+      isSummarizing,
+      error: summarizationError,
+      summaries,
+      processAndSummarizeFile,
+      getSummary,
+      clearError
+    } = useDocumentSummarization();
 
   // Sample uploaded files - in a real app, this would come from your backend
   const sampleFiles: UploadedFile[] = [
@@ -318,6 +334,22 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         };
 
         setJourneyEvents(prev => [fileEvent, ...prev]);
+
+        // Automatically summarize the file if it's a document type
+        const documentTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'];
+        if (documentTypes.includes(file.type)) {
+          try {
+            setSummarizingFileId(uploadedFile.id);
+            await processAndSummarizeFile(file, uploadedFile.id, {
+              contactName: contact.name,
+              companyName: contact.company
+            });
+          } catch (error) {
+            console.error('Auto-summarization failed:', error);
+          } finally {
+            setSummarizingFileId(null);
+          }
+        }
       }
     } catch (error) {
       console.error('File upload failed:', error);
@@ -346,11 +378,47 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         setJourneyEvents(prev => prev.filter(e =>
           !(e.type === 'file_upload' && e.metadata?.fileName === uploadedFiles.find(f => f.id === fileId)?.name)
         ));
+
+        // Remove summary if it exists
+        // Note: In a real implementation, you'd also clean up the summary from storage
       } catch (error) {
         console.error('File deletion failed:', error);
         alert('File deletion failed. Please try again.');
       }
     }
+  };
+
+  const handleSummarizeFile = async (file: UploadedFile) => {
+    try {
+      setSummarizingFileId(file.id);
+      clearError();
+
+      // We need to get the original file object to extract text
+      // In a real implementation, you'd store the file blob or retrieve it from storage
+      // For now, we'll create a mock file object for demonstration
+      const mockFile = new (File as any)(['Mock file content for summarization'], file.name, { type: file.type });
+
+      await processAndSummarizeFile(mockFile, file.id, {
+        contactName: contact.name,
+        companyName: contact.company
+      });
+    } catch (error) {
+      console.error('Manual summarization failed:', error);
+    } finally {
+      setSummarizingFileId(null);
+    }
+  };
+
+  const toggleSummaryExpansion = (fileId: string) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -533,34 +601,132 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             <div className="space-y-3">
               {uploadedFiles.map((file) => {
                 const FileIcon = getFileIcon(file.type);
+                const summary = getSummary(file.id);
+                const isExpanded = expandedSummaries.has(file.id);
+                const isCurrentlySummarizing = summarizingFileId === file.id;
+                const isDocument = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'].includes(file.type);
+
                 return (
-                  <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <FileIcon className="w-8 h-8 text-blue-600" />
-                      <div>
-                        <p className="font-medium text-gray-900">{file.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {formatFileSize(file.size)} • Uploaded {formatTimestamp(file.uploadedAt)} by {file.uploadedBy}
-                        </p>
+                  <div key={file.id} className="bg-gray-50 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex items-center space-x-3">
+                        <FileIcon className="w-8 h-8 text-blue-600" />
+                        <div>
+                          <p className="font-medium text-gray-900">{file.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {formatFileSize(file.size)} • Uploaded {formatTimestamp(file.uploadedAt)} by {file.uploadedBy}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        {/* AI Summarize Button - only for documents */}
+                        {isDocument && (
+                          <button
+                            onClick={() => handleSummarizeFile(file)}
+                            disabled={isCurrentlySummarizing || isSummarizing}
+                            className="flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                            title="Summarize with AI"
+                          >
+                            {isCurrentlySummarizing ? (
+                              <>
+                                <div className="w-3 h-3 border border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                                <span>Summarizing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="w-3 h-3" />
+                                <span>Summarize</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {/* Expand/Collapse Summary Button */}
+                        {summary && (
+                          <button
+                            onClick={() => toggleSummaryExpansion(file.id)}
+                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                            title={isExpanded ? "Collapse summary" : "Expand summary"}
+                          >
+                            <BookOpen className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleFileDownload(file)}
+                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleFileDelete(file.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleFileDownload(file)}
-                        className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleFileDelete(file.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                        title="Delete"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {/* AI Summary Section */}
+                    {summary && isExpanded && (
+                      <div className="border-t border-gray-200 bg-white p-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-gray-900 flex items-center">
+                              <Brain className="w-4 h-4 mr-2 text-purple-600" />
+                              AI Summary (GPT-4o-mini)
+                            </h5>
+                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                              <span>Confidence: {summary.confidence}%</span>
+                              <span>•</span>
+                              <span>{summary.wordCount} words</span>
+                              <span>•</span>
+                              <span>{summary.processingTime}ms</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                            <p className="text-sm text-gray-800 leading-relaxed">{summary.summary}</p>
+                          </div>
+
+                          {summary.keyPoints.length > 0 && (
+                            <div>
+                              <h6 className="text-sm font-medium text-gray-900 mb-2">Key Points:</h6>
+                              <ul className="space-y-1">
+                                {summary.keyPoints.map((point, index) => (
+                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700">
+                                    <span className="text-purple-600 mt-1">•</span>
+                                    <span>{point}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>Sentiment: <span className={`font-medium ${
+                              summary.sentiment === 'positive' ? 'text-green-600' :
+                              summary.sentiment === 'negative' ? 'text-red-600' :
+                              'text-gray-600'
+                            }`}>{summary.sentiment}</span></span>
+                            <span>Model: {summary.model}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Error Display */}
+                    {summarizationError && summarizingFileId === file.id && (
+                      <div className="border-t border-red-200 bg-red-50 p-3">
+                        <div className="flex items-center space-x-2 text-sm text-red-700">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>{summarizationError}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

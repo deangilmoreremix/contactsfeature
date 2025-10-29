@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { analyticsService } from '../../services/analyticsService';
+import { cacheService } from '../../services/cacheService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { BookOpen, Target, TrendingUp, CheckCircle, Clock, Users, DollarSign, Sparkles, Brain } from 'lucide-react';
@@ -86,6 +88,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   const [loading, setLoading] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [draggedPhase, setDraggedPhase] = useState<string | null>(null);
+  const [playbookType, setPlaybookType] = useState<'comprehensive' | 'aggressive' | 'conservative' | 'relationship' | 'transactional'>('comprehensive');
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
@@ -93,235 +96,156 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
   const generatePlaybook = async () => {
     setLoading(true);
-    researchThinking.startResearch('🎯 Generating AI-powered sales playbook...');
+    researchThinking.startResearch('🎯 Generating AI-powered sales playbook...', 4);
+
+    // Start analytics tracking
+    const sessionId = analyticsService.startTracking('AdaptivePlaybookGenerator', 'generate', deal.id, deal.id);
 
     try {
-      researchThinking.moveToAnalyzing('🧠 Analyzing deal data and market conditions...');
+      researchThinking.updateProgress(10, '🧠 Analyzing deal data and market conditions...');
 
-      // Check if this is mock data (similar to other components)
-      const isMockData = deal.id.startsWith('mock') || deal.company === 'Demo Company' || deal.name.includes('Demo');
+      // Check cache first
+      const cacheKey = {
+        dealId: deal.id,
+        stage: deal.stage,
+        company: deal.company,
+        industry: deal.industry
+      };
 
-      if (isMockData) {
-        // For mock contacts, simulate playbook generation with mock data
-        researchThinking.moveToAnalyzing('🔍 Researching company and market data...');
+      const cachedPlaybook = cacheService.get<PlaybookStrategy>('AdaptivePlaybookGenerator', cacheKey);
+      if (cachedPlaybook) {
+        setPlaybook(cachedPlaybook);
+        researchThinking.complete('✅ Cached playbook loaded successfully!');
+        analyticsService.endTracking(sessionId, true, undefined, 'cache', 'cache');
+        return;
+      }
 
-        // Simulate research delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      // Real playbook generation
+      researchThinking.updateProgress(30, '🔍 Researching company and market data...');
+      const response = await supabase.functions.invoke('adaptive-playbook', {
+        body: {
+          contact: deal,
+          currentStage: deal.stage,
+          businessGoals: ['increase_revenue', 'improve_efficiency', 'expand_market'],
+          automationType: playbookType,
+          playbookType: playbookType,
+          aiProvider: 'openai'
+        }
+      });
 
-        researchThinking.moveToSynthesizing('📋 Synthesizing strategic recommendations...');
+      researchThinking.updateProgress(60, '📋 Synthesizing strategic recommendations...');
 
-        // Generate mock playbook data
-        const mockPlaybook: PlaybookStrategy = {
+      if (response.data?.data) {
+        // Transform the API response to match the expected playbook structure
+        const apiData = response.data.data;
+        const transformedPlaybook: PlaybookStrategy = {
           dealId: deal.id,
           strategy: {
-            name: 'Strategic Growth Playbook',
-            description: `Comprehensive sales strategy for ${deal.name} at ${deal.company}. Focus on relationship building and value demonstration.`,
-            confidence: 0.85,
-            rationale: 'Based on industry analysis and company profile, this strategy emphasizes consultative selling and ROI-focused messaging.'
+            name: apiData.strategy?.name || 'AI-Generated Sales Strategy',
+            description: apiData.strategy?.description || `Comprehensive sales strategy for ${deal.name} at ${deal.company}`,
+            confidence: apiData.strategy?.confidence || 0.85,
+            rationale: apiData.strategy?.rationale || 'Generated based on deal analysis and market conditions'
           },
-          phases: [
+          phases: apiData.phases?.map((phase: any, index: number) => ({
+            id: phase.id || `phase-${index + 1}`,
+            name: phase.name || `Phase ${index + 1}`,
+            timeline: phase.timeline || '2-4 weeks',
+            objectives: phase.objectives || [phase.description || 'Execute strategic action'],
+            tactics: phase.tactics?.map((tactic: any, tacticIndex: number) => ({
+              id: tactic.id || `tactic-${index}-${tacticIndex}`,
+              name: tactic.name || tactic.action || 'Strategic Action',
+              description: tactic.description || 'Execute the planned action',
+              priority: tactic.priority || 'high',
+              estimatedEffort: tactic.estimatedEffort || '2-3 hours',
+              successMetrics: tactic.successMetrics || ['Action completed', 'Positive outcome achieved'],
+              dependencies: tactic.dependencies || []
+            })) || [{
+              id: `tactic-${index + 1}`,
+              name: phase.action || 'Strategic Action',
+              description: phase.description || 'Execute the planned action',
+              priority: 'high',
+              estimatedEffort: phase.estimatedEffort || '2-3 hours',
+              successMetrics: ['Action completed', 'Positive outcome achieved'],
+              dependencies: []
+            }],
+            milestones: phase.milestones?.map((milestone: any, milestoneIndex: number) => ({
+              id: milestone.id || `milestone-${index}-${milestoneIndex}`,
+              name: milestone.name || `${phase.name} Complete`,
+              description: milestone.description || 'Successfully execute the planned action',
+              dueDate: milestone.dueDate || new Date(Date.now() + (index + 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
+              owner: milestone.owner || 'Sales Rep',
+              status: milestone.status || 'pending'
+            })) || [{
+              id: `milestone-${index + 1}`,
+              name: `${phase.name} Complete`,
+              description: 'Successfully execute the planned action',
+              dueDate: new Date(Date.now() + (index + 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
+              owner: 'Sales Rep',
+              status: 'pending'
+            }]
+          })) || [],
+          riskMitigation: apiData.riskMitigation || [
             {
-              id: 'phase-1',
-              name: 'Discovery & Research',
-              timeline: 'Week 1-2',
-              objectives: [
-                'Understand business challenges and goals',
-                'Identify key decision makers and influencers',
-                'Map current technology stack and processes'
-              ],
-              tactics: [
-                {
-                  id: 'tactic-1',
-                  name: 'Stakeholder Mapping',
-                  description: 'Identify and research all stakeholders involved in the decision process',
-                  priority: 'high',
-                  estimatedEffort: '2-3 hours',
-                  successMetrics: ['Stakeholder map completed', 'Key contacts identified'],
-                  dependencies: []
-                },
-                {
-                  id: 'tactic-2',
-                  name: 'Needs Assessment',
-                  description: 'Conduct thorough discovery to understand pain points and requirements',
-                  priority: 'high',
-                  estimatedEffort: '1-2 hours',
-                  successMetrics: ['Discovery call completed', 'Requirements documented'],
-                  dependencies: ['Stakeholder Mapping']
-                }
-              ],
-              milestones: [
-                {
-                  id: 'milestone-1',
-                  name: 'Initial Discovery Complete',
-                  description: 'Complete stakeholder mapping and needs assessment',
-                  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                  owner: 'Sales Rep',
-                  status: 'pending'
-                }
-              ]
-            },
-            {
-              id: 'phase-2',
-              name: 'Solution Presentation',
-              timeline: 'Week 3-4',
-              objectives: [
-                'Present tailored solution addressing identified needs',
-                'Demonstrate ROI and value proposition',
-                'Address objections and concerns'
-              ],
-              tactics: [
-                {
-                  id: 'tactic-3',
-                  name: 'Customized Demo',
-                  description: 'Deliver personalized product demonstration based on discovery findings',
-                  priority: 'high',
-                  estimatedEffort: '2-3 hours',
-                  successMetrics: ['Demo delivered', 'Feedback collected'],
-                  dependencies: ['Needs Assessment']
-                },
-                {
-                  id: 'tactic-4',
-                  name: 'ROI Analysis',
-                  description: 'Present detailed ROI analysis and business case',
-                  priority: 'medium',
-                  estimatedEffort: '1-2 hours',
-                  successMetrics: ['ROI document shared', 'Business case accepted'],
-                  dependencies: ['Customized Demo']
-                }
-              ],
-              milestones: [
-                {
-                  id: 'milestone-2',
-                  name: 'Solution Presented',
-                  description: 'Complete demo and ROI presentation',
-                  dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                  owner: 'Sales Rep',
-                  status: 'pending'
-                }
-              ]
-            },
-            {
-              id: 'phase-3',
-              name: 'Negotiation & Close',
-              timeline: 'Week 5-6',
-              objectives: [
-                'Negotiate terms and pricing',
-                'Overcome final objections',
-                'Secure commitment and close deal'
-              ],
-              tactics: [
-                {
-                  id: 'tactic-5',
-                  name: 'Contract Negotiation',
-                  description: 'Negotiate terms, pricing, and implementation timeline',
-                  priority: 'high',
-                  estimatedEffort: '3-5 hours',
-                  successMetrics: ['Terms agreed', 'Contract drafted'],
-                  dependencies: ['Solution Presented']
-                },
-                {
-                  id: 'tactic-6',
-                  name: 'Final Close',
-                  description: 'Secure signature and transition to implementation',
-                  priority: 'high',
-                  estimatedEffort: '1-2 hours',
-                  successMetrics: ['Contract signed', 'Deal closed'],
-                  dependencies: ['Contract Negotiation']
-                }
-              ],
-              milestones: [
-                {
-                  id: 'milestone-3',
-                  name: 'Deal Closed',
-                  description: 'Contract signed and deal completed',
-                  dueDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
-                  owner: 'Sales Rep',
-                  status: 'pending'
-                }
-              ]
-            }
-          ],
-          riskMitigation: [
-            {
-              risk: 'Budget constraints',
+              risk: 'Implementation delays',
               probability: 0.3,
-              impact: 'High - may delay or cancel purchase',
-              mitigation: 'Emphasize ROI and offer flexible payment terms. Prepare alternative pricing tiers.'
-            },
-            {
-              risk: 'Competitor activity',
-              probability: 0.4,
-              impact: 'Medium - may influence decision',
-              mitigation: 'Highlight unique differentiators and provide competitive analysis. Schedule regular check-ins.'
+              impact: 'Medium',
+              mitigation: 'Regular check-ins and proactive communication'
             }
           ],
-          successIndicators: [
+          successIndicators: apiData.successIndicators || [
             {
-              metric: 'Engagement Score',
-              target: '85%',
-              current: '72%',
-              status: 'on_track'
-            },
-            {
-              metric: 'Response Time',
-              target: '< 24 hours',
-              current: '< 12 hours',
-              status: 'on_track'
-            },
-            {
-              metric: 'Meeting Attendance',
+              metric: 'Deal Progression',
               target: '100%',
-              current: '100%',
+              current: '75%',
               status: 'on_track'
             }
           ],
-          competitivePositioning: {
-            strengths: [
-              'Superior customer support and implementation',
-              'Advanced AI capabilities',
-              'Flexible pricing and payment options',
-              'Strong industry expertise'
-            ],
+          competitivePositioning: apiData.competitivePositioning || {
+            strengths: ['AI-powered insights', 'Personalized approach'],
             weaknesses: [],
-            differentiation: [
-              'AI-powered insights and automation',
-              'Proactive customer success management',
-              'Industry-specific solutions'
-            ],
-            winThemes: [
-              'ROI-focused messaging',
-              'Partnership approach',
-              'Innovation and technology leadership'
-            ]
+            differentiation: ['Advanced analytics', 'Predictive recommendations'],
+            winThemes: ['Innovation', 'Results-driven']
           }
         };
 
-        setPlaybook(mockPlaybook);
-        researchThinking.complete('✅ Mock playbook generated successfully!');
-      } else {
-        // Real playbook generation for non-mock contacts
-        const response = await supabase.functions.invoke('adaptive-playbook', {
-          body: {
-            dealData: deal,
-            companyProfile: getCompanyProfile(deal.company),
-            competitiveAnalysis: getCompetitiveAnalysis(deal.competitors || []),
-            historicalData: getSimilarDeals(deal),
-            model: 'gpt-5' // Use GPT-5 for advanced reasoning
-          }
+        setPlaybook(transformedPlaybook);
+        researchThinking.updateProgress(90, '✨ Finalizing playbook...');
+        researchThinking.complete('✅ AI playbook generated successfully!');
+
+        // Cache the playbook
+        cacheService.set('AdaptivePlaybookGenerator', cacheKey, transformedPlaybook, 30 * 60 * 1000, {
+          contactId: deal.id,
+          dealId: deal.id,
+          toolName: 'AdaptivePlaybookGenerator',
+          parameters: cacheKey
         });
 
-        researchThinking.moveToSynthesizing('📋 Synthesizing strategic recommendations...');
-
-        if (response.data?.playbook) {
-          setPlaybook(response.data.playbook);
-          researchThinking.complete('✅ AI playbook generated successfully!');
-        } else {
-          throw new Error('No playbook data received');
-        }
+        // End analytics tracking - success
+        analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+      } else {
+        throw new Error('No playbook data received from API');
       }
     } catch (error) {
       console.error('Failed to generate playbook:', error);
-      researchThinking.complete('❌ Failed to generate playbook');
+
+      // Provide user-friendly error messages
+      let errorMessage = '❌ Failed to generate playbook';
+      if (error instanceof Error) {
+        if (error.message.includes('API key')) {
+          errorMessage = '❌ API key not configured. Please check your OpenAI API key.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = '❌ Network error. Please check your internet connection.';
+        } else if (error.message.includes('rate limit')) {
+          errorMessage = '❌ API rate limit exceeded. Please try again later.';
+        } else {
+          errorMessage = `❌ Failed to generate playbook: ${error.message}`;
+        }
+      }
+
+      researchThinking.setError(errorMessage);
+
+      // End analytics tracking - failure
+      analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -441,17 +365,31 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
               <p className="text-sm text-gray-600">GPT-5 powered strategy for {deal.name}</p>
             </div>
           </div>
-          <ModernButton
-            variant="outline"
-            size="sm"
-            onClick={generatePlaybook}
-            loading={loading}
-            className="flex items-center space-x-2"
-            aria-label="Generate adaptive sales playbook"
-          >
-            <Brain className="w-4 h-4" />
-            <span>{loading ? 'Generating...' : '🎯 Generate'}</span>
-          </ModernButton>
+          <div className="flex items-center gap-3">
+            <select
+              value={playbookType}
+              onChange={(e) => setPlaybookType(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              disabled={loading}
+            >
+              <option value="comprehensive">Comprehensive</option>
+              <option value="aggressive">Aggressive</option>
+              <option value="conservative">Conservative</option>
+              <option value="relationship">Relationship-Focused</option>
+              <option value="transactional">Transactional</option>
+            </select>
+            <ModernButton
+              variant="outline"
+              size="sm"
+              onClick={generatePlaybook}
+              loading={loading}
+              className="flex items-center space-x-2"
+              aria-label="Generate adaptive sales playbook"
+            >
+              <Brain className="w-4 h-4" />
+              <span>{loading ? 'Generating...' : '🎯 Generate'}</span>
+            </ModernButton>
+          </div>
         </div>
 
       {/* Deal Summary */}

@@ -16,6 +16,7 @@ import { AdaptivePlaybookGenerator } from '../ai-sales-intelligence/AdaptivePlay
 import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
+import { AISettingsPanel } from '../ai-sales-intelligence/AISettingsPanel';
 import { Contact } from '../../types/contact';
 import { contactAI } from '../../services/contact-ai.service';
 import {
@@ -24,7 +25,7 @@ import {
   BarChart3, Zap, Activity, Database, Target,
   Linkedin, Twitter, Facebook, Instagram, Save,
   Ambulance as Cancel, Heart, HeartOff, MapPin, Briefcase,
-  Search, Sparkles, Wand2
+  Search, Sparkles, Wand2, Settings
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -90,6 +91,14 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const [showAddSource, setShowAddSource] = useState(false);
   const [addSource, setAddSource] = useState('');
   const [editInterestLevel, setEditInterestLevel] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
+
+  // AI Tools state management
+  const [communicationOptimization, setCommunicationOptimization] = useState<any>(null);
+  const [discoveryQuestions, setDiscoveryQuestions] = useState<any>(null);
+  const [dealHealthAnalysis, setDealHealthAnalysis] = useState<any>(null);
+  const [optimizedContent, setOptimizedContent] = useState<string>('');
+  const [copiedQuestions, setCopiedQuestions] = useState<string[]>([]);
 
   // Research state management
   const researchThinking = useResearchThinking();
@@ -516,11 +525,11 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const handleAIEnrichment = async (enrichmentData: ContactEnrichmentData) => {
     setLastEnrichment(enrichmentData);
     setIsEnriching(true);
-    
+
     try {
       // Apply enrichment data to contact
       const updates: any = {};
-      
+
       if (enrichmentData.phone && !editedContact.phone) {
         updates.phone = enrichmentData.phone;
       }
@@ -531,11 +540,11 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         updates.avatarSrc = enrichmentData.avatar;
       }
       if (enrichmentData.notes) {
-        updates.notes = editedContact.notes ? 
-          `${editedContact.notes}\n\nAI Research: ${enrichmentData.notes}` : 
+        updates.notes = editedContact.notes ?
+          `${editedContact.notes}\n\nAI Research: ${enrichmentData.notes}` :
           enrichmentData.notes;
       }
-      
+
       // Social profiles
       if (enrichmentData.socialProfiles) {
         const socialUpdates: any = {};
@@ -548,23 +557,94 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
           updates.socialProfiles = { ...editedContact.socialProfiles, ...socialUpdates };
         }
       }
-      
+
       // Update AI score if provided
       if (enrichmentData.confidence) {
         updates.aiScore = Math.round(enrichmentData.confidence);
       }
-      
+
       const updatedContact = { ...editedContact, ...updates };
       setEditedContact(updatedContact);
-      
+
       if (onUpdate && Object.keys(updates).length > 0) {
         await onUpdate(contact.id, updates);
       }
-      
+
     } catch (error) {
       console.error('Failed to apply enrichment:', error);
     } finally {
       setIsEnriching(false);
+    }
+  };
+
+  // AI Tools handlers
+  const handleCommunicationOptimize = (optimized: any) => {
+    setCommunicationOptimization(optimized);
+    // Apply optimized content if available
+    if (optimized.optimizedContent?.body) {
+      setOptimizedContent(optimized.optimizedContent.body);
+    }
+  };
+
+  const handleApplyOptimization = () => {
+    if (communicationOptimization?.optimizedContent?.body) {
+      // Copy optimized content to clipboard
+      navigator.clipboard.writeText(communicationOptimization.optimizedContent.body);
+      alert('Optimized content copied to clipboard!');
+    }
+  };
+
+  const handleViewAnalytics = () => {
+    // Could open a modal or navigate to analytics view
+    alert('Analytics view would open here');
+  };
+
+  const handleCopyQuestions = (questions: string[]) => {
+    setCopiedQuestions(questions);
+    // Copy to clipboard
+    navigator.clipboard.writeText(questions.join('\n\n'));
+    alert('Questions copied to clipboard!');
+  };
+
+  const handleRegenerateQuestions = () => {
+    setDiscoveryQuestions(null);
+    // The component will regenerate when re-rendered
+  };
+
+  const handleSaveTemplate = () => {
+    if (discoveryQuestions) {
+      // Could save to local storage or database
+      localStorage.setItem(`question-template-${contact.id}`, JSON.stringify(discoveryQuestions));
+      alert('Question template saved!');
+    }
+  };
+
+  const handleRunAnalysis = () => {
+    // Deal health analysis will run when component re-renders
+  };
+
+  const handleGenerateReport = () => {
+    if (dealHealthAnalysis) {
+      const report = `
+Deal Health Report for ${editedContact.name}
+
+Overall Health Score: ${dealHealthAnalysis.overall}/100
+Risk Level: ${dealHealthAnalysis.riskLevel}
+
+Recommendations:
+${dealHealthAnalysis.recommendations?.map((rec: string) => `- ${rec}`).join('\n') || 'None'}
+
+Next Steps:
+${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') || 'None'}
+      `;
+      navigator.clipboard.writeText(report);
+      alert('Health report copied to clipboard!');
+    }
+  };
+
+  const handleViewRecommendations = () => {
+    if (dealHealthAnalysis?.recommendations) {
+      alert(`Key Recommendations:\n${dealHealthAnalysis.recommendations.join('\n')}`);
     }
   };
 
@@ -1942,6 +2022,13 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
                         4 AI Tools Available
                       </span>
+                      <button
+                        onClick={() => setShowAISettings(true)}
+                        className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
+                        title="AI Settings"
+                      >
+                        <Settings className="w-4 h-4 text-gray-600" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1979,14 +2066,14 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                           role: editedContact.title,
                           company: editedContact.company,
                           relationship: editedContact.interestLevel === 'hot' ? 'champion' :
-                                       editedContact.interestLevel === 'medium' ? 'existing' : 'new'
+                                        editedContact.interestLevel === 'medium' ? 'existing' : 'new'
                         },
                         purpose: 'follow_up',
                         previousInteractions: 1
                       }}
-                      onOptimize={(optimized) => console.log('Optimized:', optimized)}
-                      onApplyOptimization={() => console.log('Apply optimization')}
-                      onViewAnalytics={() => console.log('View analytics')}
+                      onOptimize={handleCommunicationOptimize}
+                      onApplyOptimization={handleApplyOptimization}
+                      onViewAnalytics={handleViewAnalytics}
                     />
                   </div>
 
@@ -2008,9 +2095,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                         objective: `Understand ${editedContact.firstName || editedContact.name.split(' ')[0]}'s needs and qualify the opportunity`,
                         previousMeetings: 0
                       }}
-                      onCopyQuestions={(questions) => console.log('Copy questions:', questions)}
-                      onRegenerate={() => console.log('Regenerate questions')}
-                      onSaveTemplate={() => console.log('Save template')}
+                      onCopyQuestions={handleCopyQuestions}
+                      onRegenerate={handleRegenerateQuestions}
+                      onSaveTemplate={handleSaveTemplate}
                     />
                   </div>
 
@@ -2028,9 +2115,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                         stakeholders: [],
                         lastActivity: editedContact.updatedAt
                       }}
-                      onRunAnalysis={() => console.log('Run analysis')}
-                      onGenerateReport={() => console.log('Generate report')}
-                      onViewRecommendations={() => console.log('View recommendations')}
+                      onRunAnalysis={handleRunAnalysis}
+                      onGenerateReport={handleGenerateReport}
+                      onViewRecommendations={handleViewRecommendations}
                     />
                   </div>
                 </div>
@@ -2045,6 +2132,16 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AI Settings Panel */}
+      <AISettingsPanel
+        isOpen={showAISettings}
+        onClose={() => setShowAISettings(false)}
+        onSettingsChange={(settings) => {
+          console.log('AI Settings updated:', settings);
+          // Could dispatch to global state or context here
+        }}
+      />
     </div>
     </>
   );

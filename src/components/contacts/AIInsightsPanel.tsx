@@ -466,15 +466,19 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
 
   // Load insights when component mounts
   useEffect(() => {
+    console.log('AIInsightsPanel: useEffect triggered for contact:', contact.id, 'contactInsights:', contactInsights);
     if (!contactInsights || contactInsights.length === 0) {
+      console.log('AIInsightsPanel: Generating insights on mount');
       handleGenerateInsights();
     }
   }, [contact.id]);
 
   const handleGenerateInsights = async () => {
+    console.log('AIInsightsPanel: handleGenerateInsights called for contact:', contact.id);
     researchThinking.startResearch('🔍 Researching contact and company for insights...');
 
     try {
+      console.log('AIInsightsPanel: Starting web search');
       researchThinking.moveToAnalyzing('🌐 Searching web for company information...');
 
       // Perform web search for company and industry context
@@ -482,6 +486,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       const systemPrompt = `You are an expert business intelligence analyst. Analyze this contact's company, industry trends, leadership information, and generate actionable sales insights. Focus on opportunities, risks, predictions, and recommendations.`;
       const userPrompt = `Analyze ${contact.firstName} ${contact.lastName} at ${contact.company}. Provide insights on company performance, industry trends, leadership changes, competitive landscape, and sales opportunities. Generate specific, actionable insights for sales qualification.`;
 
+      console.log('AIInsightsPanel: Calling webSearchService.searchWithAI with query:', searchQuery);
       const searchResults = await webSearchService.searchWithAI(
         searchQuery,
         systemPrompt,
@@ -491,6 +496,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           searchContextSize: 'high'
         }
       );
+      console.log('AIInsightsPanel: Web search completed, results:', searchResults);
 
       researchThinking.moveToSynthesizing('🧠 Synthesizing web research into insights...');
 
@@ -507,13 +513,20 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
 
       setResearchSources(sources);
 
+      console.log('AIInsightsPanel: Generating insights with AI context');
       // Generate insights with enhanced context from web research
       await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction']);
+      console.log('AIInsightsPanel: Insights generated successfully');
 
       researchThinking.complete('✅ Web-enhanced insights generated successfully!');
 
     } catch (error) {
-      console.error('Failed to generate insights:', error);
+      console.error('AIInsightsPanel: Failed to generate insights:', error);
+      console.log('AIInsightsPanel: Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        contact: contact.id
+      });
       researchThinking.complete('❌ Failed to generate insights');
     }
   };
@@ -527,11 +540,20 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
   };
 
   const handleGenerateIntelligence = async () => {
+    console.log('AIInsightsPanel: handleGenerateIntelligence called for contact:', contact.id);
     try {
+      console.log('AIInsightsPanel: Generating correlation');
       await generateCorrelation(contact, true);
+      console.log('AIInsightsPanel: Generating recommendations');
       await generateRecommendations(contact);
+      console.log('AIInsightsPanel: Intelligence generated successfully');
     } catch (error) {
-      console.error('Failed to generate intelligence:', error);
+      console.error('AIInsightsPanel: Failed to generate intelligence:', error);
+      console.log('AIInsightsPanel: Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        contact: contact.id
+      });
     }
   };
   const handleFeedback = (insightId: string, feedback: 'positive' | 'negative') => {
@@ -635,7 +657,14 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           <ModernButton
             variant="outline"
             size="sm"
-            onClick={activeView === 'insights' ? handleGenerateInsights : handleGenerateIntelligence}
+            onClick={() => {
+              console.log('AIInsightsPanel: Refresh/Generate button clicked, activeView:', activeView, 'contact:', contact.id);
+              if (activeView === 'insights') {
+                handleGenerateInsights();
+              } else {
+                handleGenerateIntelligence();
+              }
+            }}
             loading={isContactProcessing || isIntelligenceAnalyzing}
             className="flex items-center space-x-2"
           >
@@ -724,7 +753,10 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                 <p className="text-gray-600 mb-4">No AI insights available yet</p>
                 <ModernButton
                   variant="primary"
-                  onClick={handleGenerateInsights}
+                  onClick={() => {
+                    console.log('AIInsightsPanel: Generate AI Insights button clicked for contact:', contact.id);
+                    handleGenerateInsights();
+                  }}
                   className="flex items-center space-x-2"
                 >
                   <Sparkles className="w-4 h-4" />

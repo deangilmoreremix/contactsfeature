@@ -32,7 +32,8 @@ import {
   ExternalLink,
   BarChart3,
   TrendingUp,
-  Brain
+  Brain,
+  X
 } from 'lucide-react';
 
 interface CommunicationRecord {
@@ -119,13 +120,20 @@ const sampleCommunications: CommunicationRecord[] = [
 ];
 
 export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) => {
-   const [activeTab, setActiveTab] = useState('timeline');
-   const [selectedType, setSelectedType] = useState('all');
-   const [isComposing, setIsComposing] = useState(false);
-   const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
-   const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
-   const [loading, setLoading] = useState(false);
-   const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState('timeline');
+    const [selectedType, setSelectedType] = useState('all');
+    const [isComposing, setIsComposing] = useState(false);
+    const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
+    const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [generatedContent, setGeneratedContent] = useState<{
+      type: 'email' | 'meeting' | 'proposal' | 'strategy';
+      content: string;
+      subject?: string;
+      timestamp: Date;
+    } | null>(null);
+    const [showContentModal, setShowContentModal] = useState(false);
 
    // Research state management
    const researchThinking = useResearchThinking();
@@ -307,11 +315,199 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
       const result = await edgeFunctionService.getCommunicationHistory(contact.id || 'test-contact-123', {
         action: 'strategy'
       });
-      console.log('Communication strategy:', result);
-      // You could show this in a modal or dedicated section
+
+      setGeneratedContent({
+        type: 'strategy',
+        content: result.strategy || 'Communication strategy generated successfully. Key recommendations: Maintain weekly touchpoints, focus on relationship building, and leverage multiple channels for engagement.',
+        timestamp: new Date()
+      });
+      setShowContentModal(true);
     } catch (error) {
       console.error('Failed to get communication strategy:', error);
       setError('Failed to get communication strategy');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateMeetingInvite = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      researchThinking.startResearch('📅 Generating AI-powered meeting invite...');
+
+      // Check if this is mock data
+      const isMockData = contact.name.includes('Demo') || contact.company === 'Demo Company' || contact.name.startsWith('Mock');
+
+      if (isMockData) {
+        // Mock meeting invite generation
+        researchThinking.moveToAnalyzing('📊 Analyzing availability and preferences...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        researchThinking.moveToSynthesizing('✨ Crafting personalized meeting invite...');
+
+        const mockMeetingInvite = {
+          subject: `Meeting Request: ${contact.company} Solution Discussion`,
+          content: `Hi ${contact.firstName || contact.name},
+
+I hope this email finds you well. Following up on our recent conversation about ${contact.company}'s needs, I'd like to schedule a brief call to discuss how we can help streamline your operations.
+
+Proposed times (all times in your timezone):
+• Tuesday, 2:00 PM - 2:30 PM
+• Thursday, 10:00 AM - 10:30 AM
+• Friday, 3:00 PM - 3:30 PM
+
+Please let me know which time works best for you, or suggest an alternative that fits your schedule better.
+
+Looking forward to our conversation!
+
+Best regards,
+Sales Representative`
+        };
+
+        setGeneratedContent({
+          type: 'meeting',
+          content: mockMeetingInvite.content,
+          subject: mockMeetingInvite.subject,
+          timestamp: new Date()
+        });
+        setShowContentModal(true);
+
+        researchThinking.complete('✅ Meeting invite generated successfully!');
+      } else {
+        // Real meeting invite generation
+        researchThinking.moveToAnalyzing('📊 Analyzing availability and preferences...');
+
+        const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} meeting preferences availability communication style`;
+        const systemPrompt = `You are a meeting scheduling expert. Create personalized meeting invites based on contact research and communication patterns.`;
+        const userPrompt = `Generate a professional meeting invite for ${contact.firstName} ${contact.lastName} at ${contact.company}. Include optimal timing suggestions and personalized content based on their role and company.`;
+
+        const searchResults = await webSearchService.searchWithAI(
+          searchQuery,
+          systemPrompt,
+          userPrompt,
+          {
+            includeSources: true,
+            searchContextSize: 'medium'
+          }
+        );
+
+        researchThinking.moveToSynthesizing('✨ Crafting personalized meeting invite...');
+
+        const result = await edgeFunctionService.composeEmail(contact, 'meeting_invite', {
+          tone: 'professional',
+          urgency: 'medium',
+          webResearch: searchResults.content,
+          companyContext: searchResults.sources
+        });
+
+        setGeneratedContent({
+          type: 'meeting',
+          content: result.content || 'Meeting invite generated successfully.',
+          subject: result.subject || `Meeting Request: ${contact.company} Discussion`,
+          timestamp: new Date()
+        });
+        setShowContentModal(true);
+
+        researchThinking.complete('✅ Meeting invite generated with AI research!');
+      }
+    } catch (error) {
+      console.error('Failed to generate meeting invite:', error);
+      researchThinking.complete('❌ Failed to generate meeting invite');
+      setError('Failed to generate meeting invite');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateProposalEmail = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      researchThinking.startResearch('📋 Generating AI-powered proposal email...');
+
+      // Check if this is mock data
+      const isMockData = contact.name.includes('Demo') || contact.company === 'Demo Company' || contact.name.startsWith('Mock');
+
+      if (isMockData) {
+        // Mock proposal email generation
+        researchThinking.moveToAnalyzing('🔍 Researching company needs and pain points...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        researchThinking.moveToSynthesizing('✨ Crafting compelling proposal email...');
+
+        const mockProposalEmail = {
+          subject: `Custom Solution Proposal for ${contact.company}`,
+          content: `Hi ${contact.firstName || contact.name},
+
+Thank you for taking the time to discuss ${contact.company}'s challenges with me. Based on our conversation, I've prepared a customized solution proposal that addresses your key requirements.
+
+Key highlights of our proposal:
+• 40% reduction in operational overhead
+• Streamlined workflow automation
+• 24/7 technical support included
+• Flexible implementation timeline
+
+I've attached the detailed proposal document for your review. I'd be happy to schedule a call to walk through the proposal and answer any questions you might have.
+
+Please let me know a convenient time for us to discuss this further.
+
+Best regards,
+Sales Representative`
+        };
+
+        setGeneratedContent({
+          type: 'proposal',
+          content: mockProposalEmail.content,
+          subject: mockProposalEmail.subject,
+          timestamp: new Date()
+        });
+        setShowContentModal(true);
+
+        researchThinking.complete('✅ Proposal email generated successfully!');
+      } else {
+        // Real proposal email generation
+        researchThinking.moveToAnalyzing('🔍 Researching company needs and pain points...');
+
+        const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} business challenges industry trends solution needs`;
+        const systemPrompt = `You are a sales proposal expert. Create compelling, personalized proposal emails based on contact research and business needs.`;
+        const userPrompt = `Generate a professional proposal email for ${contact.firstName} ${contact.lastName} at ${contact.company}. Focus on their specific business challenges and how our solution addresses their needs. Include compelling value propositions and clear next steps.`;
+
+        const searchResults = await webSearchService.searchWithAI(
+          searchQuery,
+          systemPrompt,
+          userPrompt,
+          {
+            includeSources: true,
+            searchContextSize: 'high'
+          }
+        );
+
+        researchThinking.moveToSynthesizing('✨ Crafting compelling proposal email...');
+
+        const result = await edgeFunctionService.composeEmail(contact, 'proposal', {
+          tone: 'professional',
+          urgency: 'high',
+          webResearch: searchResults.content,
+          companyContext: searchResults.sources
+        });
+
+        setGeneratedContent({
+          type: 'proposal',
+          content: result.content || 'Proposal email generated successfully.',
+          subject: result.subject || `Custom Solution Proposal for ${contact.company}`,
+          timestamp: new Date()
+        });
+        setShowContentModal(true);
+
+        researchThinking.complete('✅ Proposal email generated with AI research!');
+      }
+    } catch (error) {
+      console.error('Failed to generate proposal email:', error);
+      researchThinking.complete('❌ Failed to generate proposal email');
+      setError('Failed to generate proposal email');
     } finally {
       setLoading(false);
     }
@@ -340,6 +536,92 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         position="top"
         size="md"
       />
+
+      {/* Generated Content Modal */}
+      {showContentModal && generatedContent && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                  <Brain className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    AI Generated {generatedContent.type === 'meeting' ? 'Meeting Invite' :
+                                 generatedContent.type === 'proposal' ? 'Proposal Email' :
+                                 generatedContent.type === 'strategy' ? 'Communication Strategy' : 'Content'}
+                  </h3>
+                  <p className="text-sm text-gray-600">Generated {generatedContent.timestamp.toLocaleTimeString()}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowContentModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {generatedContent.subject && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+                  <div className="p-3 bg-gray-50 rounded-lg border">
+                    <p className="text-gray-900 font-medium">{generatedContent.subject}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
+                <div className="p-4 bg-gray-50 rounded-lg border max-h-96 overflow-y-auto">
+                  <pre className="text-gray-900 whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                    {generatedContent.content}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+              <ModernButton
+                variant="outline"
+                onClick={() => setShowContentModal(false)}
+              >
+                Close
+              </ModernButton>
+              <ModernButton
+                variant="primary"
+                onClick={() => {
+                  // Copy to clipboard
+                  navigator.clipboard.writeText(
+                    generatedContent.subject ?
+                    `Subject: ${generatedContent.subject}\n\n${generatedContent.content}` :
+                    generatedContent.content
+                  );
+                  alert('Content copied to clipboard!');
+                }}
+              >
+                Copy to Clipboard
+              </ModernButton>
+              {generatedContent.type === 'meeting' || generatedContent.type === 'proposal' ? (
+                <ModernButton
+                  variant="primary"
+                  onClick={() => {
+                    // Open email client with content
+                    const subject = generatedContent.subject || 'AI Generated Content';
+                    const body = encodeURIComponent(generatedContent.content);
+                    window.open(`mailto:${contact.email}?subject=${encodeURIComponent(subject)}&body=${body}`, '_blank');
+                    setShowContentModal(false);
+                  }}
+                >
+                  Open in Email
+                </ModernButton>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-6">
       {/* Header */}
@@ -502,11 +784,19 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
                 <p className="font-medium text-blue-900 text-sm">Follow-up Email</p>
                 <p className="text-blue-700 text-xs">AI-generated follow-up based on last interaction</p>
               </button>
-              <button className="w-full text-left p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+              <button
+                className="w-full text-left p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                onClick={handleGenerateMeetingInvite}
+                disabled={loading}
+              >
                 <p className="font-medium text-green-900 text-sm">Meeting Invite</p>
                 <p className="text-green-700 text-xs">Smart scheduling with optimal time suggestions</p>
               </button>
-              <button className="w-full text-left p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+              <button
+                className="w-full text-left p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+                onClick={handleGenerateProposalEmail}
+                disabled={loading}
+              >
                 <p className="font-medium text-purple-900 text-sm">Proposal Email</p>
                 <p className="text-purple-700 text-xs">Personalized proposal based on contact profile</p>
               </button>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { MessageSquare, Copy, CheckCircle, RefreshCw, Users, Building, Target } from 'lucide-react';
@@ -59,6 +60,10 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
 
   const generateQuestions = async () => {
     setLoading(true);
+
+    // Start analytics tracking
+    const sessionId = analyticsService.startTracking('DiscoveryQuestionsGenerator', 'generate', contact.id);
+
     try {
       // Check if this is mock data (similar to other components)
       const isMockData = contact.name.includes('Demo') || contact.company === 'Demo Company' || contact.name.startsWith('Mock');
@@ -146,33 +151,62 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
         };
 
         setQuestions(mockQuestions);
+
+        // End analytics tracking - success
+        analyticsService.endTracking(sessionId, true, undefined, 'mock', 'mock');
       } else {
         // Real question generation for non-mock contacts
         const response = await supabase.functions.invoke('discovery-questions', {
           body: {
             contact: {
+              id: contact.id,
               name: contact.name,
-              role: contact.role,
+              title: contact.role,
               company: contact.company,
               industry: contact.industry,
               companySize: contact.companySize
             },
             meetingContext,
-            preferences: {
-              questionCount: 12,
-              includeTechnical: meetingContext.type === 'demo',
-              includePersonal: meetingContext.type === 'discovery',
-              focusAreas: getFocusAreas(meetingContext.type)
-            }
+            questionType: 'comprehensive',
+            aiProvider: 'openai'
           }
         });
 
-        if (response.data?.questions) {
-          setQuestions(response.data.questions);
+        if (response.data?.data) {
+          // Transform the API response to match the expected questions structure
+          const apiData = response.data.data;
+          const transformedQuestions: GeneratedQuestions = {
+            questions: apiData.questions?.map((q: any, index: number) => ({
+              id: `q${index + 1}`,
+              question: q.question || q.text || 'Generated question',
+              category: q.category || 'business',
+              priority: q.priority || 'medium',
+              reasoning: q.reasoning || q.rationale || 'Strategic question for discovery'
+            })) || [],
+            summary: {
+              totalQuestions: apiData.questions?.length || 0,
+              categories: apiData.questions?.reduce((acc: any, q: any) => {
+                acc[q.category] = (acc[q.category] || 0) + 1;
+                return acc;
+              }, {}) || {},
+              estimatedDuration: Math.max(15, (apiData.questions?.length || 0) * 3),
+              keyThemes: ['Discovery', 'Requirements', 'Timeline', 'Budget']
+            }
+          };
+
+          setQuestions(transformedQuestions);
+
+          // End analytics tracking - success
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+        } else {
+          throw new Error('No questions data received');
         }
       }
     } catch (error) {
       console.error('Failed to generate questions:', error);
+
+      // End analytics tracking - failure
+      analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }

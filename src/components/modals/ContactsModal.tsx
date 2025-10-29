@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAI } from '../../contexts/AIContext';
+import { AIProvider } from '../../contexts/AIContext';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
@@ -832,12 +833,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
       {/* Contact Detail Modal */}
       {selectedContact && (
-        <ContactDetailView
-          contact={selectedContact}
-          isOpen={!!selectedContact}
-          onClose={handleContactDetailClose}
-          onUpdate={updateContact}
-        />
+        <AIProvider>
+          <ContactDetailView
+            contact={selectedContact}
+            isOpen={!!selectedContact}
+            onClose={handleContactDetailClose}
+            onUpdate={updateContact}
+          />
+        </AIProvider>
       )}
 
       {/* Settings Modal */}

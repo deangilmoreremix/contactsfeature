@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Heart, TrendingUp, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
@@ -47,6 +48,10 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
 
   const analyzeDealHealth = async () => {
     setLoading(true);
+
+    // Start analytics tracking
+    const sessionId = analyticsService.startTracking('DealHealthPanel', 'analyze', deal.id, deal.id);
+
     try {
       // Check if this is mock data (similar to other components)
       const isMockData = deal.name.includes('Demo') || deal.company === 'Demo Company' || deal.name.startsWith('Mock');
@@ -96,67 +101,78 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
         };
 
         setHealthScore(mockHealthScore);
+
+        // End analytics tracking - success
+        analyticsService.endTracking(sessionId, true, undefined, 'mock', 'mock');
       } else {
         // Real health analysis for non-mock contacts
         const response = await supabase.functions.invoke('deal-health-analysis', {
           body: {
-            dealData: {
-              id: deal.id,
-              name: deal.name,
-              value: deal.value,
-              company: deal.company,
-              stage: deal.stage,
-              closeDate: deal.closeDate,
-              competitors: deal.competitors || [],
-              stakeholders: deal.stakeholders || [],
-              lastActivity: deal.lastActivity,
-              timeline: calculateTimeline(deal),
-              budget: deal.value,
-              productFit: 75, // Would be calculated based on actual data
-              relationshipStrength: 'strong', // Would be determined from engagement history
-              champion: deal.stakeholders?.find((s: any) => s.role === 'champion')
-            }
+            deal,
+            healthMetrics: [],
+            analysisDepth: 'comprehensive',
+            riskFactors: [],
+            aiProvider: 'openai'
           }
         });
 
-        if (response.data?.analysis) {
-          const analysis = response.data.analysis;
-          setHealthScore({
-            overall: analysis.score || 75,
-            indicators: [
+        if (response.data?.data) {
+          // Transform the API response to match the expected health structure
+          const apiData = response.data.data;
+          const transformedHealth: DealHealth = {
+            overall: apiData.healthScore || 75,
+            indicators: apiData.healthIndicators?.map((indicator: any) => ({
+              name: indicator.metric || indicator.name || 'Health Indicator',
+              score: indicator.value || indicator.score || 75,
+              status: indicator.status || 'good'
+            })) || [
               {
                 name: 'Stakeholder Alignment',
-                score: analysis.metrics?.stakeholderScore || 80,
-                status: 'good'
-              },
-              {
-                name: 'Timeline Risk',
-                score: analysis.metrics?.timelineScore || 70,
-                status: analysis.metrics?.timelineScore < 60 ? 'critical' : 'warning'
-              },
-              {
-                name: 'Budget Fit',
                 score: 85,
                 status: 'good'
               },
               {
+                name: 'Timeline Risk',
+                score: 72,
+                status: 'warning'
+              },
+              {
+                name: 'Budget Fit',
+                score: 88,
+                status: 'good'
+              },
+              {
                 name: 'Competition',
-                score: analysis.competitors?.length > 2 ? 60 : 80,
-                status: analysis.competitors?.length > 2 ? 'critical' : 'good'
+                score: 65,
+                status: 'warning'
               }
             ],
-            recommendations: analysis.recommendations || [
-              'Schedule stakeholder alignment meeting',
-              'Address competitive positioning',
-              'Review timeline expectations'
+            recommendations: apiData.recommendations || [
+              'Schedule follow-up meeting with key stakeholders',
+              'Address competitive concerns proactively',
+              'Review and confirm timeline expectations'
             ],
-            riskLevel: determineRiskLevel(analysis),
-            nextSteps: generateNextSteps(analysis)
-          });
+            riskLevel: apiData.riskLevel || 'medium',
+            nextSteps: apiData.nextActions?.map((action: any) => action.action || action) || [
+              'Schedule stakeholder alignment call within 48 hours',
+              'Prepare competitive differentiation materials',
+              'Update deal stage in CRM'
+            ]
+          };
+
+          setHealthScore(transformedHealth);
+
+          // End analytics tracking - success
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+        } else {
+          throw new Error('No health analysis data received');
         }
       }
     } catch (error) {
       console.error('Failed to analyze deal health:', error);
+
+      // End analytics tracking - failure
+      analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
     }

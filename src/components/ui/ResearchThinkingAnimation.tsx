@@ -1,12 +1,15 @@
 import React from 'react';
-import { Brain, Search, Sparkles, CheckCircle, Loader2 } from 'lucide-react';
+import { Brain, Search, Sparkles, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
 
 interface ResearchThinkingAnimationProps {
-  stage: 'researching' | 'analyzing' | 'synthesizing' | 'optimizing' | 'complete';
+  stage: 'researching' | 'analyzing' | 'synthesizing' | 'optimizing' | 'complete' | 'error';
   message: string;
   progress?: number;
   showCitations?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  estimatedTime?: number;
+  currentStep?: number;
+  totalSteps?: number;
 }
 
 const stageConfig = {
@@ -44,6 +47,13 @@ const stageConfig = {
     bgColor: 'bg-green-50',
     borderColor: 'border-green-200',
     messages: ['Research complete!', 'Analysis finished!', 'Ready to use!']
+  },
+  error: {
+    icon: AlertTriangle,
+    color: 'text-red-600',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    messages: ['Research failed', 'Analysis error', 'Please try again']
   }
 };
 
@@ -52,7 +62,10 @@ export const ResearchThinkingAnimation: React.FC<ResearchThinkingAnimationProps>
   message,
   progress,
   showCitations = false,
-  size = 'md'
+  size = 'md',
+  estimatedTime,
+  currentStep,
+  totalSteps
 }) => {
   const config = stageConfig[stage];
   const Icon = config.icon;
@@ -97,20 +110,33 @@ export const ResearchThinkingAnimation: React.FC<ResearchThinkingAnimationProps>
           {message}
         </p>
 
-        {/* Progress bar for stages with progress */}
+        {/* Enhanced Progress bar for stages with progress */}
         {progress !== undefined && (
           <div className="mt-2">
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  stage === 'complete' ? 'bg-green-500' : 'bg-current'
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  stage === 'complete' ? 'bg-green-500' :
+                  stage === 'error' ? 'bg-red-500' : 'bg-current'
                 }`}
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {progress}% complete
-            </p>
+            <div className="flex justify-between items-center mt-1">
+              <p className="text-xs text-gray-500">
+                {progress}% complete
+              </p>
+              {estimatedTime && (
+                <p className="text-xs text-gray-500">
+                  ~{estimatedTime}s remaining
+                </p>
+              )}
+            </div>
+            {currentStep && totalSteps && (
+              <p className="text-xs text-gray-500 mt-1">
+                Step {currentStep} of {totalSteps}
+              </p>
+            )}
           </div>
         )}
 
@@ -133,56 +159,101 @@ export const ResearchThinkingAnimation: React.FC<ResearchThinkingAnimationProps>
   );
 };
 
-// Hook for managing research thinking states
+// Enhanced hook for managing research thinking states with granular progress
 export const useResearchThinking = () => {
   const [currentStage, setCurrentStage] = React.useState<ResearchThinkingAnimationProps['stage']>('researching');
   const [message, setMessage] = React.useState('');
   const [progress, setProgress] = React.useState<number | undefined>();
+  const [currentStep, setCurrentStep] = React.useState<number | undefined>();
+  const [totalSteps, setTotalSteps] = React.useState<number | undefined>();
+  const [estimatedTime, setEstimatedTime] = React.useState<number | undefined>();
+  const [startTime, setStartTime] = React.useState<number | undefined>();
 
-  const startResearch = (initialMessage = 'Starting research...') => {
+  const startResearch = (initialMessage = 'Starting research...', steps = 4) => {
     setCurrentStage('researching');
     setMessage(initialMessage);
     setProgress(0);
+    setCurrentStep(1);
+    setTotalSteps(steps);
+    setStartTime(Date.now());
+    setEstimatedTime(30); // Default 30 seconds
   };
 
-  const updateProgress = (newProgress: number, newMessage?: string) => {
+  const updateProgress = (newProgress: number, newMessage?: string, step?: number) => {
     setProgress(newProgress);
     if (newMessage) setMessage(newMessage);
+    if (step) setCurrentStep(step);
+
+    // Update estimated time based on progress
+    if (startTime && totalSteps && currentStep) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remainingSteps = (totalSteps - currentStep);
+      const avgTimePerStep = elapsed / currentStep;
+      setEstimatedTime(Math.round(avgTimePerStep * remainingSteps));
+    }
   };
 
   const moveToAnalyzing = (newMessage = 'Analyzing data...') => {
     setCurrentStage('analyzing');
     setMessage(newMessage);
     setProgress(25);
+    setCurrentStep(2);
   };
 
   const moveToSynthesizing = (newMessage = 'Synthesizing results...') => {
     setCurrentStage('synthesizing');
     setMessage(newMessage);
     setProgress(75);
+    setCurrentStep(3);
   };
 
   const moveToOptimizing = (newMessage = 'Optimizing output...') => {
     setCurrentStage('optimizing');
     setMessage(newMessage);
     setProgress(90);
+    setCurrentStep(4);
   };
 
   const complete = (finalMessage = 'Research complete!') => {
     setCurrentStage('complete');
     setMessage(finalMessage);
     setProgress(100);
+    setCurrentStep(totalSteps);
+    setEstimatedTime(0);
+  };
+
+  const setError = (errorMessage = 'Research failed') => {
+    setCurrentStage('error');
+    setMessage(errorMessage);
+    setProgress(0);
+    setEstimatedTime(0);
+  };
+
+  const reset = () => {
+    setCurrentStage('researching');
+    setMessage('');
+    setProgress(undefined);
+    setCurrentStep(undefined);
+    setTotalSteps(undefined);
+    setEstimatedTime(undefined);
+    setStartTime(undefined);
   };
 
   return {
     currentStage,
     message,
     progress,
+    currentStep,
+    totalSteps,
+    estimatedTime,
+    startTime,
     startResearch,
     updateProgress,
     moveToAnalyzing,
     moveToSynthesizing,
     moveToOptimizing,
-    complete
+    complete,
+    setError,
+    reset
   };
 };

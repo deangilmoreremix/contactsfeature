@@ -5,6 +5,17 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
+function getPlaybookTypeInstructions(playbookType) {
+  const instructions = {
+    comprehensive: 'Create a balanced, thorough sales strategy covering all aspects of the sales process. Include detailed phases, tactics, and risk mitigation.',
+    aggressive: 'Create an aggressive, fast-paced sales strategy focused on quick wins and rapid deal progression. Emphasize urgency, competitive pressure, and accelerated timelines.',
+    conservative: 'Create a conservative, relationship-focused sales strategy emphasizing trust-building, thorough qualification, and long-term partnership development.',
+    relationship: 'Create a relationship-building focused strategy that prioritizes trust, value demonstration, and long-term partnership over immediate sales.',
+    transactional: 'Create a transactional sales strategy focused on efficiency, clear value propositions, and streamlined decision-making processes.'
+  };
+  return instructions[playbookType] || instructions.comprehensive;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
@@ -19,6 +30,7 @@ exports.handler = async (event) => {
       currentStage = 'prospect',
       businessGoals = [],
       automationType = 'comprehensive',
+      playbookType = 'comprehensive',
       aiProvider = 'openai'
     } = JSON.parse(event.body);
 
@@ -26,6 +38,7 @@ exports.handler = async (event) => {
       contactId: contact.id,
       currentStage,
       automationType,
+      playbookType,
       aiProvider
     });
 
@@ -34,13 +47,13 @@ exports.handler = async (event) => {
     // Route to appropriate AI provider
     switch (aiProvider) {
       case 'openai':
-        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType);
+        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
         break;
       case 'gemini':
-        result = await generateWithGemini(contact, currentStage, businessGoals, automationType);
+        result = await generateWithGemini(contact, currentStage, businessGoals, automationType, playbookType);
         break;
       default:
-        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType);
+        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
     }
 
     // Store playbook suggestions
@@ -87,7 +100,7 @@ exports.handler = async (event) => {
   }
 };
 
-async function generateWithOpenAI(contact, currentStage, businessGoals, automationType) {
+async function generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType) {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -96,30 +109,75 @@ async function generateWithOpenAI(contact, currentStage, businessGoals, automati
 
     const systemPrompt = `You are an expert sales automation strategist. Create adaptive playbooks that respond to contact behavior and business objectives. Generate intelligent automation sequences with appropriate triggers and conditions.`;
 
-    const userPrompt = `Create an adaptive playbook for this contact:
+    const userPrompt = `Create a ${playbookType} sales playbook for this contact:
 
 Contact: ${contact.name} (${contact.title} at ${contact.company})
 Current Stage: ${currentStage}
 Business Goals: ${businessGoals.join(', ')}
+Playbook Type: ${playbookType}
 Automation Type: ${automationType}
 
-Generate automation playbook with:
+${getPlaybookTypeInstructions(playbookType)}
+
+Generate a detailed sales playbook with the following structure:
 {
-  "recommendedActions": ["immediate", "short_term", "long_term"],
-  "automationSequence": [
+  "strategy": {
+    "name": "Strategic sales approach name",
+    "description": "Detailed strategy description",
+    "confidence": 0.85,
+    "rationale": "Why this strategy works for this contact"
+  },
+  "phases": [
     {
-      "step": "number",
-      "action": "string",
-      "trigger": "string",
-      "condition": "string",
-      "timing": "string",
-      "channel": "string"
+      "id": "phase-1",
+      "name": "Phase name (e.g., Discovery & Research)",
+      "timeline": "Week 1-2",
+      "objectives": ["Objective 1", "Objective 2", "Objective 3"],
+      "tactics": [
+        {
+          "id": "tactic-1",
+          "name": "Tactic name",
+          "description": "Detailed tactic description",
+          "priority": "high|medium|low",
+          "estimatedEffort": "2-3 hours",
+          "successMetrics": ["Metric 1", "Metric 2"],
+          "dependencies": []
+        }
+      ],
+      "milestones": [
+        {
+          "id": "milestone-1",
+          "name": "Milestone name",
+          "description": "Milestone description",
+          "dueDate": "2024-12-31T00:00:00.000Z",
+          "owner": "Sales Rep",
+          "status": "pending"
+        }
+      ]
     }
   ],
-  "triggers": ["event1", "event2"],
-  "conditions": ["criteria1", "criteria2"],
-  "successMetrics": ["metric1", "metric2"],
-  "fallbackActions": ["action1", "action2"]
+  "riskMitigation": [
+    {
+      "risk": "Risk description",
+      "probability": 0.3,
+      "impact": "High|Medium|Low",
+      "mitigation": "Mitigation strategy"
+    }
+  ],
+  "successIndicators": [
+    {
+      "metric": "Engagement Score",
+      "target": "85%",
+      "current": "72%",
+      "status": "on_track|at_risk|behind"
+    }
+  ],
+  "competitivePositioning": {
+    "strengths": ["Strength 1", "Strength 2"],
+    "weaknesses": [],
+    "differentiation": ["Differentiation 1", "Differentiation 2"],
+    "winThemes": ["Theme 1", "Theme 2"]
+  }
 }`;
 
     const response = await fetch('https://api.openai.com/v1/responses', {
@@ -163,6 +221,11 @@ Generate automation playbook with:
     }
 
     return {
+      strategy: content.strategy,
+      phases: content.phases || [],
+      riskMitigation: content.riskMitigation || [],
+      successIndicators: content.successIndicators || [],
+      competitivePositioning: content.competitivePositioning || {},
       recommendedActions: content.recommendedActions || [],
       automationSequence: content.automationSequence || [],
       triggers: content.triggers || [],
@@ -179,20 +242,23 @@ Generate automation playbook with:
   }
 }
 
-async function generateWithGemini(contact, currentStage, businessGoals, automationType) {
+async function generateWithGemini(contact, currentStage, businessGoals, automationType, playbookType) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('Gemini API key not configured');
     }
 
-    const prompt = `Create an adaptive playbook for this contact:
+    const prompt = `Create a ${playbookType} sales playbook for this contact:
 
 Contact: ${contact.name} at ${contact.company}
 Current Stage: ${currentStage}
 Business Goals: ${businessGoals.join(', ')}
+Playbook Type: ${playbookType}
 
-Return JSON with recommendedActions, automationSequence, triggers, conditions, successMetrics, and fallbackActions.`;
+${getPlaybookTypeInstructions(playbookType)}
+
+Return JSON with strategy, phases, riskMitigation, successIndicators, competitivePositioning, and other playbook components.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -234,6 +300,11 @@ Return JSON with recommendedActions, automationSequence, triggers, conditions, s
     const playbook = JSON.parse(jsonMatch[0]);
 
     return {
+      strategy: playbook.strategy,
+      phases: playbook.phases || [],
+      riskMitigation: playbook.riskMitigation || [],
+      successIndicators: playbook.successIndicators || [],
+      competitivePositioning: playbook.competitivePositioning || {},
       recommendedActions: playbook.recommendedActions || [],
       automationSequence: playbook.automationSequence || [],
       triggers: playbook.triggers || [],

@@ -31,19 +31,20 @@ import {
   Sparkles,
   Brain,
   Award,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
 
 interface AutomationRule {
-  id: string;
-  name: string;
-  description: string;
-  trigger: string;
-  actions: AutomationAction[];
-  isActive: boolean;
-  lastTriggered?: string;
-  triggerCount: number;
-  successRate: number;
+   id: string;
+   name: string;
+   description: string;
+   trigger: string;
+   actions: AutomationAction[];
+   isActive: boolean;
+   lastTriggered?: string | undefined;
+   triggerCount: number;
+   successRate: number;
 }
 
 interface AutomationAction {
@@ -149,14 +150,24 @@ const automationTemplates = [
 ];
 
 export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => {
-   const [activeTab, setActiveTab] = useState('active');
-   const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
-   // Removed unused state: showCreateModal, selectedTemplate
-   const [suggestions, setSuggestions] = useState<any[]>([]);
-   const [loading, setLoading] = useState(false);
-   const [error, setError] = useState<string | null>(null);
-   const [isOptimizing, setIsOptimizing] = useState(false);
-   const [draggedAction, setDraggedAction] = useState<{ automationId: string; actionIndex: number } | null>(null);
+    const [activeTab, setActiveTab] = useState('active');
+    const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isOptimizing, setIsOptimizing] = useState(false);
+    const [draggedAction, setDraggedAction] = useState<{ automationId: string; actionIndex: number } | null>(null);
+
+    // Modal states
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+    const [ruleForm, setRuleForm] = useState({
+      name: '',
+      description: '',
+      trigger: '',
+      isActive: true,
+      actions: [] as AutomationAction[]
+    });
 
    // Research state management
    const researchThinking = useResearchThinking();
@@ -304,6 +315,102 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     setDraggedAction(null);
   };
 
+  const handleCreateRule = () => {
+    setRuleForm({
+      name: '',
+      description: '',
+      trigger: '',
+      isActive: true,
+      actions: []
+    });
+    setEditingRule(null);
+    setShowCreateModal(true);
+  };
+
+  const handleEditRule = (rule: AutomationRule) => {
+    setRuleForm({
+      name: rule.name,
+      description: rule.description,
+      trigger: rule.trigger,
+      isActive: rule.isActive,
+      actions: [...rule.actions]
+    });
+    setEditingRule(rule);
+    setShowCreateModal(true);
+  };
+
+  const handleSaveRule = () => {
+    if (!ruleForm.name.trim() || !ruleForm.trigger.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const newRule: AutomationRule = {
+      id: editingRule?.id || `rule-${Date.now()}`,
+      name: ruleForm.name,
+      description: ruleForm.description,
+      trigger: ruleForm.trigger,
+      isActive: ruleForm.isActive,
+      actions: ruleForm.actions,
+      lastTriggered: editingRule?.lastTriggered || undefined,
+      triggerCount: editingRule?.triggerCount || 0,
+      successRate: editingRule?.successRate || 0
+    };
+
+    if (editingRule) {
+      // Update existing rule
+      setAutomations(prev => prev.map(rule =>
+        rule.id === editingRule.id ? newRule : rule
+      ));
+    } else {
+      // Add new rule
+      setAutomations(prev => [...prev, newRule]);
+    }
+
+    setShowCreateModal(false);
+    setRuleForm({
+      name: '',
+      description: '',
+      trigger: '',
+      isActive: true,
+      actions: []
+    });
+    setEditingRule(null);
+  };
+
+  const handleDeleteRule = (ruleId: string) => {
+    if (window.confirm('Are you sure you want to delete this automation rule?')) {
+      setAutomations(prev => prev.filter(rule => rule.id !== ruleId));
+    }
+  };
+
+  const handleAddAction = () => {
+    setRuleForm(prev => ({
+      ...prev,
+      actions: [...prev.actions, {
+        type: 'email',
+        description: 'New action',
+        delay: ''
+      }]
+    }));
+  };
+
+  const handleUpdateAction = (index: number, updates: Partial<AutomationAction>) => {
+    setRuleForm(prev => ({
+      ...prev,
+      actions: prev.actions.map((action, i) =>
+        i === index ? { ...action, ...updates } : action
+      )
+    }));
+  };
+
+  const handleRemoveAction = (index: number) => {
+    setRuleForm(prev => ({
+      ...prev,
+      actions: prev.actions.filter((_, i) => i !== index)
+    }));
+  };
+
   return (
     <>
       {/* Research Status Overlay */}
@@ -313,6 +420,158 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         position="top"
         size="md"
       />
+
+      {/* Create/Edit Rule Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                  <Zap className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {editingRule ? 'Edit Automation Rule' : 'Create New Automation Rule'}
+                  </h3>
+                  <p className="text-sm text-gray-600">Configure triggers and actions for automated workflows</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Rule Name *</label>
+                  <input
+                    type="text"
+                    value={ruleForm.name}
+                    onChange={(e) => setRuleForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., New Lead Welcome Sequence"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <textarea
+                    value={ruleForm.description}
+                    onChange={(e) => setRuleForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Describe what this automation rule does..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Trigger Condition *</label>
+                  <input
+                    type="text"
+                    value={ruleForm.trigger}
+                    onChange={(e) => setRuleForm(prev => ({ ...prev, trigger: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Contact created with status 'lead'"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    checked={ruleForm.isActive}
+                    onChange={(e) => setRuleForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="isActive" className="text-sm text-gray-700">Rule is active</label>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-md font-semibold text-gray-900">Actions</h4>
+                  <ModernButton
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddAction}
+                    className="flex items-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Action</span>
+                  </ModernButton>
+                </div>
+
+                <div className="space-y-3">
+                  {ruleForm.actions.map((action, index) => (
+                    <div key={index} className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+                      <select
+                        value={action.type}
+                        onChange={(e) => handleUpdateAction(index, { type: e.target.value as AutomationAction['type'] })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="email">Email</option>
+                        <option value="sms">SMS</option>
+                        <option value="call">Call</option>
+                        <option value="task">Task</option>
+                        <option value="wait">Wait</option>
+                        <option value="tag">Tag</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        value={action.description}
+                        onChange={(e) => handleUpdateAction(index, { description: e.target.value })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Action description"
+                      />
+
+                      {action.type === 'wait' && (
+                        <input
+                          type="text"
+                          value={action.delay || ''}
+                          onChange={(e) => handleUpdateAction(index, { delay: e.target.value })}
+                          className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., 2 days"
+                        />
+                      )}
+
+                      <button
+                        onClick={() => handleRemoveAction(index)}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+              <ModernButton
+                variant="outline"
+                onClick={() => setShowCreateModal(false)}
+              >
+                Cancel
+              </ModernButton>
+              <ModernButton
+                variant="primary"
+                onClick={handleSaveRule}
+                disabled={!ruleForm.name.trim() || !ruleForm.trigger.trim()}
+              >
+                {editingRule ? 'Update Rule' : 'Create Rule'}
+              </ModernButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-6">
       {/* Header */}
@@ -343,7 +602,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
           <ModernButton
             variant="primary"
             size="sm"
-            onClick={() => console.log('Create new rule')}
+            onClick={handleCreateRule}
             className="flex items-center space-x-2"
           >
             <Plus className="w-4 h-4" />
@@ -475,19 +734,14 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                   </button>
                   <button
                     className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    onClick={() => console.log('Edit automation:', automation.id)}
+                    onClick={() => handleEditRule(automation)}
                     aria-label={`Edit automation rule ${automation.name}`}
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    onClick={() => {
-                      if (window.confirm(`Are you sure you want to delete the automation rule "${automation.name}"?`)) {
-                        console.log('Delete automation:', automation.id);
-                        // Add delete logic here
-                      }
-                    }}
+                    onClick={() => handleDeleteRule(automation.id)}
                     aria-label={`Delete automation rule ${automation.name}`}
                   >
                     <Trash2 className="w-4 h-4" />
