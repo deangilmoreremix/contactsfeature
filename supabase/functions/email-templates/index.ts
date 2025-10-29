@@ -1,246 +1,282 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: req.headers.get("Authorization")! },
         },
       }
-    )
+    );
 
-    const { action, category, templateId, templateData } = await req.json()
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const category = url.searchParams.get("category");
 
-    let result
+      let query = supabaseClient
+        .from("email_templates")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    switch (action) {
-      case 'get':
-        result = await getTemplates(category)
-        break
-      case 'getById':
-        result = await getTemplateById(templateId)
-        break
-      case 'create':
-        result = await createTemplate(templateData)
-        break
-      case 'update':
-        result = await updateTemplate(templateId, templateData)
-        break
-      case 'delete':
-        result = await deleteTemplate(templateId)
-        break
-      case 'categories':
-        result = await getTemplateCategories()
-        break
-      default:
-        throw new Error(`Unknown action: ${action}`)
+      if (category && category !== "all") {
+        query = query.eq("category", category);
+      }
+
+      const { data: templates, error } = await query;
+
+      if (error) {
+        throw new Error(`Failed to fetch templates: ${error.message}`);
+      }
+
+      return new Response(
+        JSON.stringify({
+          templates: templates || [],
+          count: templates?.length || 0,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    if (req.method === "POST") {
+      const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+      const {
+        action,
+        templateData,
+        aiGenerate,
+        category,
+        purpose,
+      } = await req.json();
+
+      if (action === "generate" && aiGenerate && openaiApiKey) {
+        const systemPrompt = `You are an expert email template designer for B2B sales. Create professional, reusable email templates with:
+- Clear, engaging subject lines
+- Proper variable placeholders (use {{variable_name}} format)
+- Professional structure (greeting, body, CTA, closing)
+- Flexibility for personalization
+- Industry best practices
+
+Return ONLY valid JSON with this exact structure:
+{
+  "name": "template name",
+  "description": "brief template description",
+  "category": "${category || "general"}",
+  "subject": "subject with {{variables}}",
+  "body": "body content with {{variables}} and proper formatting",
+  "variables": ["array", "of", "variable", "names"]
+}`;
+
+        const userPrompt = `Create a professional email template for: ${purpose || category || "general business communication"}
+
+Template should:
+1. Include appropriate variable placeholders for personalization
+2. Have a compelling subject line
+3. Be structured for ${category || "general"} emails
+4. Include common variables like {{first_name}}, {{company_name}}, {{sender_name}}
+5. Be professional yet approachable
+6. Include a clear call-to-action
+7. List all variables used in the "variables" array
+
+Return ONLY valid JSON, no other text.`;
+
+        const openaiResponse = await fetch(
+          "https://api.openai.com/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openaiApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 800,
+              response_format: { type: "json_object" },
+            }),
+          }
+        );
+
+        if (!openaiResponse.ok) {
+          const errorData = await openaiResponse.text();
+          throw new Error(`OpenAI API error: ${errorData}`);
+        }
+
+        const openaiData = await openaiResponse.json();
+        const generatedTemplate = JSON.parse(
+          openaiData.choices[0].message.content
+        );
+
+        const { data: user } = await supabaseClient.auth.getUser();
+
+        const { data: newTemplate, error: insertError } = await supabaseClient
+          .from("email_templates")
+          .insert({
+            user_id: user?.user?.id,
+            name: generatedTemplate.name,
+            description: generatedTemplate.description,
+            category: generatedTemplate.category,
+            subject: generatedTemplate.subject,
+            body: generatedTemplate.body,
+            variables: generatedTemplate.variables,
+            is_default: false,
+            is_ai_generated: true,
+            model: "gpt-4o-mini",
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          throw new Error(`Failed to save template: ${insertError.message}`);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            template: newTemplate,
+            aiGenerated: true,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (action === "create" && templateData) {
+        const { data: user } = await supabaseClient.auth.getUser();
+
+        const { data: newTemplate, error: insertError } = await supabaseClient
+          .from("email_templates")
+          .insert({
+            user_id: user?.user?.id,
+            name: templateData.name,
+            description: templateData.description,
+            category: templateData.category || "general",
+            subject: templateData.subject,
+            body: templateData.body,
+            variables: templateData.variables || [],
+            is_default: false,
+            is_ai_generated: false,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          throw new Error(`Failed to create template: ${insertError.message}`);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            template: newTemplate,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      throw new Error("Invalid action or missing required data");
+    }
+
+    if (req.method === "PUT") {
+      const { templateId, templateData } = await req.json();
+
+      if (!templateId || !templateData) {
+        throw new Error("Template ID and data are required");
+      }
+
+      const { data: updatedTemplate, error: updateError } =
+        await supabaseClient
+          .from("email_templates")
+          .update({
+            name: templateData.name,
+            description: templateData.description,
+            category: templateData.category,
+            subject: templateData.subject,
+            body: templateData.body,
+            variables: templateData.variables,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", templateId)
+          .select()
+          .single();
+
+      if (updateError) {
+        throw new Error(`Failed to update template: ${updateError.message}`);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          template: updatedTemplate,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (req.method === "DELETE") {
+      const { templateId } = await req.json();
+
+      if (!templateId) {
+        throw new Error("Template ID is required");
+      }
+
+      const { error: deleteError } = await supabaseClient
+        .from("email_templates")
+        .delete()
+        .eq("id", templateId);
+
+      if (deleteError) {
+        throw new Error(`Failed to delete template: ${deleteError.message}`);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          deletedId: templateId,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    throw new Error(`Unsupported method: ${req.method}`);
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error("Email templates operation failed:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Operation failed",
+        details: error.message,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
-})
-
-async function getTemplates(category: string = 'all') {
-  // In a real implementation, this would query a database
-  // For now, return predefined templates
-  const allTemplates = [
-    {
-      id: 'welcome-new-contact',
-      name: 'Welcome New Contact',
-      category: 'onboarding',
-      subject: 'Welcome to {{company_name}}!',
-      content: `Hi {{first_name}},
-
-Welcome to {{company_name}}! We're excited to have you as part of our community.
-
-Here's what you can expect from us:
-• Regular updates about our latest features
-• Exclusive insights from our team
-• Opportunities to connect with other professionals
-
-If you have any questions, feel free to reply to this email.
-
-Best regards,
-{{sender_name}}
-{{sender_title}}
-{{company_name}}`
-    },
-    {
-      id: 'follow-up-meeting',
-      name: 'Meeting Follow-up',
-      category: 'followup',
-      subject: 'Thank you for meeting with us',
-      content: `Hi {{first_name}},
-
-Thank you for taking the time to meet with me today. I enjoyed our conversation about {{meeting_topic}}.
-
-As discussed, here are the next steps:
-{{next_steps}}
-
-Please let me know if you need any additional information.
-
-Best regards,
-{{sender_name}}`
-    },
-    {
-      id: 'newsletter-monthly',
-      name: 'Monthly Newsletter',
-      category: 'newsletter',
-      subject: '{{month}} Update from {{company_name}}',
-      content: `Hi {{first_name}},
-
-Here's what's been happening at {{company_name}} this month:
-
-{{monthly_highlights}}
-
-{{cta_text}}
-
-Best regards,
-{{sender_name}}
-{{company_name}}`
-    },
-    {
-      id: 'product-update',
-      name: 'Product Update',
-      category: 'product',
-      subject: 'New Feature: {{feature_name}}',
-      content: `Hi {{first_name}},
-
-We're excited to announce our latest feature: {{feature_name}}!
-
-{{feature_description}}
-
-{{benefits}}
-
-Try it out today: {{cta_link}}
-
-Best regards,
-{{sender_name}}
-{{company_name}}`
-    },
-    {
-      id: 're-engagement',
-      name: 'Re-engagement Campaign',
-      category: 'engagement',
-      subject: 'We miss you at {{company_name}}',
-      content: `Hi {{first_name}},
-
-We noticed it has been a while since you last visited {{company_name}}. We hope you're doing well!
-
-Here are some updates you might have missed:
-{{recent_updates}}
-
-Come back and see what's new: {{website_link}}
-
-Best regards,
-{{sender_name}}`
-    },
-    {
-      id: 'event-invitation',
-      name: 'Event Invitation',
-      category: 'events',
-      subject: 'You\'re invited: {{event_name}}',
-      content: `Hi {{first_name}},
-
-You're invited to our upcoming event: {{event_name}}
-
-Event Details:
-• Date: {{event_date}}
-• Time: {{event_time}}
-• Location: {{event_location}}
-
-{{event_description}}
-
-RSVP here: {{rsvp_link}}
-
-We hope to see you there!
-
-Best regards,
-{{sender_name}}
-{{company_name}}`
-    }
-  ]
-
-  if (category === 'all') {
-    return allTemplates
-  }
-
-  return allTemplates.filter(template => template.category === category)
-}
-
-async function getTemplateById(templateId: string) {
-  const templates = await getTemplates()
-  return templates.find(template => template.id === templateId) || null
-}
-
-async function createTemplate(templateData: any) {
-  // In a real implementation, this would save to database
-  const newTemplate = {
-    ...templateData,
-    id: generateTemplateId(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-
-  return newTemplate
-}
-
-async function updateTemplate(templateId: string, templateData: any) {
-  // In a real implementation, this would update in database
-  const existingTemplate = await getTemplateById(templateId)
-  if (!existingTemplate) {
-    throw new Error('Template not found')
-  }
-
-  const updatedTemplate = {
-    ...existingTemplate,
-    ...templateData,
-    updatedAt: new Date().toISOString()
-  }
-
-  return updatedTemplate
-}
-
-async function deleteTemplate(templateId: string) {
-  // In a real implementation, this would delete from database
-  const template = await getTemplateById(templateId)
-  if (!template) {
-    throw new Error('Template not found')
-  }
-
-  return { success: true, deletedId: templateId }
-}
-
-async function getTemplateCategories() {
-  const templates = await getTemplates()
-  const categories = [...new Set(templates.map(template => template.category))]
-
-  return categories.map(category => ({
-    name: category,
-    count: templates.filter(template => template.category === category).length
-  }))
-}
-
-function generateTemplateId(): string {
-  return 'template_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-}
+});
