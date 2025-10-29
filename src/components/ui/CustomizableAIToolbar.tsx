@@ -100,10 +100,10 @@ const toolMapping: Record<string, string> = {
 };
 
 const defaultQuickActions = [
-  { icon: 'BarChart3', label: 'Lead Score', toolName: 'leadScoring', variant: 'primary' },
-  { icon: 'Mail', label: 'Email AI', toolName: 'emailPersonalization', variant: 'secondary' },
-  { icon: 'Search', label: 'Enrich', toolName: 'contactEnrichment', variant: 'secondary' },
-  { icon: 'TrendingUp', label: 'Insights', toolName: 'businessIntelligence', variant: 'secondary' }
+  { icon: 'BarChart3', label: 'Lead Score', toolName: 'leadScoring', variant: 'primary', featureId: 'ai_toolbar_lead_score' },
+  { icon: 'Mail', label: 'Email AI', toolName: 'emailPersonalization', variant: 'secondary', featureId: 'ai_toolbar_email_ai' },
+  { icon: 'Search', label: 'Enrich', toolName: 'contactEnrichment', variant: 'secondary', featureId: 'ai_toolbar_enrich' },
+  { icon: 'TrendingUp', label: 'Insights', toolName: 'businessIntelligence', variant: 'secondary', featureId: 'ai_toolbar_insights' }
 ];
 
 const QuickAIButton: React.FC<QuickAIButtonProps> = ({
@@ -339,10 +339,8 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
       <div className="space-y-3">
       {/* AI Goals Button with Tooltip */}
       <SmartTooltip
-        content={<GoalsTooltip />}
+        featureId="ai_goals_button"
         position="top"
-        delay={300}
-        maxWidth="320px"
       >
         <AIGoalsButton
           entityType={entityType}
@@ -362,10 +360,9 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
           return (
             <SmartTooltip
               key={index}
-              content={<ToolbarTooltip toolName={action.toolName} />}
+              featureId={(action as any).featureId || undefined}
+              content={!(action as any).featureId ? <ToolbarTooltip toolName={action.toolName} /> : undefined}
               position="top"
-              delay={300}
-              maxWidth="320px"
             >
               <QuickAIButton
                 icon={IconComponent}

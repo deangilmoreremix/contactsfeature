@@ -658,27 +658,31 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
           <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center space-x-4 flex-1">
               {/* Search Input */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search contacts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 w-full bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                />
-              </div>
-              
+              <SmartTooltip featureId="contacts_search_input">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search contacts..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 w-full bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
+              </SmartTooltip>
+
               {/* Interest Level Filter */}
               <div className="relative">
-                <button
-                  onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Filter className="w-4 h-4" />
-                  <span>{activeFilterLabel}</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
+                <SmartTooltip featureId="contacts_interest_filter">
+                  <button
+                    onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Filter className="w-4 h-4" />
+                    <span>{activeFilterLabel}</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </SmartTooltip>
                 
                 {isFilterDropdownOpen && (
                   <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-10">
@@ -700,13 +704,15 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
               {/* Status Filter */}
               <div className="relative">
-                <button
-                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <span>{activeStatusLabel}</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
+                <SmartTooltip featureId="contacts_status_filter">
+                  <button
+                    onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <span>{activeStatusLabel}</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </SmartTooltip>
                 
                 {isStatusDropdownOpen && (
                   <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-10">
@@ -727,59 +733,65 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
               </div>
 
               {/* Select All */}
-              <button
-                onClick={handleSelectAll}
-                className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <CheckCheck className="w-4 h-4" />
-                <span>{selectedContacts.length === filteredContacts.length ? 'Deselect All' : 'Select All'}</span>
-              </button>
+              <SmartTooltip featureId="contacts_select_all">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <CheckCheck className="w-4 h-4" />
+                  <span>{selectedContacts.length === filteredContacts.length ? 'Deselect All' : 'Select All'}</span>
+                </button>
+              </SmartTooltip>
             </div>
 
             {/* View Mode Toggle */}
             <div className="flex items-center space-x-2">
               {/* Sort Dropdown */}
-              <select
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setSortBy(field as typeof sortBy);
-                  setSortOrder(order as typeof sortOrder);
-                }}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="name-asc">Name A-Z</option>
-                <option value="name-desc">Name Z-A</option>
-                <option value="company-asc">Company A-Z</option>
-                <option value="company-desc">Company Z-A</option>
-                <option value="score-desc">Highest Score</option>
-                <option value="score-asc">Lowest Score</option>
-                <option value="updated-desc">Recently Updated</option>
-                <option value="updated-asc">Oldest Updated</option>
-              </select>
+              <SmartTooltip featureId="contacts_sort_control">
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setSortBy(field as typeof sortBy);
+                    setSortOrder(order as typeof sortOrder);
+                  }}
+                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="name-asc">Name A-Z</option>
+                  <option value="name-desc">Name Z-A</option>
+                  <option value="company-asc">Company A-Z</option>
+                  <option value="company-desc">Company Z-A</option>
+                  <option value="score-desc">Highest Score</option>
+                  <option value="score-asc">Lowest Score</option>
+                  <option value="updated-desc">Recently Updated</option>
+                  <option value="updated-asc">Oldest Updated</option>
+                </select>
+              </SmartTooltip>
 
-              <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                <button
-                  onClick={() => setViewMode('card')}
-                  className={`p-2 text-sm font-medium transition-colors ${
-                    viewMode === 'card' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
-                    viewMode === 'table' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
+              <SmartTooltip featureId="contacts_view_mode">
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                  <button
+                    onClick={() => setViewMode('card')}
+                    className={`p-2 text-sm font-medium transition-colors ${
+                      viewMode === 'card'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Grid3X3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
+                      viewMode === 'table'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
+              </SmartTooltip>
             </div>
           </div>
 
@@ -802,16 +814,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredContacts.map((contact) => (
-                  <AIEnhancedContactCard
-                    key={contact.id}
-                    contact={contact}
-                    isSelected={selectedContacts.includes(contact.id)}
-                    onSelect={() => handleContactSelect(contact.id)}
-                    onClick={() => handleContactClick(contact)}
-                    onEdit={handleEditContact}
-                    onAnalyze={handleAnalyzeContact}
-                    isAnalyzing={analyzingContactIds.includes(contact.id)}
-                  />
+                  <SmartTooltip key={contact.id} featureId="contact_card" position="top">
+                    <div>
+                      <AIEnhancedContactCard
+                        contact={contact}
+                        isSelected={selectedContacts.includes(contact.id)}
+                        onSelect={() => handleContactSelect(contact.id)}
+                        onClick={() => handleContactClick(contact)}
+                        onEdit={handleEditContact}
+                        onAnalyze={handleAnalyzeContact}
+                        isAnalyzing={analyzingContactIds.includes(contact.id)}
+                      />
+                    </div>
+                  </SmartTooltip>
                 ))}
               </div>
             )}
@@ -834,12 +849,16 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
       {/* Contact Detail Modal */}
       {selectedContact && (
         <AIProvider>
-          <ContactDetailView
-            contact={selectedContact}
-            isOpen={!!selectedContact}
-            onClose={handleContactDetailClose}
-            onUpdate={updateContact}
-          />
+          <SmartTooltip featureId="contact_detail_view" position="top">
+            <div>
+              <ContactDetailView
+                contact={selectedContact}
+                isOpen={!!selectedContact}
+                onClose={handleContactDetailClose}
+                onUpdate={updateContact}
+              />
+            </div>
+          </SmartTooltip>
         </AIProvider>
       )}
 
