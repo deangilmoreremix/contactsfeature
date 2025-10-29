@@ -92,6 +92,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
   const categories = [
     { id: 'all', name: 'All Templates' },
+    { id: 'Closing', name: 'Closing' },
     { id: 'Prospecting', name: 'Prospecting' },
     { id: 'Follow-up', name: 'Follow-up' },
     { id: 'Proposal', name: 'Proposal' },
@@ -191,9 +192,33 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
       {/* Error Message */}
       {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center">
-          <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-          <span>{error}</span>
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start">
+            <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0 text-red-600 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-red-800 mb-1">Failed to Load Templates</h4>
+              <p className="text-sm text-red-700 mb-3">{error}</p>
+              <div className="flex flex-wrap gap-2">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTemplates()}
+                  className="text-red-700 border-red-300 hover:bg-red-100"
+                >
+                  Try Again
+                </ModernButton>
+                <a
+                  href="https://supabase.com/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-red-600 hover:text-red-800 underline flex items-center"
+                >
+                  Check Supabase Configuration
+                  <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -323,7 +323,8 @@ export const useEmailAI = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Failed to fetch email templates');
+        const errorMsg = errorData.error || errorData.details || `HTTP ${response.status}: Failed to fetch email templates`;
+        throw new Error(errorMsg);
       }
 
       const result = await response.json();
@@ -342,7 +343,15 @@ export const useEmailAI = () => {
 
       return templates;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch email templates';
+      let errorMessage = 'Failed to fetch email templates';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = JSON.stringify(error);
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
 
       setState(prev => ({
         ...prev,
@@ -351,7 +360,7 @@ export const useEmailAI = () => {
       }));
 
       logger.error('Email template fetching failed', error as Error);
-      throw error;
+      throw new Error(errorMessage);
     }
   }, []);
 
