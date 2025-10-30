@@ -222,11 +222,28 @@ class CacheService {
 
   /**
    * Invalidate all contact-related cache entries
-  */
+   */
   invalidateAllContacts(): void {
     this.deleteByTag('contact');
     this.deleteByTag('list');
     this.deleteByTag('ai');
+  }
+
+  // File-related cache methods
+  setFileMetadata(fileId: string, metadata: any, ttl?: number): void {
+    this.set('file', fileId, metadata, ttl, ['file']);
+  }
+
+  getFileMetadata(fileId: string): any | null {
+    return this.get('file', fileId);
+  }
+
+  invalidateFile(fileId: string): void {
+    this.delete('file', fileId);
+  }
+
+  invalidateAllFiles(): void {
+    this.deleteByTag('file');
   }
 
   /**

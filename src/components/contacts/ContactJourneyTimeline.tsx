@@ -7,6 +7,8 @@ import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOv
 import { Contact } from '../../types';
 import { webSearchService } from '../../services/webSearchService';
 import { useDocumentSummarization } from '../../hooks/useDocumentSummarization';
+import { fileStorageService, FileUploadResult } from '../../services/fileStorage.service';
+import { isMockContact } from '../../utils/mockDataDetection';
 import {
   Mail,
   Phone,
@@ -291,72 +293,90 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    // Check if this is mock data
+    const mockDetection = isMockContact(contact);
+    if (mockDetection.isMockData) {
+      alert(`${mockDetection.reason}. File uploads are disabled for demo data.`);
+      return;
+    }
 
     setIsUploading(true);
-
     try {
-      for (const file of Array.from(files)) {
-        // Validate file size (10MB max)
-        if (file.size > 10 * 1024 * 1024) {
-          alert(`File ${file.name} is too large. Maximum size is 10MB.`);
-          continue;
+      const uploadPromises = files.map(file =>
+        fileStorageService.uploadFile(file, contact.id || 'unknown-contact')
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const successfulUploads = results.filter(result => result.success);
+      const failedUploads = results.filter(result => !result.success);
+
+      // Add successful uploads to state
+      const newUploadedFiles: UploadedFile[] = successfulUploads.map(result => ({
+        id: result.fileId,
+        name: result.fileName,
+        size: result.fileSize,
+        type: result.fileType,
+        url: result.url,
+        uploadedAt: result.uploadedAt,
+        uploadedBy: 'Current User'
+      }));
+
+      setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
+
+      // Add to journey events
+      const fileEvents: JourneyEvent[] = successfulUploads.map(result => ({
+        id: `file-event-${result.fileId}`,
+        type: 'file_upload' as const,
+        title: `File Uploaded: ${result.fileName}`,
+        description: `Uploaded ${result.fileName} (${formatFileSize(result.fileSize)})`,
+        timestamp: result.uploadedAt,
+        status: 'completed',
+        metadata: {
+          fileName: result.fileName,
+          fileSize: result.fileSize,
+          fileType: result.fileType,
+          fileUrl: result.url
         }
-        // Validate file type
-        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/gif'];
-        if (!allowedTypes.includes(file.type)) {
-          alert(`File type ${file.type} is not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, PNG, GIF.`);
-          continue;
-        }
-        // In a real implementation, you would upload to your storage service
-        // For now, we'll simulate the upload
-        const uploadedFile: UploadedFile = {
-          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          url: '#', // Would be the actual URL from your storage service
-          uploadedAt: new Date().toISOString(),
-          uploadedBy: 'Current User' // Would come from auth context
-        };
+      }));
 
-        setUploadedFiles(prev => [...prev, uploadedFile]);
+      setJourneyEvents(prev => [...fileEvents, ...prev]);
 
-        // Add to journey events
-        const fileEvent: JourneyEvent = {
-          id: `event-${Date.now()}`,
-          type: 'file_upload',
-          title: 'File Uploaded',
-          description: `Uploaded ${file.name} (${formatFileSize(file.size)})`,
-          timestamp: new Date().toISOString(),
-          status: 'completed',
-          metadata: {
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type,
-            fileUrl: uploadedFile.url
-          }
-        };
+      // Show results
+      if (successfulUploads.length > 0) {
+        alert(`Successfully uploaded ${successfulUploads.length} file(s)!`);
+      }
 
-        setJourneyEvents(prev => [fileEvent, ...prev]);
+      if (failedUploads.length > 0) {
+        alert(`Failed to upload ${failedUploads.length} file(s): ${failedUploads.map(f => f.error).join(', ')}`);
+      }
 
-        // Automatically summarize the file if it's a document type
-        const documentTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'];
-        if (documentTypes.includes(file.type)) {
-          try {
-            setSummarizingFileId(uploadedFile.id);
-            await processAndSummarizeFile(file, uploadedFile.id, {
-              contactName: contact.name,
-              companyName: contact.company
-            });
-          } catch (error) {
-            console.error('Auto-summarization failed:', error);
-          } finally {
-            setSummarizingFileId(null);
+      // Automatically summarize document files
+      const documentTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'];
+      for (const result of successfulUploads) {
+        if (documentTypes.includes(result.fileType)) {
+          const uploadedFile = newUploadedFiles.find(f => f.id === result.fileId);
+          if (uploadedFile) {
+            try {
+              setSummarizingFileId(uploadedFile.id);
+              // Note: We need the original file object for summarization
+              // In a real implementation, you'd store the file blob or retrieve it
+              const mockFile = new File(['Mock content'], uploadedFile.name, { type: uploadedFile.type }) as any;
+              await processAndSummarizeFile(mockFile, uploadedFile.id, {
+                contactName: contact.name,
+                companyName: contact.company
+              });
+            } catch (error) {
+              console.error('Auto-summarization failed:', error);
+            } finally {
+              setSummarizingFileId(null);
+            }
           }
         }
       }
+
     } catch (error) {
       console.error('File upload failed:', error);
       alert('File upload failed. Please try again.');
