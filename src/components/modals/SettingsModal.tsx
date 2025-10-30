@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
+import UserManagement from '../../pages/UserManagement';
 import {
   X,
   Settings,
@@ -12,7 +13,8 @@ import {
   Globe,
   Zap,
   Save,
-  RefreshCw
+  RefreshCw,
+  Users
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -21,7 +23,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'notifications' | 'privacy'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'notifications' | 'privacy' | 'users'>('general');
   const [settings, setSettings] = useState({
     // General Settings
     theme: 'system',
@@ -88,7 +90,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     { id: 'general', label: 'General', icon: Settings },
     { id: 'ai', label: 'AI Settings', icon: Brain },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'privacy', label: 'Privacy', icon: Shield }
+    { id: 'privacy', label: 'Privacy', icon: Shield },
+    { id: 'users', label: 'User Management', icon: Users }
   ];
 
   return (
@@ -347,6 +350,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* User Management */}
+            {activeTab === 'users' && (
+              <div className="space-y-6 -m-6">
+                <UserManagement />
               </div>
             )}
           </div>
