@@ -236,153 +236,360 @@ interface AutomationTemplate {
 }
 
 const automationTemplates: AutomationTemplate[] = [
-   {
-     id: 'template-1',
-     name: 'Lead Nurturing',
-     description: 'Standard lead nurturing sequence with educational content',
-     category: 'Lead Management',
-     triggers: ['New lead', 'Form submission', 'Demo request'],
-     isEditable: true,
-     usageCount: 45,
-     createdBy: 'System',
-     tags: ['nurturing', 'education'],
-     actions: [
-       { id: 'temp-1-1', type: 'email', description: 'Send welcome email', template: 'Welcome Template', isActive: true },
-       { id: 'temp-1-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
-       { id: 'temp-1-3', type: 'email', description: 'Send product brochure', template: 'Product Info', isActive: true },
-       { id: 'temp-1-4', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
-       { id: 'temp-1-5', type: 'task', description: 'Schedule follow-up call', isActive: true }
-     ]
-   },
-   {
-     id: 'template-2',
-     name: 'Customer Onboarding',
-     description: 'Post-sale onboarding automation with setup guidance',
-     category: 'Customer Success',
-     triggers: ['Deal closed', 'Contract signed', 'Payment received'],
-     isEditable: true,
-     usageCount: 32,
-     createdBy: 'System',
-     tags: ['onboarding', 'setup'],
-     actions: [
-       { id: 'temp-2-1', type: 'email', description: 'Send welcome package', template: 'Customer Welcome', isActive: true },
-       { id: 'temp-2-2', type: 'task', description: 'Schedule onboarding call', isActive: true },
-       { id: 'temp-2-3', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
-       { id: 'temp-2-4', type: 'email', description: 'Send setup instructions', template: 'Setup Guide', isActive: true },
-       { id: 'temp-2-5', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
-       { id: 'temp-2-6', type: 'task', description: 'Check setup completion', isActive: true }
-     ]
-   },
-   {
-     id: 'template-3',
-     name: 'Contract Renewal Reminder',
-     description: 'Automated reminders for upcoming contract renewals',
-     category: 'Retention',
-     triggers: ['Contract expiring soon', '60 days before renewal', '30 days before renewal'],
-     isEditable: true,
-     usageCount: 28,
-     createdBy: 'System',
-     tags: ['renewal', 'retention'],
-     actions: [
-       { id: 'temp-3-1', type: 'email', description: 'Send renewal reminder', template: 'Renewal Notice', isActive: true },
-       { id: 'temp-3-2', type: 'wait', description: 'Wait 30 days', delay: '30 days', isActive: true },
-       { id: 'temp-3-3', type: 'task', description: 'Schedule renewal discussion', isActive: true },
-       { id: 'temp-3-4', type: 'wait', description: 'Wait 15 days', delay: '15 days', isActive: true },
-       { id: 'temp-3-5', type: 'email', description: 'Send final renewal notice', template: 'Final Renewal', isActive: true }
-     ]
-   },
-   {
-     id: 'template-4',
-     name: 'Event Follow-up',
-     description: 'Post-event engagement sequence for attendees',
-     category: 'Event Management',
-     triggers: ['Event attended', 'Webinar completed', 'Demo attended'],
-     isEditable: true,
-     usageCount: 19,
-     createdBy: 'System',
-     tags: ['events', 'follow-up'],
-     actions: [
-       { id: 'temp-4-1', type: 'email', description: 'Send event recap', template: 'Event Recap', isActive: true },
-       { id: 'temp-4-2', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
-       { id: 'temp-4-3', type: 'email', description: 'Send related resources', template: 'Resource Pack', isActive: true },
-       { id: 'temp-4-4', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
-       { id: 'temp-4-5', type: 'task', description: 'Schedule follow-up meeting', isActive: true }
-     ]
-   },
-   {
-     id: 'template-5',
-     name: 'Re-engagement Campaign',
-     description: 'Win back inactive contacts with personalized messaging',
-     category: 'Re-engagement',
-     triggers: ['No activity for 30 days', 'Unopened emails', 'No response'],
-     isEditable: true,
-     usageCount: 15,
-     createdBy: 'System',
-     tags: ['re-engagement', 'inactive'],
-     actions: [
-       { id: 'temp-5-1', type: 'email', description: 'Send re-engagement email', template: 'We Miss You', isActive: true },
-       { id: 'temp-5-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
-       { id: 'temp-5-3', type: 'sms', description: 'Send follow-up SMS', isActive: true },
-       { id: 'temp-5-4', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
-       { id: 'temp-5-5', type: 'email', description: 'Send special offer', template: 'Re-engagement Offer', isActive: true }
-     ]
-   },
-   {
-     id: 'template-6',
-     name: 'Lead Qualification',
-     description: 'Progressive qualification steps for inbound leads',
-     category: 'Lead Management',
-     triggers: ['Lead submitted form', 'Downloaded resource', 'Requested demo'],
-     isEditable: true,
-     usageCount: 37,
-     createdBy: 'System',
-     tags: ['qualification', 'scoring'],
-     actions: [
-       { id: 'temp-6-1', type: 'email', description: 'Send qualification questionnaire', template: 'Lead Qualifier', isActive: true },
-       { id: 'temp-6-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
-       { id: 'temp-6-3', type: 'task', description: 'Review qualification responses', isActive: true },
-       { id: 'temp-6-4', type: 'tag', description: 'Apply qualification score', isActive: true },
-       { id: 'temp-6-5', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
-       { id: 'temp-6-6', type: 'email', description: 'Send personalized follow-up', template: 'Qualified Lead', isActive: true }
-     ]
-   },
-   {
-     id: 'template-7',
-     name: 'Newsletter Subscription',
-     description: 'Welcome sequence for new newsletter subscribers',
-     category: 'Marketing',
-     triggers: ['Newsletter signup', 'Email subscription', 'Content download'],
-     isEditable: true,
-     usageCount: 52,
-     createdBy: 'System',
-     tags: ['newsletter', 'marketing'],
-     actions: [
-       { id: 'temp-7-1', type: 'email', description: 'Send welcome to newsletter', template: 'Newsletter Welcome', isActive: true },
-       { id: 'temp-7-2', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
-       { id: 'temp-7-3', type: 'email', description: 'Send first newsletter', template: 'Weekly Newsletter', isActive: true },
-       { id: 'temp-7-4', type: 'tag', description: 'Add "Subscriber" tag', isActive: true }
-     ]
-   },
-   {
-     id: 'template-8',
-     name: 'Trial Conversion',
-     description: 'Convert free trial users to paid customers',
-     category: 'Conversion',
-     triggers: ['Trial started', '7 days before trial ends', 'Trial extended'],
-     isEditable: true,
-     usageCount: 24,
-     createdBy: 'System',
-     tags: ['trial', 'conversion'],
-     actions: [
-       { id: 'temp-8-1', type: 'email', description: 'Send trial welcome', template: 'Trial Welcome', isActive: true },
-       { id: 'temp-8-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
-       { id: 'temp-8-3', type: 'email', description: 'Send feature highlight', template: 'Feature Demo', isActive: true },
-       { id: 'temp-8-4', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
-       { id: 'temp-8-5', type: 'email', description: 'Send upgrade offer', template: 'Upgrade Offer', isActive: true },
-       { id: 'temp-8-6', type: 'task', description: 'Schedule conversion call', isActive: true }
-     ]
-   }
-];
+    {
+      id: 'template-1',
+      name: 'Lead Nurturing',
+      description: 'Standard lead nurturing sequence with educational content',
+      category: 'Lead Management',
+      triggers: ['New lead', 'Form submission', 'Demo request'],
+      isEditable: true,
+      usageCount: 45,
+      createdBy: 'System',
+      tags: ['nurturing', 'education'],
+      actions: [
+        { id: 'temp-1-1', type: 'email', description: 'Send welcome email', template: 'Welcome Template', isActive: true },
+        { id: 'temp-1-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
+        { id: 'temp-1-3', type: 'email', description: 'Send product brochure', template: 'Product Info', isActive: true },
+        { id: 'temp-1-4', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-1-5', type: 'task', description: 'Schedule follow-up call', isActive: true }
+      ]
+    },
+    {
+      id: 'template-2',
+      name: 'Customer Onboarding',
+      description: 'Post-sale onboarding automation with setup guidance',
+      category: 'Customer Success',
+      triggers: ['Deal closed', 'Contract signed', 'Payment received'],
+      isEditable: true,
+      usageCount: 32,
+      createdBy: 'System',
+      tags: ['onboarding', 'setup'],
+      actions: [
+        { id: 'temp-2-1', type: 'email', description: 'Send welcome package', template: 'Customer Welcome', isActive: true },
+        { id: 'temp-2-2', type: 'task', description: 'Schedule onboarding call', isActive: true },
+        { id: 'temp-2-3', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
+        { id: 'temp-2-4', type: 'email', description: 'Send setup instructions', template: 'Setup Guide', isActive: true },
+        { id: 'temp-2-5', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-2-6', type: 'task', description: 'Check setup completion', isActive: true }
+      ]
+    },
+    {
+      id: 'template-3',
+      name: 'Contract Renewal Reminder',
+      description: 'Automated reminders for upcoming contract renewals',
+      category: 'Retention',
+      triggers: ['Contract expiring soon', '60 days before renewal', '30 days before renewal'],
+      isEditable: true,
+      usageCount: 28,
+      createdBy: 'System',
+      tags: ['renewal', 'retention'],
+      actions: [
+        { id: 'temp-3-1', type: 'email', description: 'Send renewal reminder', template: 'Renewal Notice', isActive: true },
+        { id: 'temp-3-2', type: 'wait', description: 'Wait 30 days', delay: '30 days', isActive: true },
+        { id: 'temp-3-3', type: 'task', description: 'Schedule renewal discussion', isActive: true },
+        { id: 'temp-3-4', type: 'wait', description: 'Wait 15 days', delay: '15 days', isActive: true },
+        { id: 'temp-3-5', type: 'email', description: 'Send final renewal notice', template: 'Final Renewal', isActive: true }
+      ]
+    },
+    {
+      id: 'template-4',
+      name: 'Event Follow-up',
+      description: 'Post-event engagement sequence for attendees',
+      category: 'Event Management',
+      triggers: ['Event attended', 'Webinar completed', 'Demo attended'],
+      isEditable: true,
+      usageCount: 19,
+      createdBy: 'System',
+      tags: ['events', 'follow-up'],
+      actions: [
+        { id: 'temp-4-1', type: 'email', description: 'Send event recap', template: 'Event Recap', isActive: true },
+        { id: 'temp-4-2', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
+        { id: 'temp-4-3', type: 'email', description: 'Send related resources', template: 'Resource Pack', isActive: true },
+        { id: 'temp-4-4', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-4-5', type: 'task', description: 'Schedule follow-up meeting', isActive: true }
+      ]
+    },
+    {
+      id: 'template-5',
+      name: 'Re-engagement Campaign',
+      description: 'Win back inactive contacts with personalized messaging',
+      category: 'Re-engagement',
+      triggers: ['No activity for 30 days', 'Unopened emails', 'No response'],
+      isEditable: true,
+      usageCount: 15,
+      createdBy: 'System',
+      tags: ['re-engagement', 'inactive'],
+      actions: [
+        { id: 'temp-5-1', type: 'email', description: 'Send re-engagement email', template: 'We Miss You', isActive: true },
+        { id: 'temp-5-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
+        { id: 'temp-5-3', type: 'sms', description: 'Send follow-up SMS', isActive: true },
+        { id: 'temp-5-4', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
+        { id: 'temp-5-5', type: 'email', description: 'Send special offer', template: 'Re-engagement Offer', isActive: true }
+      ]
+    },
+    {
+      id: 'template-6',
+      name: 'Lead Qualification',
+      description: 'Progressive qualification steps for inbound leads',
+      category: 'Lead Management',
+      triggers: ['Lead submitted form', 'Downloaded resource', 'Requested demo'],
+      isEditable: true,
+      usageCount: 37,
+      createdBy: 'System',
+      tags: ['qualification', 'scoring'],
+      actions: [
+        { id: 'temp-6-1', type: 'email', description: 'Send qualification questionnaire', template: 'Lead Qualifier', isActive: true },
+        { id: 'temp-6-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
+        { id: 'temp-6-3', type: 'task', description: 'Review qualification responses', isActive: true },
+        { id: 'temp-6-4', type: 'tag', description: 'Apply qualification score', isActive: true },
+        { id: 'temp-6-5', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
+        { id: 'temp-6-6', type: 'email', description: 'Send personalized follow-up', template: 'Qualified Lead', isActive: true }
+      ]
+    },
+    {
+      id: 'template-7',
+      name: 'Newsletter Subscription',
+      description: 'Welcome sequence for new newsletter subscribers',
+      category: 'Marketing',
+      triggers: ['Newsletter signup', 'Email subscription', 'Content download'],
+      isEditable: true,
+      usageCount: 52,
+      createdBy: 'System',
+      tags: ['newsletter', 'marketing'],
+      actions: [
+        { id: 'temp-7-1', type: 'email', description: 'Send welcome to newsletter', template: 'Newsletter Welcome', isActive: true },
+        { id: 'temp-7-2', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-7-3', type: 'email', description: 'Send first newsletter', template: 'Weekly Newsletter', isActive: true },
+        { id: 'temp-7-4', type: 'tag', description: 'Add "Subscriber" tag', isActive: true }
+      ]
+    },
+    {
+      id: 'template-8',
+      name: 'Trial Conversion',
+      description: 'Convert free trial users to paid customers',
+      category: 'Conversion',
+      triggers: ['Trial started', '7 days before trial ends', 'Trial extended'],
+      isEditable: true,
+      usageCount: 24,
+      createdBy: 'System',
+      tags: ['trial', 'conversion'],
+      actions: [
+        { id: 'temp-8-1', type: 'email', description: 'Send trial welcome', template: 'Trial Welcome', isActive: true },
+        { id: 'temp-8-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
+        { id: 'temp-8-3', type: 'email', description: 'Send feature highlight', template: 'Feature Demo', isActive: true },
+        { id: 'temp-8-4', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
+        { id: 'temp-8-5', type: 'email', description: 'Send upgrade offer', template: 'Upgrade Offer', isActive: true },
+        { id: 'temp-8-6', type: 'task', description: 'Schedule conversion call', isActive: true }
+      ]
+    },
+    {
+      id: 'template-9',
+      name: 'High-Value Prospect Acceleration',
+      description: 'Intensive follow-up for high-scoring prospects',
+      category: 'Sales Acceleration',
+      triggers: ['AI score > 85', 'Hot lead status', 'Large deal size'],
+      isEditable: true,
+      usageCount: 18,
+      createdBy: 'System',
+      tags: ['priority', 'acceleration'],
+      actions: [
+        { id: 'temp-9-1', type: 'task', description: 'Schedule immediate call', isActive: true },
+        { id: 'temp-9-2', type: 'email', description: 'Send personalized proposal', template: 'Proposal Template', isActive: true },
+        { id: 'temp-9-3', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
+        { id: 'temp-9-4', type: 'notification', description: 'Follow-up call reminder', isActive: true },
+        { id: 'temp-9-5', type: 'tag', description: 'Add "Priority" tag', isActive: true }
+      ]
+    },
+    {
+      id: 'template-10',
+      name: 'Customer Feedback Collection',
+      description: 'Gather feedback after key interactions',
+      category: 'Customer Success',
+      triggers: ['Deal closed', 'Support ticket resolved', 'Product delivered'],
+      isEditable: true,
+      usageCount: 31,
+      createdBy: 'System',
+      tags: ['feedback', 'survey'],
+      actions: [
+        { id: 'temp-10-1', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
+        { id: 'temp-10-2', type: 'email', description: 'Send feedback survey', template: 'Feedback Survey', isActive: true },
+        { id: 'temp-10-3', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-10-4', type: 'email', description: 'Follow-up if no response', template: 'Feedback Reminder', isActive: true },
+        { id: 'temp-10-5', type: 'webhook', description: 'Update contact record', isActive: true }
+      ]
+    },
+    {
+      id: 'template-11',
+      name: 'Referral Program Enrollment',
+      description: 'Encourage satisfied customers to refer others',
+      category: 'Growth',
+      triggers: ['Customer satisfaction > 90%', 'Deal closed successfully', 'Positive review'],
+      isEditable: true,
+      usageCount: 22,
+      createdBy: 'System',
+      tags: ['referral', 'growth'],
+      actions: [
+        { id: 'temp-11-1', type: 'email', description: 'Send referral invitation', template: 'Referral Invite', isActive: true },
+        { id: 'temp-11-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
+        { id: 'temp-11-3', type: 'email', description: 'Send referral toolkit', template: 'Referral Resources', isActive: true },
+        { id: 'temp-11-4', type: 'tag', description: 'Add "Referral Eligible" tag', isActive: true }
+      ]
+    },
+    {
+      id: 'template-12',
+      name: 'Abandoned Cart Recovery',
+      description: 'Re-engage contacts who abandoned processes',
+      category: 'Conversion',
+      triggers: ['Cart abandoned', 'Demo not completed', 'Form partially filled'],
+      isEditable: true,
+      usageCount: 29,
+      createdBy: 'System',
+      tags: ['recovery', 'abandoned'],
+      actions: [
+        { id: 'temp-12-1', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
+        { id: 'temp-12-2', type: 'email', description: 'Send recovery email', template: 'Cart Recovery', isActive: true },
+        { id: 'temp-12-3', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-12-4', type: 'email', description: 'Send discount offer', template: 'Recovery Offer', isActive: true },
+        { id: 'temp-12-5', type: 'task', description: 'Schedule recovery call', isActive: true }
+      ]
+    },
+    {
+      id: 'template-13',
+      name: 'Industry News Alerts',
+      description: 'Share relevant industry updates',
+      category: 'Engagement',
+      triggers: ['New industry news', 'Company milestones', 'Market changes'],
+      isEditable: true,
+      usageCount: 16,
+      createdBy: 'System',
+      tags: ['news', 'industry'],
+      actions: [
+        { id: 'temp-13-1', type: 'webhook', description: 'Monitor news sources', isActive: true },
+        { id: 'temp-13-2', type: 'email', description: 'Send personalized alert', template: 'Industry Update', isActive: true },
+        { id: 'temp-13-3', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
+        { id: 'temp-13-4', type: 'email', description: 'Send follow-up insights', template: 'Industry Analysis', isActive: true }
+      ]
+    },
+    {
+      id: 'template-14',
+      name: 'Birthday/Celebration Recognition',
+      description: 'Personal touch for special dates',
+      category: 'Relationship Building',
+      triggers: ['Birthday approaching', 'Work anniversary', 'Company milestone'],
+      isEditable: true,
+      usageCount: 41,
+      createdBy: 'System',
+      tags: ['birthday', 'celebration'],
+      actions: [
+        { id: 'temp-14-1', type: 'wait', description: 'Wait until date', delay: 'until date', isActive: true },
+        { id: 'temp-14-2', type: 'email', description: 'Send personalized greeting', template: 'Birthday Card', isActive: true },
+        { id: 'temp-14-3', type: 'tag', description: 'Add celebration tag', isActive: true },
+        { id: 'temp-14-4', type: 'task', description: 'Schedule follow-up', isActive: true }
+      ]
+    },
+    {
+      id: 'template-15',
+      name: 'Competitor Monitoring',
+      description: 'Alert on competitor activities',
+      category: 'Intelligence',
+      triggers: ['Competitor news', 'Market share changes', 'New product launches'],
+      isEditable: true,
+      usageCount: 12,
+      createdBy: 'System',
+      tags: ['competitor', 'intelligence'],
+      actions: [
+        { id: 'temp-15-1', type: 'webhook', description: 'Monitor competitor data', isActive: true },
+        { id: 'temp-15-2', type: 'email', description: 'Send intelligence brief', template: 'Competitor Alert', isActive: true },
+        { id: 'temp-15-3', type: 'webhook', description: 'Update contact strategy', isActive: true }
+      ]
+    },
+    {
+      id: 'template-16',
+      name: 'Training Program Enrollment',
+      description: 'Guide contacts through learning paths',
+      category: 'Education',
+      triggers: ['New customer', 'Skill gap identified', 'Product upgrade'],
+      isEditable: true,
+      usageCount: 27,
+      createdBy: 'System',
+      tags: ['training', 'education'],
+      actions: [
+        { id: 'temp-16-1', type: 'email', description: 'Send training invitation', template: 'Training Invite', isActive: true },
+        { id: 'temp-16-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
+        { id: 'temp-16-3', type: 'email', description: 'Send first training module', template: 'Module 1', isActive: true },
+        { id: 'temp-16-4', type: 'task', description: 'Schedule training call', isActive: true }
+      ]
+    },
+    {
+      id: 'template-17',
+      name: 'Partnership Outreach',
+      description: 'Build strategic partnerships',
+      category: 'Business Development',
+      triggers: ['Mutual connections', 'Industry events', 'Shared interests'],
+      isEditable: true,
+      usageCount: 14,
+      createdBy: 'System',
+      tags: ['partnership', 'business-development'],
+      actions: [
+        { id: 'temp-17-1', type: 'email', description: 'Send partnership proposal', template: 'Partnership Intro', isActive: true },
+        { id: 'temp-17-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
+        { id: 'temp-17-3', type: 'task', description: 'Schedule discovery call', isActive: true },
+        { id: 'temp-17-4', type: 'email', description: 'Send partnership resources', template: 'Partnership Kit', isActive: true }
+      ]
+    },
+    {
+      id: 'template-18',
+      name: 'Compliance Reminder',
+      description: 'Ensure regulatory compliance',
+      category: 'Compliance',
+      triggers: ['Annual review due', 'Policy updates', 'Regulatory changes'],
+      isEditable: true,
+      usageCount: 33,
+      createdBy: 'System',
+      tags: ['compliance', 'regulatory'],
+      actions: [
+        { id: 'temp-18-1', type: 'email', description: 'Send compliance reminder', template: 'Compliance Notice', isActive: true },
+        { id: 'temp-18-2', type: 'wait', description: 'Wait 14 days', delay: '14 days', isActive: true },
+        { id: 'temp-18-3', type: 'email', description: 'Send follow-up', template: 'Compliance Follow-up', isActive: true },
+        { id: 'temp-18-4', type: 'webhook', description: 'Update compliance status', isActive: true }
+      ]
+    },
+    {
+      id: 'template-19',
+      name: 'Seasonal Campaign',
+      description: 'Time-based marketing campaigns',
+      category: 'Marketing',
+      triggers: ['Holiday approaching', 'Season start', 'Industry events'],
+      isEditable: true,
+      usageCount: 38,
+      createdBy: 'System',
+      tags: ['seasonal', 'campaign'],
+      actions: [
+        { id: 'temp-19-1', type: 'email', description: 'Send seasonal greeting', template: 'Seasonal Campaign', isActive: true },
+        { id: 'temp-19-2', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
+        { id: 'temp-19-3', type: 'email', description: 'Send promotional offer', template: 'Seasonal Offer', isActive: true },
+        { id: 'temp-19-4', type: 'tag', description: 'Add seasonal tag', isActive: true }
+      ]
+    },
+    {
+      id: 'template-20',
+      name: 'Account Health Monitoring',
+      description: 'Proactively manage account relationships',
+      category: 'Account Management',
+      triggers: ['Low engagement', 'Declining metrics', 'Contract milestone'],
+      isEditable: true,
+      usageCount: 25,
+      createdBy: 'System',
+      tags: ['account-health', 'monitoring'],
+      actions: [
+        { id: 'temp-20-1', type: 'webhook', description: 'Analyze account health', isActive: true },
+        { id: 'temp-20-2', type: 'email', description: 'Send health check email', template: 'Health Check', isActive: true },
+        { id: 'temp-20-3', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
+        { id: 'temp-20-4', type: 'task', description: 'Schedule account review', isActive: true },
+        { id: 'temp-20-5', type: 'email', description: 'Send improvement recommendations', template: 'Account Insights', isActive: true }
+      ]
+    }
+ ];
 
 export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => {
     const [activeTab, setActiveTab] = useState('active');
