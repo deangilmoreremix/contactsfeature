@@ -47,25 +47,50 @@ export function ViewProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
 
-      const viewPrefs = await viewPreferencesService.getUserViewPreferences();
-      if (viewPrefs) {
-        setCurrentViewState(viewPrefs.view_type);
-      }
+      // Initialize with default values first to ensure ViewSwitcher renders
+      setCurrentViewState('list');
+      setFiltersState({
+        list: defaultFilters,
+        table: defaultFilters,
+        kanban: defaultFilters,
+        calendar: defaultFilters,
+        dashboard: defaultFilters,
+        timeline: defaultFilters,
+      });
+      setSortConfigState({
+        list: defaultSort,
+        table: defaultSort,
+        kanban: defaultSort,
+        calendar: defaultSort,
+        dashboard: defaultSort,
+        timeline: defaultSort,
+      });
 
-      const viewTypes: ViewType[] = ['list', 'table', 'kanban', 'calendar', 'dashboard', 'timeline'];
-      const loadedFilters: Record<ViewType, ViewFilterConfig> = { ...filters };
-      const loadedSorts: Record<ViewType, ViewSortConfig> = { ...sortConfig };
-
-      for (const viewType of viewTypes) {
-        const viewFilters = await viewPreferencesService.getViewFilters(viewType);
-        if (viewFilters) {
-          loadedFilters[viewType] = viewFilters.filter_config || defaultFilters;
-          loadedSorts[viewType] = viewFilters.sort_config || defaultSort;
+      // Try to load from Supabase, but don't fail if it doesn't work
+      try {
+        const viewPrefs = await viewPreferencesService.getUserViewPreferences();
+        if (viewPrefs) {
+          setCurrentViewState(viewPrefs.view_type);
         }
-      }
 
-      setFiltersState(loadedFilters);
-      setSortConfigState(loadedSorts);
+        const viewTypes: ViewType[] = ['list', 'table', 'kanban', 'calendar', 'dashboard', 'timeline'];
+        const loadedFilters: Record<ViewType, ViewFilterConfig> = { ...filters };
+        const loadedSorts: Record<ViewType, ViewSortConfig> = { ...sortConfig };
+
+        for (const viewType of viewTypes) {
+          const viewFilters = await viewPreferencesService.getViewFilters(viewType);
+          if (viewFilters) {
+            loadedFilters[viewType] = viewFilters.filter_config || defaultFilters;
+            loadedSorts[viewType] = viewFilters.sort_config || defaultSort;
+          }
+        }
+
+        setFiltersState(loadedFilters);
+        setSortConfigState(loadedSorts);
+      } catch (supabaseError) {
+        // Supabase errors are expected in demo mode, just log and continue
+        logger.info('Using default view preferences (Supabase not available)', supabaseError as Error);
+      }
     } catch (error) {
       logger.error('Failed to load view preferences', error as Error);
     } finally {

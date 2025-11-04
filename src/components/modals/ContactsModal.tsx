@@ -10,8 +10,16 @@ import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { SettingsModal } from './SettingsModal';
 import { useContactStore } from '../../hooks/useContactStore';
+import { useView } from '../../contexts/ViewContext';
 import { Contact } from '../../types';
 import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
+import { ViewSwitcher } from '../contacts/ViewSwitcher';
+import { ListView } from '../contacts/views/ListView';
+import { TableView } from '../contacts/views/TableView';
+import { KanbanView } from '../contacts/views/KanbanView';
+import { CalendarView } from '../contacts/views/CalendarView';
+import { DashboardView } from '../contacts/views/DashboardView';
+import { TimelineView } from '../contacts/views/TimelineView';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import Fuse from 'fuse.js';
 import {
@@ -91,6 +99,7 @@ const statusOptions = [
 
 export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
   const { contacts, isLoading, updateContact, createContact } = useContactStore();
+  const { currentView, filters, setFilters, isLoading: viewLoading } = useView();
   const { scoreBulkContacts, generateBulkInsights, isProcessing } = useAI();
   
   // UI State
@@ -175,7 +184,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     // Apply sorting
     result.sort((a, b) => {
       let aValue: any, bValue: any;
-      
+
       switch (sortBy) {
         case 'name':
           aValue = a.name.toLowerCase();
@@ -204,6 +213,48 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
     return result;
   }, [contacts, searchTerm, activeFilter, statusFilter, sortBy, sortOrder, fuse]);
+
+  const renderView = () => {
+    const viewProps = {
+      contacts: filteredContacts,
+      onContactClick: handleContactClick
+    };
+
+    switch (currentView) {
+      case 'list':
+        return <ListView {...viewProps} />;
+      case 'table':
+        return <TableView {...viewProps} />;
+      case 'kanban':
+        return <KanbanView {...viewProps} />;
+      case 'calendar':
+        return <CalendarView {...viewProps} />;
+      case 'dashboard':
+        return <DashboardView {...viewProps} />;
+      case 'timeline':
+        return <TimelineView {...viewProps} />;
+      default:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredContacts.map((contact) => (
+              <SmartTooltip key={contact.id} featureId="contact_card" position="top">
+                <div>
+                  <AIEnhancedContactCard
+                    contact={contact}
+                    isSelected={selectedContacts.includes(contact.id)}
+                    onSelect={() => handleContactSelect(contact.id)}
+                    onClick={() => handleContactClick(contact)}
+                    onEdit={handleEditContact}
+                    onAnalyze={handleAnalyzeContact}
+                    isAnalyzing={analyzingContactIds.includes(contact.id)}
+                  />
+                </div>
+              </SmartTooltip>
+            ))}
+          </div>
+        );
+    }
+  };
 
   // AI Analysis Functions
   const handleAnalyzeContact = async (contact: Contact) => {
@@ -769,42 +820,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 </select>
               </SmartTooltip>
 
-              <SmartTooltip featureId="contacts_view_mode">
-                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                  <button
-                    onClick={() => setViewMode('card')}
-                    className={`p-2 text-sm font-medium transition-colors ${
-                      viewMode === 'card'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Grid3X3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`p-2 text-sm font-medium border-l border-gray-300 transition-colors ${
-                      viewMode === 'table'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                </div>
-              </SmartTooltip>
+              <ViewSwitcher />
             </div>
           </div>
 
-          {/* Contacts Grid */}
-          <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900">
+          {/* Contacts Content */}
+          <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
             {filteredContacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="flex flex-col items-center justify-center h-full text-center p-6">
                 <Users className="w-16 h-16 text-gray-400 mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No contacts found</h3>
                 <p className="text-gray-500 dark:text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
-                <ModernButton 
-                  variant="primary" 
+                <ModernButton
+                  variant="primary"
                   onClick={handleNewContactClick}
                   className="flex items-center space-x-2"
                 >
@@ -813,23 +841,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 </ModernButton>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredContacts.map((contact) => (
-                  <SmartTooltip key={contact.id} featureId="contact_card" position="top">
-                    <div>
-                      <AIEnhancedContactCard
-                        contact={contact}
-                        isSelected={selectedContacts.includes(contact.id)}
-                        onSelect={() => handleContactSelect(contact.id)}
-                        onClick={() => handleContactClick(contact)}
-                        onEdit={handleEditContact}
-                        onAnalyze={handleAnalyzeContact}
-                        isAnalyzing={analyzingContactIds.includes(contact.id)}
-                      />
-                    </div>
-                  </SmartTooltip>
-                ))}
-              </div>
+              renderView()
             )}
           </div>
         </div>
@@ -849,20 +861,22 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
       {/* Contact Detail Modal */}
       {selectedContact && (
-        <AIProvider>
-          <ToastProvider>
-            <SmartTooltip featureId="contact_detail_view" position="top">
-              <div>
-                <ContactDetailView
-                  contact={selectedContact}
-                  isOpen={!!selectedContact}
-                  onClose={handleContactDetailClose}
-                  onUpdate={updateContact}
-                />
-              </div>
-            </SmartTooltip>
-          </ToastProvider>
-        </AIProvider>
+        <>
+          <AIProvider>
+            <ToastProvider>
+              <SmartTooltip featureId="contact_detail_view" position="top">
+                <div>
+                  <ContactDetailView
+                    contact={selectedContact}
+                    isOpen={!!selectedContact}
+                    onClose={handleContactDetailClose}
+                    onUpdate={updateContact}
+                  />
+                </div>
+              </SmartTooltip>
+            </ToastProvider>
+          </AIProvider>
+        </>
       )}
 
       {/* Settings Modal */}

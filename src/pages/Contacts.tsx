@@ -120,13 +120,14 @@ export default function Contacts() {
     return value !== undefined && value !== null;
   }).length;
 
-  if (viewLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  // Temporarily disable view loading check to ensure ViewSwitcher renders
+  // if (viewLoading) {
+  //   return (
+  //     <div className="flex items-center justify-center h-screen">
+  //       <Loader className="w-8 h-8 animate-spin text-blue-600" />
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
