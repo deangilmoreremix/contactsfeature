@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAI } from '../../contexts/AIContext';
 import { AIProvider } from '../../contexts/AIContext';
-import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import { ToastProvider } from '../ui/Toast';
@@ -26,8 +25,6 @@ import {
   X,
   Search,
   Filter,
-  MoreHorizontal,
-  Edit,
   Plus,
   Users,
   ChevronDown,
@@ -36,20 +33,12 @@ import {
   Upload,
   Zap,
   CheckCheck,
-  Grid3X3,
-  List,
-  ArrowUp,
-  ArrowDown,
   Settings,
   Target,
-  BarChart3,
-  RefreshCw,
   Sparkles,
-  AlertCircle,
   CheckCircle,
   Loader2,
-  Info,
-  TestTube
+  Info
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -57,29 +46,6 @@ interface ContactsModalProps {
   onClose: () => void;
 }
 
-const interestColors = {
-  hot: 'bg-red-500',
-  medium: 'bg-yellow-500',
-  low: 'bg-blue-500',
-  cold: 'bg-gray-400'
-};
-
-const interestLabels = {
-  hot: 'Hot Client',
-  medium: 'Medium Interest',
-  low: 'Low Interest',
-  cold: 'Non Interest'
-};
-
-const sourceColors: { [key: string]: string } = {
-  'LinkedIn': 'bg-blue-600',
-  'Facebook': 'bg-blue-500',
-  'Email': 'bg-green-500',
-  'Website': 'bg-purple-500',
-  'Referral': 'bg-orange-500',
-  'Typeform': 'bg-pink-500',
-  'Cold Call': 'bg-gray-600'
-};
 
 const filterOptions = [
   { label: 'All', value: 'all' },
@@ -98,9 +64,9 @@ const statusOptions = [
 ];
 
 export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
-  const { contacts, isLoading, updateContact, createContact } = useContactStore();
-  const { currentView, filters, setFilters, isLoading: viewLoading } = useView();
-  const { scoreBulkContacts, generateBulkInsights, isProcessing } = useAI();
+  const { contacts, updateContact } = useContactStore();
+  const { currentView } = useView();
+  const { scoreBulkContacts } = useAI();
   
   // UI State
   const [activeFilter, setActiveFilter] = useState('all');
@@ -109,7 +75,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [bulkActionDropdown, setBulkActionDropdown] = useState(false);
@@ -363,14 +328,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     // The ContactDetailView will handle the editing
   };
 
-  const handleSort = (field: typeof sortBy) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-  };
 
   // Modal Handlers
   const handleImportClick = () => {
