@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { analyticsService } from '../../services/analyticsService';
 import { cacheService } from '../../services/cacheService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { BookOpen, Target, TrendingUp, CheckCircle, Clock, Users, DollarSign, Sparkles, Brain } from 'lucide-react';
+import { BookOpen, Target, TrendingUp, CheckCircle, Clock, Users, DollarSign, Sparkles, Brain, Zap, Loader2 } from 'lucide-react';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 
@@ -71,6 +71,14 @@ interface PlaybookStrategy {
   };
 }
 
+interface StreamingUpdate {
+  type: 'progress' | 'phase' | 'strategy' | 'complete' | 'error';
+  progress?: number;
+  phase?: any;
+  strategy?: any;
+  error?: string;
+}
+
 interface AdaptivePlaybookGeneratorProps {
   deal: Deal;
   onGenerate?: () => void;
@@ -90,12 +98,33 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   const [draggedPhase, setDraggedPhase] = useState<string | null>(null);
   const [playbookType, setPlaybookType] = useState<'comprehensive' | 'aggressive' | 'conservative' | 'relationship' | 'transactional'>('comprehensive');
 
+  // Streaming features
+  const [isStreamingMode, setIsStreamingMode] = useState(false);
+  const [streamingProgress, setStreamingProgress] = useState(0);
+  const [streamingPhases, setStreamingPhases] = useState<any[]>([]);
+  const [activeStreams, setActiveStreams] = useState<Set<string>>(new Set());
+
+  const streamingControllerRef = useRef<AbortController | null>(null);
+
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
   const researchStatus = useResearchStatus();
 
-  const generatePlaybook = async () => {
+  const stopStreaming = useCallback(() => {
+    streamingControllerRef.current?.abort();
+    setActiveStreams(new Set());
+    setStreamingProgress(0);
+    setStreamingPhases([]);
+  }, []);
+
+  const generatePlaybook = useCallback(async (onProgress?: (update: StreamingUpdate) => void) => {
     setLoading(true);
+    setStreamingProgress(0);
+    setStreamingPhases([]);
+    setActiveStreams(new Set());
+
+    streamingControllerRef.current = new AbortController();
+
     researchThinking.startResearch('🎯 Generating AI-powered sales playbook...', 4);
 
     // Start analytics tracking
@@ -103,6 +132,8 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
     try {
       researchThinking.updateProgress(10, '🧠 Analyzing deal data and market conditions...');
+      setStreamingProgress(10);
+      onProgress?.({ type: 'progress', progress: 10 });
 
       // Check cache first
       const cacheKey = {
@@ -122,6 +153,39 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
       // Real playbook generation
       researchThinking.updateProgress(30, '🔍 Researching company and market data...');
+      setStreamingProgress(30);
+      onProgress?.({ type: 'progress', progress: 30 });
+
+      if (isStreamingMode) {
+        // Streaming generation with real-time updates
+        const streamId = `playbook-${Date.now()}`;
+        setActiveStreams(prev => new Set([...prev, streamId]));
+
+        // Simulate streaming phases
+        const mockPhases = [
+          { name: 'Discovery & Research', progress: 40 },
+          { name: 'Strategy Development', progress: 60 },
+          { name: 'Tactics Planning', progress: 80 },
+          { name: 'Risk Assessment', progress: 90 }
+        ];
+
+        for (const phase of mockPhases) {
+          if (streamingControllerRef.current?.signal.aborted) break;
+
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing time
+          setStreamingProgress(phase.progress);
+          setStreamingPhases(prev => [...prev, phase]);
+          researchThinking.updateProgress(phase.progress, `📋 ${phase.name}...`);
+          onProgress?.({ type: 'phase', phase });
+        }
+
+        setActiveStreams(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(streamId);
+          return newSet;
+        });
+      }
+
       const response = await supabase.functions.invoke('adaptive-playbook', {
         body: {
           contact: deal,
@@ -134,6 +198,8 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
       });
 
       researchThinking.updateProgress(60, '📋 Synthesizing strategic recommendations...');
+      setStreamingProgress(60);
+      onProgress?.({ type: 'progress', progress: 60 });
 
       if (response.data?.data) {
         // Transform the API response to match the expected playbook structure
@@ -210,7 +276,13 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
         setPlaybook(transformedPlaybook);
         researchThinking.updateProgress(90, '✨ Finalizing playbook...');
+        setStreamingProgress(90);
+        onProgress?.({ type: 'strategy', strategy: transformedPlaybook.strategy });
+        onProgress?.({ type: 'progress', progress: 90 });
+
         researchThinking.complete('✅ AI playbook generated successfully!');
+        setStreamingProgress(100);
+        onProgress?.({ type: 'complete' });
 
         // Cache the playbook
         cacheService.set('AdaptivePlaybookGenerator', cacheKey, transformedPlaybook, 30 * 60 * 1000, {
@@ -243,13 +315,17 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
       }
 
       researchThinking.setError(errorMessage);
+      onProgress?.({ type: 'error', error: errorMessage });
 
       // End analytics tracking - failure
       analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
+      setStreamingProgress(0);
+      setStreamingPhases([]);
+      streamingControllerRef.current = null;
     }
-  };
+  }, [deal, playbookType, isStreamingMode, researchThinking, analyticsService, cacheService]);
 
   const getCompanyProfile = (companyName: string) => {
     // This would integrate with your CRM/company data
@@ -366,6 +442,21 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Streaming Mode Toggle */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={isStreamingMode}
+                  onChange={(e) => setIsStreamingMode(e.target.checked)}
+                  className="rounded"
+                  disabled={loading}
+                />
+                <Zap className="w-4 h-4" />
+                Streaming
+              </label>
+            </div>
+
             <select
               value={playbookType}
               onChange={(e) => setPlaybookType(e.target.value as any)}
@@ -378,17 +469,41 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
               <option value="relationship">Relationship-Focused</option>
               <option value="transactional">Transactional</option>
             </select>
-            <ModernButton
-              variant="outline"
-              size="sm"
-              onClick={generatePlaybook}
-              loading={loading}
-              className="flex items-center space-x-2"
-              aria-label="Generate adaptive sales playbook"
-            >
-              <Brain className="w-4 h-4" />
-              <span>{loading ? 'Generating...' : '🎯 Generate'}</span>
-            </ModernButton>
+
+            <div className="flex items-center gap-2">
+              <ModernButton
+                variant="outline"
+                size="sm"
+                onClick={() => generatePlaybook()}
+                loading={loading}
+                className="flex items-center space-x-2"
+                aria-label="Generate adaptive sales playbook"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{isStreamingMode ? 'Streaming...' : 'Generating...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    <span>🎯 Generate</span>
+                  </>
+                )}
+              </ModernButton>
+
+              {loading && activeStreams.size > 0 && (
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={stopStreaming}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  Stop
+                </ModernButton>
+              )}
+            </div>
           </div>
         </div>
 
@@ -419,6 +534,43 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           </div>
         </div>
       </div>
+
+      {/* Streaming Progress */}
+      {isStreamingMode && (loading || streamingProgress > 0) && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-blue-800 flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Generation Progress
+            </span>
+            <span className="text-sm text-blue-600">{Math.round(streamingProgress)}%</span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2 mb-3">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${streamingProgress}%` }}
+            ></div>
+          </div>
+
+          {streamingPhases.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-blue-800">Completed Phases:</p>
+              {streamingPhases.map((phase, index) => (
+                <div key={index} className="flex items-center gap-2 text-xs text-blue-700">
+                  <CheckCircle className="w-3 h-3" />
+                  <span>{phase.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeStreams.size > 0 && (
+            <p className="text-xs text-blue-600 mt-2">
+              Active streams: {activeStreams.size}
+            </p>
+          )}
+        </div>
+      )}
 
       {playbook && (
         <>

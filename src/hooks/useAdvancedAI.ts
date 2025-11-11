@@ -3,48 +3,72 @@
  * Provides access to Phase 3 advanced AI features
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Contact } from '../types';
 import { logger } from '../services/logger.service';
-import { 
-  aiIntelligenceEngine, 
-  IntelligenceCorrelation, 
-  SmartRecommendation 
+import { cacheService } from '../services/cache.service';
+import {
+  aiIntelligenceEngine,
+  IntelligenceCorrelation,
+  SmartRecommendation
 } from '../services/ai-intelligence-engine.service';
-import { 
-  aiAutomationEngine, 
-  AutomationSuggestion, 
-  AutomationRule 
+import {
+  aiAutomationEngine,
+  AutomationSuggestion,
+  AutomationRule
 } from '../services/ai-automation-engine.service';
-import { 
-  aiPredictiveAnalytics, 
-  Prediction, 
-  TrendAnalysis, 
-  RiskAssessment 
+import {
+  aiPredictiveAnalytics,
+  Prediction,
+  TrendAnalysis,
+  RiskAssessment
 } from '../services/ai-predictive-analytics.service';
+
+// Enhanced interfaces with streaming and caching
+interface StreamingUpdate {
+  type: 'progress' | 'data' | 'complete' | 'error';
+  progress?: number;
+  data?: any;
+  error?: string;
+  stage?: string;
+}
+
+interface CacheStats {
+  hits: number;
+  misses: number;
+  size: number;
+  lastCleanup: string;
+}
 
 export interface AdvancedAIState {
   // Intelligence Engine
   intelligenceCorrelations: Map<string, IntelligenceCorrelation[]>;
   smartRecommendations: Map<string, SmartRecommendation[]>;
-  
+
   // Automation Engine
   automationSuggestions: AutomationSuggestion[];
   automationRules: AutomationRule[];
-  
+
   // Predictive Analytics
   predictions: Map<string, Prediction[]>;
   trendAnalyses: Map<string, TrendAnalysis>;
   riskAssessments: Map<string, RiskAssessment>;
-  
+
   // Processing States
   isAnalyzing: boolean;
   isGeneratingRecommendations: boolean;
   isPredicting: boolean;
   isOptimizing: boolean;
-  
-  // Errors
+  isStreaming: boolean;
+  streamingProgress: number;
+
+  // Errors and caching
   errors: Map<string, string>;
+  cacheStats: CacheStats;
+
+  // Real-time features
+  activeStreams: Set<string>;
+  collaborators: Map<string, any>;
 }
 
 export const useAdvancedAI = () => {
@@ -60,8 +84,17 @@ export const useAdvancedAI = () => {
     isGeneratingRecommendations: false,
     isPredicting: false,
     isOptimizing: false,
-    errors: new Map()
+    isStreaming: false,
+    streamingProgress: 0,
+    errors: new Map(),
+    cacheStats: { hits: 0, misses: 0, size: 0, lastCleanup: new Date().toISOString() },
+    activeStreams: new Set(),
+    collaborators: new Map()
   });
+
+  // Refs for streaming and caching
+  const streamingControllerRef = useRef<AbortController | null>(null);
+  const cacheRef = useRef<Map<string, any>>(new Map());
 
   // Intelligence Engine Methods
   const generateIntelligenceCorrelation = useCallback(async (
@@ -306,6 +339,138 @@ export const useAdvancedAI = () => {
     logger.info('Outcome recorded for learning', { contactId, action, outcome });
   }, []);
 
+  // Enhanced streaming intelligence correlation
+  const generateIntelligenceCorrelationStreaming = useCallback(async function* (
+    contact: Contact,
+    includeHistory: boolean = true,
+    onProgress?: (update: StreamingUpdate) => void
+  ): AsyncGenerator<StreamingUpdate, IntelligenceCorrelation, unknown> {
+    const cacheKey = `intelligence-${contact.id}-${includeHistory}`;
+    const cached = cacheService.get<IntelligenceCorrelation>('AdvancedAI', { cacheKey });
+
+    if (cached) {
+      setState(prev => ({
+        ...prev,
+        cacheStats: { ...prev.cacheStats, hits: prev.cacheStats.hits + 1 }
+      }));
+      yield { type: 'complete', data: cached };
+      return cached;
+    }
+
+    setState(prev => ({
+      ...prev,
+      isStreaming: true,
+      streamingProgress: 0,
+      activeStreams: new Set([...prev.activeStreams, `intelligence-${contact.id}`]),
+      cacheStats: { ...prev.cacheStats, misses: prev.cacheStats.misses + 1 },
+      errors: new Map(prev.errors.set(contact.id, ''))
+    }));
+
+    try {
+      streamingControllerRef.current = new AbortController();
+
+      yield { type: 'progress', progress: 10, stage: 'Analyzing contact data...' };
+
+      const correlation = await aiIntelligenceEngine.generateIntelligenceCorrelation(
+        contact.id,
+        contact,
+        [], // existing insights will be fetched internally
+        includeHistory ? [] : undefined // communication history
+      );
+
+      yield { type: 'progress', progress: 100, stage: 'Intelligence correlation complete!' };
+      yield { type: 'complete', data: correlation };
+
+      // Cache and update state
+      cacheService.set('AdvancedAI', { cacheKey }, correlation, 30 * 60 * 1000);
+      setState(prev => {
+        const newCorrelations = new Map(prev.intelligenceCorrelations);
+        const existing = newCorrelations.get(contact.id) || [];
+        newCorrelations.set(contact.id, [...existing, correlation]);
+
+        return {
+          ...prev,
+          intelligenceCorrelations: newCorrelations,
+          isStreaming: false,
+          activeStreams: new Set([...prev.activeStreams].filter(s => s !== `intelligence-${contact.id}`))
+        };
+      });
+
+      logger.info('Intelligence correlation generated with streaming', { contactId: contact.id });
+      return correlation;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Intelligence analysis failed';
+      yield { type: 'error', error: errorMessage };
+
+      setState(prev => ({
+        ...prev,
+        isStreaming: false,
+        activeStreams: new Set([...prev.activeStreams].filter(s => s !== `intelligence-${contact.id}`)),
+        errors: new Map(prev.errors.set(contact.id, errorMessage))
+      }));
+
+      logger.error('Intelligence correlation streaming failed', error as Error, { contactId: contact.id });
+      throw error;
+    }
+  }, []);
+
+  // Cancel streaming operation
+  const cancelStreaming = useCallback((streamId?: string) => {
+    if (streamingControllerRef.current) {
+      streamingControllerRef.current.abort();
+      streamingControllerRef.current = null;
+    }
+
+    setState(prev => ({
+      ...prev,
+      isStreaming: false,
+      streamingProgress: 0,
+      activeStreams: streamId
+        ? new Set([...prev.activeStreams].filter(s => s !== streamId))
+        : new Set()
+    }));
+  }, []);
+
+  // Collaborative features
+  const joinCollaboration = useCallback((sessionId: string, user: any) => {
+    setState(prev => ({
+      ...prev,
+      collaborators: new Map(prev.collaborators.set(sessionId, user))
+    }));
+  }, []);
+
+  const leaveCollaboration = useCallback((sessionId: string) => {
+    setState(prev => {
+      const newCollaborators = new Map(prev.collaborators);
+      newCollaborators.delete(sessionId);
+      return { ...prev, collaborators: newCollaborators };
+    });
+  }, []);
+
+  // Enhanced error recovery
+  const retryFailedOperation = useCallback(async (operationId: string, retryFunction: () => Promise<any>) => {
+    setState(prev => ({
+      ...prev,
+      errors: new Map(prev.errors.set(operationId, 'Retrying...'))
+    }));
+
+    try {
+      const result = await retryFunction();
+      setState(prev => ({
+        ...prev,
+        errors: new Map(prev.errors.set(operationId, ''))
+      }));
+      return result;
+    } catch (error) {
+      const errorMessage = `Retry failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      setState(prev => ({
+        ...prev,
+        errors: new Map(prev.errors.set(operationId, errorMessage))
+      }));
+      throw error;
+    }
+  }, []);
+
   // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
@@ -348,24 +513,31 @@ export const useAdvancedAI = () => {
   return {
     // State
     ...state,
-    
+
     // Intelligence Engine
     generateIntelligenceCorrelation,
+    generateIntelligenceCorrelationStreaming,
     generateSmartRecommendations,
-    
+
     // Automation Engine
     generateAutomationSuggestions,
     optimizeAutomationRule,
-    
+
     // Predictive Analytics
     generatePredictions,
     analyzeTrends,
     assessRisk,
-    
+
     // Learning & Feedback
     recordUserFeedback,
     recordOutcome,
-    
+
+    // Streaming & Collaboration
+    cancelStreaming,
+    joinCollaboration,
+    leaveCollaboration,
+    retryFailedOperation,
+
     // Getters
     getIntelligenceForContact,
     getRecommendationsForContact,
@@ -373,13 +545,24 @@ export const useAdvancedAI = () => {
     getTrendAnalysisForContact,
     getRiskAssessmentForContact,
     getErrorForContact,
-    
-    // Performance Metrics
+
+    // Performance & Caching
     getPerformanceMetrics: () => ({
       intelligence: aiIntelligenceEngine.getPerformanceMetrics(),
       automation: aiAutomationEngine.getPerformanceMetrics(),
       predictions: aiPredictiveAnalytics.getModelPerformance()
-    })
+    }),
+
+    // Cache management
+    clearCache: () => {
+      cacheRef.current.clear();
+      setState(prev => ({
+        ...prev,
+        cacheStats: { hits: 0, misses: 0, size: 0, lastCleanup: new Date().toISOString() }
+      }));
+    },
+
+    getCacheStats: () => state.cacheStats
   };
 };
 

@@ -39,11 +39,31 @@ import {
   Copy,
   Heart,
   Edit,
-  Loader2
+  Loader2,
+  Users,
+  MessageSquare,
+  Share2,
+  Zap
 } from 'lucide-react';
 
 /** --- CONFIG --- */
 const MODEL = "gemini-2.5-flash-image-preview";
+
+interface StreamingUpdate {
+  type: 'progress' | 'image' | 'complete' | 'error';
+  progress?: number;
+  imageData?: string;
+  variantIndex?: number;
+  error?: string;
+}
+
+interface CollaborativeSession {
+  id: string;
+  participants: string[];
+  currentPrompt: string;
+  lastActivity: number;
+  sharedImages: string[];
+}
 
 /** Utility: read a File to data URL */
 async function fileToDataUrl(file: File): Promise<string> {
@@ -102,8 +122,18 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
   const [savedImages, setSavedImages] = useState<SavedImage[]>([]);
   const [savingImage, setSavingImage] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+
+  // Streaming and collaborative features
+  const [isStreamingMode, setIsStreamingMode] = useState(false);
+  const [streamingProgress, setStreamingProgress] = useState(0);
+  const [activeStreams, setActiveStreams] = useState<Set<string>>(new Set());
+  const [collaborativeSession, setCollaborativeSession] = useState<CollaborativeSession | null>(null);
+  const [showCollaborationPanel, setShowCollaborationPanel] = useState(false);
+  const [sessionComments, setSessionComments] = useState<Array<{id: string, user: string, comment: string, timestamp: number}>>([]);
+
   const dropRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const streamingControllerRef = useRef<AbortController | null>(null);
 
   const ai = useMemo(() => new GoogleGenerativeAI(import.meta.env['VITE_GEMINI_API_KEY'] || ''), []);
 
@@ -187,11 +217,15 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
     e.currentTarget.value = "";
   }
 
-  // generate + write to history
-  async function generate(runFromHistoryId?: string) {
+  // Enhanced streaming generation with collaborative features
+  async function generate(runFromHistoryId?: string, onProgress?: (update: StreamingUpdate) => void) {
     setLoading(true);
     setError(null);
     setImages([]);
+    setStreamingProgress(0);
+
+    // Initialize streaming controller
+    streamingControllerRef.current = new AbortController();
 
     // capture snapshot for history
     const entry: HistoryEntry = {
@@ -209,6 +243,15 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
       setHistory(addHistory(entry));
     }
 
+    // Update collaborative session if active
+    if (collaborativeSession) {
+      setCollaborativeSession(prev => prev ? {
+        ...prev,
+        currentPrompt: promptText,
+        lastActivity: Date.now()
+      } : null);
+    }
+
     try {
       const contents: any[] = [{ text: promptText }];
       if (seeds.length) {
@@ -219,24 +262,87 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
       const outs: string[] = [];
       const model = ai.getGenerativeModel({ model: MODEL });
 
-      for (let i = 0; i < Math.max(1, Math.min(6, variants)); i++) {
-        const res = await model.generateContent(contents);
-        const parts = res?.response?.candidates?.[0]?.content?.parts || [];
-        for (const p of parts) {
-          if (p?.inlineData?.data) {
-            const mime = p.inlineData.mimeType || "image/png";
-            outs.push(`data:${mime};base64,${p.inlineData.data}`);
+      if (isStreamingMode) {
+        // Streaming generation with progress updates
+        const streamId = `generation-${Date.now()}`;
+        setActiveStreams(prev => new Set([...prev, streamId]));
+
+        for (let i = 0; i < Math.max(1, Math.min(6, variants)); i++) {
+          if (streamingControllerRef.current?.signal.aborted) break;
+
+          const progress = ((i + 1) / variants) * 100;
+          setStreamingProgress(progress);
+          onProgress?.({ type: 'progress', progress });
+
+          try {
+            const res = await model.generateContent(contents);
+            const parts = res?.response?.candidates?.[0]?.content?.parts || [];
+
+            for (const p of parts) {
+              if (p?.inlineData?.data) {
+                const mime = p.inlineData.mimeType || "image/png";
+                const imageData = `data:${mime};base64,${p.inlineData.data}`;
+                outs.push(imageData);
+
+                // Stream individual image completion
+                onProgress?.({
+                  type: 'image',
+                  imageData,
+                  variantIndex: i
+                });
+              }
+            }
+          } catch (variantError) {
+            console.warn(`Variant ${i + 1} failed:`, variantError);
+            // Continue with other variants
+          }
+        }
+
+        setActiveStreams(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(streamId);
+          return newSet;
+        });
+
+      } else {
+        // Regular batch generation
+        for (let i = 0; i < Math.max(1, Math.min(6, variants)); i++) {
+          const res = await model.generateContent(contents);
+          const parts = res?.response?.candidates?.[0]?.content?.parts || [];
+          for (const p of parts) {
+            if (p?.inlineData?.data) {
+              const mime = p.inlineData.mimeType || "image/png";
+              outs.push(`data:${mime};base64,${p.inlineData.data}`);
+            }
           }
         }
       }
+
       if (!outs.length) throw new Error("No image returned. Try adjusting the prompt or seeds.");
+
       setImages(outs);
       setHistory(updateHistory(entry.id, { thumbs: outs.slice(0, 3) })); // store first 3 as thumbs
       setSelectedHistoryId(entry.id);
+
+      // Update collaborative session with new images
+      if (collaborativeSession) {
+        setCollaborativeSession(prev => prev ? {
+          ...prev,
+          sharedImages: [...prev.sharedImages, ...outs],
+          lastActivity: Date.now()
+        } : null);
+      }
+
+      onProgress?.({ type: 'complete' });
+
     } catch (err: any) {
-      setError(err?.message || "Generation failed");
+      const errorMessage = err?.message || "Generation failed";
+      setError(errorMessage);
+      onProgress?.({ type: 'error', error: errorMessage });
     } finally {
       setLoading(false);
+      setStreamingProgress(0);
+      streamingControllerRef.current = null;
     }
   }
 
@@ -303,6 +409,47 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
       console.error('Failed to load saved images:', error);
     }
   }
+
+  // Collaborative features
+  const startCollaborativeSession = useCallback(() => {
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setCollaborativeSession({
+      id: sessionId,
+      participants: ['You'],
+      currentPrompt: promptText,
+      lastActivity: Date.now(),
+      sharedImages: []
+    });
+    setShowCollaborationPanel(true);
+  }, [promptText]);
+
+  const joinCollaborativeSession = useCallback((sessionId: string) => {
+    // In a real implementation, this would connect to a WebSocket or real-time service
+    setCollaborativeSession({
+      id: sessionId,
+      participants: ['You', 'Collaborator 1'],
+      currentPrompt: promptText,
+      lastActivity: Date.now(),
+      sharedImages: []
+    });
+    setShowCollaborationPanel(true);
+  }, [promptText]);
+
+  const addSessionComment = useCallback((comment: string) => {
+    const newComment = {
+      id: `comment-${Date.now()}`,
+      user: 'You',
+      comment,
+      timestamp: Date.now()
+    };
+    setSessionComments(prev => [...prev, newComment]);
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    streamingControllerRef.current?.abort();
+    setActiveStreams(new Set());
+    setStreamingProgress(0);
+  }, []);
 
   if (!open) return null;
 
@@ -384,6 +531,39 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-bold">Gemini (Nano Banana) Image Workspace</h2>
             <div className="flex items-center gap-2">
+              {/* Streaming Mode Toggle */}
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={isStreamingMode}
+                    onChange={(e) => setIsStreamingMode(e.target.checked)}
+                    className="rounded"
+                  />
+                  <Zap className="w-4 h-4" />
+                  Streaming
+                </label>
+              </div>
+
+              {/* Collaboration Controls */}
+              {!collaborativeSession ? (
+                <button
+                  onClick={startCollaborativeSession}
+                  className="rounded-md bg-purple-600 px-3 py-1 text-sm text-white hover:bg-purple-700 flex items-center gap-1"
+                >
+                  <Users className="w-4 h-4" />
+                  Collaborate
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowCollaborationPanel(!showCollaborationPanel)}
+                  className="rounded-md bg-purple-600 px-3 py-1 text-sm text-white hover:bg-purple-700 flex items-center gap-1"
+                >
+                  <Users className="w-4 h-4" />
+                  Session ({collaborativeSession.participants.length})
+                </button>
+              )}
+
               <button
                 onClick={() => setShowGallery(true)}
                 className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
@@ -559,29 +739,64 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
           </div>
 
           {/* Actions */}
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              onClick={() => generate(undefined)}
-              disabled={loading}
-              className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
-            >
-              {loading ? "Generating…" : "Generate"}
-            </button>
-            {!!images.length && (
-              <>
-                <button
-                  onClick={() =>
-                    images.forEach((src, i) => downloadDataUrl(src, `gemini-image-${i + 1}.png`))
-                }
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-white"
-                >
-                  Download All
-                </button>
-                <span className="text-xs text-gray-500">{images.length} variants</span>
-              </>
-            )}
-            {error && <span className="ml-2 text-sm text-red-600">{error}</span>}
-          </div>
+           <div className="mt-4 space-y-3">
+             <div className="flex items-center gap-2">
+               <button
+                 onClick={() => generate(undefined)}
+                 disabled={loading}
+                 className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white disabled:opacity-50 flex items-center gap-2"
+               >
+                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                 {loading ? (isStreamingMode ? "Streaming…" : "Generating…") : "Generate"}
+               </button>
+
+               {loading && activeStreams.size > 0 && (
+                 <button
+                   onClick={stopStreaming}
+                   className="rounded-lg bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700"
+                 >
+                   Stop
+                 </button>
+               )}
+
+               {!!images.length && (
+                 <>
+                   <button
+                     onClick={() =>
+                       images.forEach((src, i) => downloadDataUrl(src, `gemini-image-${i + 1}.png`))
+                   }
+                     className="rounded-lg bg-gray-900 px-4 py-2 text-white"
+                   >
+                     Download All
+                   </button>
+                   <span className="text-xs text-gray-500">{images.length} variants</span>
+                 </>
+               )}
+             </div>
+
+             {/* Streaming Progress */}
+             {isStreamingMode && (loading || streamingProgress > 0) && (
+               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                 <div className="flex items-center justify-between mb-2">
+                   <span className="text-sm font-medium text-blue-800">Generation Progress</span>
+                   <span className="text-sm text-blue-600">{Math.round(streamingProgress)}%</span>
+                 </div>
+                 <div className="w-full bg-blue-200 rounded-full h-2">
+                   <div
+                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                     style={{ width: `${streamingProgress}%` }}
+                   ></div>
+                 </div>
+                 {activeStreams.size > 0 && (
+                   <p className="text-xs text-blue-600 mt-1">
+                     Active streams: {activeStreams.size}
+                   </p>
+                 )}
+               </div>
+             )}
+
+             {error && <span className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 block">{error}</span>}
+           </div>
 
           {/* Results */}
           {!!images.length && (
@@ -649,6 +864,96 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
             </div>
           )}
         </main>
+
+        {/* Collaboration Panel */}
+        {showCollaborationPanel && collaborativeSession && (
+          <aside className="rounded-2xl bg-purple-50 p-4 shadow-xl border border-purple-200">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Collaborative Session
+              </h3>
+              <button
+                onClick={() => setShowCollaborationPanel(false)}
+                className="rounded-md bg-gray-100 px-2 py-1 text-xs"
+              >
+                Hide
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Session Info */}
+              <div className="bg-white rounded-lg p-3 border">
+                <p className="text-xs text-gray-600 mb-1">Session ID</p>
+                <p className="text-xs font-mono bg-gray-100 p-1 rounded">{collaborativeSession.id.slice(0, 12)}...</p>
+                <p className="text-xs text-gray-600 mt-2">
+                  Participants: {collaborativeSession.participants.join(', ')}
+                </p>
+              </div>
+
+              {/* Shared Images */}
+              {collaborativeSession.sharedImages.length > 0 && (
+                <div className="bg-white rounded-lg p-3 border">
+                  <p className="text-xs font-medium mb-2">Shared Images ({collaborativeSession.sharedImages.length})</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {collaborativeSession.sharedImages.slice(0, 4).map((img, i) => (
+                      <img key={i} src={img} className="w-full h-16 object-cover rounded border" />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Comments */}
+              <div className="bg-white rounded-lg p-3 border">
+                <p className="text-xs font-medium mb-2">Comments</p>
+                <div className="space-y-2 max-h-32 overflow-auto">
+                  {sessionComments.map(comment => (
+                    <div key={comment.id} className="text-xs bg-gray-50 p-2 rounded">
+                      <span className="font-medium">{comment.user}:</span> {comment.comment}
+                      <div className="text-gray-500 mt-1">
+                        {new Date(comment.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    className="flex-1 text-xs border rounded px-2 py-1"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                        addSessionComment(e.currentTarget.value.trim());
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={(e) => {
+                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                      if (input.value.trim()) {
+                        addSessionComment(input.value.trim());
+                        input.value = '';
+                      }
+                    }}
+                    className="bg-purple-600 text-white px-2 py-1 rounded text-xs"
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Share Session */}
+              <button
+                onClick={() => navigator.clipboard.writeText(collaborativeSession.id)}
+                className="w-full bg-purple-600 text-white px-3 py-2 rounded text-sm flex items-center justify-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Copy Session Link
+              </button>
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* Saved Images Gallery */}

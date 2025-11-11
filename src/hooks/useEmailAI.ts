@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { logger } from '../services/logger.service';
+import { cacheService } from '../services/cache.service';
 import { Contact } from '../types';
 
+// Enhanced interfaces with streaming and caching support
 interface EmailComposition {
   subject: string;
   body: string;
@@ -9,6 +11,9 @@ interface EmailComposition {
   tone: string;
   confidence: number;
   model: string;
+  generatedAt: string;
+  cacheKey?: string;
+  streamingTokens?: string[];
 }
 
 interface EmailAnalysis {
@@ -26,10 +31,14 @@ interface EmailAnalysis {
   improvements: Array<{
     type: string;
     description: string;
+    priority: 'high' | 'medium' | 'low';
+    autoFix?: boolean;
   }>;
   assessment: string;
   confidence: number;
   model: string;
+  analyzedAt: string;
+  suggestions?: string[];
 }
 
 interface PersonalizedMessage {
@@ -45,6 +54,8 @@ interface PersonalizedMessage {
   };
   confidence: number;
   model: string;
+  generatedAt: string;
+  abTestVariants?: string[];
 }
 
 interface EmailTemplate {
@@ -56,17 +67,34 @@ interface EmailTemplate {
   variables: string[];
   category: string;
   isDefault?: boolean;
+  usageCount?: number;
+  lastUsed?: string;
+}
+
+interface StreamingUpdate {
+  type: 'progress' | 'token' | 'complete' | 'error';
+  progress?: number;
+  token?: string;
+  data?: any;
+  error?: string;
 }
 
 interface EmailAIState {
   isGenerating: boolean;
   isAnalyzing: boolean;
   isFetching: boolean;
+  isStreaming: boolean;
   error: string | null;
   emailComposition: EmailComposition | null;
   emailAnalysis: EmailAnalysis | null;
   personalizedMessage: PersonalizedMessage | null;
   emailTemplates: EmailTemplate[];
+  streamingProgress: number;
+  cacheStats: {
+    hits: number;
+    misses: number;
+    size: number;
+  };
 }
 
 export const useEmailAI = () => {
@@ -74,12 +102,36 @@ export const useEmailAI = () => {
     isGenerating: false,
     isAnalyzing: false,
     isFetching: false,
+    isStreaming: false,
     error: null,
     emailComposition: null,
     emailAnalysis: null,
     personalizedMessage: null,
-    emailTemplates: []
+    emailTemplates: [],
+    streamingProgress: 0,
+    cacheStats: { hits: 0, misses: 0, size: 0 }
   });
+
+  // Streaming and caching refs
+  const streamingControllerRef = useRef<AbortController | null>(null);
+  const cacheRef = useRef<Map<string, any>>(new Map());
+
+  // Update cache stats periodically
+  useEffect(() => {
+    const updateCacheStats = () => {
+      setState(prev => ({
+        ...prev,
+        cacheStats: {
+          hits: cacheService.getStats?.().hits || 0,
+          misses: cacheService.getStats?.().misses || 0,
+          size: cacheRef.current.size
+        }
+      }));
+    };
+
+    const interval = setInterval(updateCacheStats, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const generateEmail = useCallback(async (
     contact: Contact,
@@ -432,16 +484,166 @@ export const useEmailAI = () => {
       isGenerating: false,
       isAnalyzing: false,
       isFetching: false,
+      isStreaming: false,
       error: null,
       emailComposition: null,
       emailAnalysis: null,
       personalizedMessage: null,
-      emailTemplates: []
-    })
+      emailTemplates: [],
+      streamingProgress: 0,
+      cacheStats: { hits: 0, misses: 0, size: 0 }
+    }),
+
+    // Enhanced methods with caching and streaming
+    generateEmailStreaming: async function* (
+      contact: Contact,
+      purpose: string,
+      tone: string = 'professional',
+      length: string = 'medium',
+      includeSignature: boolean = true,
+      onProgress?: (update: StreamingUpdate) => void
+    ): AsyncGenerator<StreamingUpdate, EmailComposition, unknown> {
+      const cacheKey = `email-${contact.id}-${purpose}-${tone}-${length}-${includeSignature}`;
+      const cached = cacheService.get<EmailComposition>('EmailAI', { cacheKey });
+
+      if (cached) {
+        setState(prev => ({ ...prev, cacheStats: { ...prev.cacheStats, hits: prev.cacheStats.hits + 1 } }));
+        yield { type: 'complete', data: cached };
+        return cached;
+      }
+
+      setState(prev => ({
+        ...prev,
+        isStreaming: true,
+        streamingProgress: 0,
+        cacheStats: { ...prev.cacheStats, misses: prev.cacheStats.misses + 1 }
+      }));
+
+      try {
+        streamingControllerRef.current = new AbortController();
+
+        yield { type: 'progress', progress: 10, data: 'Initializing AI generation...' };
+
+        const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
+        const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
+
+        if (!supabaseUrl || !supabaseKey) {
+          throw new Error('Supabase configuration is missing. Please check your environment variables.');
+        }
+
+        yield { type: 'progress', progress: 30, data: 'Connecting to AI service...' };
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/email-composer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+            'X-Client-Info': 'supabase-js-web'
+          },
+          body: JSON.stringify({
+            contact,
+            purpose,
+            tone,
+            length,
+            includeSignature,
+            streaming: true
+          }),
+          signal: streamingControllerRef.current.signal
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || errorData.details || 'Failed to generate email');
+        }
+
+        yield { type: 'progress', progress: 70, data: 'Processing AI response...' };
+
+        const result = await response.json();
+        const composition: EmailComposition = {
+          ...result,
+          generatedAt: new Date().toISOString(),
+          cacheKey
+        };
+
+        // Cache the result
+        cacheService.set('EmailAI', { cacheKey }, composition, 30 * 60 * 1000);
+
+        yield { type: 'progress', progress: 100, data: 'Email generated successfully!' };
+        yield { type: 'complete', data: composition };
+
+        setState(prev => ({
+          ...prev,
+          isStreaming: false,
+          streamingProgress: 100,
+          emailComposition: composition
+        }));
+
+        return composition;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate email';
+        yield { type: 'error', error: errorMessage };
+
+        setState(prev => ({
+          ...prev,
+          isStreaming: false,
+          error: errorMessage
+        }));
+
+        throw error;
+      }
+    },
+
+    // Cancel streaming operation
+    cancelStreaming: () => {
+      if (streamingControllerRef.current) {
+        streamingControllerRef.current.abort();
+        streamingControllerRef.current = null;
+        setState(prev => ({ ...prev, isStreaming: false, streamingProgress: 0 }));
+      }
+    },
+
+    // Get cache statistics
+    getCacheStats: () => state.cacheStats,
+
+    // Clear cache
+    clearCache: () => {
+      cacheRef.current.clear();
+      setState(prev => ({ ...prev, cacheStats: { hits: 0, misses: 0, size: 0 } }));
+    }
   };
 };
 
 // Helper functions for template variables
+
+// Fallback message creation for when AI services are unavailable
+function createFallbackPersonalizedMessage(
+  contact: Contact,
+  platform: string,
+  purpose: string
+): PersonalizedMessage {
+  const baseMessage = `Hi ${contact.firstName || 'there'}, I wanted to connect regarding opportunities at ${contact.company || 'your company'}.`;
+
+  const platformLimits = {
+    linkedin: { min: 50, max: 3000, ideal: 200 },
+    twitter: { min: 1, max: 280, ideal: 120 },
+    facebook: { min: 1, max: 63206, ideal: 150 },
+    default: { min: 10, max: 1000, ideal: 100 }
+  };
+
+  const limits = platformLimits[platform as keyof typeof platformLimits] || platformLimits.default;
+
+  return {
+    message: baseMessage,
+    platform,
+    purpose,
+    tone: 'professional',
+    characterCount: baseMessage.length,
+    characterLimit: limits,
+    confidence: 0.5,
+    model: 'fallback',
+    generatedAt: new Date().toISOString()
+  };
+}
 
 function getPainPoint(industry?: string): string {
   const painPoints: Record<string, string[]> = {
@@ -455,7 +657,7 @@ function getPainPoint(industry?: string): string {
 
   if (industry && painPoints[industry]) {
     const industryPains = painPoints[industry];
-    return industryPains[Math.floor(Math.random() * industryPains.length)];
+    return industryPains[Math.floor(Math.random() * industryPains.length)] || 'business challenges';
   }
 
   return 'business challenges';
@@ -473,7 +675,7 @@ function getBenefit(industry?: string): string {
 
   if (industry && benefits[industry]) {
     const industryBenefits = benefits[industry];
-    return industryBenefits[Math.floor(Math.random() * industryBenefits.length)];
+    return industryBenefits[Math.floor(Math.random() * industryBenefits.length)] || 'improve operational efficiency';
   }
 
   return 'improve operational efficiency';
@@ -491,7 +693,7 @@ function getSecondaryBenefit(industry?: string): string {
 
   if (industry && secondaryBenefits[industry]) {
     const industryBenefits = secondaryBenefits[industry];
-    return industryBenefits[Math.floor(Math.random() * industryBenefits.length)];
+    return industryBenefits[Math.floor(Math.random() * industryBenefits.length)] || 'reducing operational costs';
   }
 
   return 'reducing operational costs';
