@@ -26,7 +26,13 @@ export default defineConfig({
 
   server: {
     host: true,
-    port: 5174, // 👈 each remote should ideally use a different port in dev
+    port: 5174,
+    hmr: {
+      overlay: false,
+    },
+    watch: {
+      usePolling: false,
+    },
   },
 
   build: {

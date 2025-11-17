@@ -97,6 +97,9 @@ class FileStorageService {
         .from(this.BUCKET_NAME)
         .getPublicUrl(filePath);
 
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+
       // Store metadata in database
       const fileMetadata = {
         id: fileId,
@@ -107,7 +110,7 @@ class FileStorageService {
         filePath,
         publicUrl: urlData.publicUrl,
         uploadedAt: new Date().toISOString(),
-        uploadedBy: 'current-user', // TODO: Get from auth context
+        uploadedBy: user?.id || 'anonymous',
         checksum: await this.calculateChecksum(file),
         metadata: metadata || {}
       };
