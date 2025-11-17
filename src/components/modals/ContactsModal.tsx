@@ -11,7 +11,9 @@ import { SettingsModal } from './SettingsModal';
 import { useContactStore } from '../../hooks/useContactStore';
 import { useView } from '../../contexts/ViewContext';
 import { Contact } from '../../types';
-import { AIEnhancedContactCard } from '../contacts/AIEnhancedContactCard';
+import { SmartContactCard } from '../contacts/SmartContactCard';
+import { ContactErrorBoundary } from '../error/ContactErrorBoundary';
+import { ContactDetailSkeleton } from '../loading/ContactDetailSkeleton';
 import { ViewSwitcher } from '../contacts/ViewSwitcher';
 import { ListView } from '../contacts/views/ListView';
 import { TableView } from '../contacts/views/TableView';
@@ -83,6 +85,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [analysisProgress, setAnalysisProgress] = useState<{current: number, total: number} | null>(null);
   const [aiResults, setAiResults] = useState<{success: number, failed: number} | null>(null);
   const [analyzingContactIds, setAnalyzingContactIds] = useState<string[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -204,7 +207,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
             {filteredContacts.map((contact) => (
               <SmartTooltip key={contact.id} featureId="contact_card" position="top">
                 <div>
-                  <AIEnhancedContactCard
+                  <SmartContactCard
                     contact={contact}
                     isSelected={selectedContacts.includes(contact.id)}
                     onSelect={() => handleContactSelect(contact.id)}
@@ -212,6 +215,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                     onEdit={handleEditContact}
                     onAnalyze={handleAnalyzeContact}
                     isAnalyzing={analyzingContactIds.includes(contact.id)}
+                    variant="standard"
+                    showMetrics={true}
+                    enableQuickActions={true}
                   />
                 </div>
               </SmartTooltip>
@@ -783,7 +789,11 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
           {/* Contacts Content */}
           <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
-            {filteredContacts.length === 0 ? (
+            {isLoadingContacts ? (
+              <div className="p-6">
+                <ContactDetailSkeleton variant="content" />
+              </div>
+            ) : filteredContacts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
                 <Users className="w-16 h-16 text-gray-400 mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No contacts found</h3>
@@ -821,16 +831,23 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
         <>
           <AIProvider>
             <ToastProvider>
-              <SmartTooltip featureId="contact_detail_view" position="top">
-                <div>
-                  <ContactDetailView
-                    contact={selectedContact}
-                    isOpen={!!selectedContact}
-                    onClose={handleContactDetailClose}
-                    onUpdate={updateContact}
-                  />
-                </div>
-              </SmartTooltip>
+              <ContactErrorBoundary
+                onError={(error, errorInfo) => {
+                  console.error('Contact detail error:', error, errorInfo);
+                  // Could send to error reporting service
+                }}
+              >
+                <SmartTooltip featureId="contact_detail_view" position="top">
+                  <div>
+                    <ContactDetailView
+                      contact={selectedContact}
+                      isOpen={!!selectedContact}
+                      onClose={handleContactDetailClose}
+                      onUpdate={updateContact}
+                    />
+                  </div>
+                </SmartTooltip>
+              </ContactErrorBoundary>
             </ToastProvider>
           </AIProvider>
         </>

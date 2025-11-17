@@ -12,6 +12,8 @@ import { AIEmailGenerator } from '../email/AIEmailGenerator';
 import { EmailAnalyzer } from '../email/EmailAnalyzer';
 import { EmailTemplateSelector } from '../email/EmailTemplateSelector';
 import { SocialMessageGenerator } from '../email/SocialMessageGenerator';
+import { EmailScheduler } from '../email/EmailScheduler';
+import { EmailAnalytics } from '../email/EmailAnalytics';
 import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
 import { ERROR_MESSAGES, LOADING_MESSAGES } from '../../utils/constants';
@@ -31,14 +33,15 @@ import {
   Brain,
   Sparkles,
   Mail as MailIcon,
-  Smartphone
+  Smartphone,
+  Calendar
 } from 'lucide-react';
 
 interface ContactEmailPanelProps {
   contact: Contact;
 }
 
-type ActiveTab = 'compose' | 'templates' | 'analyzer' | 'social';
+type ActiveTab = 'compose' | 'templates' | 'analyzer' | 'social' | 'scheduler' | 'analytics';
 
 export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({ contact }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('compose');
@@ -205,7 +208,9 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
     { id: 'compose', label: 'Compose', icon: Mail },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'analyzer', label: 'Analyzer', icon: BarChart3 },
-    { id: 'social', label: 'Social Messages', icon: MessageSquare }
+    { id: 'social', label: 'Social Messages', icon: MessageSquare },
+    { id: 'scheduler', label: 'Schedule', icon: Calendar },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 }
   ];
 
   return (
@@ -388,8 +393,40 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
         )}
         
         {activeTab === 'social' && (
-          <SocialMessageGenerator 
-            contact={contact} 
+          <SocialMessageGenerator
+            contact={contact}
+          />
+        )}
+
+        {activeTab === 'scheduler' && (
+          <EmailScheduler
+            contact={contact}
+            emailSubject={emailSubject}
+            emailBody={emailBody}
+            onSchedule={(scheduleData) => {
+              console.log('Email scheduled:', scheduleData);
+              showToast({
+                type: 'success',
+                title: 'Email Scheduled',
+                message: `Email scheduled for ${scheduleData.scheduledDate.toLocaleString()}`
+              });
+            }}
+            onSendNow={handleSendEmail}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <EmailAnalytics
+            contact={contact}
+            timeRange="30d"
+            onExport={(data) => {
+              console.log('Exporting analytics data:', data);
+              showToast({
+                type: 'success',
+                title: 'Analytics Exported',
+                message: 'Email analytics data has been exported successfully'
+              });
+            }}
           />
         )}
       </div>

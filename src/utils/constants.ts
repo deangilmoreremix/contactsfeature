@@ -35,7 +35,7 @@ export const INTEREST_LABELS = {
   [INTEREST_LEVELS.COLD]: 'Non Interest'
 } as const;
 
-// Source color mapping
+// Source color mapping - comprehensive coverage for all contact sources
 export const SOURCE_COLORS: { [key: string]: string } = {
   'LinkedIn': 'bg-blue-600',
   'Facebook': 'bg-blue-500',
@@ -43,7 +43,19 @@ export const SOURCE_COLORS: { [key: string]: string } = {
   'Website': 'bg-purple-500',
   'Referral': 'bg-orange-500',
   'Typeform': 'bg-pink-500',
-  'Cold Call': 'bg-gray-600'
+  'Cold Call': 'bg-gray-600',
+  'Trade Show': 'bg-indigo-500',
+  'Conference': 'bg-teal-500',
+  'Webinar': 'bg-cyan-500',
+  'Manual Import': 'bg-slate-500',
+  'API': 'bg-emerald-500',
+  'CSV Import': 'bg-violet-500',
+  'Salesforce': 'bg-rose-500',
+  'HubSpot': 'bg-amber-500',
+  'Zapier': 'bg-lime-500',
+  'Twitter': 'bg-sky-500',
+  'Instagram': 'bg-fuchsia-500',
+  'WhatsApp': 'bg-green-400'
 };
 
 // File upload constants

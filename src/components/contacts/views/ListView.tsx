@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { ViewDensity } from '../../../types/view';
-import { AIEnhancedContactCard } from '../AIEnhancedContactCard';
+import { SmartContactCard } from '../SmartContactCard';
 import { ModernButton } from '../../ui/ModernButton';
 import {
   LayoutList,
@@ -16,33 +16,18 @@ interface ListViewProps {
   onContactClick: (contact: Contact) => void;
 }
 
-const densityConfig: Record<ViewDensity['type'], ViewDensity> = {
-  compact: {
-    type: 'compact',
-    cardHeight: 120,
-    padding: 12,
-    fontSize: 'text-sm'
-  },
-  comfortable: {
-    type: 'comfortable',
-    cardHeight: 160,
-    padding: 16,
-    fontSize: 'text-base'
-  },
-  spacious: {
-    type: 'spacious',
-    cardHeight: 200,
-    padding: 20,
-    fontSize: 'text-lg'
-  }
-};
+const DENSITY_CONFIG = {
+  compact: { cardHeight: 120, gridMinWidth: '280px' },
+  comfortable: { cardHeight: 160, gridMinWidth: '320px' },
+  spacious: { cardHeight: 200, gridMinWidth: '360px' }
+} as const;
 
 export function ListView({ contacts, onContactClick }: ListViewProps) {
   const [density, setDensity] = useState<ViewDensity['type']>('comfortable');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [showDensityMenu, setShowDensityMenu] = useState(false);
 
-  const currentDensity = densityConfig[density];
+  const currentDensity = DENSITY_CONFIG[density];
 
   return (
     <div className="flex flex-col h-full">
@@ -60,59 +45,40 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
           {/* Density Controls */}
           <div className="relative">
             <ModernButton
-              variant="secondary"
+              variant="outline"
               onClick={() => setShowDensityMenu(!showDensityMenu)}
-              icon={SlidersHorizontal}
               className="text-sm"
             >
+              <SlidersHorizontal className="w-4 h-4 mr-2" />
               Density
             </ModernButton>
 
             {showDensityMenu && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
                 <div className="p-2">
-                  <button
-                    onClick={() => {
-                      setDensity('compact');
-                      setShowDensityMenu(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                      density === 'compact'
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <Minimize2 className="w-4 h-4" />
-                    <span className="text-sm font-medium">Compact</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDensity('comfortable');
-                      setShowDensityMenu(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                      density === 'comfortable'
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <LayoutList className="w-4 h-4" />
-                    <span className="text-sm font-medium">Comfortable</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDensity('spacious');
-                      setShowDensityMenu(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                      density === 'spacious'
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                    <span className="text-sm font-medium">Spacious</span>
-                  </button>
+                  {Object.entries(DENSITY_CONFIG).map(([key, config]) => {
+                    const icons = { compact: Minimize2, comfortable: LayoutList, spacious: Maximize2 };
+                    const Icon = icons[key as keyof typeof icons];
+                    const isActive = density === key;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setDensity(key as typeof density);
+                          setShowDensityMenu(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors capitalize ${
+                          isActive
+                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{key}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -148,22 +114,18 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
 
       {/* Contacts Display */}
       <div
-        className={`
-          overflow-y-auto
-          ${viewMode === 'grid'
-            ? 'grid gap-4 auto-rows-max'
-            : 'flex flex-col gap-3'
-          }
-        `}
-        style={{
-          gridTemplateColumns: viewMode === 'grid'
-            ? `repeat(auto-fill, minmax(${
-                density === 'compact' ? '280px' :
-                density === 'comfortable' ? '320px' :
-                '360px'
-              }, 1fr))`
-            : undefined
-        }}
+        className={`overflow-y-auto px-2 sm:px-0 ${
+          viewMode === 'grid'
+            ? 'grid gap-3 sm:gap-4 md:gap-6 auto-rows-max'
+            : 'flex flex-col gap-2 sm:gap-3'
+        }`}
+        style={viewMode === 'grid' ? {
+          gridTemplateColumns: `repeat(auto-fill, minmax(${
+            density === 'compact' ? '280px' :
+            density === 'comfortable' ? '320px' :
+            '360px'
+          }, 1fr))`
+        } : undefined}
       >
         {contacts.map((contact) => (
           <div
@@ -174,10 +136,14 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
               minHeight: viewMode === 'list' ? `${currentDensity.cardHeight}px` : undefined
             }}
           >
-            <AIEnhancedContactCard
+            <SmartContactCard
               contact={contact}
-              density={density}
-              viewMode={viewMode}
+              isSelected={false}
+              onSelect={() => {}}
+              onClick={() => onContactClick(contact)}
+              variant="standard"
+              showMetrics={true}
+              enableQuickActions={true}
             />
           </div>
         ))}

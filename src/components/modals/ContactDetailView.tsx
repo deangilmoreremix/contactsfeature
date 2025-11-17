@@ -974,7 +974,7 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
               <div className="mb-3">
                 <button
                   onClick={() => window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank')}
-                  className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 dark:hover:from-indigo-700 dark:hover:to-purple-700 text-sm font-medium transition-all duration-200 border border-indigo-300/50 dark:border-indigo-600/50 shadow-sm hover:shadow-md hover:scale-105"
+                  className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 dark:hover:from-indigo-700 dark:hover:to-purple-700 text-sm font-medium transition-all duration-200 border border-indigo-300/50 dark:border-indigo-600/50 shadow-sm hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                 >
                   <Target className="w-4 h-4 mr-2" />
                   AI Goals
@@ -983,26 +983,17 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
 
               {/* Quick AI Actions Grid */}
               <div className="grid grid-cols-2 gap-2 mb-3">
-                {/* Lead Score */}
-                <button
-                  onClick={handleAnalyzeContact}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 border-blue-300/50 dark:border-blue-600/50"
-                >
-                  <BarChart3 className="w-4 h-4 mb-1" />
-                  <span className="text-xs leading-tight text-center">Lead Score</span>
-                </button>
-                
                 {/* Email AI */}
                 <button
                   onClick={handleSendEmail}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-700 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500 border-gray-200/50 dark:border-slate-600/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 dark:from-slate-600 dark:to-slate-500 text-gray-800 dark:text-gray-100 hover:from-gray-200 hover:to-gray-300 dark:hover:from-slate-500 dark:hover:to-slate-400 border-gray-300 dark:border-slate-500 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-slate-400"
                 >
                   <Mail className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Email AI</span>
                 </button>
-                
+
                 {/* Enrich */}
-                <button 
+                <button
                   onClick={() => {
                     const searchQuery = {
                       email: editedContact.email,
@@ -1010,7 +1001,7 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                       lastName: editedContact.lastName,
                       company: editedContact.company
                     };
-                    
+
                     handleAIEnrichment({
                       email: searchQuery.email,
                       firstName: searchQuery.firstName,
@@ -1019,16 +1010,16 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                       confidence: 75
                     });
                   }}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-700 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500 border-gray-200/50 dark:border-slate-600/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 dark:from-slate-600 dark:to-slate-500 text-gray-800 dark:text-gray-100 hover:from-gray-200 hover:to-gray-300 dark:hover:from-slate-500 dark:hover:to-slate-400 border-gray-300 dark:border-slate-500 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-slate-400"
                 >
                   <Search className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Enrich</span>
                 </button>
-                
+
                 {/* Insights */}
                 <button
                   onClick={() => setActiveTab('ai-insights')}
-                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700 dark:to-slate-600 text-gray-700 dark:text-white hover:from-gray-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-500 border-gray-200/50 dark:border-slate-600/50"
+                  className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 dark:from-slate-600 dark:to-slate-500 text-gray-800 dark:text-gray-100 hover:from-gray-200 hover:to-gray-300 dark:hover:from-slate-500 dark:hover:to-slate-400 border-gray-300 dark:border-slate-500 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-slate-400"
                 >
                   <TrendingUp className="w-4 h-4 mb-1" />
                   <span className="text-xs leading-tight text-center">Insights</span>
@@ -1196,7 +1187,7 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                   }
                 }}
                 disabled={researchStatus.status.isActive}
-                className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-purple-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
+                className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-700 dark:to-blue-700 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 dark:hover:from-purple-800 dark:hover:to-blue-800 text-sm font-medium transition-all duration-200 border border-purple-300/50 dark:border-purple-600/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
               >
                 {researchStatus.status.isActive ? (
                   <>
@@ -1220,47 +1211,47 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                 Quick Actions
               </h4>
               <div className="grid grid-cols-3 gap-2">
-                <button 
+                <button
                   onClick={() => setIsEditing(true)}
-                  className="p-3 flex flex-col items-center hover:bg-blue-50 rounded-lg transition-all text-center"
+                  className="p-3 flex flex-col items-center hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                 >
-                  <Edit className="w-4 h-4 mb-1 text-blue-600" />
-                  <span className="text-xs font-medium">Edit</span>
+                  <Edit className="w-4 h-4 mb-1 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Edit</span>
                 </button>
-                <button 
+                <button
                   onClick={handleSendEmail}
-                  className="p-3 flex flex-col items-center hover:bg-green-50 rounded-lg transition-all text-center"
+                  className="p-3 flex flex-col items-center hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400"
                 >
-                  <Mail className="w-4 h-4 mb-1 text-green-600" />
-                  <span className="text-xs font-medium">Email</span>
+                  <Mail className="w-4 h-4 mb-1 text-green-600 dark:text-green-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Email</span>
                 </button>
-                <button 
+                <button
                   onClick={handleMakeCall}
-                  className="p-3 flex flex-col items-center hover:bg-yellow-50 rounded-lg transition-all text-center"
+                  className="p-3 flex flex-col items-center hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-yellow-500 dark:focus:ring-yellow-400"
                 >
-                  <Phone className="w-4 h-4 mb-1 text-yellow-600" />
-                  <span className="text-xs font-medium">Call</span>
+                  <Phone className="w-4 h-4 mb-1 text-yellow-600 dark:text-yellow-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Call</span>
                 </button>
-                <button 
+                <button
                   onClick={() => setShowAddField(true)}
-                  className="p-3 flex flex-col items-center hover:bg-purple-50 rounded-lg transition-all text-center"
+                  className="p-3 flex flex-col items-center hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
                 >
-                  <Plus className="w-4 h-4 mb-1 text-purple-600" />
-                  <span className="text-xs font-medium">Add Field</span>
+                  <Plus className="w-4 h-4 mb-1 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Add Field</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('journey')}
-                  className="p-3 flex flex-col items-center hover:bg-orange-50 rounded-lg transition-all text-center"
+                  className="p-3 flex flex-col items-center hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400"
                 >
-                  <FileText className="w-4 h-4 mb-1 text-orange-600" />
-                  <span className="text-xs font-medium">Files</span>
+                  <FileText className="w-4 h-4 mb-1 text-orange-600 dark:text-orange-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Files</span>
                 </button>
-                <button 
+                <button
                   onClick={() => window.open(`https://calendar.google.com/calendar/u/0/r/eventedit?text=Meeting+with+${editedContact.name}&details=${editedContact.company}`, '_blank')}
-                  className="p-3 flex flex-col items-center hover:bg-indigo-50 rounded-lg transition-all text-center"
+                  className="p-3 flex flex-col items-center hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                 >
-                  <Calendar className="w-4 h-4 mb-1 text-indigo-600" />
-                  <span className="text-xs font-medium">Meet</span>
+                  <Calendar className="w-4 h-4 mb-1 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Meet</span>
                 </button>
               </div>
             </div>
