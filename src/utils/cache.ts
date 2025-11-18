@@ -58,6 +58,18 @@ class AICache {
   getCallCacheKey(callData: { to: string; notes?: string }): string {
     return `call_${btoa(callData.to)}_${btoa(callData.notes || '').slice(0, 10)}`;
   }
+
+  // Generate cache key for GPT-5.1 responses
+  getGPT51CacheKey(request: any): string {
+    const keyData = {
+      model: request.model || 'gpt-5.1',
+      input: request.input?.slice(0, 100) || '',
+      reasoning: request.reasoning?.effort || 'none',
+      verbosity: request.text?.verbosity || 'medium',
+      tools: request.tools?.length || 0
+    };
+    return `gpt51_${btoa(JSON.stringify(keyData)).slice(0, 50)}`;
+  }
 }
 
 export const aiCache = new AICache();
