@@ -3,6 +3,10 @@ import { Contact } from '../../types';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
 import { callTrackingService } from '../../services/callTrackingService';
+import { CallStateDisplay } from './CallStateDisplay';
+import { CallControls } from './CallControls';
+import { CallScripts } from './CallScripts';
+import { CallOutcomeLogger } from './CallOutcomeLogger';
 import {
   Phone,
   PhoneCall,
@@ -267,210 +271,47 @@ export const QuickCallHandler: React.FC<QuickCallHandlerProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Call State Display */}
-          <div className="text-center">
-            {callState === 'idle' && (
-              <div className="space-y-4">
-                <div className="text-6xl text-gray-300">
-                  <Phone className="mx-auto" />
-                </div>
-                <div>
-                  <p className="text-lg font-medium text-gray-900">{contact.phone || 'No phone number'}</p>
-                  <p className="text-sm text-gray-600">Tap to call</p>
-                </div>
-              </div>
-            )}
-
-            {callState === 'calling' && (
-              <div className="space-y-4">
-                <div className="text-6xl text-blue-500 animate-pulse">
-                  <PhoneCall className="mx-auto" />
-                </div>
-                <div>
-                  <p className="text-lg font-medium text-gray-900">Calling...</p>
-                  <p className="text-sm text-gray-600">Please wait</p>
-                </div>
-              </div>
-            )}
-
-            {callState === 'connected' && (
-              <div className="space-y-4">
-                <div className="text-6xl text-green-500">
-                  <PhoneCall className="mx-auto" />
-                </div>
-                <div>
-                  <p className="text-lg font-medium text-gray-900">Connected</p>
-                  <p className="text-sm text-gray-600">{formatDuration(callDuration)}</p>
-                </div>
-              </div>
-            )}
-
-            {callState === 'completed' && (
-              <div className="space-y-4">
-                <div className="text-6xl text-gray-400">
-                  <CheckCircle className="mx-auto" />
-                </div>
-                <div>
-                  <p className="text-lg font-medium text-gray-900">Call Completed</p>
-                  <p className="text-sm text-gray-600">Duration: {formatDuration(callDuration)}</p>
-                </div>
-              </div>
-            )}
-          </div>
+          <CallStateDisplay
+            callState={callState}
+            contactName={contact.name}
+            contactPhone={contact.phone || ''}
+            callDuration={callDuration}
+            formatDuration={formatDuration}
+          />
 
           {/* Call Scripts */}
-          {callState === 'idle' && (
-            <div>
-              <button
-                onClick={() => setShowScripts(!showScripts)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
-              >
-                <FileText className="w-4 h-4" />
-                <span>{selectedScript ? `Using: ${selectedScript.name}` : 'Choose Call Script'}</span>
-              </button>
-
-              {showScripts && (
-                <div className="mt-3 grid grid-cols-1 gap-3">
-                  {callScripts.map((script) => (
-                    <button
-                      key={script.id}
-                      onClick={() => {
-                        setSelectedScript(script);
-                        setShowScripts(false);
-                      }}
-                      className={`p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left ${
-                        selectedScript?.id === script.id ? 'border-blue-300 bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className="font-medium text-gray-900">{script.name}</div>
-                      <div className="text-sm text-gray-600 mt-1">{script.purpose}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Script Display */}
-          {selectedScript && callState === 'connected' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-3">{selectedScript.name}</h4>
-
-              <div className="space-y-3">
-                <div>
-                  <h5 className="text-sm font-medium text-blue-800 mb-2">Call Steps:</h5>
-                  <ol className="text-sm text-blue-700 space-y-1">
-                    {selectedScript.steps.map((step, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="text-blue-500 mr-2">{index + 1}.</span>
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                <div>
-                  <h5 className="text-sm font-medium text-blue-800 mb-2">Key Talking Points:</h5>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    {selectedScript.talkingPoints.map((point, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="text-blue-500 mr-2">•</span>
-                        <span>{point}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
+          <CallScripts
+            callState={callState}
+            scripts={callScripts}
+            selectedScript={selectedScript}
+            showScripts={showScripts}
+            onToggleScripts={() => setShowScripts(!showScripts)}
+            onSelectScript={(script) => {
+              setSelectedScript(script);
+              setShowScripts(false);
+            }}
+          />
 
           {/* Call Controls */}
-          {callState === 'connected' && (
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className={`p-3 rounded-full transition-colors ${
-                  isMuted ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </button>
-
-              <button
-                onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-                className={`p-3 rounded-full transition-colors ${
-                  !isSpeakerOn ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {isSpeakerOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-              </button>
-            </div>
-          )}
+          <CallControls
+            isMuted={isMuted}
+            isSpeakerOn={isSpeakerOn}
+            onToggleMute={() => setIsMuted(!isMuted)}
+            onToggleSpeaker={() => setIsSpeakerOn(!isSpeakerOn)}
+          />
 
           {/* Call Completion Form */}
-          {callState === 'completed' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Call Outcome</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'completed', label: 'Completed', icon: CheckCircle },
-                    { value: 'no_answer', label: 'No Answer', icon: PhoneOff },
-                    { value: 'busy', label: 'Busy', icon: AlertCircle },
-                    { value: 'voicemail', label: 'Voicemail', icon: MessageSquare }
-                  ].map(({ value, label, icon: Icon }) => (
-                    <button
-                      key={value}
-                      onClick={() => handleOutcomeSelect(value as CallData['outcome'])}
-                      className={`p-3 border rounded-lg transition-colors ${
-                        callOutcome === value
-                          ? 'border-blue-300 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 mx-auto mb-1" />
-                      <span className="text-sm">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Call Notes</label>
-                <textarea
-                  value={callNotes}
-                  onChange={(e) => setCallNotes(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                  placeholder="What was discussed? Key takeaways..."
-                />
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="followUp"
-                  checked={followUpRequired}
-                  onChange={(e) => setFollowUpRequired(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="followUp" className="text-sm font-medium text-gray-700">
-                  Follow-up required
-                </label>
-              </div>
-
-              {followUpRequired && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Follow-up Date</label>
-                  <input
-                    type="datetime-local"
-                    value={followUpDate}
-                    onChange={(e) => setFollowUpDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              )}
-            </div>
-          )}
+          <CallOutcomeLogger
+            callState={callState}
+            callOutcome={callOutcome}
+            callNotes={callNotes}
+            followUpRequired={followUpRequired}
+            followUpDate={followUpDate}
+            onOutcomeSelect={handleOutcomeSelect}
+            onNotesChange={setCallNotes}
+            onFollowUpToggle={() => setFollowUpRequired(!followUpRequired)}
+            onFollowUpDateChange={setFollowUpDate}
+          />
         </div>
 
         {/* Footer Actions */}

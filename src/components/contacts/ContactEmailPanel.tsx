@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useCommunicationAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { AIErrorBoundary } from '../ui/ErrorBoundary';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { useToast } from '../ui/Toast';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { CitationBadge } from '../ui/CitationBadge';
@@ -214,7 +214,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
   ];
 
   return (
-    <AIErrorBoundary>
+    <ErrorBoundary>
       {/* Research Status Overlay */}
       <ResearchStatusOverlay
         status={researchStatus.status}
@@ -515,7 +515,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
         </div>
       )}
     </div>
-    </AIErrorBoundary>
+    </ErrorBoundary>
   );
 });
 

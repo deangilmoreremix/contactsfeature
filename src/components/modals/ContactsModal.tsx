@@ -8,6 +8,7 @@ import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { SettingsModal } from './SettingsModal';
+import { ProductIntelligenceModal } from '../product-intelligence/ProductIntelligenceModal';
 import { useContactStore } from '../../hooks/useContactStore';
 import { useView } from '../../contexts/ViewContext';
 import { Contact } from '../../types';
@@ -91,6 +92,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isProductIntelligenceOpen, setIsProductIntelligenceOpen] = useState(false);
 
   // Initialize Fuse.js for fuzzy search
   const fuse = useMemo(() => {
@@ -360,6 +362,20 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     setIsSettingsModalOpen(false);
   };
 
+  const handleProductIntelligenceClick = () => {
+    setIsProductIntelligenceOpen(true);
+  };
+
+  const handleProductIntelligenceClose = () => {
+    setIsProductIntelligenceOpen(false);
+  };
+
+  const handleAnalysisComplete = (results: any, content: any) => {
+    console.log('Analysis complete:', results, content);
+    // Here you could integrate with the CRM or show success message
+    setIsProductIntelligenceOpen(false);
+  };
+
   // Export functionality
   const handleExportContacts = () => {
     // Determine which contacts to export
@@ -596,6 +612,20 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 >
                   <Settings className="w-4 h-4" />
                   <span>Settings</span>
+                </ModernButton>
+              </SmartTooltip>
+
+              {/* AI Product Intelligence Button */}
+              <SmartTooltip featureId="ai_product_intelligence_button">
+                <ModernButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleProductIntelligenceClick}
+                  className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  <Brain className="w-4 h-4" />
+                  <span>AI Product Intelligence</span>
+                  <Sparkles className="w-3 h-3 text-yellow-300" />
                 </ModernButton>
               </SmartTooltip>
 
@@ -857,6 +887,12 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={handleSettingsModalClose}
+      />
+
+      {/* AI Product Intelligence Modal */}
+      <ProductIntelligenceModal
+        isOpen={isProductIntelligenceOpen}
+        onClose={handleProductIntelligenceClose}
       />
     </>
   );

@@ -4,20 +4,24 @@ import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
 import { emailTrackingService } from '../../services/emailTrackingService';
 import { emailSchedulerService } from '../../services/emailSchedulerService';
+import { copyEmailToClipboard } from '../../utils/clipboardUtils';
+import { EmailTemplateSelector } from './EmailTemplateSelector';
+import { EmailScheduler } from './EmailScheduler';
+import { EmailForm } from './EmailForm';
 import {
   Mail,
   Send,
   Clock,
-  FileText,
   Sparkles,
   X,
   Copy,
   Save,
-  Calendar,
   Zap,
   Target,
   TrendingUp,
-  Loader2
+  Loader2,
+  FileText,
+  Calendar
 } from 'lucide-react';
 
 interface QuickEmailComposerProps {
@@ -116,10 +120,10 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showScheduler, setShowScheduler] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [isScheduling, setIsScheduling] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
 
   // Initialize with template if contact has specific context
   useEffect(() => {
@@ -229,7 +233,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
         body: emailData.body,
         scheduledFor: scheduledDateTime,
         contactId: contact.id,
-        template: emailData.template,
+        template: emailData.template || '',
         priority: emailData.priority
       });
 
@@ -243,38 +247,10 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
     }
   }, [emailData, scheduledDate, scheduledTime, contact.id, onClose]);
 
-  const copyToClipboard = useCallback(async () => {
-    const emailText = `Subject: ${emailData.subject}\n\n${emailData.body}`;
-    try {
-      await navigator.clipboard.writeText(emailText);
-      // Show success feedback without alert
-      console.log('Email copied to clipboard successfully');
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      // Fallback for older browsers or restricted contexts
-      try {
-        const textArea = document.createElement('textarea');
-        textArea.value = emailText;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-
-        // Use modern execCommand as fallback
-        const successful = document.execCommand('copy');
-        document.body.removeChild(textArea);
-
-        if (successful) {
-          console.log('Email copied to clipboard (fallback method)');
-        } else {
-          throw new Error('Fallback copy method failed');
-        }
-      } catch (fallbackError) {
-        console.error('All copy methods failed:', fallbackError);
-        alert('Unable to copy to clipboard. Please copy manually.');
-      }
+  const handleCopyToClipboard = useCallback(async () => {
+    const result = await copyEmailToClipboard(emailData.subject, emailData.body);
+    if (!result.success && result.error) {
+      alert(result.error);
     }
   }, [emailData]);
 
@@ -305,125 +281,31 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Email Form */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-              <input
-                type="email"
-                value={emailData.to}
-                onChange={(e) => setEmailData(prev => ({ ...prev, to: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="recipient@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-              <input
-                type="text"
-                value={emailData.subject}
-                onChange={(e) => setEmailData(prev => ({ ...prev, subject: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Email subject"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-              <textarea
-                value={emailData.body}
-                onChange={(e) => setEmailData(prev => ({ ...prev, body: e.target.value }))}
-                rows={12}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                placeholder="Write your message here..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-              <select
-                value={emailData.priority}
-                onChange={(e) => setEmailData(prev => ({ ...prev, priority: e.target.value as EmailData['priority'] }))}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-          </div>
+          <EmailForm
+            emailData={emailData}
+            onEmailDataChange={(field, value) => setEmailData(prev => ({ ...prev, [field]: value }))}
+          />
 
           {/* Template Selector */}
-          <div>
-            <button
-              onClick={() => setShowTemplates(!showTemplates)}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              <span>{selectedTemplate ? `Using: ${selectedTemplate.name}` : 'Choose Template'}</span>
-            </button>
-
-            {showTemplates && (
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                {emailTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => applyTemplate(template)}
-                    className="p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
-                  >
-                    <div className="font-medium text-gray-900">{template.name}</div>
-                    <div className="text-sm text-gray-600 mt-1">{template.category}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <EmailTemplateSelector
+            templates={emailTemplates}
+            selectedTemplate={selectedTemplate}
+            showTemplates={showTemplates}
+            onToggleTemplates={() => setShowTemplates(!showTemplates)}
+            onSelectTemplate={applyTemplate}
+          />
 
           {/* Scheduling Section */}
-          <div>
-            <button
-              onClick={() => setShowScheduler(!showScheduler)}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-100 hover:bg-green-200 rounded-lg transition-colors"
-            >
-              <Clock className="w-4 h-4" />
-              <span>Schedule for Later</span>
-            </button>
-
-            {showScheduler && (
-              <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
-                    <input
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    />
-                  </div>
-                </div>
-                <ModernButton
-                  onClick={handleScheduleSend}
-                  loading={isScheduling}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Schedule Email
-                </ModernButton>
-              </div>
-            )}
-          </div>
+          <EmailScheduler
+            showScheduler={showScheduler}
+            onToggleScheduler={() => setShowScheduler(!showScheduler)}
+            scheduledDate={scheduledDate}
+            onScheduledDateChange={setScheduledDate}
+            scheduledTime={scheduledTime}
+            onScheduledTimeChange={setScheduledTime}
+            onScheduleSend={handleScheduleSend}
+            isScheduling={isScheduling}
+          />
         </div>
 
         {/* Footer Actions */}
@@ -431,7 +313,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
           <div className="flex items-center space-x-3">
             <ModernButton
               variant="outline"
-              onClick={copyToClipboard}
+              onClick={handleCopyToClipboard}
               className="flex items-center space-x-2"
             >
               <Copy className="w-4 h-4" />

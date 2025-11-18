@@ -12,6 +12,7 @@ import { AITestingSuite } from './components/AITestingSuite';
 import { WelcomeExperience } from './components/guidance/WelcomeExperience';
 import { ContextualHelp } from './components/guidance/ContextualHelp';
 import { TooltipTest } from './components/TooltipTest';
+import { ProductIntelligenceModal } from './components/product-intelligence/ProductIntelligenceModal';
 import './styles/design-system.css';
 
 // Remote App Props Interface
@@ -28,7 +29,7 @@ interface RemoteAppProps {
 }
 
 function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate }: RemoteAppProps) {
-  const [currentView, setCurrentView] = useState<'app' | 'landing' | 'test' | 'ai-test' | 'tooltip-test'>('app');
+  const [currentView, setCurrentView] = useState<'app' | 'landing' | 'test' | 'ai-test' | 'tooltip-test' | 'product-intelligence'>('app');
   const [localSharedData, setLocalSharedData] = useState(sharedData);
   const { state, setWelcomeVisible } = useGuidance();
 
@@ -71,6 +72,8 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
       setCurrentView('ai-test');
     } else if (urlParams.get('tooltip-test') === 'true') {
       setCurrentView('tooltip-test');
+    } else if (urlParams.get('product-intelligence') === 'true') {
+      setCurrentView('product-intelligence');
     } else if (urlParams.get('app') === 'true') {
       setCurrentView('app');
     }
@@ -202,6 +205,23 @@ function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate 
             </div>
             <div className="overflow-y-auto">
               <TooltipTest />
+            </div>
+          </div>
+        ) : currentView === 'product-intelligence' ? (
+          <div className="h-full">
+            <div className="p-4 bg-gray-100 border-b">
+              <button
+                onClick={() => setCurrentView('app')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                ← Back to App
+              </button>
+            </div>
+            <div className="p-4">
+              <ProductIntelligenceModal
+                isOpen={true}
+                onClose={() => setCurrentView('app')}
+              />
             </div>
           </div>
         ) : (
