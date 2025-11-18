@@ -12,11 +12,15 @@ import { CommunicationHub } from '../contacts/CommunicationHub';
 import { AutomationPanel } from '../contacts/AutomationPanel';
 import { ContactAnalytics } from '../contacts/ContactAnalytics';
 import { ContactEmailPanel } from '../contacts/ContactEmailPanel';
+import { QuickEmailComposer } from '../contacts/QuickEmailComposer';
+import { QuickCallHandler } from '../contacts/QuickCallHandler';
+import { QuickSMSComposer } from '../contacts/QuickSMSComposer';
 import { AdaptivePlaybookGenerator } from '../ai-sales-intelligence/AdaptivePlaybookGenerator';
 import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
 import { AISettingsPanel } from '../ai-sales-intelligence/AISettingsPanel';
+import { APIConfigurationPanel } from '../ui/APIConfigurationPanel';
 import { Contact } from '../../types/contact';
 import { contactAI } from '../../services/contact-ai.service';
 import {
@@ -92,6 +96,10 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const [addSource, setAddSource] = useState('');
   const [editInterestLevel, setEditInterestLevel] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
+  const [showAPIConfig, setShowAPIConfig] = useState(false);
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [showCallHandler, setShowCallHandler] = useState(false);
+  const [showSMSComposer, setShowSMSComposer] = useState(false);
 
   // AI Tools state management
   const [communicationOptimization, setCommunicationOptimization] = useState<any>(null);
@@ -650,7 +658,7 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
 
 
   const handleSendEmail = () => {
-    // Validate email before opening mailto link
+    // Validate email before opening composer
     if (!editedContact.email || editedContact.email.trim() === '') {
       alert('No email address available for this contact. Please add an email address first.');
       return;
@@ -663,19 +671,126 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
       return;
     }
 
-    try {
-      window.open(`mailto:${editedContact.email}`, '_blank');
-    } catch (error) {
-      console.error('Failed to open email client:', error);
-      alert('Failed to open email client. Please check your email application settings.');
-    }
+    // Open enhanced email composer
+    setShowEmailComposer(true);
   };
 
   const handleMakeCall = () => {
-    if (editedContact.phone) {
-      window.open(`tel:${editedContact.phone}`, '_blank');
+    if (!editedContact.phone) {
+      alert('No phone number available for this contact. Please add a phone number first.');
+      return;
+    }
+
+    // Open enhanced call handler
+    setShowCallHandler(true);
+  };
+
+  const handleSendSMS = () => {
+    if (!editedContact.phone) {
+      alert('No phone number available for this contact. Please add a phone number first.');
+      return;
+    }
+
+    // Open SMS composer
+    setShowSMSComposer(true);
+  };
+
+  const handleEmailSent = async (emailData: any) => {
+    // Log email activity
+    await contactService.addContactActivity(
+      contact.id,
+      'email_sent',
+      `Email sent: ${emailData.subject}`,
+      {
+        emailId: emailData.id,
+        template: emailData.template,
+        scheduled: !!emailData.scheduledFor
+      }
+    );
+
+    // Update contact's last contacted date
+    await onUpdate?.(contact.id, { lastConnected: new Date().toISOString() });
+  };
+
+  const handleCallComplete = async (callData: any) => {
+    // Log call activity
+    await contactService.addContactActivity(
+      contact.id,
+      'call_completed',
+      `Call completed: ${callData.outcome} (${Math.floor(callData.duration / 60)}:${(callData.duration % 60).toString().padStart(2, '0')})`,
+      {
+        duration: callData.duration,
+        outcome: callData.outcome,
+        notes: callData.notes,
+        followUpRequired: callData.followUpRequired
+      }
+    );
+
+    // Update contact's last contacted date
+    await onUpdate?.(contact.id, { lastConnected: new Date().toISOString() });
+
+    // Create follow-up task if required
+    if (callData.followUpRequired && callData.followUpDate) {
+      // In a real implementation, this would create a task/reminder
+      console.log('Follow-up scheduled for:', callData.followUpDate);
     }
   };
+
+  // Keyboard shortcuts for quick actions - optimized with stable callbacks
+   useEffect(() => {
+     const handleKeyDown = (event: KeyboardEvent) => {
+       // Only handle shortcuts when modals are not open and not in input fields
+       if (showEmailComposer || showCallHandler || showAISettings) return;
+       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+
+       // Ctrl/Cmd + E = Email
+       if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+         event.preventDefault();
+         event.stopPropagation();
+         handleSendEmail();
+         return;
+       }
+
+       // Ctrl/Cmd + P = Call/Phone
+       if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
+         event.preventDefault();
+         event.stopPropagation();
+         handleMakeCall();
+         return;
+       }
+
+       // Ctrl/Cmd + S = SMS
+       if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+         event.preventDefault();
+         event.stopPropagation();
+         handleSendSMS();
+         return;
+       }
+
+       // Ctrl/Cmd + Enter = Save (when editing)
+       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && isEditing) {
+         event.preventDefault();
+         event.stopPropagation();
+         handleSave();
+         return;
+       }
+
+       // Escape = Cancel editing or close modal
+       if (event.key === 'Escape') {
+         event.preventDefault();
+         event.stopPropagation();
+         if (isEditing) {
+           handleCancel();
+         } else {
+           onClose();
+         }
+         return;
+       }
+     };
+
+     document.addEventListener('keydown', handleKeyDown, { passive: false });
+     return () => document.removeEventListener('keydown', handleKeyDown);
+   }, [showEmailComposer, showCallHandler, showAISettings, isEditing, handleSendEmail, handleMakeCall, handleSave, handleCancel, onClose]);
 
   if (!isOpen) return null;
 
@@ -1220,17 +1335,36 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                 </button>
                 <button
                   onClick={handleSendEmail}
-                  className="p-3 flex flex-col items-center hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400"
+                  className="p-3 flex flex-col items-center hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 relative group"
+                  title="Send Email (Ctrl+E)"
                 >
                   <Mail className="w-4 h-4 mb-1 text-green-600 dark:text-green-400" />
                   <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Email</span>
+                  <span className="absolute -top-1 -right-1 text-xs bg-green-500 text-white rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    ⌘E
+                  </span>
+                </button>
+                <button
+                  onClick={handleSendSMS}
+                  className="p-3 flex flex-col items-center hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 relative group"
+                  title="Send SMS (Ctrl+S)"
+                >
+                  <MessageSquare className="w-4 h-4 mb-1 text-teal-600 dark:text-teal-400" />
+                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">SMS</span>
+                  <span className="absolute -top-1 -right-1 text-xs bg-teal-500 text-white rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    ⌘S
+                  </span>
                 </button>
                 <button
                   onClick={handleMakeCall}
-                  className="p-3 flex flex-col items-center hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-yellow-500 dark:focus:ring-yellow-400"
+                  className="p-3 flex flex-col items-center hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-yellow-500 dark:focus:ring-yellow-400 relative group"
+                  title="Make Call (Ctrl+P)"
                 >
                   <Phone className="w-4 h-4 mb-1 text-yellow-600 dark:text-yellow-400" />
                   <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Call</span>
+                  <span className="absolute -top-1 -right-1 text-xs bg-yellow-500 text-white rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    ⌘P
+                  </span>
                 </button>
                 <button
                   onClick={() => setShowAddField(true)}
@@ -1245,13 +1379,6 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                 >
                   <FileText className="w-4 h-4 mb-1 text-orange-600 dark:text-orange-400" />
                   <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Files</span>
-                </button>
-                <button
-                  onClick={() => window.open(`https://calendar.google.com/calendar/u/0/r/eventedit?text=Meeting+with+${editedContact.name}&details=${editedContact.company}`, '_blank')}
-                  className="p-3 flex flex-col items-center hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                >
-                  <Calendar className="w-4 h-4 mb-1 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-xs font-medium text-gray-900 dark:text-gray-100">Meet</span>
                 </button>
               </div>
             </div>
@@ -2014,11 +2141,18 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
                         4 AI Tools Available
                       </span>
                       <button
+                        onClick={() => setShowAPIConfig(true)}
+                        className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
+                        title="API Configuration"
+                      >
+                        <Settings className="w-4 h-4 text-gray-600" />
+                      </button>
+                      <button
                         onClick={() => setShowAISettings(true)}
                         className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
                         title="AI Settings"
                       >
-                        <Settings className="w-4 h-4 text-gray-600" />
+                        <Brain className="w-4 h-4 text-gray-600" />
                       </button>
                     </div>
                   </div>
@@ -2124,6 +2258,12 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
         </div>
       </div>
 
+      {/* API Configuration Panel */}
+      <APIConfigurationPanel
+        isOpen={showAPIConfig}
+        onClose={() => setShowAPIConfig(false)}
+      />
+
       {/* AI Settings Panel */}
       <AISettingsPanel
         isOpen={showAISettings}
@@ -2132,6 +2272,29 @@ ${dealHealthAnalysis.nextSteps?.map((step: string) => `- ${step}`).join('\n') ||
           console.log('AI Settings updated:', settings);
           // Could dispatch to global state or context here
         }}
+      />
+
+      {/* Enhanced Email Composer */}
+      <QuickEmailComposer
+        contact={editedContact}
+        isOpen={showEmailComposer}
+        onClose={() => setShowEmailComposer(false)}
+        onSend={handleEmailSent}
+      />
+
+      {/* Enhanced Call Handler */}
+      <QuickCallHandler
+        contact={editedContact}
+        isOpen={showCallHandler}
+        onClose={() => setShowCallHandler(false)}
+        onCallComplete={handleCallComplete}
+      />
+
+      {/* SMS Composer */}
+      <QuickSMSComposer
+        contact={editedContact}
+        isOpen={showSMSComposer}
+        onClose={() => setShowSMSComposer(false)}
       />
     </div>
     </>
