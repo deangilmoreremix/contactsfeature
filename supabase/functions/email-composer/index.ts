@@ -23,6 +23,8 @@ interface EmailCompositionRequest {
   includeSignature?: boolean;
   webResearch?: string;
   companyContext?: any[];
+  generateImages?: boolean;
+  campaignId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -47,6 +49,8 @@ Deno.serve(async (req: Request) => {
       includeSignature = true,
       webResearch,
       companyContext,
+      generateImages = false,
+      campaignId,
     }: EmailCompositionRequest = await req.json();
 
     if (!contact || !purpose) {
@@ -168,6 +172,40 @@ Return ONLY valid JSON, no other text.`;
       openaiData.choices[0].message.content
     );
 
+    let generatedImages: any[] = [];
+
+    // Generate email banner images if requested
+    if (generateImages) {
+      try {
+        const imageResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/gemini-image-generator`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': req.headers.get('Authorization') || '',
+          },
+          body: JSON.stringify({
+            prompt: `Create a professional email banner for ${contact.company} ${purpose} campaign. ${tone} style, suitable for email headers. Company: ${contact.company}, Industry: ${contact.industry || 'general'}. Make it visually appealing and brand-appropriate.`,
+            variants: 2,
+            aspect_ratio: '3:1',
+            contact_id: contact.id,
+            agent_id: 'email-composer',
+            feature: 'email-banners',
+            format: 'banner'
+          })
+        });
+
+        if (imageResponse.ok) {
+          const imageResult = await imageResponse.json();
+          if (imageResult.success) {
+            generatedImages = imageResult.images;
+          }
+        }
+      } catch (imageError) {
+        console.warn('Email banner generation failed:', imageError);
+        // Continue without images - don't fail the whole request
+      }
+    }
+
     const result = {
       subject: content.subject,
       body: content.body,
@@ -177,6 +215,8 @@ Return ONLY valid JSON, no other text.`;
       model: "gpt-4o",
       webResearchUsed: !!webResearch,
       sources: companyContext || [],
+      images: generatedImages,
+      bannerImageUrl: generatedImages.length > 0 ? generatedImages[0].url : null,
     };
 
     return new Response(JSON.stringify(result), {

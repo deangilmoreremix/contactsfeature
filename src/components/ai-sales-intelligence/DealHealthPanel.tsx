@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { AgentButton } from './AgentButton';
 import { Heart, TrendingUp, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 
 interface Deal {
@@ -248,14 +249,24 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
             <p className="text-sm text-gray-600 dark:text-gray-300">AI-powered risk assessment</p>
           </div>
         </div>
-        <ModernButton
-          variant="outline"
-          size="sm"
-          onClick={analyzeDealHealth}
-          loading={loading}
-        >
-          {loading ? 'Analyzing...' : '🔍 Analyze'}
-        </ModernButton>
+        <div className="flex items-center space-x-2">
+          <AgentButton
+            agentId="ai-ae-agent"
+            dealId={deal.id}
+            variant="outline"
+            size="sm"
+          >
+            AI AE
+          </AgentButton>
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={analyzeDealHealth}
+            loading={loading}
+          >
+            {loading ? 'Analyzing...' : '🔍 Analyze'}
+          </ModernButton>
+        </div>
       </div>
 
       {healthScore && (

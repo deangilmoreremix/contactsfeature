@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GlassCard } from './ui/GlassCard';
 import { ModernButton } from './ui/ModernButton';
 import { imageStorageService, type SavedImage } from '../services/imageStorage.service';
+import { imageAgentService } from '../services/imageAgentService';
 import {
   X,
   Download,
@@ -11,7 +12,11 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Bot,
+  Sparkles,
+  RotateCcw,
+  Filter
 } from 'lucide-react';
 
 interface SavedImagesGalleryProps {
@@ -28,6 +33,9 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<SavedImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -80,6 +88,38 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
     document.body.removeChild(link);
   };
 
+  const handleRegenerateVariants = async (imageId: string) => {
+    setRegeneratingId(imageId);
+    try {
+      const result = await imageAgentService.regenerateVariants(imageId);
+      if (result.success && result.images) {
+        // Refresh the images list
+        await loadImages();
+        alert(`Generated ${result.images.length} new variants!`);
+      } else {
+        alert(`Failed to regenerate variants: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Failed to regenerate variants');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
+  const getAgentDisplayName = (agentId?: string) => {
+    const agentNames: Record<string, string> = {
+      'ai-ae-agent': 'AI AE Agent',
+      'email-composer': 'Email Composer',
+      'deal-preparation': 'Deal Preparation',
+      'manual': 'Manual Generation'
+    };
+    return agentNames[agentId || 'manual'] || 'Unknown Agent';
+  };
+
+  const filteredImages = agentFilter
+    ? images.filter(img => img.metadata?.agent_id === agentFilter)
+    : images;
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -100,16 +140,44 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Saved Images</h2>
               <p className="text-gray-600 mt-1">
-                {images.length} image{images.length !== 1 ? 's' : ''} saved
+                {filteredImages.length} image{filteredImages.length !== 1 ? 's' : ''} saved
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Filter className="w-5 h-5" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
+
+          {/* Filters */}
+          {showFilters && (
+            <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-gray-700">Filter by Agent:</span>
+                <select
+                  value={agentFilter || ''}
+                  onChange={(e) => setAgentFilter(e.target.value || null)}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Images</option>
+                  <option value="ai-ae-agent">AI AE Agent</option>
+                  <option value="email-composer">Email Composer</option>
+                  <option value="deal-preparation">Deal Preparation</option>
+                  <option value="manual">Manual Generation</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 overflow-hidden">
@@ -143,7 +211,7 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 overflow-y-auto">
-                {images.map((image) => (
+                {filteredImages.map((image) => (
                   <GlassCard
                     key={image.id}
                     className="overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300"
@@ -168,6 +236,22 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
                         <div className="mt-2">
                           <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                             {image.metadata.feature}
+                          </span>
+                        </div>
+                      )}
+                      {image.metadata?.agent_id && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                            <Bot className="w-3 h-3" />
+                            {getAgentDisplayName(image.metadata.agent_id)}
+                          </span>
+                        </div>
+                      )}
+                      {image.metadata?.gemini_model && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                            <Sparkles className="w-3 h-3" />
+                            Gemini {image.metadata.gemini_model.replace('gemini-2.5-flash-image-preview', '2.5 Flash')}
                           </span>
                         </div>
                       )}
@@ -250,6 +334,18 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
                         <span className="ml-2 font-medium">{selectedImage.metadata.variants_generated}</span>
                       </div>
                     )}
+                    {selectedImage.metadata.agent_id && (
+                      <div>
+                        <span className="text-gray-500">Generated by:</span>
+                        <span className="ml-2 font-medium">{getAgentDisplayName(selectedImage.metadata.agent_id)}</span>
+                      </div>
+                    )}
+                    {selectedImage.metadata.gemini_model && (
+                      <div>
+                        <span className="text-gray-500">Model:</span>
+                        <span className="ml-2 font-medium">Gemini {selectedImage.metadata.gemini_model.replace('gemini-2.5-flash-image-preview', '2.5 Flash')}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -284,6 +380,20 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
 
             {/* Actions */}
             <div className="p-4 border-t border-gray-200 space-y-2">
+              <ModernButton
+                onClick={() => handleRegenerateVariants(selectedImage.id)}
+                disabled={regeneratingId === selectedImage.id}
+                className="w-full flex items-center justify-center space-x-2 mb-2"
+                variant="outline"
+              >
+                {regeneratingId === selectedImage.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
+                <span>Generate Variants</span>
+              </ModernButton>
+
               <ModernButton
                 onClick={() => handleDownloadImage(selectedImage)}
                 className="w-full flex items-center justify-center space-x-2"
