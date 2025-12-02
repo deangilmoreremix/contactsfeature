@@ -187,13 +187,120 @@ Generate a detailed sales playbook with the following structure:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-5',
         instructions: systemPrompt,
         input: userPrompt,
         temperature: 0.3,
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "playbook",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                strategy: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    description: { type: "string" },
+                    confidence: { type: "number", minimum: 0, maximum: 1 },
+                    rationale: { type: "string" }
+                  },
+                  required: ["name", "description", "confidence", "rationale"]
+                },
+                phases: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                      timeline: { type: "string" },
+                      objectives: { type: "array", items: { type: "string" } },
+                      tactics: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            id: { type: "string" },
+                            name: { type: "string" },
+                            description: { type: "string" },
+                            priority: { type: "string", enum: ["high", "medium", "low"] },
+                            estimatedEffort: { type: "string" },
+                            successMetrics: { type: "array", items: { type: "string" } },
+                            dependencies: { type: "array", items: { type: "string" } }
+                          },
+                          required: ["id", "name", "description", "priority", "estimatedEffort", "successMetrics"]
+                        }
+                      },
+                      milestones: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            id: { type: "string" },
+                            name: { type: "string" },
+                            description: { type: "string" },
+                            dueDate: { type: "string" },
+                            owner: { type: "string" },
+                            status: { type: "string", enum: ["pending", "in_progress", "completed"] }
+                          },
+                          required: ["id", "name", "description", "dueDate", "owner", "status"]
+                        }
+                      }
+                    },
+                    required: ["id", "name", "timeline", "objectives", "tactics", "milestones"]
+                  }
+                },
+                riskMitigation: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      risk: { type: "string" },
+                      probability: { type: "number", minimum: 0, maximum: 1 },
+                      impact: { type: "string" },
+                      mitigation: { type: "string" }
+                    },
+                    required: ["risk", "probability", "impact", "mitigation"]
+                  }
+                },
+                successIndicators: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      metric: { type: "string" },
+                      target: { type: "string" },
+                      current: { type: "string" },
+                      status: { type: "string", enum: ["on_track", "at_risk", "behind"] }
+                    },
+                    required: ["metric", "target", "current", "status"]
+                  }
+                },
+                competitivePositioning: {
+                  type: "object",
+                  properties: {
+                    strengths: { type: "array", items: { type: "string" } },
+                    weaknesses: { type: "array", items: { type: "string" } },
+                    differentiation: { type: "array", items: { type: "string" } },
+                    winThemes: { type: "array", items: { type: "string" } }
+                  },
+                  required: ["strengths", "weaknesses", "differentiation", "winThemes"]
+                },
+                recommendedActions: { type: "array", items: { type: "string" } },
+                automationSequence: { type: "array", items: { type: "object" } },
+                triggers: { type: "array", items: { type: "object" } },
+                conditions: { type: "array", items: { type: "object" } },
+                successMetrics: { type: "array", items: { type: "string" } },
+                fallbackActions: { type: "array", items: { type: "object" } },
+                currentStage: { type: "string" },
+                automationType: { type: "string" },
+                generated: { type: "string" }
+              },
+              required: ["strategy", "phases", "riskMitigation", "successIndicators", "competitivePositioning"]
+            }
           }
         }
       })

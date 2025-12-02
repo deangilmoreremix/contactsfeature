@@ -44,13 +44,23 @@ Contact details: ${JSON.stringify(contact, null, 2)}`;
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-5',
         instructions: systemPrompt,
         input: userPrompt,
         temperature: templateType === 'creative' ? 0.7 : 0.3,
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "email_template",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                subject: { type: "string" },
+                body: { type: "string" }
+              },
+              required: ["subject", "body"]
+            }
           }
         }
       })

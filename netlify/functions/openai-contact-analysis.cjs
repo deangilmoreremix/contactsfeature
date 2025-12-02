@@ -36,13 +36,26 @@ exports.handler = async (event, context) => {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-5',
         instructions: systemPrompt,
         input: userPrompt,
         temperature: 0.3,
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "contact_analysis",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                score: { type: "number", minimum: 0, maximum: 100 },
+                insights: { type: "array", items: { type: "string" } },
+                recommendations: { type: "array", items: { type: "string" } },
+                riskFactors: { type: "array", items: { type: "string" } },
+                opportunities: { type: "array", items: { type: "string" } }
+              },
+              required: ["score", "insights", "recommendations", "riskFactors", "opportunities"]
+            }
           }
         }
       })
