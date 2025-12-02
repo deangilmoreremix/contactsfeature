@@ -336,7 +336,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <GlassCard className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
               <Brain className="w-6 h-6 text-white" />
@@ -348,7 +348,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
           >
             <X className="w-5 h-5" />
           </button>
@@ -358,29 +358,29 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              {currentStep === 'input' && <Upload className="w-4 h-4 text-blue-500" />}
-              {currentStep === 'analyzing' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
-              {currentStep === 'results' && <CheckCircle className="w-4 h-4 text-green-500" />}
-              {currentStep === 'content' && <FileText className="w-4 h-4 text-purple-500" />}
-              {currentStep === 'crm' && <Target className="w-4 h-4 text-orange-500" />}
-              <span className="text-sm font-medium text-gray-700 capitalize">{currentStep}</span>
+              {currentStep === 'input' && <Upload className="w-4 h-4 text-blue-600" />}
+              {currentStep === 'analyzing' && <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />}
+              {currentStep === 'results' && <CheckCircle className="w-4 h-4 text-green-600" />}
+              {currentStep === 'content' && <FileText className="w-4 h-4 text-purple-600" />}
+              {currentStep === 'crm' && <Target className="w-4 h-4 text-orange-600" />}
+              <span className="text-sm font-medium text-gray-900 capitalize">{currentStep}</span>
             </div>
             {analysisProgress.stage !== 'input' && (
               <div className="flex-1">
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${analysisProgress.progress}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-600 mt-1">{analysisProgress.message}</p>
+                <p className="text-xs text-gray-700 mt-1">{analysisProgress.message}</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-white">
           <ErrorBoundary>
             {error ? (
               <div className="p-8 text-center">

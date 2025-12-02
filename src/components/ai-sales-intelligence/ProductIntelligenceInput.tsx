@@ -127,11 +127,11 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-8 bg-white">
       {/* Header */}
       <div className="text-center">
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Start Your Analysis</h3>
-        <p className="text-gray-600">
+        <p className="text-gray-700">
           Provide a business URL or upload documents to generate comprehensive sales intelligence and content.
         </p>
       </div>
@@ -154,7 +154,7 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
             placeholder="https://example.com"
             value={input.url || ''}
             onChange={(e) => handleUrlChange(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
           />
 
           <input
@@ -162,7 +162,7 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
             placeholder="Business name (optional)"
             value={input.businessName || ''}
             onChange={(e) => handleBusinessNameChange(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
           />
         </div>
       </div>
@@ -181,7 +181,7 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
 
         {/* Drop Zone */}
         <div
-          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors bg-white ${
             dragActive
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-300 hover:border-gray-400'
@@ -230,7 +230,7 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
               {input.documents.map((file, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
                 >
                   <div className="flex items-center space-x-3">
                     {getFileIcon(file)}
@@ -258,12 +258,12 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
 
       {/* Analysis Preview */}
       {(input.url || input.documents?.length) && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 border border-blue-300 rounded-lg p-4">
           <div className="flex items-start space-x-3">
-            <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <CheckCircle className="w-5 h-5 text-blue-700 mt-0.5" />
             <div>
               <h5 className="font-medium text-blue-900">Ready for Analysis</h5>
-              <ul className="text-sm text-blue-800 mt-1 space-y-1">
+              <ul className="text-sm text-blue-900 mt-1 space-y-1">
                 {input.url && <li>• Web analysis: {input.url}</li>}
                 {input.documents && input.documents.length > 0 && (
                   <li>• Document analysis: {input.documents.length} file(s)</li>

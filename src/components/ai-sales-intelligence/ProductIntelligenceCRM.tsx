@@ -14,21 +14,23 @@ export const ProductIntelligenceCRM: React.FC<ProductIntelligenceCRMProps> = ({
   onBack
 }) => {
   return (
-    <div className="p-8 text-center">
-      <h3 className="text-xl font-semibold text-gray-900 mb-4">CRM Integration</h3>
-      <p className="text-gray-600 mb-6">CRM integration component - Coming Soon</p>
+    <div className="p-8 text-center bg-white">
+      <h3 className="text-xl font-semibold text-gray-900 mb-4">Ready to Integrate</h3>
+      <p className="text-gray-700 mb-6">
+        All analysis and content has been generated. Click complete to save everything to your CRM.
+      </p>
       <div className="flex justify-center space-x-4">
         <button
           onClick={onBack}
-          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+          className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-900 rounded-lg hover:bg-gray-50 font-medium transition-colors"
         >
-          Back
+          ← Back
         </button>
         <button
           onClick={onComplete}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium transition-colors shadow-lg"
         >
-          Complete
+          ✓ Complete & Save
         </button>
       </div>
     </div>
