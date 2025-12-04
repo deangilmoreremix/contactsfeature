@@ -11,6 +11,7 @@ import { InteractiveLiveDealAnalysis } from './InteractiveLiveDealAnalysis';
 import { InteractiveObjectionHandler } from './InteractiveObjectionHandler';
 import { InteractiveInstantAIResponse } from './InteractiveInstantAIResponse';
 import { InteractiveContactDemo } from './InteractiveContactDemo';
+import { FeatureImageGallery } from './FeatureImageGallery';
 import {
   X,
   ArrowRight,
@@ -253,6 +254,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
               <span>Watch Demo</span>
             </ModernButton>
           </div>
+        </div>
+
+        {/* Animated Feature Image Gallery */}
+        <div className="mb-24">
+          <FeatureImageGallery />
         </div>
 
         {/* Features Grid */}
