@@ -2,18 +2,19 @@ import React, { useState, useRef } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { useContactStore } from '../../hooks/useContactStore';
 import { Contact } from '../../types';
-import { 
-  X, 
-  Upload, 
-  Download, 
-  FileText, 
-  AlertCircle, 
-  CheckCircle, 
+import {
+  X,
+  Upload,
+  Download,
+  FileText,
+  AlertCircle,
+  CheckCircle,
   Info,
   Users,
   Database,
   FileSpreadsheet
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface ImportContactsModalProps {
   isOpen: boolean;
@@ -68,30 +69,30 @@ const parseCSV = (text: string): string[][] => {
 
 const validateContact = (data: Record<string, string>): string[] => {
   const errors = [];
-  
-  if (!data.firstName) {
+
+  if (!data['firstName']) {
     errors.push('First name is required');
   }
-  
-  if (!data.lastName) {
+
+  if (!data['lastName']) {
     errors.push('Last name is required');
   }
-  
-  if (!data.email) {
+
+  if (!data['email']) {
     errors.push('Email is required');
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data['email'])) {
     errors.push('Invalid email format');
   }
-  
+
   // Optional field validations - only validate if present
-  if (data.interestLevel && data.interestLevel !== '' && !['hot', 'medium', 'low', 'cold'].includes(data.interestLevel)) {
+  if (data['interestLevel'] && data['interestLevel'] !== '' && !['hot', 'medium', 'low', 'cold'].includes(data['interestLevel'])) {
     errors.push('Interest level must be: hot, medium, low, or cold');
   }
-  
-  if (data.status && data.status !== '' && !['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(data.status)) {
+
+  if (data['status'] && data['status'] !== '' && !['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(data['status'])) {
     errors.push('Status must be: lead, prospect, customer, churned, active, pending, or inactive');
   }
-  
+
   return errors;
 };
 
@@ -145,35 +146,61 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
   };
 
   const handleFileSelect = (selectedFile: File) => {
-    if (!selectedFile.name.endsWith('.csv')) {
-      setErrors(['Please select a CSV file']);
+    const isCSV = selectedFile.name.endsWith('.csv');
+    const isXLSX = selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
+
+    if (!isCSV && !isXLSX) {
+      setErrors(['Please select a CSV or Excel file (.csv, .xlsx, .xls)']);
       return;
     }
-    
+
     setFile(selectedFile);
     setErrors([]);
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
       try {
-        const parsed = parseCSV(text);
-        setCsvData(parsed);
-        processCSVData(parsed);
+        if (isCSV) {
+          const text = e.target?.result as string;
+          const parsed = parseCSV(text);
+          setCsvData(parsed);
+          processCSVData(parsed);
+        } else if (isXLSX) {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          if (!sheetName) {
+            setErrors(['Excel file must contain at least one worksheet']);
+            return;
+          }
+          const worksheet = workbook.Sheets[sheetName];
+          if (!worksheet) {
+            setErrors(['Excel worksheet could not be read']);
+            return;
+          }
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+          setCsvData(jsonData);
+          processCSVData(jsonData);
+        }
         setActiveTab('preview');
       } catch (error) {
-        setErrors(['Failed to parse CSV file']);
+        setErrors([`Failed to parse ${isCSV ? 'CSV' : 'Excel'} file`]);
       }
     };
-    reader.readAsText(selectedFile);
+
+    if (isCSV) {
+      reader.readAsText(selectedFile);
+    } else {
+      reader.readAsArrayBuffer(selectedFile);
+    }
   };
 
   const processCSVData = (data: string[][]) => {
-    if (data.length < 2) {
-      setErrors(['CSV must contain at least a header row and one data row']);
+    if (data.length < 2 || !data[0]) {
+      setErrors(['File must contain at least a header row and one data row']);
       return;
     }
-    
+
     const headers = data[0].map(h => h.toLowerCase().trim());
     const rows = data.slice(1);
     const newErrors: string[] = [];
@@ -280,7 +307,7 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setActiveTab(tab.id as 'guide' | 'upload' | 'preview')}
                 className={`flex-1 flex items-center justify-center space-x-2 py-4 px-6 font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
