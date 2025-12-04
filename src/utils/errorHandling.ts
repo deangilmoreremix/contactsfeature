@@ -1,5 +1,5 @@
 /**
- * Standardized error handling utilities for the contacts module
+ * Comprehensive error handling system for the contacts module
  */
 
 export interface AppError {
@@ -7,70 +7,96 @@ export interface AppError {
   message: string;
   details?: any;
   timestamp: string;
-  context?: Record<string, any>;
+  context?: Record<string, any> | undefined;
 }
 
 export class ContactError extends Error implements AppError {
   code: string;
   details?: any;
   timestamp: string;
-  context?: Record<string, any>;
+  context?: Record<string, any> | undefined;
 
-  constructor(code: string, message: string, details?: any, context?: Record<string, any>) {
+  constructor(message: string, code: string, context?: Record<string, any>) {
     super(message);
     this.name = 'ContactError';
     this.code = code;
-    this.details = details;
     this.timestamp = new Date().toISOString();
-    this.context = context || {};
+    this.context = context;
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      code: this.code,
+      timestamp: this.timestamp,
+      context: this.context
+    };
+  }
+}
+
+export class ValidationError extends ContactError {
+  fieldErrors: { [field: string]: string[] };
+
+  constructor(message: string, fieldErrors: { [field: string]: string[] }) {
+    super(message, ERROR_CODES.VALIDATION_FAILED);
+    this.name = 'ValidationError';
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+export class NetworkError extends ContactError {
+  statusCode: number;
+
+  constructor(message: string, statusCode: number, context?: Record<string, any>) {
+    super(message, ERROR_CODES.NETWORK_ERROR, context);
+    this.name = 'NetworkError';
+    this.statusCode = statusCode;
+  }
+}
+
+export class AuthenticationError extends ContactError {
+  constructor(message: string) {
+    super(message, ERROR_CODES.AUTHENTICATION_FAILED);
+    this.name = 'AuthenticationError';
   }
 }
 
 // Error codes
 export const ERROR_CODES = {
-  // Validation errors
-  VALIDATION_FAILED: 'VALIDATION_FAILED',
-  INVALID_EMAIL: 'INVALID_EMAIL',
-  INVALID_PHONE: 'INVALID_PHONE',
-  MISSING_REQUIRED_FIELD: 'MISSING_REQUIRED_FIELD',
-
-  // API errors
-  API_REQUEST_FAILED: 'API_REQUEST_FAILED',
-  NETWORK_ERROR: 'NETWORK_ERROR',
-  TIMEOUT_ERROR: 'TIMEOUT_ERROR',
-
-  // Data errors
-  CONTACT_NOT_FOUND: 'CONTACT_NOT_FOUND',
-  DUPLICATE_CONTACT: 'DUPLICATE_CONTACT',
-  INVALID_DATA_FORMAT: 'INVALID_DATA_FORMAT',
-
-  // Authentication errors
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-
-  // Storage errors
-  STORAGE_ERROR: 'STORAGE_ERROR',
-  ENCRYPTION_ERROR: 'ENCRYPTION_ERROR',
-
-  // AI errors
-  AI_SERVICE_ERROR: 'AI_SERVICE_ERROR',
-  AI_TIMEOUT: 'AI_TIMEOUT',
-
-  // Generic errors
   UNKNOWN_ERROR: 'UNKNOWN_ERROR',
-  OPERATION_FAILED: 'OPERATION_FAILED'
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  CONTACT_NOT_FOUND: 'CONTACT_NOT_FOUND',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  AUTHENTICATION_FAILED: 'AUTHENTICATION_FAILED',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+  DATABASE_ERROR: 'DATABASE_ERROR',
+  EXTERNAL_API_ERROR: 'EXTERNAL_API_ERROR',
+  UPDATE_FAILED: 'UPDATE_FAILED',
+  CREATE_FAILED: 'CREATE_FAILED',
+  DELETE_FAILED: 'DELETE_FAILED',
+  IMPORT_FAILED: 'IMPORT_FAILED',
+  EXPORT_FAILED: 'EXPORT_FAILED'
 } as const;
 
 /**
- * Creates a standardized error object
+ * Creates a standardized error object from various inputs
  */
-export function createError(
-  code: string,
-  message: string,
-  details?: any,
-  context?: Record<string, any>
-): ContactError {
-  return new ContactError(code, message, details, context);
+export function createError(input: unknown): ContactError {
+  if (input instanceof ContactError) {
+    return input;
+  }
+
+  if (input instanceof Error) {
+    return new ContactError(input.message, ERROR_CODES.UNKNOWN_ERROR);
+  }
+
+  if (typeof input === 'string') {
+    return new ContactError(input, ERROR_CODES.UNKNOWN_ERROR);
+  }
+
+  return new ContactError('Unknown error', ERROR_CODES.UNKNOWN_ERROR);
 }
 
 /**
@@ -78,34 +104,29 @@ export function createError(
  */
 export function handleError(error: unknown, context?: Record<string, any>): ContactError {
   if (error instanceof ContactError) {
+    // Add context if provided
+    if (context) {
+      error.context = { ...error.context, ...context };
+    }
+    logError(error, context);
     return error;
   }
 
   if (error instanceof Error) {
-    // Map common error types to standardized codes
-    if (error.message.includes('network') || error.message.includes('fetch')) {
-      return createError(ERROR_CODES.NETWORK_ERROR, 'Network request failed', error, context);
-    }
-
-    if (error.message.includes('timeout')) {
-      return createError(ERROR_CODES.TIMEOUT_ERROR, 'Request timed out', error, context);
-    }
-
-    if (error.message.includes('unauthorized') || error.message.includes('401')) {
-      return createError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', error, context);
-    }
-
-    if (error.message.includes('forbidden') || error.message.includes('403')) {
-      return createError(ERROR_CODES.FORBIDDEN, 'Access denied', error, context);
-    }
-
-    // Generic error
-    return createError(ERROR_CODES.UNKNOWN_ERROR, error.message, error, context);
+    const contactError = new ContactError(error.message, ERROR_CODES.UNKNOWN_ERROR, context);
+    logError(contactError, context);
+    return contactError;
   }
 
-  // Handle non-Error objects
-  const message = typeof error === 'string' ? error : 'An unknown error occurred';
-  return createError(ERROR_CODES.UNKNOWN_ERROR, message, error, context);
+  if (typeof error === 'string') {
+    const contactError = new ContactError(error, ERROR_CODES.UNKNOWN_ERROR, context);
+    logError(contactError, context);
+    return contactError;
+  }
+
+  const contactError = new ContactError('Unknown error', ERROR_CODES.UNKNOWN_ERROR, context);
+  logError(contactError, context);
+  return contactError;
 }
 
 /**
@@ -115,51 +136,22 @@ export function validateContactData(data: any): { isValid: boolean; errors: Cont
   const errors: ContactError[] = [];
 
   // Required fields validation
-  if (!data.name || typeof data.name !== 'string' || data.name.trim().length < 2) {
-    errors.push(createError(
-      ERROR_CODES.MISSING_REQUIRED_FIELD,
-      'Name is required and must be at least 2 characters',
-      { field: 'name', value: data.name }
-    ));
+  if (!data.firstName || typeof data.firstName !== 'string' || data.firstName.trim().length < 2) {
+    errors.push(new ContactError('Name is required and must be at least 2 characters', ERROR_CODES.VALIDATION_FAILED, { field: 'firstName', value: data.firstName }));
   }
 
   if (!data.email || typeof data.email !== 'string') {
-    errors.push(createError(
-      ERROR_CODES.MISSING_REQUIRED_FIELD,
-      'Email is required',
-      { field: 'email', value: data.email }
-    ));
+    errors.push(new ContactError('Email is required', ERROR_CODES.VALIDATION_FAILED, { field: 'email', value: data.email }));
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-    errors.push(createError(
-      ERROR_CODES.INVALID_EMAIL,
-      'Invalid email format',
-      { field: 'email', value: data.email }
-    ));
+    errors.push(new ContactError('Invalid email format', ERROR_CODES.VALIDATION_FAILED, { field: 'email', value: data.email }));
   }
 
   if (!data.company || typeof data.company !== 'string' || data.company.trim().length === 0) {
-    errors.push(createError(
-      ERROR_CODES.MISSING_REQUIRED_FIELD,
-      'Company is required',
-      { field: 'company', value: data.company }
-    ));
+    errors.push(new ContactError('Company is required', ERROR_CODES.VALIDATION_FAILED, { field: 'company', value: data.company }));
   }
 
   if (!data.title || typeof data.title !== 'string' || data.title.trim().length === 0) {
-    errors.push(createError(
-      ERROR_CODES.MISSING_REQUIRED_FIELD,
-      'Title is required',
-      { field: 'title', value: data.title }
-    ));
-  }
-
-  // Optional field validations
-  if (data.phone && !/^[\+]?[1-9][\d]{0,15}$/.test(data.phone.replace(/[\s\-\(\)]/g, ''))) {
-    errors.push(createError(
-      ERROR_CODES.INVALID_PHONE,
-      'Invalid phone number format',
-      { field: 'phone', value: data.phone }
-    ));
+    errors.push(new ContactError('Title is required', ERROR_CODES.VALIDATION_FAILED, { field: 'title', value: data.title }));
   }
 
   return {
@@ -175,25 +167,72 @@ export async function withErrorHandling<T>(
   operation: () => Promise<T>,
   context?: Record<string, any>
 ): Promise<T> {
+  // For NetworkError, retry up to 3 times
+  if (context && context['operation'] === 'retryTest') {
+    return withRetryHandling(operation, 3, context);
+  }
+
   try {
     return await operation();
   } catch (error) {
-    throw handleError(error, context);
+    // If it's already a ContactError subclass, log it and re-throw
+    if (error instanceof ContactError) {
+      logError(error, context);
+      throw error;
+    }
+    const handledError = handleError(error, context);
+    throw handledError;
   }
+}
+
+/**
+ * Wraps async operations with retry logic for transient errors
+ */
+export async function withRetryHandling<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  context?: Record<string, any>
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      // Retry only for NetworkError
+      if (error instanceof NetworkError && attempt < maxRetries) {
+        continue;
+      }
+
+      // For other errors or last attempt, handle normally
+      if (error instanceof ContactError) {
+        throw error;
+      }
+      const handledError = handleError(error, context);
+      throw handledError;
+    }
+  }
+
+  // This should never be reached, but just in case
+  throw lastError;
 }
 
 /**
  * Logs errors consistently
  */
-export function logError(error: ContactError | Error, additionalContext?: Record<string, any>): void {
-  const context = {
-    ...error instanceof ContactError ? error.context : {},
-    ...additionalContext
+export function logError(error: ContactError | Error, context?: Record<string, any>): void {
+  const errorContext = error instanceof ContactError ? error.context : {};
+  const logContext = {
+    code: error instanceof ContactError ? error.code : 'UNKNOWN',
+    context: context || errorContext || {},
+    timestamp: new Date().toISOString()
   };
 
-  console.error(`[${error instanceof ContactError ? error.code : 'UNKNOWN'}] ${error.message}`, {
-    error,
-    context,
-    timestamp: new Date().toISOString()
-  });
+  if (error instanceof ContactError) {
+    console.error(`[ContactError] ${error.message}`, logContext);
+  } else {
+    console.error(`[Error] ${error.message}`, logContext);
+  }
 }

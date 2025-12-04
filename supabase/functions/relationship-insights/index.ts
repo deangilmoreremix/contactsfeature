@@ -739,7 +739,7 @@ function calculateTemporalStrength(contactId: string, interactions: any[]) {
   const duration = lastInteraction.getTime() - firstInteraction.getTime()
   const days = duration / (1000 * 60 * 60 * 24)
 
-  let score = Math.min(100, days / 10) // 1 point per 10 days, max 100
+  const score = Math.min(100, days / 10) // 1 point per 10 days, max 100
 
   return {
     score: Math.round(score),

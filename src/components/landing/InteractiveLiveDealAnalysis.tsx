@@ -18,7 +18,7 @@ export const InteractiveLiveDealAnalysis: React.FC = () => {
 
     setTimeout(() => {
       let riskScore = 0;
-      let recommendations = [];
+      const recommendations = [];
       let predictedOutcome = 'Deal progressing well.';
 
       if (dealProbability < 50) {

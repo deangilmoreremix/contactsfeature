@@ -86,7 +86,7 @@ export class GPT51ResponsesService {
     }
 
     const cacheKey = aiCache.getGPT51CacheKey(request);
-    let cachedResponse = aiCache.get(cacheKey);
+    const cachedResponse = aiCache.get(cacheKey);
 
     if (cachedResponse) {
       logger.info('Returning cached GPT-5.1 response');
