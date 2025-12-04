@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { processPendingVideoJobs } from "../../lib/video/processVideoJobs";
+import { processPendingVideoJobs } from "../lib/video/processVideoJobs";
 
 export const handler: Handler = async () => {
   try {

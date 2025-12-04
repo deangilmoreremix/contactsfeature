@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
-import { determineMood } from "../../lib/mood/determineMood";
-import { getContactAndDeal } from "../../lib/autopilot/helpers";
+import { determineMood } from "../lib/mood/determineMood";
+import { getContactAndDeal } from "../lib/autopilot/helpers";
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "GET") {
