@@ -79,7 +79,7 @@ async function analyzeConversation(conversationData: any, analysisType: string) 
 
 async function analyzeConversationSentiment(conversationData: any) {
   const messages = conversationData.messages || []
-  const overallSentiment = { positive: 0, negative: 0, neutral: 0 }
+  let overallSentiment = { positive: 0, negative: 0, neutral: 0 }
   const sentimentOverTime = []
 
   for (let i = 0; i < messages.length; i++) {

@@ -126,7 +126,7 @@ class AIEnrichmentService {
       const data = await response.json();
       const aiResponse = data.choices[0]?.message?.content;
 
-      const enrichedData: ContactEnrichmentData = {
+      let enrichedData: ContactEnrichmentData = {
         email,
         confidence: 75,
         enrichmentType: 'real',

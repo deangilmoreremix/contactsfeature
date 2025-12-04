@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react';
+import React, { useEffect } from 'react';
 import { useState } from 'react';
 import { useDarkMode } from './hooks/useDarkMode';
 import { AIProvider } from './contexts/AIContext';
@@ -6,45 +6,35 @@ import { GuidanceProvider, useGuidance } from './contexts/GuidanceContext';
 import { TooltipProvider } from './contexts/TooltipContext';
 import { ViewProvider } from './contexts/ViewContext';
 import { ContactsModal } from './components/modals/ContactsModal';
+import { LandingPage } from './components/landing/LandingPage';
+import { TestWebSearch } from './components/TestWebSearch';
+import { AITestingSuite } from './components/AITestingSuite';
 import { WelcomeExperience } from './components/guidance/WelcomeExperience';
 import { ContextualHelp } from './components/guidance/ContextualHelp';
-import { securityService } from './services/security.service';
+import { TooltipTest } from './components/TooltipTest';
+import { ProductIntelligenceModal } from './components/product-intelligence/ProductIntelligenceModal';
 import './styles/design-system.css';
 
-// Lazy load heavy components
-const LandingPage = lazy(() => import('./components/landing/LandingPage').then(module => ({ default: module.LandingPage })));
-const TestWebSearch = lazy(() => import('./components/TestWebSearch').then(module => ({ default: module.TestWebSearch })));
-const AITestingSuite = lazy(() => import('./components/AITestingSuite').then(module => ({ default: module.AITestingSuite })));
-const TooltipTest = lazy(() => import('./components/TooltipTest').then(module => ({ default: module.TooltipTest })));
-const ProductIntelligenceModal = lazy(() => import('./components/product-intelligence/ProductIntelligenceModal').then(module => ({ default: module.ProductIntelligenceModal })));
-
 // Remote App Props Interface
-interface SharedData {
-  contacts: unknown[];
-  appointments: unknown[];
-  deals: unknown[];
-  user: unknown;
-}
-
 interface RemoteAppProps {
   theme?: string;
   mode?: string;
-  sharedData?: SharedData;
-  onDataUpdate?: (data: unknown) => void;
+  sharedData?: {
+    contacts: any[];
+    appointments: any[];
+    deals: any[];
+    user: any;
+  };
+  onDataUpdate?: (data: any) => void;
 }
 
-function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppProps) {
+function AppContent({ theme = 'light', mode = 'light', sharedData, onDataUpdate }: RemoteAppProps) {
   const [currentView, setCurrentView] = useState<'app' | 'landing' | 'test' | 'ai-test' | 'tooltip-test' | 'product-intelligence'>('app');
-  const [, setLocalSharedData] = useState(sharedData);
+  const [localSharedData, setLocalSharedData] = useState(sharedData);
   const { state, setWelcomeVisible } = useGuidance();
 
   // Initialize dark mode (starts in dark mode by default)
-  const { isDarkMode, setDarkMode } = useDarkMode();
-
-  // Initialize security measures
-  useEffect(() => {
-    securityService.initialize();
-  }, []);
+  const { isDarkMode, toggleDarkMode, setDarkMode } = useDarkMode();
 
   // Determine the effective theme (Module Federation props take precedence)
   const effectiveTheme = theme !== 'light' ? theme : (isDarkMode ? 'dark' : 'light');
@@ -93,7 +83,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
     if (urlTheme) {
       setDarkMode(urlTheme === 'dark');
     }
-  }, [setCurrentView, setDarkMode]);
+  }, []);
 
   // PostMessage Listener for iframe fallback
   useEffect(() => {
@@ -117,7 +107,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [setDarkMode, setLocalSharedData]);
+  }, []);
 
   // Send ready signal to host
   useEffect(() => {
@@ -136,8 +126,16 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
     setCurrentView('app');
   };
 
+  const handleShowTest = () => {
+    setCurrentView('test');
+  };
+
   const handleCloseTest = () => {
     setCurrentView('app');
+  };
+
+  const handleShowAITest = () => {
+    setCurrentView('ai-test');
   };
 
   const handleCloseAITest = () => {
@@ -150,6 +148,12 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
 
   const handleWelcomeSkip = () => {
     setWelcomeVisible(false);
+  };
+
+  // Send data updates back to host
+  const handleLocalDataUpdate = (newData: any) => {
+    setLocalSharedData(newData);
+    onDataUpdate?.(newData);
   };
 
   return (
@@ -174,9 +178,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
             />
           </div>
         ) : currentView === 'landing' ? (
-          <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-            <LandingPage onClose={handleCloseLanding} />
-          </Suspense>
+          <LandingPage onClose={handleCloseLanding} />
         ) : currentView === 'test' ? (
           <div className="h-full">
             <div className="p-4 bg-gray-100 border-b">
@@ -188,9 +190,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
               </button>
             </div>
             <div className="p-4">
-              <Suspense fallback={<div>Loading...</div>}>
-                <TestWebSearch />
-              </Suspense>
+              <TestWebSearch />
             </div>
           </div>
         ) : currentView === 'tooltip-test' ? (
@@ -204,9 +204,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
               </button>
             </div>
             <div className="overflow-y-auto">
-              <Suspense fallback={<div>Loading...</div>}>
-                <TooltipTest />
-              </Suspense>
+              <TooltipTest />
             </div>
           </div>
         ) : currentView === 'product-intelligence' ? (
@@ -220,12 +218,10 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
               </button>
             </div>
             <div className="p-4">
-              <Suspense fallback={<div>Loading...</div>}>
-                <ProductIntelligenceModal
-                  isOpen={true}
-                  onClose={() => setCurrentView('app')}
-                />
-              </Suspense>
+              <ProductIntelligenceModal
+                isOpen={true}
+                onClose={() => setCurrentView('app')}
+              />
             </div>
           </div>
         ) : (
@@ -239,9 +235,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
               </button>
             </div>
             <div className="p-4">
-              <Suspense fallback={<div>Loading...</div>}>
-                <AITestingSuite />
-              </Suspense>
+              <AITestingSuite />
             </div>
           </div>
         )}
@@ -251,6 +245,7 @@ function AppContent({ theme = 'light', mode = 'light', sharedData }: RemoteAppPr
 }
 
 function App(props: RemoteAppProps) {
+  console.log('App.tsx: Rendering App component');
   return (
     <TooltipProvider>
       <GuidanceProvider>

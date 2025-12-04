@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GlassCard } from './ui/GlassCard';
 import { ModernButton } from './ui/ModernButton';
 import { AIResearchButton } from './ui/AIResearchButton';
@@ -7,6 +7,8 @@ import { CustomizableAIToolbar } from './ui/CustomizableAIToolbar';
 import { webSearchService } from '../services/webSearchService';
 import { aiEnrichmentService } from '../services/aiEnrichmentService';
 import { CitationBadge } from './ui/CitationBadge';
+import { useEmailAI } from '../hooks/useEmailAI';
+import { useAdvancedAI } from '../hooks/useAdvancedAI';
 import {
   Brain,
   CheckCircle,
@@ -14,8 +16,18 @@ import {
   AlertTriangle,
   Loader2,
   TestTube,
+  Mail,
+  User,
+  Globe,
+  Search,
   BarChart3,
-  Zap
+  Zap,
+  Play,
+  Pause,
+  RotateCcw,
+  TrendingUp,
+  Clock,
+  Activity
 } from 'lucide-react';
 
 interface TestResult {
@@ -30,12 +42,50 @@ interface TestResult {
   streamingTokens?: string[] | undefined;
 }
 
+interface TestMetrics {
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+  averageDuration: number;
+  cacheHits: number;
+  cacheMisses: number;
+  apiCalls: number;
+  lastRun: string;
+}
+
+interface StreamingUpdate {
+  type: 'progress' | 'token' | 'complete' | 'error';
+  progress?: number;
+  token?: string;
+  data?: any;
+  error?: string;
+}
 
 export const AITestingSuite: React.FC = () => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [currentTest, setCurrentTest] = useState<string | null>(null);
-  const [, setOverallProgress] = useState(0);
+  const [testMetrics, setTestMetrics] = useState<TestMetrics>({
+    totalTests: 0,
+    passedTests: 0,
+    failedTests: 0,
+    averageDuration: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    apiCalls: 0,
+    lastRun: ''
+  });
+  const [isStreamingMode, setIsStreamingMode] = useState(false);
+  const [overallProgress, setOverallProgress] = useState(0);
+  const [activeStreams, setActiveStreams] = useState<Set<string>>(new Set());
+
+  // Enhanced hooks integration
+  const emailAI = useEmailAI();
+  const advancedAI = useAdvancedAI();
+
+  // Refs for streaming control
+  const streamingControllerRef = useRef<AbortController | null>(null);
+  const testStartTimeRef = useRef<number>(0);
 
   // Sample test data
   const testContact = {
@@ -86,6 +136,54 @@ export const AITestingSuite: React.FC = () => {
     }]);
   }, []);
 
+  // Enhanced streaming test execution
+  const runTestWithStreaming = useCallback(async (
+    testName: string,
+    testFunction: () => Promise<any>,
+    onProgress?: (update: StreamingUpdate) => void
+  ) => {
+    setCurrentTest(testName);
+    updateTestResult(testName, 'running', 'Initializing test...', undefined, undefined, 0);
+
+    try {
+      if (isStreamingMode) {
+        // Use streaming version if available
+        const streamId = `test-${testName}-${Date.now()}`;
+        setActiveStreams(prev => new Set([...prev, streamId]));
+
+        // For now, fall back to regular execution with progress simulation
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+          progress += Math.random() * 15;
+          if (progress > 90) progress = 90;
+          updateTestResult(testName, 'running', `Running... ${Math.round(progress)}%`, undefined, undefined, progress);
+          onProgress?.({ type: 'progress', progress });
+        }, 500);
+
+        const result = await testFunction();
+
+        clearInterval(progressInterval);
+        updateTestResult(testName, 'success', 'Test completed successfully!', result, undefined, 100);
+        onProgress?.({ type: 'complete', data: result });
+
+        setActiveStreams(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(streamId);
+          return newSet;
+        });
+      } else {
+        // Regular execution
+        updateTestResult(testName, 'running', 'Running test...');
+        const result = await testFunction();
+        updateTestResult(testName, 'success', 'Test completed successfully!', result);
+      }
+    } catch (error) {
+      updateTestResult(testName, 'error', 'Test failed', undefined, error instanceof Error ? error.message : 'Unknown error');
+      onProgress?.({ type: 'error', error: error instanceof Error ? error.message : 'Unknown error' });
+    } finally {
+      setCurrentTest(null);
+    }
+  }, [isStreamingMode, updateTestResult]);
 
   // Individual test functions
   const testWebSearchAPI = async () => {

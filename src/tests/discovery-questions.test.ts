@@ -281,7 +281,7 @@ describe('Discovery Questions Edge Function', () => {
       };
       const questionPreferences = mockQuestionPreferences;
 
-      const approach = {
+      let approach = {
         approach: '',
         questionStrategy: '',
         focusAreas: [],
@@ -315,7 +315,7 @@ describe('Discovery Questions Edge Function', () => {
         buyingStage: 'interested'
       };
 
-      const approach = {
+      let approach = {
         approach: 'Detailed requirements gathering and differentiation',
         questionStrategy: 'Capability demonstration and competitive positioning',
         focusAreas: ['technical_requirements', 'business_case', 'timeline'],

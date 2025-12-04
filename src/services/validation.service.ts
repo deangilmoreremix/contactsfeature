@@ -219,35 +219,10 @@ class ValidationService {
     return this.validate(request, this.enrichmentRequestSchema);
   }
   
-  // Enhanced sanitization methods
+  // Sanitization methods
   sanitizeString(value: any): string {
     if (typeof value !== 'string') return '';
-
-    return value
-      .trim()
-      // Remove HTML tags
-      .replace(/<[^>]*>/g, '')
-      // Remove script tags and their content
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      // Remove javascript: URLs
-      .replace(/javascript:/gi, '')
-      // Remove data: URLs that might contain scripts
-      .replace(/data:\s*text\/html/gi, '')
-      // Remove event handlers
-      .replace(/on\w+\s*=/gi, '')
-      // Remove potentially dangerous characters
-      .replace(/[<>'"&]/g, (match) => {
-        const entityMap: { [key: string]: string } = {
-          '<': '<',
-          '>': '>',
-          '"': '"',
-          "'": '&#x27;',
-          '&': '&'
-        };
-        return entityMap[match] || match;
-      })
-      // Limit length to prevent buffer overflow attacks
-      .substring(0, 10000);
+    return value.trim().replace(/[<>]/g, ''); // Basic XSS prevention
   }
   
   sanitizeEmail(email: any): string {

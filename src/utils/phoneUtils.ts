@@ -26,7 +26,7 @@ export const formatPhoneNumber = (phone: string | undefined): string => {
   if (!phone || !isValidPhoneNumber(phone)) return phone || '';
 
   // Remove all non-digit characters
-  const digitsOnly = phone.replace(/\D/g, '');
+  let digitsOnly = phone.replace(/\D/g, '');
 
   // Handle international numbers
   if (digitsOnly.startsWith('1') && digitsOnly.length === 11) {

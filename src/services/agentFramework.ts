@@ -472,7 +472,7 @@ class AgentFramework {
 
     const message = choice.message;
     const toolCalls: ToolCall[] = [];
-    const finalResponse = message.content || '';
+    let finalResponse = message.content || '';
 
     // Process tool calls
     if (message.tool_calls) {
