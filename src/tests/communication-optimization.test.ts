@@ -362,7 +362,7 @@ describe('Communication Optimization Edge Function', () => {
       // Simplified prediction model
       let baseOpenRate = 0.3;
       let baseResponseRate = 0.1;
-      let baseEngagementScore = 50;
+      const baseEngagementScore = 50;
 
       // Adjust based on channel
       switch (channel) {

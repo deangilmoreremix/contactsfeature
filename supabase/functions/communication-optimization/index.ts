@@ -568,7 +568,7 @@ function generateOptimalTiming(profileAnalysis: any, contextAnalysis: any): any 
   const { engagementPatterns } = profileAnalysis
   const { urgency } = contextAnalysis
 
-  let bestDays = ['Tuesday', 'Wednesday', 'Thursday'] // Generally best for B2B
+  const bestDays = ['Tuesday', 'Wednesday', 'Thursday'] // Generally best for B2B
   let bestHours = engagementPatterns.preferredTimes || [9, 10, 14, 15]
 
   // Adjust for urgency
@@ -593,7 +593,7 @@ function optimizeSubjectLine(originalSubject: string, profileAnalysis: any, cont
   const { persona, seniority } = profileAnalysis
   const { purpose, keyMessage } = contextAnalysis
 
-  let optimized = originalSubject || generateSubjectLine(purpose, keyMessage, persona)
+  const optimized = originalSubject || generateSubjectLine(purpose, keyMessage, persona)
 
   // A/B test variations
   const variations = generateSubjectVariations(optimized, persona, seniority)
@@ -863,7 +863,7 @@ function predictPerformance(
   // Simplified prediction model - in production, this would use historical data and ML
   let baseOpenRate = 0.3
   let baseResponseRate = 0.1
-  let baseEngagementScore = 50
+  const baseEngagementScore = 50
 
   // Adjust based on channel
   switch (channel) {

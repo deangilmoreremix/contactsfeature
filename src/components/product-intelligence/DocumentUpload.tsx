@@ -1,6 +1,7 @@
 import React, { useState, useCallback, memo } from 'react';
 import { Upload, FileText, X, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { productIntelligenceService } from '../../services/productIntelligenceService';
+import { securityService } from '../../services/security.service';
 
 interface DocumentUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -32,15 +33,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = memo(({
   const [error, setError] = useState<string>('');
 
   const validateFile = useCallback((file: File): string | null => {
-    // Check file size
-    if (file.size > maxFileSize * 1024 * 1024) {
-      return `File size exceeds ${maxFileSize}MB limit`;
-    }
+    // Use security service for comprehensive validation
+    const validation = securityService.validateFileUpload(file, acceptedTypes, maxFileSize * 1024 * 1024);
 
-    // Check file type
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!acceptedTypes.includes(fileExtension)) {
-      return `File type not supported. Accepted types: ${acceptedTypes.join(', ')}`;
+    if (!validation.isValid) {
+      return validation.errors.join(', ');
     }
 
     return null;

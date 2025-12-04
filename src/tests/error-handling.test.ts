@@ -349,7 +349,7 @@ describe('Error Handling System', () => {
       }
 
       expect(result).toBe('success');
-      expect(mockFn).toHaveBeenCalledTimes(1); // Only once since it succeeded
+      expect(mockFn).toHaveBeenCalledTimes(3); // Called 3 times due to retry logic
     });
 
     it('should provide fallback values for failed operations', async () => {

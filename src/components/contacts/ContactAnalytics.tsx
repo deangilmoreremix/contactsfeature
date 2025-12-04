@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
@@ -70,7 +70,7 @@ const dealProgressData = [
   { stage: 'Negotiation', value: 85, date: '2024-01-28' }
 ];
 
-export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) => {
+export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact }) => {
    const [timeRange, setTimeRange] = useState('6m');
    const [selectedMetric, setSelectedMetric] = useState('engagement');
    const [showPredictive, setShowPredictive] = useState(false);
@@ -713,4 +713,4 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = ({ contact }) =
     </div>
     </>
   );
-};
+});

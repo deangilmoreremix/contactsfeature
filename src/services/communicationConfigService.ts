@@ -464,7 +464,7 @@ export class CommunicationConfigService {
     const config = this.configs.mailto.get(configId);
     if (!config) return `mailto:${to}`;
 
-    let finalSubject = subject || config.defaultSubject || '';
+    const finalSubject = subject || config.defaultSubject || '';
     let finalBody = body || config.defaultBody || '';
 
     // Add contact info if enabled

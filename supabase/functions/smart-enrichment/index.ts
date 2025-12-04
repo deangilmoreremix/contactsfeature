@@ -164,7 +164,7 @@ async function enrichSocialData(contact: any, options: any) {
 
 async function comprehensiveEnrichment(data: any, options: any) {
   // Combine all enrichment types
-  let result = await enrichContactData(data, options)
+  const result = await enrichContactData(data, options)
   if (data.company) {
     const companyResult = await enrichCompanyData(data.company, options)
     result.enrichedData.companyData = companyResult.enrichedData

@@ -201,3 +201,5 @@ test.describe('Sales Intelligence Integration', () => {
     await page.waitForSelector('[data-testid="optimization-results"]');
 
     // Check if usage tracking is working (this would be backend validation)
+  });
+});
