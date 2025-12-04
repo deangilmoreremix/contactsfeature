@@ -1,6 +1,6 @@
 import {
   MessageSquare, Linkedin, Mail, Twitter, Facebook, Instagram,
-  User, Building, Tag, Activity
+  User, Building, Tag, Activity, Bot
 } from 'lucide-react';
 
 export const interestColors = {
@@ -45,6 +45,7 @@ export const contactTabs = [
   { id: 'sales-intelligence', label: 'Sales Intelligence', icon: Tag },
   { id: 'ai-insights', label: 'AI Insights', icon: User },
   { id: 'email', label: 'Email', icon: Mail },
+  { id: 'agents', label: 'AI Agents', icon: Bot },
 ];
 
 export const quickSourceSuggestions = ['LinkedIn', 'Website', 'Email', 'Cold Call', 'Referral'];

@@ -9,6 +9,7 @@ import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { SettingsModal } from './SettingsModal';
 import { ProductIntelligenceModal } from '../product-intelligence/ProductIntelligenceModal';
+import { EmailAgentsModal } from './EmailAgentsModal';
 import { useContactStore } from '../../hooks/useContactStore';
 import { useView } from '../../contexts/ViewContext';
 import { Contact } from '../../types';
@@ -41,7 +42,9 @@ import {
   Sparkles,
   CheckCircle,
   Loader2,
-  Info
+  Info,
+  Mail,
+  Bot
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -93,6 +96,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isProductIntelligenceOpen, setIsProductIntelligenceOpen] = useState(false);
+  const [isEmailAgentsModalOpen, setIsEmailAgentsModalOpen] = useState(false);
 
   // Initialize Fuse.js for fuzzy search
   const fuse = useMemo(() => {
@@ -370,6 +374,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     setIsProductIntelligenceOpen(false);
   };
 
+  const handleEmailAgentsClick = () => {
+    setIsEmailAgentsModalOpen(true);
+  };
+
+  const handleEmailAgentsModalClose = () => {
+    setIsEmailAgentsModalOpen(false);
+  };
+
   const handleAnalysisComplete = (results: any, content: any) => {
     console.log('Analysis complete:', results, content);
     // Here you could integrate with the CRM or show success message
@@ -629,6 +641,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 </ModernButton>
               </SmartTooltip>
 
+              {/* Email Agents Button */}
+              <SmartTooltip featureId="email_agents_button">
+                <ModernButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleEmailAgentsClick}
+                  className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Email Agents</span>
+                  <Bot className="w-3 h-3 text-green-300" />
+                </ModernButton>
+              </SmartTooltip>
 
               <SmartTooltip featureId="learn_more_button">
                 <ModernButton
@@ -893,6 +918,12 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
       <ProductIntelligenceModal
         isOpen={isProductIntelligenceOpen}
         onClose={handleProductIntelligenceClose}
+      />
+
+      {/* Email Agents Modal */}
+      <EmailAgentsModal
+        isOpen={isEmailAgentsModalOpen}
+        onClose={handleEmailAgentsModalClose}
       />
     </>
   );

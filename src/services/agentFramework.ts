@@ -416,6 +416,92 @@ class AgentFramework {
           },
           required: ['query']
         }
+      },
+      'social-selling-agent': {
+        name: 'social-selling-agent',
+        description: 'AI-powered LinkedIn and social media engagement with personalized outreach',
+        parameters: {
+          type: 'object',
+          properties: {
+            contact_id: { type: 'string', description: 'Contact ID to analyze' },
+            campaign_type: { type: 'string', description: 'Type of social campaign' },
+            platform: { type: 'string', description: 'Social platform (linkedin, twitter, etc.)' },
+            personalization_level: { type: 'string', description: 'Level of personalization' }
+          },
+          required: ['contact_id']
+        }
+      },
+      'email-personalization-agent': {
+        name: 'email-personalization-agent',
+        description: 'Advanced email personalization with dynamic content and A/B testing',
+        parameters: {
+          type: 'object',
+          properties: {
+            contact_id: { type: 'string', description: 'Contact ID for personalization' },
+            email_type: { type: 'string', description: 'Type of email (outreach, follow-up, etc.)' },
+            industry_context: { type: 'string', description: 'Industry-specific context' },
+            personalization_level: { type: 'string', description: 'Depth of personalization' },
+            ab_test_variants: { type: 'array', description: 'A/B testing variants' }
+          },
+          required: ['contact_id']
+        }
+      },
+      'revenue-intelligence-agent': {
+        name: 'revenue-intelligence-agent',
+        description: 'Predictive revenue analytics with deal forecasting and pipeline optimization',
+        parameters: {
+          type: 'object',
+          properties: {
+            contact_id: { type: 'string', description: 'Contact ID for analysis' },
+            deal_id: { type: 'string', description: 'Deal ID for forecasting' },
+            forecast_period: { type: 'string', description: 'Forecast time period' },
+            include_seasonal_analysis: { type: 'boolean', description: 'Include seasonal trends' }
+          }
+        }
+      },
+      'competitive-intelligence-agent': {
+        name: 'competitive-intelligence-agent',
+        description: 'Real-time competitor monitoring and strategic intelligence gathering',
+        parameters: {
+          type: 'object',
+          properties: {
+            target_company: { type: 'string', description: 'Company to analyze' },
+            industry: { type: 'string', description: 'Industry context' },
+            monitoring_period: { type: 'string', description: 'Analysis time period' },
+            include_pricing_analysis: { type: 'boolean', description: 'Include pricing intelligence' }
+          },
+          required: ['target_company']
+        }
+      },
+      'negotiation-coach-agent': {
+        name: 'negotiation-coach-agent',
+        description: 'Real-time negotiation assistance with strategy recommendations and objection handling',
+        parameters: {
+          type: 'object',
+          properties: {
+            deal_id: { type: 'string', description: 'Deal ID for negotiation coaching' },
+            negotiation_stage: { type: 'string', description: 'Current negotiation stage' },
+            buyer_persona: { type: 'string', description: 'Buyer personality type' },
+            deal_value: { type: 'number', description: 'Deal monetary value' },
+            current_objections: { type: 'string', description: 'Current buyer objections' }
+          },
+          required: ['deal_id']
+        }
+      },
+      'content-creation-agent': {
+        name: 'content-creation-agent',
+        description: 'AI-powered content generation for marketing, sales, and thought leadership',
+        parameters: {
+          type: 'object',
+          properties: {
+            content_type: { type: 'string', description: 'Type of content to create' },
+            target_audience: { type: 'string', description: 'Target audience description' },
+            key_messages: { type: 'array', description: 'Key messages to include' },
+            tone: { type: 'string', description: 'Content tone and style' },
+            length: { type: 'string', description: 'Content length preference' }
+          },
+          required: ['content_type']
+        }
       }
       // Add more tool definitions as needed
     };
@@ -553,6 +639,24 @@ class AgentFramework {
 
       case 'semantic-search':
         return await this.callNetlifyFunction('semantic-search', args);
+
+      case 'social-selling-agent':
+        return await this.callNetlifyFunction('social-selling-agent', args);
+
+      case 'email-personalization-agent':
+        return await this.callNetlifyFunction('email-personalization-agent', args);
+
+      case 'revenue-intelligence-agent':
+        return await this.callNetlifyFunction('revenue-intelligence-agent', args);
+
+      case 'competitive-intelligence-agent':
+        return await this.callNetlifyFunction('competitive-intelligence-agent', args);
+
+      case 'negotiation-coach-agent':
+        return await this.callNetlifyFunction('negotiation-coach-agent', args);
+
+      case 'content-creation-agent':
+        return await this.callNetlifyFunction('content-creation-agent', args);
 
       default:
         throw new Error(`Unknown tool: ${name}`);
