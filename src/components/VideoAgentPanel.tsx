@@ -1,6 +1,6 @@
 import React from 'react';
 
-const VideoAgentPanel: React.FC = () => {
+export const VideoAgentPanel: React.FC = () => {
   return (
     <div className="video-agent-panel">
       <h2>Video Agent Panel</h2>

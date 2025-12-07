@@ -1,6 +1,6 @@
 import React from 'react';
 
-const VoiceAgentPanel: React.FC = () => {
+export const VoiceAgentPanel: React.FC = () => {
   return (
     <div className="voice-agent-panel">
       <h2>Voice Agent Panel</h2>

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const PlaybooksPanel: React.FC = () => {
+export const PlaybooksPanel: React.FC = () => {
   return (
     <div className="playbooks-panel">
       <h2>Playbooks Panel</h2>
