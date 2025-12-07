@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { Settings } from "lucide-react";
+import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 
 interface SkillMeta {
   id: string;
@@ -23,6 +25,7 @@ export const SkillsPanel: React.FC = () => {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<SkillRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const loadSkills = async () => {
     setLoading(true);
@@ -96,7 +99,37 @@ export const SkillsPanel: React.FC = () => {
         maxWidth: 640
       }}
     >
-      <h2 style={{ marginBottom: 8 }}>🧠 Agent Skill Engine</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>🧠 Agent Skill Engine</h2>
+        <button
+          onClick={() => setShowSettings(true)}
+          title="Configure Skills Settings"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#6b7280',
+            fontSize: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#f9fafb';
+            e.currentTarget.style.borderColor = '#9ca3af';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#d1d5db';
+          }}
+        >
+          <Settings size={12} />
+          Settings
+        </button>
+      </div>
       <p style={{ marginTop: 0, marginBottom: 16, fontSize: 14, color: "#4a5568" }}>
         Run individual skills (negotiation, objection handling, research, etc.) against any contact.
       </p>
@@ -219,6 +252,15 @@ export const SkillsPanel: React.FC = () => {
             {JSON.stringify(result.result, null, 2)}
           </pre>
         </div>
+      )}
+
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="skills"
+          agentName="Agent Skill Engine"
+          onSave={() => setShowSettings(false)}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </div>
   );

@@ -8,8 +8,13 @@ import { SkillsPanel } from "./components/SkillsPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { MoodPanel } from "./components/MoodPanel";
 import { CalendarAIPanel } from "./components/CalendarAIPanel";
+import { ColdEmailSDRAgent } from "./components/sdr/ColdEmailSDRAgent";
+import { FollowUpSDRAgent } from "./components/sdr/FollowUpSDRAgent";
+import { ObjectionHandlerSDRAgent } from "./components/sdr/ObjectionHandlerSDRAgent";
+import { ReactivationSDRAgent } from "./components/sdr/ReactivationSDRAgent";
+import { WinBackSDRAgent } from "./components/sdr/WinBackSDRAgent";
 
-export const App: React.FC = () => {
+const App: React.FC = () => {
   return (
     <div
       style={{
@@ -41,6 +46,23 @@ export const App: React.FC = () => {
       <MemoryPanel />
       <MoodPanel />
       <CalendarAIPanel />
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 24,
+          marginTop: 24,
+          paddingTop: 24,
+          borderTop: "1px solid #e2e8f0"
+        }}
+      >
+        <ColdEmailSDRAgent />
+        <FollowUpSDRAgent />
+        <ObjectionHandlerSDRAgent />
+        <ReactivationSDRAgent />
+        <WinBackSDRAgent />
+      </div>
     </div>
   );
 };

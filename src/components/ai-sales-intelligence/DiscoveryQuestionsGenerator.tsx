@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { MessageSquare, Copy, CheckCircle, RefreshCw, Users, Building, Target } from 'lucide-react';
+import { MessageSquare, Copy, CheckCircle, RefreshCw, Users, Building, Target, Settings } from 'lucide-react';
+import { SDRAgentConfigurator } from '../sdr/SDRAgentConfigurator';
 
 interface Contact {
   id: string;
@@ -57,6 +58,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
   const [loading, setLoading] = useState(false);
   const [copiedQuestions, setCopiedQuestions] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showSettings, setShowSettings] = useState(false);
 
   const generateQuestions = async () => {
     setLoading(true);
@@ -302,14 +304,24 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
             <p className="text-sm text-gray-600">AI-generated strategic questions for {meetingContext.type} meetings</p>
           </div>
         </div>
-        <ModernButton
-          variant="outline"
-          size="sm"
-          onClick={generateQuestions}
-          loading={loading}
-        >
-          {loading ? 'Generating...' : '🎯 Generate'}
-        </ModernButton>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            title="Configure Discovery Questions Settings"
+          >
+            <Settings className="w-3 h-3" />
+            Settings
+          </button>
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={generateQuestions}
+            loading={loading}
+          >
+            {loading ? 'Generating...' : '🎯 Generate'}
+          </ModernButton>
+        </div>
       </div>
 
       {/* Meeting Context Summary */}
@@ -464,6 +476,15 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
             🎯 Generate Questions
           </ModernButton>
         </div>
+      )}
+
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="discovery-questions"
+          agentName="Discovery Questions Generator"
+          onSave={() => setShowSettings(false)}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </GlassCard>
   );

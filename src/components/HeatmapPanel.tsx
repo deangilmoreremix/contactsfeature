@@ -1,105 +1,61 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { Settings } from "lucide-react";
+import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
+import { SDRPreferencesService } from "../services/sdrPreferencesService";
+import { SDRUserPreferences } from "../types/sdr-preferences";
 
-interface HeatmapDeal {
-  deal_id: string;
-  contact_id: string;
-  contact_name: string | null;
-  contact_email: string | null;
-  stage: string;
-  value: number;
-  risk_score: number;
-  days_since_reply: number;
-  objection_level: number;
-  stage_stagnation: number;
-  updated_at: string;
-}
-
-interface ListResponse {
-  deals: HeatmapDeal[];
-}
-
-function riskColor(score: number): string {
-  if (score >= 80) return "#FED7D7"; // red-ish
-  if (score >= 60) return "#FEEBC8"; // orange-ish
-  if (score >= 40) return "#FAF089"; // yellow-ish
-  if (score >= 20) return "#C6F6D5"; // green-ish
-  return "#E6FFFA"; // teal-ish
+interface HeatmapResponse {
+  dealId?: string;
+  risk_score?: number;
+  reason?: string;
+  factors?: any;
 }
 
 export const HeatmapPanel: React.FC = () => {
-  const [deals, setDeals] = useState<HeatmapDeal[]>([]);
+  const [dealId, setDealId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [result, setResult] = useState<HeatmapResponse | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [userPreferences, setUserPreferences] = useState<SDRUserPreferences | null>(null);
 
-  const fetchDeals = async () => {
-    setLoading(true);
+  const computeRisk = async () => {
     setError(null);
+    setResult(null);
+
+    if (!dealId) {
+      setError("Please enter a deal ID.");
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await fetch("/.netlify/functions/heatmap-list");
+      const res = await fetch("/.netlify/functions/deal-heatmap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealId })
+      });
+
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Request failed");
+        throw new Error(text || "Heatmap request failed");
       }
-      const data = (await res.json()) as ListResponse;
-      setDeals(data.deals || []);
-      setLastUpdated(new Date().toLocaleString());
+
+      const json = (await res.json()) as HeatmapResponse;
+      setResult(json);
     } catch (e: any) {
-      console.error("Heatmap list error:", e);
-      setError(e.message || "Failed to load deals");
+      console.error("[HeatmapPanel] error:", e);
+      setError(e.message || "Failed to compute deal risk");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchDeals();
-  }, []);
-
-  const recomputeAll = async () => {
-    setRecomputing(true);
-    setError(null);
-    try {
-      const res = await fetch("/.netlify/functions/heatmap-recompute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Request failed");
-      }
-      await res.json(); // we don't need the body; just notify
-      await fetchDeals();
-    } catch (e: any) {
-      console.error("Heatmap recompute all error:", e);
-      setError(e.message || "Failed to recompute risks");
-    } finally {
-      setRecomputing(false);
-    }
-  };
-
-  const recomputeOne = async (dealId: string) => {
-    setRecomputing(true);
-    setError(null);
-    try {
-      const res = await fetch("/.netlify/functions/heatmap-recompute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dealId })
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Request failed");
-      }
-      await res.json();
-      await fetchDeals();
-    } catch (e: any) {
-      console.error("Heatmap recompute one error:", e);
-      setError(e.message || "Failed to recompute this deal");
-    } finally {
-      setRecomputing(false);
-    }
+  const riskColor = (score?: number) => {
+    if (score == null) return "#a0aec0";
+    if (score < 30) return "#38a169"; // green
+    if (score < 60) return "#dd6b20"; // orange
+    return "#e53e3e"; // red
   };
 
   return (
@@ -109,159 +65,209 @@ export const HeatmapPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
-        maxWidth: 900,
-        flex: 1
+        marginTop: 24
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 8,
-          marginBottom: 12,
-          alignItems: "center"
-        }}
-      >
-        <div>
-          <h2 style={{ marginBottom: 4 }}>🔥 Deal Heatmap & Risk Engine</h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              color: "#4a5568"
-            }}
-          >
-            Visualize which deals are at highest risk and recompute risk with one click.
-          </p>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <h2 style={{ marginTop: 0, marginBottom: 0 }}>🔥 Deal Heatmap & Risk Engine</h2>
         <button
-          type="button"
-          onClick={recomputeAll}
-          disabled={recomputing || loading}
+          onClick={() => setShowSettings(true)}
           style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "none",
-            background: recomputing ? "#a0aec0" : "#dd6b20",
-            color: "#ffffff",
-            fontWeight: 600,
-            fontSize: 13,
-            cursor: recomputing ? "default" : "pointer",
-            whiteSpace: "nowrap"
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: '1px solid #cbd5e0',
+            background: '#f7fafc',
+            cursor: 'pointer',
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4
           }}
+          title="Configure Heatmap Settings"
         >
-          {recomputing ? "Recomputing..." : "Recompute All Risks"}
+          <Settings size={14} />
+          Settings
         </button>
       </div>
-
-      {lastUpdated && (
-        <div
-          style={{
-            fontSize: 11,
-            color: "#718096",
-            marginBottom: 8
-          }}
-        >
-          Last updated: {lastUpdated}
-        </div>
-      )}
+      <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: "#4a5568" }}>
+        Compute AI-based risk for any deal using reply frequency, sentiment, stage duration,
+        objections, and more.
+      </p>
 
       {error && (
         <div
           style={{
-            marginBottom: 8,
-            padding: "8px 10px",
+            marginBottom: 10,
+            padding: "6px 8px",
             borderRadius: 8,
             background: "#fff5f5",
             color: "#c53030",
-            fontSize: 13
+            fontSize: 12
           }}
         >
           ⚠️ {error}
         </div>
       )}
 
-      {loading ? (
-        <div style={{ fontSize: 13, color: "#4a5568" }}>Loading deals…</div>
-      ) : deals.length === 0 ? (
-        <div style={{ fontSize: 13, color: "#4a5568" }}>No open deals found.</div>
-      ) : (
-        <div
+      <div style={{ maxWidth: 360, marginBottom: 10 }}>
+        <label
           style={{
-            borderRadius: 8,
-            overflow: "hidden",
-            border: "1px solid #e2e8f0"
+            display: "block",
+            fontSize: 12,
+            fontWeight: 500,
+            marginBottom: 4
           }}
         >
-          <table
+          Deal ID
+        </label>
+        <input
+          value={dealId}
+          onChange={(e) => setDealId(e.target.value)}
+          placeholder="Enter deal UUID"
+          style={{
+            width: "100%",
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid #cbd5e0",
+            fontSize: 13
+          }}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={computeRisk}
+        disabled={loading}
+        style={{
+          padding: "8px 12px",
+          borderRadius: 8,
+          border: "none",
+          background: loading ? "#a0aec0" : "#e53e3e",
+          color: "#ffffff",
+          fontWeight: 600,
+          fontSize: 13,
+          cursor: loading ? "default" : "pointer",
+          marginBottom: 12
+        }}
+      >
+        {loading ? "Analyzing Deal..." : "Compute Deal Risk"}
+      </button>
+
+      {result && (
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            flexWrap: "wrap"
+          }}
+        >
+          <div
             style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: 13
+              flex: "0 0 220px",
+              borderRadius: 10,
+              padding: 12,
+              border: "1px solid #e2e8f0",
+              background: "#f7fafc"
             }}
           >
-            <thead>
-              <tr
+            <div
+              style={{
+                fontSize: 12,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                color: "#718096",
+                marginBottom: 4
+              }}
+            >
+              Risk Score
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}
+            >
+              <div
                 style={{
-                  background: "#edf2f7",
-                  textAlign: "left"
+                  width: 24,
+                  height: 24,
+                  borderRadius: "999px",
+                  background: riskColor(result.risk_score)
+                }}
+              />
+              <span style={{ fontSize: 18, fontWeight: 700 }}>
+                {result.risk_score ?? "—"}/100
+              </span>
+            </div>
+            {result.reason && (
+              <p
+                style={{
+                  marginTop: 8,
+                  marginBottom: 0,
+                  fontSize: 12,
+                  color: "#4a5568"
                 }}
               >
-                <th style={{ padding: 8 }}>Deal / Contact</th>
-                <th style={{ padding: 8 }}>Stage</th>
-                <th style={{ padding: 8 }}>Value</th>
-                <th style={{ padding: 8 }}>Risk</th>
-                <th style={{ padding: 8 }}>Days Since Reply</th>
-                <th style={{ padding: 8 }}>Objection</th>
-                <th style={{ padding: 8 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deals.map((d) => (
-                <tr
-                  key={d.deal_id}
-                  style={{
-                    background: riskColor(d.risk_score),
-                    borderTop: "1px solid #e2e8f0"
-                  }}
-                >
-                  <td style={{ padding: 8 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                      {d.contact_name || "Unknown Contact"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#4a5568" }}>
-                      {d.contact_email || "No email"} •{" "}
-                      <span style={{ fontFamily: "monospace" }}>{d.deal_id}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: 8 }}>{d.stage}</td>
-                  <td style={{ padding: 8 }}>${d.value.toLocaleString()}</td>
-                  <td style={{ padding: 8, fontWeight: 600 }}>{d.risk_score}</td>
-                  <td style={{ padding: 8 }}>{d.days_since_reply}</td>
-                  <td style={{ padding: 8 }}>{d.objection_level}</td>
-                  <td style={{ padding: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => recomputeOne(d.deal_id)}
-                      disabled={recomputing}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: "#4a5568",
-                        color: "#ffffff",
-                        fontSize: 12,
-                        cursor: recomputing ? "default" : "pointer"
-                      }}
-                    >
-                      Recompute
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                {result.reason}
+              </p>
+            )}
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              borderRadius: 10,
+              padding: 10,
+              border: "1px solid #e2e8f0",
+              background: "#ffffff",
+              maxHeight: 220,
+              overflow: "auto"
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                color: "#718096",
+                marginBottom: 4
+              }}
+            >
+              Factors
+            </div>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: 12,
+                margin: 0
+              }}
+            >
+              {JSON.stringify(result.factors || {}, null, 2)}
+            </pre>
+          </div>
         </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="deal-heatmap"
+          agentName="Deal Heatmap"
+          currentConfig={userPreferences || {}}
+          onSave={async (config) => {
+            const userId = 'demo-user';
+            await SDRPreferencesService.saveUserPreferences(userId, config);
+            setUserPreferences(config);
+          }}
+          onClose={() => setShowSettings(false)}
+          onReset={async () => {
+            const userId = 'demo-user';
+            const defaultConfig = SDRPreferencesService.getDefaultPreferences(userId, 'deal-heatmap');
+            setUserPreferences(defaultConfig);
+          }}
+        />
       )}
     </div>
   );

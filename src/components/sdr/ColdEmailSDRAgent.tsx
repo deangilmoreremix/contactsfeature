@@ -1,20 +1,23 @@
 import React, { useState } from "react";
-import { Settings } from "lucide-react";
-import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
+import { Settings, Send, Mail } from "lucide-react";
+import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 
-interface AutopilotResponse {
+interface ColdEmailResponse {
   contactId: string;
-  result: any;
+  subject: string;
+  body: string;
+  sent: boolean;
+  debug?: any;
 }
 
-export const AutopilotPanel: React.FC = () => {
+export const ColdEmailSDRAgent: React.FC = () => {
   const [contactId, setContactId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AutopilotResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ColdEmailResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  const handleRun = async () => {
+  const handleSend = async () => {
     setError(null);
     setResult(null);
 
@@ -25,7 +28,7 @@ export const AutopilotPanel: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch("/.netlify/functions/autopilot-run", {
+      const res = await fetch("/.netlify/functions/cold-email-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactId })
@@ -33,14 +36,14 @@ export const AutopilotPanel: React.FC = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Request failed");
+        throw new Error(text || "Cold email request failed");
       }
 
-      const data = (await res.json()) as AutopilotResponse;
-      setResult(data);
+      const json = (await res.json()) as ColdEmailResponse;
+      setResult(json);
     } catch (e: any) {
-      console.error("Autopilot error:", e);
-      setError(e.message || "Something went wrong");
+      console.error("[ColdEmailSDRAgent] error:", e);
+      setError(e.message || "Failed to send cold email");
     } finally {
       setLoading(false);
     }
@@ -53,14 +56,15 @@ export const AutopilotPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
-        maxWidth: 640
+        maxWidth: 520,
+        flex: "1 1 340px"
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>🤖 AI Autopilot</h2>
+        <h2 style={{ margin: 0 }}>❄️ Cold Email SDR</h2>
         <button
           onClick={() => setShowSettings(true)}
-          title="Configure Autopilot Settings"
+          title="Configure Cold Email SDR Settings"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -87,13 +91,33 @@ export const AutopilotPanel: React.FC = () => {
           Settings
         </button>
       </div>
-      <p style={{ marginTop: 0, marginBottom: 16, fontSize: 14, color: "#4a5568" }}>
-        Let the AI decide the next action for this contact based on status, stage, and history.
+      <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: "#4a5568" }}>
+        Send first-touch cold emails to brand new prospects with personalized messaging.
       </p>
 
-      <div style={{ marginBottom: 12 }}>
+      {error && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: "6px 8px",
+            borderRadius: 8,
+            background: "#fff5f5",
+            color: "#c53030",
+            fontSize: 12
+          }}
+        >
+          ⚠️ {error}
+        </div>
+      )}
+
+      <div style={{ marginBottom: 8 }}>
         <label
-          style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4 }}
+          style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 500,
+            marginBottom: 4
+          }}
         >
           Contact ID
         </label>
@@ -106,81 +130,82 @@ export const AutopilotPanel: React.FC = () => {
             padding: "8px 10px",
             borderRadius: 8,
             border: "1px solid #cbd5e0",
-            fontSize: 14
+            fontSize: 13
           }}
         />
       </div>
 
       <button
         type="button"
-        onClick={handleRun}
+        onClick={handleSend}
         disabled={loading}
         style={{
           width: "100%",
-          padding: "10px 12px",
+          padding: "8px 10px",
           borderRadius: 8,
           border: "none",
-          background: loading ? "#a0aec0" : "#805ad5",
+          background: loading ? "#a0aec0" : "#2b6cb0",
           color: "#ffffff",
           fontWeight: 600,
-          fontSize: 14,
+          fontSize: 13,
           cursor: loading ? "default" : "pointer",
-          marginBottom: 12
+          marginBottom: 10
         }}
       >
-        {loading ? "Running Autopilot..." : "Run Autopilot"}
+        {loading ? "Sending Cold Email..." : "Send Cold Email"}
       </button>
-
-      {error && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: "8px 10px",
-            borderRadius: 8,
-            background: "#fff5f5",
-            color: "#c53030",
-            fontSize: 13
-          }}
-        >
-          ⚠️ {error}
-        </div>
-      )}
 
       {result && (
         <div
           style={{
-            marginTop: 12,
-            padding: "10px 12px",
             borderRadius: 8,
+            border: "1px solid #e2e8f0",
             background: "#f7fafc",
-            border: "1px solid #e2e8f0"
+            padding: 8
           }}
         >
-          <div style={{ fontSize: 13, marginBottom: 6 }}>
-            ✅ Autopilot executed for contact{" "}
-            <span style={{ fontFamily: "monospace" }}>{result.contactId}</span>
-          </div>
-          <pre
+          <div
             style={{
-              whiteSpace: "pre-wrap",
-              fontSize: 12,
-              background: "#edf2f7",
-              padding: 8,
-              borderRadius: 6,
-              maxHeight: 220,
-              overflow: "auto",
-              margin: 0
+              fontSize: 11,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              color: "#718096",
+              marginBottom: 4
             }}
           >
-            {JSON.stringify(result.result, null, 2)}
-          </pre>
+            Result
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Subject:</strong> {result.subject}
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Status:</strong> {result.sent ? "✅ Sent" : "❌ Failed"}
+          </div>
+
+          <div>
+            <strong>Message:</strong>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: 12,
+                marginTop: 4,
+                background: "#edf2f7",
+                padding: 8,
+                borderRadius: 6
+              }}
+            >
+              {result.body}
+            </pre>
+          </div>
         </div>
       )}
 
       {showSettings && (
         <SDRAgentConfigurator
-          agentId="autopilot"
-          agentName="AI Autopilot"
+          agentId="cold-email-sdr"
+          agentName="Cold Email SDR"
           onSave={() => setShowSettings(false)}
           onClose={() => setShowSettings(false)}
         />

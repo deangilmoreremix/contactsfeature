@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { Settings } from "lucide-react";
+import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 
 interface MemoryLayer {
   id?: string;
@@ -21,6 +23,7 @@ export const MemoryPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [mem, setMem] = useState<MemoryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const fetchMemory = async () => {
     setError(null);
@@ -113,7 +116,37 @@ export const MemoryPanel: React.FC = () => {
         marginTop: 24
       }}
     >
-      <h2 style={{ marginBottom: 8 }}>🧠 Agent Memory Layers</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>🧠 Agent Memory Layers</h2>
+        <button
+          onClick={() => setShowSettings(true)}
+          title="Configure Memory Settings"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#6b7280',
+            fontSize: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#f9fafb';
+            e.currentTarget.style.borderColor = '#9ca3af';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#d1d5db';
+          }}
+        >
+          <Settings size={12} />
+          Settings
+        </button>
+      </div>
       <p style={{ marginTop: 0, marginBottom: 16, fontSize: 14, color: "#4a5568" }}>
         Inspect short, mid, and long-term AI memory for any contact.
       </p>
@@ -184,6 +217,15 @@ export const MemoryPanel: React.FC = () => {
           {renderLayer("Mid-Term", mem.memory.mid)}
           {renderLayer("Long-Term", mem.memory.long)}
         </div>
+      )}
+
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="memory"
+          agentName="Agent Memory Layers"
+          onSave={() => setShowSettings(false)}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </div>
   );

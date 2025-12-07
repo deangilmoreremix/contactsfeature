@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { Settings } from "lucide-react";
+import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 
 interface MoodResponse {
   contactId: string;
@@ -12,6 +14,7 @@ export const MoodPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MoodResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const fetchMood = async () => {
     setError(null);
@@ -70,7 +73,37 @@ export const MoodPanel: React.FC = () => {
         marginTop: 24
       }}
     >
-      <h2 style={{ marginBottom: 8 }}>🎭 Mood Engine</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>🎭 Mood Engine</h2>
+        <button
+          onClick={() => setShowSettings(true)}
+          title="Configure Mood Settings"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#6b7280',
+            fontSize: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#f9fafb';
+            e.currentTarget.style.borderColor = '#9ca3af';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#d1d5db';
+          }}
+        >
+          <Settings size={12} />
+          Settings
+        </button>
+      </div>
       <p style={{ marginTop: 0, marginBottom: 16, fontSize: 14, color: "#4a5568" }}>
         See which mood the AI will use for messaging this contact based on risk and context.
       </p>
@@ -196,6 +229,15 @@ export const MoodPanel: React.FC = () => {
             </pre>
           </div>
         </div>
+      )}
+
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="mood"
+          agentName="Mood Engine"
+          onSave={() => setShowSettings(false)}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </div>
   );

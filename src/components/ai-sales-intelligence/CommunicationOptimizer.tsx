@@ -3,9 +3,10 @@ import { supabase } from '../../lib/supabase';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Send, TrendingUp, AlertTriangle, CheckCircle, Zap, MessageSquare, Sparkles, Brain } from 'lucide-react';
+import { Send, TrendingUp, AlertTriangle, CheckCircle, Zap, MessageSquare, Sparkles, Brain, Settings } from 'lucide-react';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { SDRAgentConfigurator } from '../sdr/SDRAgentConfigurator';
 
 interface CommunicationContext {
   type: 'email' | 'call_script' | 'social_message' | 'proposal_followup';
@@ -58,6 +59,7 @@ export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [appliedOptimizations, setAppliedOptimizations] = useState<Set<string>>(new Set());
+  const [showSettings, setShowSettings] = useState(false);
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
@@ -322,14 +324,24 @@ Best regards,
             <p className="text-sm text-gray-600">AI-powered message optimization for maximum impact</p>
           </div>
         </div>
-        <ModernButton
-          variant="outline"
-          size="sm"
-          onClick={optimizeCommunication}
-          loading={loading}
-        >
-          {loading ? 'Optimizing...' : '⚡ Optimize'}
-        </ModernButton>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            title="Configure Communication Optimizer Settings"
+          >
+            <Settings className="w-3 h-3" />
+            Settings
+          </button>
+          <ModernButton
+            variant="outline"
+            size="sm"
+            onClick={optimizeCommunication}
+            loading={loading}
+          >
+            {loading ? 'Optimizing...' : '⚡ Optimize'}
+          </ModernButton>
+        </div>
       </div>
 
       {/* Context Summary */}
@@ -528,6 +540,15 @@ Best regards,
             ⚡ Optimize Message
           </ModernButton>
         </div>
+      )}
+
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="communication-optimizer"
+          agentName="Communication Optimizer"
+          onSave={() => setShowSettings(false)}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </GlassCard>
   );

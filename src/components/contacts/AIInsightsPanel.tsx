@@ -471,7 +471,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       console.log('AIInsightsPanel: Generating insights on mount');
       handleGenerateInsights();
     }
-  }, [contact.id]);
+  }, [contact.id, contactInsights]);
 
   const handleGenerateInsights = async () => {
     console.log('AIInsightsPanel: handleGenerateInsights called for contact:', contact.id);

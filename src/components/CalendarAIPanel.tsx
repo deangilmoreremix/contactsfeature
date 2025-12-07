@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { Settings } from "lucide-react";
+import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 
 interface CalendarEvent {
   id: string;
@@ -27,6 +29,7 @@ export const CalendarAIPanel: React.FC = () => {
   const [loadingList, setLoadingList] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const loadEvents = async () => {
     setLoadingList(true);
@@ -92,7 +95,37 @@ export const CalendarAIPanel: React.FC = () => {
         marginTop: 24
       }}
     >
-      <h2 style={{ marginBottom: 8 }}>📅 Calendar AI</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>📅 Calendar AI</h2>
+        <button
+          onClick={() => setShowSettings(true)}
+          title="Configure Calendar Settings"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#6b7280',
+            fontSize: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#f9fafb';
+            e.currentTarget.style.borderColor = '#9ca3af';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#d1d5db';
+          }}
+        >
+          <Settings size={12} />
+          Settings
+        </button>
+      </div>
       <p style={{ marginTop: 0, marginBottom: 16, fontSize: 14, color: "#4a5568" }}>
         Schedule and view AI-booked meetings without using Calendly.
       </p>
@@ -231,6 +264,15 @@ export const CalendarAIPanel: React.FC = () => {
         >
           ⚠️ {error}
         </div>
+      )}
+
+      {showSettings && (
+        <SDRAgentConfigurator
+          agentId="calendar"
+          agentName="Calendar AI"
+          onSave={() => setShowSettings(false)}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </div>
   );

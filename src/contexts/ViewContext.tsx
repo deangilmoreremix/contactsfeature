@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { ViewType, ViewFilterConfig, ViewSortConfig } from '../types/view';
 import { viewPreferencesService } from '../services/viewPreferences.service';
 import { logger } from '../services/logger.service';
@@ -169,19 +169,19 @@ export function ViewProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const contextValue = useMemo(() => ({
+    currentView,
+    setCurrentView,
+    filters,
+    setFilters,
+    sortConfig,
+    setSortConfig,
+    isLoading,
+    resetFilters,
+  }), [currentView, filters, sortConfig, isLoading, setCurrentView, setFilters, setSortConfig, resetFilters]);
+
   return (
-    <ViewContext.Provider
-      value={{
-        currentView,
-        setCurrentView,
-        filters,
-        setFilters,
-        sortConfig,
-        setSortConfig,
-        isLoading,
-        resetFilters,
-      }}
-    >
+    <ViewContext.Provider value={contextValue}>
       {children}
     </ViewContext.Provider>
   );

@@ -1,26 +1,25 @@
 import React, { useState } from "react";
-import { Settings } from "lucide-react";
-import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
-import { SDRPreferencesService } from "../services/sdrPreferencesService";
-import { SDRUserPreferences } from "../types/sdr-preferences";
+import { Settings, MessageSquare } from "lucide-react";
+import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 
-interface VoiceAgentResponse {
-  contactId?: string;
-  script?: string;
-  audioUrl?: string;
+interface FollowUpResponse {
+  contactId: string;
+  subject: string;
+  body: string;
+  sent: boolean;
+  followUpNumber: number;
   debug?: any;
 }
 
-export const VoiceAgentPanel: React.FC = () => {
+export const FollowUpSDRAgent: React.FC = () => {
   const [contactId, setContactId] = useState("");
-  const [script, setScript] = useState("");
+  const [followUpNumber, setFollowUpNumber] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VoiceAgentResponse | null>(null);
+  const [result, setResult] = useState<FollowUpResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [userPreferences, setUserPreferences] = useState<SDRUserPreferences | null>(null);
 
-  const handleGenerate = async () => {
+  const handleSend = async () => {
     setError(null);
     setResult(null);
 
@@ -28,29 +27,25 @@ export const VoiceAgentPanel: React.FC = () => {
       setError("Please enter a contact ID.");
       return;
     }
-    if (!script.trim()) {
-      setError("Please enter the script or talking points.");
-      return;
-    }
 
     setLoading(true);
     try {
-      const res = await fetch("/.netlify/functions/voice-agent", {
+      const res = await fetch("/.netlify/functions/follow-up-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, script })
+        body: JSON.stringify({ contactId, followUpNumber })
       });
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Voice agent request failed");
+        throw new Error(text || "Follow-up request failed");
       }
 
-      const json = (await res.json()) as VoiceAgentResponse;
+      const json = (await res.json()) as FollowUpResponse;
       setResult(json);
     } catch (e: any) {
-      console.error("[VoiceAgentPanel] error:", e);
-      setError(e.message || "Failed to run voice agent");
+      console.error("[FollowUpSDRAgent] error:", e);
+      setError(e.message || "Failed to send follow-up");
     } finally {
       setLoading(false);
     }
@@ -67,30 +62,39 @@ export const VoiceAgentPanel: React.FC = () => {
         flex: "1 1 340px"
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <h2 style={{ marginTop: 0, marginBottom: 0 }}>🎙 Voice Agent</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>📧 Follow-Up SDR</h2>
         <button
           onClick={() => setShowSettings(true)}
+          title="Configure Follow-Up SDR Settings"
           style={{
-            padding: '4px 8px',
-            borderRadius: 6,
-            border: '1px solid #cbd5e0',
-            background: '#f7fafc',
-            cursor: 'pointer',
-            fontSize: 12,
             display: 'flex',
             alignItems: 'center',
-            gap: 4
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#6b7280',
+            fontSize: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
           }}
-          title="Configure Voice Agent Settings"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#f9fafb';
+            e.currentTarget.style.borderColor = '#9ca3af';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#d1d5db';
+          }}
         >
-          <Settings size={14} />
+          <Settings size={12} />
           Settings
         </button>
       </div>
       <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: "#4a5568" }}>
-        Convert SDR / AE scripts into voice messages for prospects (e.g., voicemail drops,
-        audio follow-ups). Powered by your voice back-end / OpenAI real-time + AgentMail.
+        Send smart follow-up emails based on previous outreach or silence.
       </p>
 
       {error && (
@@ -142,35 +146,38 @@ export const VoiceAgentPanel: React.FC = () => {
             marginBottom: 4
           }}
         >
-          Script / Talking Points
+          Follow-Up Number
         </label>
-        <textarea
-          value={script}
-          onChange={(e) => setScript(e.target.value)}
-          rows={5}
-          placeholder="Hi {{name}}, just wanted to quickly walk you through how SmartCRM can..."
+        <select
+          value={followUpNumber}
+          onChange={(e) => setFollowUpNumber(Number(e.target.value))}
           style={{
             width: "100%",
-            padding: 8,
+            padding: "8px 10px",
             borderRadius: 8,
             border: "1px solid #cbd5e0",
-            fontFamily: "system-ui",
             fontSize: 13,
             background: "#f7fafc"
           }}
-        />
+        >
+          <option value={1}>1st Follow-Up</option>
+          <option value={2}>2nd Follow-Up</option>
+          <option value={3}>3rd Follow-Up</option>
+          <option value={4}>4th Follow-Up</option>
+          <option value={5}>5th Follow-Up</option>
+        </select>
       </div>
 
       <button
         type="button"
-        onClick={handleGenerate}
+        onClick={handleSend}
         disabled={loading}
         style={{
           width: "100%",
           padding: "8px 10px",
           borderRadius: 8,
           border: "none",
-          background: loading ? "#a0aec0" : "#2b6cb0",
+          background: loading ? "#a0aec0" : "#38a169",
           color: "#ffffff",
           fontWeight: 600,
           fontSize: 13,
@@ -178,7 +185,7 @@ export const VoiceAgentPanel: React.FC = () => {
           marginBottom: 10
         }}
       >
-        {loading ? "Generating Voice..." : "Generate Voice Message"}
+        {loading ? "Sending Follow-Up..." : "Send Follow-Up"}
       </button>
 
       {result && (
@@ -202,44 +209,42 @@ export const VoiceAgentPanel: React.FC = () => {
             Result
           </div>
 
-          {result.audioUrl ? (
-            <div style={{ marginBottom: 8 }}>
-              <audio controls src={result.audioUrl} style={{ width: "100%" }} />
-            </div>
-          ) : null}
+          <div style={{ marginBottom: 8 }}>
+            <strong>Follow-Up #{result.followUpNumber}</strong>
+          </div>
 
-          {result.script && (
+          <div style={{ marginBottom: 8 }}>
+            <strong>Subject:</strong> {result.subject}
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Status:</strong> {result.sent ? "✅ Sent" : "❌ Failed"}
+          </div>
+
+          <div>
+            <strong>Message:</strong>
             <pre
               style={{
                 whiteSpace: "pre-wrap",
                 fontSize: 12,
-                margin: 0
+                marginTop: 4,
+                background: "#edf2f7",
+                padding: 8,
+                borderRadius: 6
               }}
             >
-              {result.script}
+              {result.body}
             </pre>
-          )}
+          </div>
         </div>
       )}
 
-      {/* Settings Modal */}
       {showSettings && (
         <SDRAgentConfigurator
-          agentId="voice-agent"
-          agentName="Voice Agent"
-          currentConfig={userPreferences || {}}
-          onSave={async (config) => {
-            // In a real app, you'd get the userId from auth context
-            const userId = 'demo-user';
-            await SDRPreferencesService.saveUserPreferences(userId, config);
-            setUserPreferences(config);
-          }}
+          agentId="follow-up-sdr"
+          agentName="Follow-Up SDR"
+          onSave={() => setShowSettings(false)}
           onClose={() => setShowSettings(false)}
-          onReset={async () => {
-            const userId = 'demo-user';
-            const defaultConfig = SDRPreferencesService.getDefaultPreferences(userId, 'voice-agent');
-            setUserPreferences(defaultConfig);
-          }}
         />
       )}
     </div>
