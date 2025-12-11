@@ -4,6 +4,7 @@ import { AdaptivePlaybookGenerator } from '../ai-sales-intelligence/AdaptivePlay
 import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
+import { SDRPersonaSelector } from './SDRPersonaSelector';
 import { Target, Settings, Brain } from 'lucide-react';
 
 interface ContactSalesIntelligenceTabProps {
@@ -55,6 +56,30 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
             </button>
           </div>
         </div>
+      </div>
+
+      {/* SDR Personas Section */}
+      <div className="mb-8">
+        <SDRPersonaSelector
+          contact={contact}
+          categoryFilter={[
+            'influencer_collab_hunter',
+            'software_affiliate_partnership',
+            'newsletter_sponsor_outreach',
+            'affiliate_recruitment',
+            'partnership_channel_reseller',
+            'marketplace_seller_outreach',
+            'ecommerce_wholesale_outreach',
+            'product_launch_outreach',
+            'beta_user_recruitment',
+            'review_testimonial_request',
+            'product_feedback_research',
+            'pr_media_outreach',
+            'investor_update_outreach'
+          ]}
+          title="Partnership & Growth SDRs"
+          description="AI-powered SDR personas for partnerships, growth initiatives, and strategic outreach"
+        />
       </div>
 
       {/* AI Tools Grid */}

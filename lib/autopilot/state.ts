@@ -5,6 +5,8 @@ export type AutopilotState =
   | "interested"
   | "meeting_scheduled"
   | "awaiting_next_step"
+  | "follow_up"
+  | "relationship_building"
   | "closed_won"
   | "closed_lost";
 

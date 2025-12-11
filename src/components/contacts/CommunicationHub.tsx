@@ -8,6 +8,7 @@ import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
+import { SDRPersonaSelector } from './SDRPersonaSelector';
 import {
   Mail,
   Phone,
@@ -663,6 +664,22 @@ Sales Representative`
             </GlassCard>
           );
         })}
+      </div>
+
+      {/* SDR Personas Section */}
+      <div className="mb-8">
+        <SDRPersonaSelector
+          contact={contact}
+          categoryFilter={[
+            'webinar_invite',
+            'webinar_followup',
+            'community_engagement',
+            'vip_concierge',
+            'app_user_onboarding'
+          ]}
+          title="Event & Engagement SDRs"
+          description="AI-powered SDR personas for events, webinars, and community engagement"
+        />
       </div>
 
       {/* Main Content */}

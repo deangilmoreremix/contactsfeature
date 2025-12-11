@@ -7,6 +7,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { HeatmapPanel } from '../components/HeatmapPanel';
 
+// Mock dependencies
+vi.mock('../services/sdrPreferencesService', () => ({
+  sdrPreferencesService: {
+    getPreferences: vi.fn().mockResolvedValue({}),
+    updatePreferences: vi.fn().mockResolvedValue({})
+  }
+}));
+
+vi.mock('../lib/supabase', () => ({
+  supabase: {}
+}));
+
 // Mock fetch globally
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

@@ -8,6 +8,7 @@ import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { analyticsService } from '../../services/analyticsService';
+import { SDRPersonaSelector } from './SDRPersonaSelector';
 import {
   Zap,
   Play,
@@ -1667,6 +1668,23 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
             );
           })}
         </nav>
+      </div>
+
+      {/* SDR Personas Section */}
+      <div className="mb-8">
+        <SDRPersonaSelector
+          contact={contact}
+          categoryFilter={[
+            'course_creator_nurture',
+            'trial_to_paid_conversion',
+            'upsell_cross_sell',
+            'churn_winback',
+            'list_reactivation',
+            'abandoned_cart_recovery'
+          ]}
+          title="Lifecycle & Nurture SDRs"
+          description="AI-powered SDR personas for lifecycle management and lead nurturing"
+        />
       </div>
 
       {/* Tab Content */}

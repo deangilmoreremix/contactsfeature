@@ -18,12 +18,18 @@ A comprehensive AI-powered CRM dashboard built with React, TypeScript, and Supab
 - **Automated Insights**: Real-time generation of actionable business intelligence
 - **Predictive Analytics**: Conversion probability, response time prediction, and risk assessment
 
-### Agent System (Latest Addition)
-- **AI SDR Agent**: Automated sales development representative for outreach and lead qualification
-- **AI AE Agent**: Account executive agent for deal management and relationship building
-- **Agent Framework**: Extensible agent architecture with tool integration
-- **Agent Runner**: Interactive agent execution with real-time monitoring
-- **Agent Analytics**: Performance tracking and optimization for agent operations
+### Complete SDR Agent Ecosystem & Automation
+- **14 Specialized SDR Agents**: Cold Email, Follow-Up, Objection Handling, LinkedIn, WhatsApp, Event-Based, Referral, Newsletter, High-Intent, Data Enrichment, Competitor-Aware, Reactivation, Win-Back, and Social SDR agents
+- **30 AI Personas**: Sales Style (Direct Closer, Challenger, Consultative), Tone & Style (Professional, Friendly, Urgent), Industry (SaaS, E-Commerce), Buyer Types (Founder, CEO, Director), and Use-Case personas
+- **Smart Autopilot System**: Intelligent decision engine that automatically selects and executes appropriate SDR strategies based on contact status and engagement patterns
+- **Sequence Management**: Automated multi-step outreach sequences with current_step tracking and completion detection
+- **AgentControlPanel**: Comprehensive UI for configuring, monitoring, and managing all SDR agents per contact
+- **OpenAI GPT-4 Integration**: Real AI-powered message generation with dynamic agent loading, structured prompts, and context-aware responses
+- **AgentMail Integration**: Production-ready email and SMS delivery with tracking, error handling, and delivery confirmation
+- **Multi-Channel Orchestration**: Coordinated outreach across email, SMS, LinkedIn, and WhatsApp with intelligent channel selection
+- **AE Agent Automation**: Advanced account executive workflows for demo preparation, negotiation support, and deal progression
+- **Calendar AI**: Intelligent meeting scheduling with timezone handling, availability analysis, and automated booking
+- **Pipeline Analytics**: Real-time performance dashboards with conversion analytics, agent effectiveness metrics, and revenue forecasting
 
 ### Automation & Workflows
 - **Smart Automation**: AI-generated automation rules based on contact patterns
@@ -148,14 +154,140 @@ const contact = await contactService.createContact({
 // AI automatically enriches with LinkedIn data, scoring, etc.
 ```
 
-#### Using AI Agents
+#### **Complete SDR Agent Ecosystem Usage**
+
+##### **AgentControlPanel Integration**
 ```typescript
-// Execute AI SDR agent for outreach
-const result = await agentFramework.executeAgent({
-  agentId: 'ai-sdr-agent',
-  contactId: contactId,
-  input: { campaign_type: 'introduction' }
+// Configure SDR agent for contact with full ecosystem
+import { AgentControlPanel } from './components/AgentControlPanel';
+
+<AgentControlPanel
+  contact={contact}
+  availableAgents={await getAgents()}        // 14 SDR agents
+  availablePersonas={await getPersonas()}    // 30 AI personas
+  onAgentChange={(agentId) => updateContactAgent(contactId, agentId)}
+  onPersonaChange={(personaId) => updateContactPersona(contactId, personaId)}
+  onSettingsUpdate={(settings) => saveAgentSettings(contactId, settings)}
+  realTimeLogs={agentLogs}
+  performanceMetrics={agentMetrics}
+/>
+```
+
+##### **Smart Autopilot Execution**
+```typescript
+// Trigger intelligent SDR automation
+const result = await triggerAutopilot({
+  contactId: contactId
 });
+
+// Result includes:
+// - Selected strategy based on contact status
+// - Agent and persona used
+// - Message preview or delivery confirmation
+// - Next steps in sequence
+// - Performance metrics
+```
+
+##### **OpenAI GPT-4 Integration**
+```typescript
+// Real AI message generation with context
+const message = await generateMessageWithAI({
+  agentId: 'cold_email_sdr',        // From 14 SDR agents
+  personaId: 'consultative_advisor', // From 30 personas
+  sequenceLength: 30,
+  step: 1,
+  contact: contactData
+});
+
+// Returns structured response:
+// {
+//   message: "Personalized SDR message",
+//   subject: "Email subject line",
+//   tone_used: "Consultative approach",
+//   strategy_notes: "Problem-focused opening"
+// }
+```
+
+##### **AgentMail Production Delivery**
+```typescript
+// Send via AgentMail with full tracking
+const deliveryResult = await sendViaAgentMail({
+  contactId,
+  agentId: 'followup_sdr',
+  personaId: 'relationship_builder',
+  messageText: aiGeneratedMessage,
+  step: 2,
+  sequenceLength: 30
+});
+
+// Includes:
+// - Delivery confirmation
+// - Tracking pixel insertion
+// - Bounce handling
+// - Reply detection setup
+```
+
+##### **Multi-Channel Orchestration**
+```typescript
+// Intelligent channel selection and coordination
+const channelStrategy = await selectOptimalChannel(contact, 'introduction', 'high');
+
+// Possible results:
+// - 'email': Primary channel with SMS fallback
+// - 'linkedin': Professional networking focus
+// - 'whatsapp': Direct conversational approach
+// - 'multi-channel': Coordinated email + SMS + LinkedIn
+
+const campaign = await createMultiChannelCampaign({
+  contactId,
+  channels: ['email', 'linkedin'],
+  sequence: [
+    { step: 1, channel: 'email', delay: 0 },
+    { step: 2, channel: 'linkedin', delay: 3, condition: 'no_reply' }
+  ]
+});
+```
+
+##### **AE Agent Advanced Workflows**
+```typescript
+// Execute AE agent for complex deal management
+const aeResult = await runAeAgentForContact(contact, settings);
+
+// Handles:
+// - Demo preparation with contact intelligence
+// - Negotiation coaching with objection handling
+// - Proposal generation with competitive analysis
+// - Relationship building with personalized touchpoints
+```
+
+##### **Calendar AI Scheduling**
+```typescript
+// Intelligent meeting scheduling
+const meeting = await scheduleOptimalMeeting(contact, userPreferences);
+
+// Features:
+// - Timezone detection and conversion
+// - Availability pattern analysis
+// - Conflict resolution
+// - Automated calendar invites
+// - Confirmation sequences
+```
+
+##### **Pipeline Analytics**
+```typescript
+// Comprehensive performance analytics
+const analytics = await getPipelineAnalytics({
+  dateRange: 'last_30_days',
+  includeAgentPerformance: true,
+  includeRevenueForecast: true
+});
+
+// Returns:
+// - Conversion funnel metrics
+// - Agent effectiveness scores
+// - Revenue projections with confidence
+// - Bottleneck identification
+// - Performance recommendations
 ```
 
 #### Deal Management
@@ -191,9 +323,329 @@ const health = await dealService.analyzeHealth(deal.id);
 - **Error Handling**: Robust error recovery and retry logic
 - **Performance Analytics**: Detailed metrics on agent effectiveness
 
-## 🔧 API Reference
+## 🔧 Complete API Reference
 
-### Core Services
+### **SDR Agent Ecosystem APIs**
+
+#### **Agent Management**
+```typescript
+// Get all 14 SDR agents
+GET /.netlify/functions/get-agents
+Response: {
+  agents: [
+    {
+      id: "cold_email_sdr",
+      name: "Cold Email SDR",
+      description: "First-touch cold outreach...",
+      type: "sdr",
+      category: "outbound"
+    }
+    // ... all 14 agents
+  ]
+}
+
+// Get all 30 AI personas
+GET /.netlify/functions/get-personas
+Response: {
+  personas: [
+    {
+      id: "consultative_advisor",
+      name: "Consultative Advisor",
+      persona_group: "Sales Style",
+      description: "Asks questions and gives tailored advice..."
+    }
+    // ... all 30 personas
+  ]
+}
+```
+
+#### **Agent Configuration**
+```typescript
+// Save agent settings per contact
+POST /.netlify/functions/save-agent-settings
+{
+  "contactId": "contact-123",
+  "settings": {
+    "autopilot_enabled": true,
+    "agent_id": "cold_email_sdr",
+    "persona_id": "consultative_advisor",
+    "sequence_length": 30,
+    "channels": ["email", "linkedin"],
+    "custom_prompts": {
+      "general": "Focus on their API integration needs"
+    }
+  }
+}
+
+// Get agent logs for contact
+GET /.netlify/functions/get-agent-logs?contactId=contact-123&limit=50
+Response: {
+  logs: [
+    {
+      id: "log-123",
+      contact_id: "contact-123",
+      level: "info",
+      message: "[cold_email_sdr] Step 1/30 prepared...",
+      created_at: "2025-12-09T17:00:00Z"
+    }
+  ]
+}
+```
+
+#### **Agent Execution APIs**
+
+##### **Run Individual Agent Step**
+```typescript
+POST /.netlify/functions/run-agent
+{
+  "contactId": "contact-123"
+}
+
+// Success Response
+{
+  "success": true,
+  "agentId": "cold_email_sdr",
+  "personaId": "consultative_advisor",
+  "sequenceLength": 30,
+  "step": 1,
+  "preview": "Hi John, I noticed your company is growing rapidly..."
+}
+
+// Sequence Complete
+{
+  "done": true,
+  "message": "Sequence complete for this contact"
+}
+
+// Autopilot Disabled
+{
+  "skipped": true,
+  "reason": "Autopilot disabled for this contact"
+}
+```
+
+##### **Smart Autopilot Execution**
+```typescript
+POST /.netlify/functions/trigger-autopilot
+{
+  "contactId": "contact-123"
+}
+
+// Response based on contact status
+{
+  "status": "new",  // contact.lead_status
+  "result": {
+    "success": true,
+    "step": 1,
+    "messageText": "Generated SDR message content..."
+  }
+}
+
+// Possible status-based actions:
+// - "new" → SDR outreach sequence
+// - "engaged" → AE agent workflow
+// - "cold" → SDR reactivation sequence
+// - Other → No action with logging
+```
+
+#### **OpenAI GPT-4 Integration Details**
+```typescript
+// Internal message generation (called by run-agent)
+async function generateMessageWithAI({
+  agentId,      // From 14 SDR agents
+  personaId,    // From 30 AI personas
+  sequenceLength,
+  step,
+  contact
+})
+
+// Features:
+// - Loads agent config from agent_metadata table
+// - Loads persona config from ai_personas table
+// - Builds structured prompt with context
+// - Calls OpenAI GPT-4 API with JSON response format
+// - Returns: { message, subject, tone_used, strategy_notes }
+```
+
+#### **AgentMail Integration Details**
+```typescript
+// Production email/SMS delivery (called by run-agent)
+async function sendViaAgentMail({
+  contactId,
+  agentId,
+  personaId,
+  messageText,
+  step,
+  sequenceLength
+})
+
+// Features:
+// - Routes to appropriate channel (email/SMS)
+// - Inserts tracking pixels for open/click monitoring
+// - Handles delivery confirmations and bounces
+// - Logs all delivery attempts and results
+// - Supports reply detection and follow-up triggers
+```
+
+### **Multi-Channel Orchestration APIs**
+
+#### **Channel Selection**
+```typescript
+// Intelligent channel recommendation
+POST /.netlify/functions/select-channel
+{
+  "contactId": "contact-123",
+  "campaignType": "introduction",
+  "urgency": "high"
+}
+
+// Response
+{
+  "recommendedChannel": "email",  // or "linkedin", "whatsapp", "multi-channel"
+  "reasoning": "Contact prefers email, high open rates detected",
+  "fallbackChannels": ["sms", "linkedin"],
+  "confidence": 0.89
+}
+```
+
+#### **Campaign Orchestration**
+```typescript
+// Create multi-channel campaign
+POST /.netlify/functions/create-campaign
+{
+  "contactId": "contact-123",
+  "channels": ["email", "linkedin"],
+  "sequence": [
+    {
+      "step": 1,
+      "channel": "email",
+      "delay": 0,
+      "condition": null
+    },
+    {
+      "step": 2,
+      "channel": "linkedin",
+      "delay": 3,
+      "condition": "no_reply"
+    }
+  ]
+}
+```
+
+### **AE Agent Automation APIs**
+
+#### **Demo Preparation**
+```typescript
+POST /.netlify/functions/prepare-demo
+{
+  "contactId": "contact-123",
+  "dealId": "deal-456",
+  "contactIntelligence": {
+    "painPoints": ["scaling challenges", "integration issues"],
+    "techStack": ["Salesforce", "HubSpot"],
+    "timeline": "Q1 2026"
+  }
+}
+
+// Response
+{
+  "demoScript": "Customized demo script...",
+  "slides": ["slide1.jpg", "slide2.jpg"],
+  "talkingPoints": ["Address scaling concerns first"],
+  "objectionHandling": ["Timeline concerns", "Integration questions"]
+}
+```
+
+#### **Negotiation Coaching**
+```typescript
+POST /.netlify/functions/negotiation-coach
+{
+  "dealId": "deal-456",
+  "currentObjections": ["price too high", "need approval"],
+  "dealValue": 50000,
+  "buyerPersona": "CFO"
+}
+
+// Response
+{
+  "strategy": "Value-based negotiation approach",
+  "responses": {
+    "price": "Focus on 3-year ROI and cost savings",
+    "approval": "Offer phased implementation"
+  },
+  "nextSteps": ["Send ROI calculator", "Schedule technical demo"]
+}
+```
+
+### **Calendar AI APIs**
+
+#### **Intelligent Scheduling**
+```typescript
+POST /.netlify/functions/schedule-meeting
+{
+  "contactId": "contact-123",
+  "userPreferences": {
+    "duration": 30,
+    "timezone": "America/New_York",
+    "preferredDays": ["tuesday", "wednesday", "thursday"]
+  },
+  "contactTimezone": "Europe/London"
+}
+
+// Response
+{
+  "recommendedSlots": [
+    {
+      "startTime": "2025-12-10T14:00:00Z",
+      "endTime": "2025-12-10T14:30:00Z",
+      "confidence": 0.95,
+      "reasoning": "High contact availability, optimal time zone overlap"
+    }
+  ],
+  "calendarIntegration": "google",  // or "outlook"
+  "automatedBooking": true
+}
+```
+
+### **Pipeline Analytics APIs**
+
+#### **Performance Dashboard**
+```typescript
+GET /.netlify/functions/pipeline-analytics?dateRange=last_30_days&includeAgentPerformance=true
+
+// Response
+{
+  "conversionFunnel": {
+    "awareness": 1000,
+    "interest": 300,
+    "consideration": 100,
+    "purchase": 25,
+    "conversionRate": 2.5
+  },
+  "agentPerformance": {
+    "cold_email_sdr": {
+      "messagesSent": 500,
+      "responses": 45,
+      "meetingsBooked": 12,
+      "conversionRate": 9.0
+    }
+  },
+  "revenueForecast": {
+    "predictedRevenue": 125000,
+    "confidence": 0.78,
+    "basedOn": "Last 90 days trend analysis"
+  },
+  "bottlenecks": [
+    {
+      "stage": "consideration",
+      "issue": "High drop-off rate",
+      "recommendation": "Improve follow-up sequences"
+    }
+  ]
+}
+```
+
+### **Legacy APIs (Maintained for Compatibility)**
 
 #### Contact Service
 ```typescript
@@ -209,9 +661,9 @@ POST /api/contacts
 GET /api/contacts?enrich=true&ai=true
 ```
 
-#### Agent Framework
+#### Agent Framework (Legacy)
 ```typescript
-// Execute agent
+// Execute agent (legacy endpoint)
 POST /api/agents/execute
 {
   "agentId": "ai-sdr-agent",

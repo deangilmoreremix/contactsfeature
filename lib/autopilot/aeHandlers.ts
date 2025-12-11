@@ -142,3 +142,93 @@ ${memoryBlock}
 
   return res;
 }
+
+export async function handleFollowUp(contactId: string, ctx: AutopilotContext) {
+  const { contact, deal, memory } = ctx;
+
+  const mood = determineMood(contact, deal);
+  const memoryBlock = buildMemoryPrompt(memory.short, memory.mid, memory.long);
+
+  const basePrompt = `
+You are the AE following up after a meeting or demo.
+
+Contact:
+${JSON.stringify(contact, null, 2)}
+
+Deal:
+${JSON.stringify(deal, null, 2)}
+
+Goal:
+- Recap key points from the meeting.
+- Propose next steps or ask for feedback.
+- Keep the conversation moving forward.
+${memoryBlock}
+  `;
+
+  const finalPrompt = applyMood(basePrompt, mood);
+
+  await logAutopilotEvent(
+    contactId,
+    "follow_up",
+    AUTOPILOT_EVENTS.FOLLOWUP_REQUIRED,
+    { mood }
+  );
+
+  const res = await callOpenAI(finalPrompt, {
+    tools: aeTools,
+    systemPrompt:
+      "You are SmartCRM AE Autopilot. Use tools (send_email, schedule_meeting, save_activity) for follow-up."
+  });
+
+  // After follow-up, move to relationship building or awaiting next step.
+  await updateAutopilotState(contactId, "relationship_building");
+
+  return res;
+}
+
+export async function handleRelationshipBuilding(
+  contactId: string,
+  ctx: AutopilotContext
+) {
+  const { contact, deal, memory } = ctx;
+
+  const mood = determineMood(contact, deal);
+  const memoryBlock = buildMemoryPrompt(memory.short, memory.mid, memory.long);
+
+  const basePrompt = `
+You are the AE building a long-term relationship with the prospect.
+
+Contact:
+${JSON.stringify(contact, null, 2)}
+
+Deal:
+${JSON.stringify(deal, null, 2)}
+
+Goal:
+- Share valuable insights or content.
+- Check in on their progress or needs.
+- Nurture the relationship without being salesy.
+${memoryBlock}
+  `;
+
+  const finalPrompt = applyMood(basePrompt, mood);
+
+  await logAutopilotEvent(
+    contactId,
+    "relationship_building",
+    AUTOPILOT_EVENTS.FOLLOWUP_REQUIRED,
+    { mood }
+  );
+
+  const res = await callOpenAI(finalPrompt, {
+    tools: aeTools,
+    systemPrompt:
+      "You are SmartCRM AE Autopilot. Use tools (send_email, save_activity) for relationship building."
+  });
+
+  // Relationship building can continue or move to closed based on AI decision.
+  // For now, keep it in relationship_building or move to awaiting_next_step.
+  await updateAutopilotState(contactId, "awaiting_next_step");
+
+  return res;
+}

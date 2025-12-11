@@ -36,6 +36,8 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   onClose,
   onUpdate
 }) => {
+  // Provide a default onUpdate function to handle cases where it's not provided
+  const handleUpdate: (id: string, updates: Partial<Contact>) => Promise<Contact> = onUpdate || ((id: string, updates: Partial<Contact>) => Promise.resolve(contact));
   // State management
   const { activeTab, changeTab } = useContactTabs('overview');
   const researchStatus = useResearchStatus();
@@ -87,7 +89,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
           <ContactSidebar
             contact={contact}
             onClose={onClose}
-            onUpdate={onUpdate}
+            onUpdate={handleUpdate}
             lastEnrichment={lastEnrichment}
             setLastEnrichment={setLastEnrichment}
             isEnriching={isEnriching}
@@ -122,7 +124,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       onEditField={() => {}}
                       onStartEditingField={() => {}}
                       onSaveField={() => {}}
-                      onUpdate={onUpdate}
+                      onUpdate={handleUpdate}
                       lastEnrichment={lastEnrichment}
                     />
                   )}

@@ -1,6 +1,6 @@
 import {
   MessageSquare, Linkedin, Mail, Twitter, Facebook, Instagram,
-  User, Building, Tag, Activity, Bot
+  User, Building, Tag, Activity, Bot, Target
 } from 'lucide-react';
 
 export const interestColors = {

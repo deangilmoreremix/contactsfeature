@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
-import { OUTBOUND_PERSONAS, getPersonaById } from '../../agents/personas';
+import { OUTBOUND_PERSONAS, getPersonaById, OutboundPersonaId } from '../../agents/personas';
 import { Contact } from '../../types/contact';
+import { SDRPersonaSelector } from './SDRPersonaSelector';
 import {
   Bot,
   Settings,
@@ -83,11 +84,28 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
     }
   };
 
-  const selectedPersona = getPersonaById(settings.personaId);
+  const selectedPersona = getPersonaById(settings.personaId as OutboundPersonaId);
   const currentMode = followupModeOptions.find(m => m.value === settings.followupMode);
 
   return (
     <div className="space-y-6">
+      {/* SDR Personas Section */}
+      <div className="mb-8">
+        <SDRPersonaSelector
+          contact={contact}
+          categoryFilter={[
+            'cold_saas_founder',
+            'b2b_saas_sdr',
+            'high_ticket_coach',
+            'agency_retainer_builder',
+            'local_biz_offer',
+            'd2c_brand_sales'
+          ]}
+          title="Sales & Outreach SDRs"
+          description="AI-powered SDR personas for direct sales and business development outreach"
+        />
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">

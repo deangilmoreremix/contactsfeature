@@ -2,7 +2,7 @@ import { getContactAndDeal, logAutopilotEvent } from "./helpers";
 import { loadAgentMemory } from "../memory/loadMemory";
 import { AutopilotContext, AutopilotState } from "./state";
 import { handleNewLead, handleEngagedLead, handleAwaitingNextStep } from "./sdrHandlers";
-import { handleInterested, handleMeetingScheduled } from "./aeHandlers";
+import { handleInterested, handleMeetingScheduled, handleFollowUp, handleRelationshipBuilding } from "./aeHandlers";
 import { runPipelineAI } from "./pipelineAI";
 import { logger } from "../core/logger";
 
@@ -45,6 +45,12 @@ export async function runAutopilot(contactId: string) {
 
     case "awaiting_next_step":
       return handleAwaitingNextStep(contactId, ctx);
+
+    case "relationship_building":
+      return handleRelationshipBuilding(contactId, ctx);
+
+    case "follow_up":
+      return handleFollowUp(contactId, ctx);
 
     case "closed_won":
     case "closed_lost":
