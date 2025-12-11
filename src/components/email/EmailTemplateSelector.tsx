@@ -3,18 +3,19 @@ import { useEmailAI } from '../../hooks/useEmailAI';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { 
-  Mail, 
-  Search, 
-  Filter, 
-  Plus, 
-  Edit, 
-  Copy, 
-  Trash2, 
-  Loader2, 
+import {
+  Mail,
+  Search,
+  Filter,
+  Plus,
+  Edit,
+  Copy,
+  Trash2,
+  Loader2,
   FileText,
   CheckCircle,
-  AlertCircle 
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 
 interface EmailTemplateSelectorProps {
@@ -35,6 +36,15 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<any>(null);
   const [appliedTemplate, setAppliedTemplate] = useState<{ subject: string; body: string } | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({
+    name: '',
+    description: '',
+    subject: '',
+    body: '',
+    category: 'General'
+  });
+  const [isCreating, setIsCreating] = useState(false);
 
   // Company info for template variables
   const companyInfo = {
@@ -90,6 +100,81 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
     }
   };
 
+  const handleCreateTemplate = async () => {
+    if (!newTemplate.name || !newTemplate.subject || !newTemplate.body) {
+      alert('Please fill in all required fields: name, subject, and body');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
+      const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
+
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Supabase configuration is missing');
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-email-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          name: newTemplate.name,
+          description: newTemplate.description,
+          subject: newTemplate.subject,
+          body: newTemplate.body,
+          variables: extractVariables(newTemplate.subject + ' ' + newTemplate.body),
+          category: newTemplate.category
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to create template');
+      }
+
+      const result = await response.json();
+
+      // Reset form and close modal
+      setNewTemplate({
+        name: '',
+        description: '',
+        subject: '',
+        body: '',
+        category: 'General'
+      });
+      setIsCreateModalOpen(false);
+
+      // Refresh templates
+      loadTemplates();
+
+      console.log('Template created successfully:', result.template);
+
+    } catch (error) {
+      console.error('Failed to create template:', error);
+      alert('Failed to create template: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const extractVariables = (text: string): string[] => {
+    const variableRegex = /\{\{(\w+)\}\}/g;
+    const variables = new Set<string>();
+    let match;
+
+    while ((match = variableRegex.exec(text)) !== null) {
+      if (match[1]) {
+        variables.add(match[1]);
+      }
+    }
+
+    return Array.from(variables);
+  };
+
   const categories = [
     { id: 'all', name: 'All Templates' },
     { id: 'Closing', name: 'Closing' },
@@ -118,6 +203,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
           variant="outline"
           size="sm"
           className="flex items-center space-x-1"
+          onClick={() => setIsCreateModalOpen(true)}
         >
           <Plus className="w-4 h-4" />
           <span>New Template</span>
@@ -308,6 +394,142 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
                   <span>Use Template</span>
                 </ModernButton>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Template Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-xl">
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Plus className="w-5 h-5 mr-2 text-green-500" />
+                  Create New Email Template
+                </h3>
+                <button
+                  className="text-gray-400 hover:text-gray-600"
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Create a new email template with customizable variables and content.
+              </p>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-130px)]">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Template Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newTemplate.name}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                    placeholder="e.g., Welcome Email, Follow-up Template"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    value={newTemplate.description}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                    placeholder="Brief description of when to use this template"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    value={newTemplate.category}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Subject Line *
+                  </label>
+                  <input
+                    type="text"
+                    value={newTemplate.subject}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
+                    placeholder="e.g., Welcome to {{company_name}}, {{first_name}}!"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Body *
+                  </label>
+                  <textarea
+                    value={newTemplate.body}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, body: e.target.value })}
+                    placeholder="Write your email template here. Use {{variable}} for dynamic content."
+                    rows={8}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-vertical"
+                  />
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2">Available Variables:</h4>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {['first_name', 'last_name', 'full_name', 'email', 'company', 'industry', 'client_company', 'pain_point', 'company_name', 'sender_name', 'sender_title', 'sender_phone', 'product_name', 'benefit_1', 'benefit_2'].map(variable => (
+                      <span key={variable} className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        {`{{${variable}}}`}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between">
+              <ModernButton
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCreateModalOpen(false)}
+              >
+                Cancel
+              </ModernButton>
+
+              <ModernButton
+                variant="primary"
+                size="sm"
+                onClick={handleCreateTemplate}
+                disabled={isCreating || !newTemplate.name || !newTemplate.subject || !newTemplate.body}
+                className="flex items-center space-x-1"
+              >
+                {isCreating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                <span>{isCreating ? 'Creating...' : 'Create Template'}</span>
+              </ModernButton>
             </div>
           </div>
         </div>

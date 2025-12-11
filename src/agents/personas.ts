@@ -526,7 +526,7 @@ Rules:
     label: '👑 VIP Concierge',
     shortTag: 'VIP',
     description:
-      'Persona for high-value clients or top spenders to give them a 'concierge' feel.',
+      'Persona for high-value clients or top spenders to give them a concierge feel.',
     idealUseCases: ['VIP customer service', 'High-touch relationships', 'Premium support'],
     defaultTone: 'high-touch, respectful, anticipatory',
     systemPrompt: `
