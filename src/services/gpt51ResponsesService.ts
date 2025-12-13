@@ -1,4 +1,5 @@
 /**
+import { getModelForTask, SMARTCRM_DEFAULT_MODEL } from '../config/ai';
  * GPT-5.1 Responses API Service
  * Advanced AI service using OpenAI's latest Responses API with GPT-5.1
  * Supports reasoning controls, verbosity, custom tools, and new tool types
@@ -96,7 +97,7 @@ export class GPT51ResponsesService {
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         logger.info(`GPT-5.1 API call attempt ${attempt}`, {
-          model: request.model || 'gpt-5.1',
+          model: request.model || getModelForTask('sdr') || SMARTCRM_DEFAULT_MODEL,
           reasoning: request.reasoning?.effort || 'none',
           verbosity: request.text?.verbosity || 'medium',
           hasTools: !!request.tools?.length
@@ -109,7 +110,7 @@ export class GPT51ResponsesService {
             'Authorization': `Bearer ${this.apiKey}`
           },
           body: JSON.stringify({
-            model: request.model || 'gpt-5.1',
+            model: request.model || getModelForTask('sdr') || SMARTCRM_DEFAULT_MODEL,
             input: request.input,
             reasoning: request.reasoning || { effort: 'none' },
             text: request.text || { verbosity: 'medium' },
@@ -195,7 +196,7 @@ Format your response as a structured JSON object.
     `;
 
     const response = await this.createResponse({
-      model: 'gpt-5.1',
+      model: SMARTCRM_DEFAULT_MODEL,
       input,
       reasoning: { effort: 'high' },
       text: { verbosity: 'high' },
@@ -237,7 +238,7 @@ Use high reasoning effort to create compelling, personalized content.
     `;
 
     const response = await this.createResponse({
-      model: 'gpt-5.1',
+      model: SMARTCRM_DEFAULT_MODEL,
       input,
       reasoning: { effort: 'high' },
       text: { verbosity: 'high' },
@@ -271,7 +272,7 @@ Explain your reasoning before applying patches.
     `;
 
     const response = await this.createResponse({
-      model: 'gpt-5.1',
+      model: SMARTCRM_DEFAULT_MODEL,
       input,
       reasoning: { effort: 'high' },
       text: { verbosity: 'medium' },
@@ -309,7 +310,7 @@ Use the shell tool to run the command and analyze the results.
     `;
 
     const response = await this.createResponse({
-      model: 'gpt-5.1',
+      model: SMARTCRM_DEFAULT_MODEL,
       input,
       reasoning: { effort: 'medium' },
       text: { verbosity: 'low' },
@@ -344,7 +345,7 @@ Use the shell tool to run the command and analyze the results.
     ];
 
     const response = await this.createResponse({
-      model: 'gpt-5.1',
+      model: SMARTCRM_DEFAULT_MODEL,
       input: task,
       reasoning: { effort: 'medium' },
       text: { verbosity: 'medium' },
@@ -380,7 +381,7 @@ Use the shell tool to run the command and analyze the results.
    * Get available models
    */
   getAvailableModels(): string[] {
-    return ['gpt-5.1', 'gpt-5-mini', 'gpt-5-nano'];
+    return ['gpt-5.2', 'gpt-5.2-thinking', 'gpt-5.2-instant', 'gpt-5-mini', 'gpt-5-nano'];
   }
 
   /**

@@ -3,16 +3,21 @@ import { test, expect } from '@playwright/test';
 test.describe('AI Tools Walkthrough', () => {
   test('AI Email Composer walkthrough', async ({ page }) => {
     console.log('Starting AI Email Composer walkthrough');
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
-    console.log('Page loaded with app=true param');
+    console.log('Page loaded');
 
-    await page.waitForSelector('.contact-card', { state: 'visible', timeout: 60000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 60000 });
+    console.log('Contacts modal is visible');
+
+    // Wait for contact cards to load
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg', { state: 'visible', timeout: 10000 });
     console.log('Contact cards are visible');
 
     // Open contact detail view
-    await page.locator('.contact-card').first().click();
-    await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
+    await page.locator('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg').first().click();
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible' });
 
     // Go to Email tab
     console.log('Clicking on Email tab...');
@@ -56,10 +61,11 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('Smart Search & Filtering walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
 
     // Look for search input
     const searchInput = page.locator('input[placeholder*="search" i]').first();
@@ -89,22 +95,23 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('AI Contact Scoring walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
 
-    // Open contact detail view
+    // Wait for contact cards to load
     console.log('Waiting for contact cards...');
-    await page.waitForSelector('.contact-card', { state: 'visible', timeout: 60000 });
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg', { state: 'visible', timeout: 10000 });
     console.log('Contact cards are visible');
-    const contactCards = page.locator('.contact-card');
+    const contactCards = page.locator('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg');
     const count = await contactCards.count();
     console.log(`Found ${count} contact cards`);
     if (count > 0) {
       await contactCards.first().click();
       console.log('Clicked on first contact card');
-      await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
+      await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible' });
       console.log('Contact detail modal is visible');
     } else {
       console.log('No contact cards found');
@@ -133,20 +140,21 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('AI Insights & Analytics walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
 
-    // Open contact detail view
+    // Wait for contact cards to load
     console.log('Checking for contact cards...');
-    const contactCards = page.locator('.contact-card');
+    const contactCards = page.locator('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg');
     const contactCount = await contactCards.count();
     console.log(`Found ${contactCount} contact cards`);
     if (contactCount > 0) {
       await contactCards.first().click();
       console.log('Clicked on first contact card');
-      await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
+      await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible' });
       console.log('Contact detail modal is visible');
     } else {
       console.log('No contact cards found, cannot proceed with walkthrough');
@@ -167,14 +175,18 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('Communication Hub walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
+
+    // Wait for contact cards to load
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg', { state: 'visible', timeout: 10000 });
 
     // Open contact detail view
-    await page.locator('.contact-card').first().click();
-    await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
+    await page.locator('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg').first().click();
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible' });
 
     // Go to Communication Hub tab
     await page.click('text=Communication Hub');
@@ -190,14 +202,18 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('AI Automation Workflows walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
+
+    // Wait for contact cards to load
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg', { state: 'visible', timeout: 10000 });
 
     // Open contact detail view
-    await page.locator('.contact-card').first().click();
-    await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
+    await page.locator('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg').first().click();
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible' });
 
     // Go to Automation tab
     await page.click('text=Automation');
@@ -213,14 +229,18 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('Sales Intelligence walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
+
+    // Wait for contact cards to load
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg', { state: 'visible', timeout: 10000 });
 
     // Open contact detail view
-    await page.locator('.contact-card').first().click();
-    await page.waitForSelector('.contact-detail-modal', { state: 'visible' });
+    await page.locator('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg').first().click();
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible' });
 
     // Go to Sales Intelligence tab
     await page.click('text=Sales Intelligence');
@@ -236,10 +256,14 @@ test.describe('AI Tools Walkthrough', () => {
   });
 
   test('Customizable AI Toolbar walkthrough', async ({ page }) => {
-    await page.goto('/?app=true');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    await page.waitForSelector('[data-guidance="main-app"]', { state: 'visible', timeout: 30000 });
+    // Wait for the contacts modal to appear
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-2xl', { state: 'visible', timeout: 30000 });
+
+    // Wait for contact cards to load
+    await page.waitForSelector('.bg-white.dark\\:bg-gray-800.rounded-xl.shadow-lg', { state: 'visible', timeout: 10000 });
 
     // Look for AI toolbar buttons
     const aiButtons = page.locator('.ai-button, .ai-tool, [data-ai-tool]');

@@ -1,0 +1,793 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e7]
+          - generic [ref=e12]:
+            - heading "Contacts" [level=2] [ref=e13]:
+              - text: Contacts
+              - img [ref=e14]
+            - paragraph [ref=e16]: 10 contacts found
+        - generic [ref=e17]:
+          - button "AI Score All (0)" [disabled] [ref=e19]:
+            - img [ref=e20]
+            - generic [ref=e30]: AI Score All (0)
+            - img [ref=e31]
+          - button "Import" [ref=e33] [cursor=pointer]:
+            - img [ref=e34]
+            - generic [ref=e37]: Import
+          - button "Export" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+            - generic [ref=e42]: Export
+          - button "New Contact" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - generic [ref=e45]: New Contact
+          - button "Settings" [ref=e46] [cursor=pointer]:
+            - img [ref=e47]
+            - generic [ref=e50]: Settings
+          - button "AI Product Intelligence" [ref=e51] [cursor=pointer]:
+            - img [ref=e52]
+            - generic [ref=e62]: AI Product Intelligence
+            - img [ref=e63]
+          - button "Email Agents" [ref=e65] [cursor=pointer]:
+            - img [ref=e66]
+            - generic [ref=e69]: Email Agents
+            - img [ref=e70]
+          - button "Learn More" [ref=e73] [cursor=pointer]:
+            - img [ref=e74]
+            - generic [ref=e76]: Learn More
+          - switch "Switch to light mode" [ref=e77] [cursor=pointer]:
+            - img [ref=e78]
+            - img [ref=e84]
+            - generic: Switch to light mode
+          - button [ref=e86] [cursor=pointer]:
+            - img [ref=e87]
+      - generic [ref=e90]:
+        - generic [ref=e91]:
+          - generic [ref=e92]:
+            - img [ref=e93]
+            - textbox "Search contacts..." [ref=e96]
+          - button "All" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+            - generic [ref=e101]: All
+            - img [ref=e102]
+          - button "All Status" [ref=e105] [cursor=pointer]:
+            - generic [ref=e106]: All Status
+            - img [ref=e107]
+          - button "Select All" [ref=e109] [cursor=pointer]:
+            - img [ref=e110]
+            - generic [ref=e113]: Select All
+        - generic [ref=e114]:
+          - combobox [ref=e115]:
+            - option "Name A-Z" [selected]
+            - option "Name Z-A"
+            - option "Company A-Z"
+            - option "Company Z-A"
+            - option "Highest Score"
+            - option "Lowest Score"
+            - option "Recently Updated"
+            - option "Oldest Updated"
+          - generic [ref=e116]:
+            - button "List Card view with detailed information" [ref=e117] [cursor=pointer]:
+              - img [ref=e118]
+              - generic [ref=e121]: List
+              - generic: Card view with detailed information
+            - button "Table Spreadsheet view with sortable columns" [ref=e122] [cursor=pointer]:
+              - img [ref=e123]
+              - generic [ref=e125]: Table
+              - generic: Spreadsheet view with sortable columns
+            - button "Kanban Drag & drop pipeline management" [ref=e126] [cursor=pointer]:
+              - img [ref=e127]
+              - generic [ref=e132]: Kanban
+              - generic: Drag & drop pipeline management
+            - button "Calendar Activity timeline with scheduling" [ref=e133] [cursor=pointer]:
+              - img [ref=e134]
+              - generic [ref=e136]: Calendar
+              - generic: Activity timeline with scheduling
+            - button "Dashboard Analytics and insights" [ref=e137] [cursor=pointer]:
+              - img [ref=e138]
+              - generic [ref=e140]: Dashboard
+              - generic: Analytics and insights
+            - button "Timeline Chronological contact journey" [ref=e141] [cursor=pointer]:
+              - img [ref=e142]
+              - generic [ref=e146]: Timeline
+              - generic: Chronological contact journey
+      - generic [ref=e148]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - heading "Contacts" [level=3] [ref=e151]
+            - generic [ref=e152]: (10 total)
+          - generic [ref=e153]:
+            - button "Density" [ref=e155] [cursor=pointer]:
+              - img [ref=e156]
+              - text: Density
+            - generic [ref=e157]:
+              - button "Grid View" [ref=e158] [cursor=pointer]:
+                - img [ref=e159]
+              - button "List View" [ref=e161] [cursor=pointer]:
+                - img [ref=e162]
+        - generic [ref=e165]:
+          - button "Contact card for Brooklyn Simmons" [active] [ref=e167] [cursor=pointer]:
+            - checkbox "Select contact Brooklyn Simmons" [ref=e169]
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - generic [ref=e172]:
+                  - img "Brooklyn Simmons" [ref=e175]
+                  - heading "Brooklyn Simmons" [level=3] [ref=e179]
+                  - paragraph [ref=e180]: Retail Operations Manager
+                  - paragraph [ref=e181]: ACME Retail
+                - generic [ref=e182]:
+                  - img [ref=e183]
+                  - generic [ref=e186]: AI Agent
+                - generic [ref=e188]:
+                  - generic [ref=e189]: "15"
+                  - generic [ref=e190]:
+                    - text: AI Score
+                    - generic [ref=e191]:
+                      - img [ref=e192]
+                      - generic [ref=e195]: AI Agent
+              - generic [ref=e197]:
+                - generic [ref=e198]:
+                  - img [ref=e199]
+                  - generic [ref=e201]: low
+                - generic [ref=e202]:
+                  - img [ref=e203]
+                  - generic [ref=e205]: weak
+              - generic [ref=e208]: cold Interest
+              - generic [ref=e209]:
+                - button "Email" [ref=e210]:
+                  - img [ref=e211]
+                  - text: Email
+                - button "Call" [ref=e214]:
+                  - img [ref=e215]
+                  - text: Call
+                - button "View" [ref=e217]:
+                  - img [ref=e218]
+                  - text: View
+              - paragraph [ref=e222]: Click to view details • Hover for insights
+          - button "Contact card for Cameron Williamson" [ref=e224] [cursor=pointer]:
+            - checkbox "Select contact Cameron Williamson" [ref=e226]
+            - generic [ref=e227]:
+              - generic [ref=e228]:
+                - generic [ref=e229]:
+                  - img "Cameron Williamson" [ref=e232]
+                  - heading "Cameron Williamson" [level=3] [ref=e236]
+                  - paragraph [ref=e237]: CTO
+                  - paragraph [ref=e238]: ZyncTech
+                - generic [ref=e239]:
+                  - img [ref=e240]
+                  - generic [ref=e243]: AI Agent
+                - generic [ref=e245]:
+                  - generic [ref=e246]: "92"
+                  - generic [ref=e247]:
+                    - text: AI Score
+                    - generic [ref=e248]:
+                      - img [ref=e249]
+                      - generic [ref=e252]: AI Agent
+              - generic [ref=e254]:
+                - generic [ref=e255]:
+                  - img [ref=e256]
+                  - generic [ref=e258]: low
+                - generic [ref=e259]:
+                  - img [ref=e260]
+                  - generic [ref=e262]: strong
+              - generic [ref=e265]: hot Interest
+              - generic [ref=e266]:
+                - button "Email" [ref=e267]:
+                  - img [ref=e268]
+                  - text: Email
+                - button "Call" [ref=e271]:
+                  - img [ref=e272]
+                  - text: Call
+                - button "View" [ref=e274]:
+                  - img [ref=e275]
+                  - text: View
+              - paragraph [ref=e279]: Click to view details • Hover for insights
+          - button "Contact card for Darlene Robertson" [ref=e281] [cursor=pointer]:
+            - checkbox "Select contact Darlene Robertson" [ref=e283]
+            - generic [ref=e284]:
+              - generic [ref=e285]:
+                - generic [ref=e286]:
+                  - img "Darlene Robertson" [ref=e289]
+                  - heading "Darlene Robertson" [level=3] [ref=e293]
+                  - paragraph [ref=e294]: Financial Manager
+                  - paragraph [ref=e295]: Ford
+                - generic [ref=e296]:
+                  - img [ref=e297]
+                  - generic [ref=e300]: AI Agent
+                - generic [ref=e302]:
+                  - generic [ref=e303]: "65"
+                  - generic [ref=e304]:
+                    - text: AI Score
+                    - generic [ref=e305]:
+                      - img [ref=e306]
+                      - generic [ref=e309]: AI Agent
+              - generic [ref=e311]:
+                - generic [ref=e312]:
+                  - img [ref=e313]
+                  - generic [ref=e315]: low
+                - generic [ref=e316]:
+                  - img [ref=e317]
+                  - generic [ref=e319]: moderate
+              - generic [ref=e322]: medium Interest
+              - generic [ref=e323]:
+                - button "Email" [ref=e324]:
+                  - img [ref=e325]
+                  - text: Email
+                - button "Call" [ref=e328]:
+                  - img [ref=e329]
+                  - text: Call
+                - button "View" [ref=e331]:
+                  - img [ref=e332]
+                  - text: View
+              - paragraph [ref=e336]: Click to view details • Hover for insights
+          - button "Contact card for Dianne Russell" [ref=e338] [cursor=pointer]:
+            - checkbox "Select contact Dianne Russell" [ref=e340]
+            - generic [ref=e341]:
+              - generic [ref=e342]:
+                - generic [ref=e343]:
+                  - img "Dianne Russell" [ref=e346]
+                  - heading "Dianne Russell" [level=3] [ref=e350]
+                  - paragraph [ref=e351]: Research Director
+                  - paragraph [ref=e352]: Medical Science Foundation
+                - generic [ref=e353]:
+                  - img [ref=e354]
+                  - generic [ref=e357]: AI Agent
+                - generic [ref=e359]:
+                  - generic [ref=e360]: "45"
+                  - generic [ref=e361]:
+                    - text: AI Score
+                    - generic [ref=e362]:
+                      - img [ref=e363]
+                      - generic [ref=e366]: AI Agent
+              - generic [ref=e368]:
+                - generic [ref=e369]:
+                  - img [ref=e370]
+                  - generic [ref=e372]: low
+                - generic [ref=e373]:
+                  - img [ref=e374]
+                  - generic [ref=e376]: weak
+              - generic [ref=e379]: low Interest
+              - generic [ref=e380]:
+                - button "Email" [ref=e381]:
+                  - img [ref=e382]
+                  - text: Email
+                - button "Call" [ref=e385]:
+                  - img [ref=e386]
+                  - text: Call
+                - button "View" [ref=e388]:
+                  - img [ref=e389]
+                  - text: View
+              - paragraph [ref=e393]: Click to view details • Hover for insights
+          - button "Contact card for Esther Howard" [ref=e395] [cursor=pointer]:
+            - checkbox "Select contact Esther Howard" [ref=e397]
+            - generic [ref=e398]:
+              - generic [ref=e399]:
+                - generic [ref=e400]:
+                  - img "Esther Howard" [ref=e403]
+                  - heading "Esther Howard" [level=3] [ref=e407]
+                  - paragraph [ref=e408]: Director of Procurement
+                  - paragraph [ref=e409]: Global Health Initiative
+                - generic [ref=e410]:
+                  - img [ref=e411]
+                  - generic [ref=e414]: AI Agent
+                - generic [ref=e416]:
+                  - generic [ref=e417]: "75"
+                  - generic [ref=e418]:
+                    - text: AI Score
+                    - generic [ref=e419]:
+                      - img [ref=e420]
+                      - generic [ref=e423]: AI Agent
+              - generic [ref=e425]:
+                - generic [ref=e426]:
+                  - img [ref=e427]
+                  - generic [ref=e429]: low
+                - generic [ref=e430]:
+                  - img [ref=e431]
+                  - generic [ref=e433]: moderate
+              - generic [ref=e436]: medium Interest
+              - generic [ref=e437]:
+                - button "Email" [ref=e438]:
+                  - img [ref=e439]
+                  - text: Email
+                - button "Call" [ref=e442]:
+                  - img [ref=e443]
+                  - text: Call
+                - button "View" [ref=e445]:
+                  - img [ref=e446]
+                  - text: View
+              - paragraph [ref=e450]: Click to view details • Hover for insights
+          - button "Contact card for Jane Doe" [ref=e452] [cursor=pointer]:
+            - checkbox "Select contact Jane Doe" [ref=e454]
+            - generic [ref=e455]:
+              - generic [ref=e456]:
+                - generic [ref=e457]:
+                  - img "Jane Doe" [ref=e460]
+                  - heading "Jane Doe" [level=3] [ref=e464]
+                  - paragraph [ref=e465]: Marketing Director
+                  - paragraph [ref=e466]: Microsoft
+                - generic [ref=e467]:
+                  - img [ref=e468]
+                  - generic [ref=e471]: AI Agent
+                - generic [ref=e473]:
+                  - generic [ref=e474]: "85"
+                  - generic [ref=e475]:
+                    - text: AI Score
+                    - generic [ref=e476]:
+                      - img [ref=e477]
+                      - generic [ref=e480]: AI Agent
+              - generic [ref=e482]:
+                - generic [ref=e483]:
+                  - img [ref=e484]
+                  - generic [ref=e486]: low
+                - generic [ref=e487]:
+                  - img [ref=e488]
+                  - generic [ref=e490]: strong
+              - generic [ref=e493]: hot Interest
+              - generic [ref=e494]:
+                - button "Email" [ref=e495]:
+                  - img [ref=e496]
+                  - text: Email
+                - button "Call" [ref=e499]:
+                  - img [ref=e500]
+                  - text: Call
+                - button "View" [ref=e502]:
+                  - img [ref=e503]
+                  - text: View
+              - paragraph [ref=e507]: Click to view details • Hover for insights
+          - button "Contact card for Jonah Jude" [ref=e509] [cursor=pointer]:
+            - checkbox "Select contact Jonah Jude" [ref=e511]
+            - generic [ref=e512]:
+              - generic [ref=e513]:
+                - generic [ref=e514]:
+                  - img "Jonah Jude" [ref=e517]
+                  - heading "Jonah Jude" [level=3] [ref=e521]
+                  - paragraph [ref=e522]: Web Developer
+                  - paragraph [ref=e523]: Binary Bytes
+                - generic [ref=e524]:
+                  - img [ref=e525]
+                  - generic [ref=e528]: AI Agent
+                - generic [ref=e530]:
+                  - generic [ref=e531]: "90"
+                  - generic [ref=e532]:
+                    - text: AI Score
+                    - generic [ref=e533]:
+                      - img [ref=e534]
+                      - generic [ref=e537]: AI Agent
+              - generic [ref=e539]:
+                - generic [ref=e540]:
+                  - img [ref=e541]
+                  - generic [ref=e543]: low
+                - generic [ref=e544]:
+                  - img [ref=e545]
+                  - generic [ref=e547]: strong
+              - generic [ref=e550]: hot Interest
+              - generic [ref=e551]:
+                - button "Email" [ref=e552]:
+                  - img [ref=e553]
+                  - text: Email
+                - button "Call" [ref=e556]:
+                  - img [ref=e557]
+                  - text: Call
+                - button "View" [ref=e559]:
+                  - img [ref=e560]
+                  - text: View
+              - paragraph [ref=e564]: Click to view details • Hover for insights
+          - button "Contact card for Leslie Alexander" [ref=e566] [cursor=pointer]:
+            - checkbox "Select contact Leslie Alexander" [ref=e568]
+            - generic [ref=e569]:
+              - generic [ref=e570]:
+                - generic [ref=e571]:
+                  - img "Leslie Alexander" [ref=e574]
+                  - heading "Leslie Alexander" [level=3] [ref=e578]
+                  - paragraph [ref=e579]: Head of IT
+                  - paragraph [ref=e580]: EduTech University
+                - generic [ref=e581]:
+                  - img [ref=e582]
+                  - generic [ref=e585]: AI Agent
+                - generic [ref=e587]:
+                  - generic [ref=e588]: "88"
+                  - generic [ref=e589]:
+                    - text: AI Score
+                    - generic [ref=e590]:
+                      - img [ref=e591]
+                      - generic [ref=e594]: AI Agent
+              - generic [ref=e596]:
+                - generic [ref=e597]:
+                  - img [ref=e598]
+                  - generic [ref=e600]: low
+                - generic [ref=e601]:
+                  - img [ref=e602]
+                  - generic [ref=e604]: strong
+              - generic [ref=e607]: hot Interest
+              - generic [ref=e608]:
+                - button "Email" [ref=e609]:
+                  - img [ref=e610]
+                  - text: Email
+                - button "Call" [ref=e613]:
+                  - img [ref=e614]
+                  - text: Call
+                - button "View" [ref=e616]:
+                  - img [ref=e617]
+                  - text: View
+              - paragraph [ref=e621]: Click to view details • Hover for insights
+          - button "Contact card for Robert Chen" [ref=e623] [cursor=pointer]:
+            - checkbox "Select contact Robert Chen" [ref=e625]
+            - generic [ref=e626]:
+              - generic [ref=e627]:
+                - generic [ref=e628]:
+                  - img "Robert Chen" [ref=e631]
+                  - heading "Robert Chen" [level=3] [ref=e635]
+                  - paragraph [ref=e636]: VP of Sales
+                  - paragraph [ref=e637]: Innovate Corp
+                - generic [ref=e638]:
+                  - img [ref=e639]
+                  - generic [ref=e642]: AI Agent
+                - generic [ref=e644]:
+                  - generic [ref=e645]: "72"
+                  - generic [ref=e646]:
+                    - text: AI Score
+                    - generic [ref=e647]:
+                      - img [ref=e648]
+                      - generic [ref=e651]: AI Agent
+              - generic [ref=e653]:
+                - generic [ref=e654]:
+                  - img [ref=e655]
+                  - generic [ref=e657]: low
+                - generic [ref=e658]:
+                  - img [ref=e659]
+                  - generic [ref=e661]: moderate
+              - generic [ref=e664]: medium Interest
+              - generic [ref=e665]:
+                - button "Email" [ref=e666]:
+                  - img [ref=e667]
+                  - text: Email
+                - button "Call" [ref=e670]:
+                  - img [ref=e671]
+                  - text: Call
+                - button "View" [ref=e673]:
+                  - img [ref=e674]
+                  - text: View
+              - paragraph [ref=e678]: Click to view details • Hover for insights
+          - button "Contact card for Wade Warren" [ref=e680] [cursor=pointer]:
+            - checkbox "Select contact Wade Warren" [ref=e682]
+            - generic [ref=e683]:
+              - generic [ref=e684]:
+                - generic [ref=e685]:
+                  - img "Wade Warren" [ref=e688]
+                  - heading "Wade Warren" [level=3] [ref=e692]
+                  - paragraph [ref=e693]: Operations Manager
+                  - paragraph [ref=e694]: Zenith
+                - generic [ref=e695]:
+                  - img [ref=e696]
+                  - generic [ref=e699]: AI Agent
+                - generic [ref=e701]:
+                  - generic [ref=e702]: "35"
+                  - generic [ref=e703]:
+                    - text: AI Score
+                    - generic [ref=e704]:
+                      - img [ref=e705]
+                      - generic [ref=e708]: AI Agent
+              - generic [ref=e710]:
+                - generic [ref=e711]:
+                  - img [ref=e712]
+                  - generic [ref=e714]: low
+                - generic [ref=e715]:
+                  - img [ref=e716]
+                  - generic [ref=e718]: weak
+              - generic [ref=e721]: low Interest
+              - generic [ref=e722]:
+                - button "Email" [ref=e723]:
+                  - img [ref=e724]
+                  - text: Email
+                - button "Call" [ref=e727]:
+                  - img [ref=e728]
+                  - text: Call
+                - button "View" [ref=e730]:
+                  - img [ref=e731]
+                  - text: View
+              - paragraph [ref=e735]: Click to view details • Hover for insights
+    - generic [ref=e737]:
+      - generic [ref=e738]:
+        - generic [ref=e739]:
+          - heading "Customer Profile" [level=2] [ref=e740]:
+            - text: Customer Profile
+            - img [ref=e741]
+          - generic [ref=e743]:
+            - button "AI Web Research" [ref=e744] [cursor=pointer]:
+              - img [ref=e745]
+            - button [ref=e748] [cursor=pointer]:
+              - img [ref=e749]
+        - generic [ref=e752]:
+          - generic [ref=e753]:
+            - generic [ref=e754]:
+              - generic [ref=e756]:
+                - img "Avatar" [ref=e757]
+                - button [ref=e758] [cursor=pointer]:
+                  - img [ref=e759]
+              - generic [ref=e762]: "15"
+            - heading "Brooklyn Simmons" [level=3] [ref=e763]
+            - paragraph [ref=e764]: Retail Operations Manager
+            - paragraph [ref=e765]: ACME Retail
+            - generic [ref=e766]: Retail
+          - generic [ref=e767]:
+            - heading "AI Assistant Tools" [level=4] [ref=e768]:
+              - img [ref=e769]
+              - text: AI Assistant Tools
+            - button "AI Goals" [ref=e780] [cursor=pointer]:
+              - img [ref=e781]
+              - text: AI Goals
+            - generic [ref=e785]:
+              - button "Email AI" [ref=e786] [cursor=pointer]:
+                - img [ref=e787]
+                - generic [ref=e790]: Email AI
+              - button "Enrich" [ref=e791] [cursor=pointer]:
+                - img [ref=e792]
+                - generic [ref=e795]: Enrich
+            - button "AI Auto-Enrich" [ref=e796] [cursor=pointer]:
+              - img [ref=e797]
+              - text: AI Auto-Enrich
+              - img [ref=e800]
+          - generic [ref=e802]:
+            - heading "Quick Actions" [level=4] [ref=e803]:
+              - img [ref=e804]
+              - text: Quick Actions
+            - generic [ref=e806]:
+              - button "Edit" [ref=e807] [cursor=pointer]:
+                - img [ref=e808]
+                - generic [ref=e811]: Edit
+              - button "Email ⌘E" [ref=e812] [cursor=pointer]:
+                - img [ref=e813]
+                - generic [ref=e816]: Email
+                - generic [ref=e817]: ⌘E
+              - button "SMS ⌘S" [ref=e818] [cursor=pointer]:
+                - img [ref=e819]
+                - generic [ref=e821]: SMS
+                - generic [ref=e822]: ⌘S
+              - button "Call ⌘P" [ref=e823] [cursor=pointer]:
+                - img [ref=e824]
+                - generic [ref=e826]: Call
+                - generic [ref=e827]: ⌘P
+              - button "Add Field" [ref=e828] [cursor=pointer]:
+                - img [ref=e829]
+                - generic [ref=e830]: Add Field
+              - button "Files" [ref=e831] [cursor=pointer]:
+                - img [ref=e832]
+                - generic [ref=e835]: Files
+          - generic [ref=e836]:
+            - generic [ref=e837]:
+              - heading "Contact Info" [level=4] [ref=e838]:
+                - img [ref=e839]
+                - text: Contact Info
+              - button [ref=e842] [cursor=pointer]:
+                - img [ref=e843]
+            - generic [ref=e846]:
+              - generic [ref=e847]:
+                - generic [ref=e848]:
+                  - img [ref=e850]
+                  - generic [ref=e853]:
+                    - paragraph [ref=e854]: Email
+                    - paragraph [ref=e855]: brooklyn@acmeretail.com
+                - button [ref=e856] [cursor=pointer]:
+                  - img [ref=e857]
+              - generic [ref=e860]:
+                - generic [ref=e861]:
+                  - img [ref=e863]
+                  - generic [ref=e865]:
+                    - paragraph [ref=e866]: Phone
+                    - paragraph [ref=e867]: +1 555 6723
+                - button [ref=e868] [cursor=pointer]:
+                  - img [ref=e869]
+              - generic [ref=e872]:
+                - generic [ref=e873]:
+                  - img [ref=e875]
+                  - generic [ref=e878]:
+                    - paragraph [ref=e879]: Company
+                    - paragraph [ref=e880]: ACME Retail
+                - button [ref=e881] [cursor=pointer]:
+                  - img [ref=e882]
+              - generic [ref=e885]:
+                - generic [ref=e886]:
+                  - img [ref=e888]
+                  - generic [ref=e891]:
+                    - paragraph [ref=e892]: Socials
+                    - generic [ref=e893]:
+                      - generic "Add WhatsApp" [ref=e894] [cursor=pointer]:
+                        - img [ref=e895]
+                      - generic "Add LinkedIn" [ref=e897] [cursor=pointer]:
+                        - img [ref=e898]
+                      - generic "Add Email" [ref=e902] [cursor=pointer]:
+                        - img [ref=e903]
+                      - generic "Add Twitter" [ref=e906] [cursor=pointer]:
+                        - img [ref=e907]
+                - button [ref=e909] [cursor=pointer]:
+                  - img [ref=e910]
+              - generic [ref=e911]:
+                - generic [ref=e912]:
+                  - img [ref=e914]
+                  - generic [ref=e917]:
+                    - paragraph [ref=e918]: Last Connected
+                    - paragraph [ref=e919]: 2023-12-15T13:30:00Z
+                - button [ref=e920] [cursor=pointer]:
+                  - img [ref=e921]
+          - generic [ref=e924]:
+            - heading "Lead Information" [level=4] [ref=e925]:
+              - img [ref=e926]
+              - text: Lead Information
+            - generic [ref=e930]:
+              - generic [ref=e931]:
+                - paragraph [ref=e932]: Interest Level
+                - button [ref=e933] [cursor=pointer]:
+                  - img [ref=e934]
+              - generic [ref=e939]: Non Interest
+            - generic [ref=e946]:
+              - generic [ref=e947]:
+                - paragraph [ref=e948]: Sources
+                - button [ref=e949] [cursor=pointer]:
+                  - img [ref=e950]
+              - generic [ref=e951]:
+                - generic [ref=e952]: Trade Show
+                - generic [ref=e953]: Email
+      - generic [ref=e954]:
+        - generic [ref=e956]:
+          - generic [ref=e957]:
+            - button "Overview" [ref=e958] [cursor=pointer]:
+              - img [ref=e959]
+              - generic [ref=e962]: Overview
+            - button "Journey" [ref=e963] [cursor=pointer]:
+              - img [ref=e964]
+              - generic [ref=e966]: Journey
+            - button "Analytics" [ref=e967] [cursor=pointer]:
+              - img [ref=e968]
+              - generic [ref=e971]: Analytics
+            - button "Communication" [ref=e972] [cursor=pointer]:
+              - img [ref=e973]
+              - generic [ref=e975]: Communication
+            - button "Automation" [ref=e976] [cursor=pointer]:
+              - img [ref=e977]
+              - generic [ref=e980]: Automation
+            - button "Sales Intelligence" [ref=e981] [cursor=pointer]:
+              - img [ref=e982]
+              - generic [ref=e985]: Sales Intelligence
+            - button "AI Insights" [ref=e986] [cursor=pointer]:
+              - img [ref=e987]
+              - generic [ref=e990]: AI Insights
+            - button "Email" [ref=e991] [cursor=pointer]:
+              - img [ref=e992]
+              - generic [ref=e995]: Email
+            - button "AI Agents" [ref=e996] [cursor=pointer]:
+              - img [ref=e997]
+              - generic [ref=e1000]: AI Agents
+          - generic [ref=e1001]:
+            - button "Add to Favorites" [ref=e1002] [cursor=pointer]:
+              - img [ref=e1003]
+              - generic [ref=e1007]: Add to Favorites
+            - button "Edit Contact" [ref=e1008] [cursor=pointer]:
+              - img [ref=e1009]
+              - generic [ref=e1012]: Edit Contact
+            - button [ref=e1013] [cursor=pointer]:
+              - img [ref=e1014]
+        - generic [ref=e1018]:
+          - generic [ref=e1019]:
+            - generic [ref=e1020]:
+              - heading "Personal Information" [level=4] [ref=e1021]:
+                - img [ref=e1022]
+                - text: Personal Information
+              - button [ref=e1025] [cursor=pointer]:
+                - img [ref=e1026]
+            - generic [ref=e1029]:
+              - generic [ref=e1030]:
+                - generic [ref=e1031]:
+                  - img [ref=e1033]
+                  - generic [ref=e1036]:
+                    - paragraph [ref=e1037]: First Name
+                    - paragraph [ref=e1038]: Brooklyn
+                - button [ref=e1039] [cursor=pointer]:
+                  - img [ref=e1040]
+              - generic [ref=e1043]:
+                - generic [ref=e1044]:
+                  - img [ref=e1046]
+                  - generic [ref=e1049]:
+                    - paragraph [ref=e1050]: Last Name
+                    - paragraph [ref=e1051]: Simmons
+                - button [ref=e1052] [cursor=pointer]:
+                  - img [ref=e1053]
+              - generic [ref=e1056]:
+                - generic [ref=e1057]:
+                  - img [ref=e1059]
+                  - generic [ref=e1062]:
+                    - paragraph [ref=e1063]: Email
+                    - paragraph [ref=e1064]: brooklyn@acmeretail.com
+                - button [ref=e1065] [cursor=pointer]:
+                  - img [ref=e1066]
+              - generic [ref=e1069]:
+                - generic [ref=e1070]:
+                  - img [ref=e1072]
+                  - generic [ref=e1075]:
+                    - paragraph [ref=e1076]: Phone
+                    - paragraph [ref=e1077]: +1 555 6723
+                - button [ref=e1078] [cursor=pointer]:
+                  - img [ref=e1079]
+              - generic [ref=e1082]:
+                - generic [ref=e1083]:
+                  - img [ref=e1085]
+                  - generic [ref=e1088]:
+                    - paragraph [ref=e1089]: Title
+                    - paragraph [ref=e1090]: Retail Operations Manager
+                - button [ref=e1091] [cursor=pointer]:
+                  - img [ref=e1092]
+              - generic [ref=e1095]:
+                - generic [ref=e1096]:
+                  - img [ref=e1098]
+                  - generic [ref=e1101]:
+                    - paragraph [ref=e1102]: Company
+                    - paragraph [ref=e1103]: ACME Retail
+                - button [ref=e1104] [cursor=pointer]:
+                  - img [ref=e1105]
+              - generic [ref=e1108]:
+                - generic [ref=e1109]:
+                  - img [ref=e1111]
+                  - generic [ref=e1114]:
+                    - paragraph [ref=e1115]: Industry
+                    - paragraph [ref=e1116]: Retail
+                - button [ref=e1117] [cursor=pointer]:
+                  - img [ref=e1118]
+              - generic [ref=e1121]:
+                - generic [ref=e1122]:
+                  - img [ref=e1124]
+                  - generic [ref=e1126]:
+                    - paragraph [ref=e1127]: Status
+                    - paragraph [ref=e1128]: churned
+                - button [ref=e1129] [cursor=pointer]:
+                  - img [ref=e1130]
+          - generic [ref=e1133]:
+            - generic [ref=e1134]:
+              - heading "Social Profiles & AI Research" [level=4] [ref=e1135]:
+                - img [ref=e1136]
+                - text: Social Profiles & AI Research
+              - button [ref=e1139] [cursor=pointer]:
+                - img [ref=e1140]
+            - generic [ref=e1143]:
+              - generic [ref=e1144]:
+                - img [ref=e1146]
+                - generic [ref=e1148]:
+                  - paragraph [ref=e1149]: WhatsApp
+                  - button "Add WhatsApp" [ref=e1150] [cursor=pointer]
+              - generic [ref=e1151]:
+                - img [ref=e1153]
+                - generic [ref=e1157]:
+                  - paragraph [ref=e1158]: LinkedIn
+                  - button "Add LinkedIn" [ref=e1159] [cursor=pointer]
+              - generic [ref=e1160]:
+                - img [ref=e1162]
+                - generic [ref=e1165]:
+                  - paragraph [ref=e1166]: Email
+                  - button "Add Email" [ref=e1167] [cursor=pointer]
+              - generic [ref=e1168]:
+                - img [ref=e1170]
+                - generic [ref=e1172]:
+                  - paragraph [ref=e1173]: Twitter
+                  - button "Add Twitter" [ref=e1174] [cursor=pointer]
+              - generic [ref=e1175]:
+                - img [ref=e1177]
+                - generic [ref=e1179]:
+                  - paragraph [ref=e1180]: Facebook
+                  - button "Add Facebook" [ref=e1181] [cursor=pointer]
+              - generic [ref=e1182]:
+                - img [ref=e1184]
+                - generic [ref=e1187]:
+                  - paragraph [ref=e1188]: Instagram
+                  - button "Add Instagram" [ref=e1189] [cursor=pointer]
+          - generic [ref=e1190]:
+            - generic [ref=e1191]:
+              - heading "Custom Fields" [level=4] [ref=e1192]:
+                - img [ref=e1193]
+                - text: Custom Fields
+              - button [ref=e1197] [cursor=pointer]:
+                - img [ref=e1198]
+            - paragraph [ref=e1201]: No custom fields added
+```

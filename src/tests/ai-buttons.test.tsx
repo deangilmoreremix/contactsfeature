@@ -3,7 +3,7 @@
  * Tests all AI functionality in contacts cards and detail view
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AIEnhancedContactCard } from '../components/contacts/AIEnhancedContactCard';
 import { ContactDetailView } from '../components/modals/ContactDetailView';
@@ -11,9 +11,9 @@ import { CustomizableAIToolbar } from '../components/ui/CustomizableAIToolbar';
 import { webSearchService } from '../services/webSearchService';
 
 // Mock services
-jest.mock('../services/webSearchService');
-jest.mock('../contexts/AIContext');
-jest.mock('../services/contactService');
+vi.mock('../services/webSearchService');
+vi.mock('../contexts/AIContext');
+vi.mock('../services/contactService');
 
 describe('AI Buttons Comprehensive Test Suite', () => {
   const mockContact = {
@@ -46,7 +46,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
 
   beforeEach(() => {
     // Reset all mocks
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('AIEnhancedContactCard Tests', () => {
@@ -68,7 +68,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
       });
 
       it('should update contact with AI score on success', async () => {
-        const mockOnUpdate = jest.fn();
+        const mockOnUpdate = vi.fn();
         render(<AIEnhancedContactCard
           contact={mockContact}
           isSelected={false}
@@ -108,7 +108,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
       it('should show error alert on API failure', async () => {
         // Mock API failure
         const mockError = new Error('Network error');
-        jest.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(console, 'error').mockImplementation(() => {});
 
         render(<AIEnhancedContactCard
           contact={mockContact}
@@ -152,7 +152,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
       });
 
       it('should trigger analysis when clicked', () => {
-        const mockOnAnalyze = jest.fn();
+        const mockOnAnalyze = vi.fn();
         render(<AIEnhancedContactCard
           contact={{ ...mockContact, aiScore: undefined }}
           isSelected={false}
@@ -194,7 +194,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
       });
 
       it('should log feedback when clicked', () => {
-        const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
         render(<AIEnhancedContactCard
           contact={{ ...mockContact, aiScore: 85 }}
@@ -250,7 +250,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
 
     describe('AI Analysis Button', () => {
       it('should update AI score in contact detail view', async () => {
-        const mockOnUpdate = jest.fn();
+        const mockOnUpdate = vi.fn();
         render(<ContactDetailView
           contact={mockContact}
           isOpen={true}
@@ -275,7 +275,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
 
     describe('AI Auto-Enrich Button', () => {
       it('should add social profiles for demo contacts', async () => {
-        const mockOnUpdate = jest.fn();
+        const mockOnUpdate = vi.fn();
         render(<ContactDetailView
           contact={mockDemoContact}
           isOpen={true}
@@ -302,7 +302,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
 
     describe('AI Goals Button', () => {
       it('should open external URL in new tab', () => {
-        const mockOpen = jest.spyOn(window, 'open').mockImplementation(() => null);
+        const mockOpen = vi.spyOn(window, 'open').mockImplementation(() => null);
 
         render(<ContactDetailView
           contact={mockContact}
@@ -441,7 +441,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
       });
 
       it('should make citations clickable', async () => {
-        const mockOpen = jest.spyOn(window, 'open').mockImplementation(() => null);
+        const mockOpen = vi.spyOn(window, 'open').mockImplementation(() => null);
 
         render(<ContactDetailView
           contact={mockDemoContact}
@@ -489,7 +489,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
     describe('Error Handling', () => {
       it('should handle network errors gracefully', async () => {
         // Mock network failure
-        jest.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+        vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'));
 
         render(<AIEnhancedContactCard
           contact={mockContact}
@@ -510,7 +510,7 @@ describe('AI Buttons Comprehensive Test Suite', () => {
 
       it('should handle API rate limits', async () => {
         // Mock API rate limit error
-        jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        vi.spyOn(global, 'fetch').mockResolvedValueOnce({
           ok: false,
           status: 429,
           json: () => Promise.resolve({ error: { message: 'Rate limit exceeded' } })

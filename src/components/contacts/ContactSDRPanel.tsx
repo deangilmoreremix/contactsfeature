@@ -5,7 +5,8 @@ import { FollowUpSDRAgent } from '../sdr/FollowUpSDRAgent';
 import { ObjectionHandlerSDRAgent } from '../sdr/ObjectionHandlerSDRAgent';
 import { ReactivationSDRAgent } from '../sdr/ReactivationSDRAgent';
 import { WinBackSDRAgent } from '../sdr/WinBackSDRAgent';
-import { Target, Mail, MessageSquare, AlertTriangle, RotateCcw, Trophy } from 'lucide-react';
+import { DiscoverySDRAgent } from '../sdr/DiscoverySDRAgent';
+import { Target, Mail, MessageSquare, AlertTriangle, RotateCcw, Trophy, Search } from 'lucide-react';
 
 interface ContactSDRPanelProps {
   contact: Contact;

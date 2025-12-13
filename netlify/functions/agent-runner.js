@@ -127,7 +127,7 @@ async function runAgent(agentId, contactId, dealId, userId, input = {}) {
 
     // 6. Execute OpenAI Responses API
     const response = await executeOpenAIResponses({
-      model: agentData.model || 'gpt-5.1',
+      model: agentData.model || process.env.SMARTCRM_DEFAULT_MODEL || 'gpt-5.2',
       input: agentPrompt,
       instructions,
       reasoning: { effort: agentData.reasoning_effort || 'medium' },

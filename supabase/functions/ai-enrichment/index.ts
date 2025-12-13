@@ -1,16 +1,4 @@
-gpt-5: gpt-5 provides deeper, richer reasoning for analytics and code generation capabilities.
-
-Key Capabilities
-Designed for logic-heavy and multi-step tasks.
-Now supporting minimal reasoning, a new verbosity setting, and the "customs" tool for raw text output.
-New "allowed tools" tool choice that enables you to specify multiple tools in the tool choice instead of just one
-New "preamble" support, allowing the model to "think" before calling a tool. This is always enabled and controlled through prompting.
-gpt-5 supports multimodal inputs, real-time streaming and full tool support for smarter, more dynamic user experiences
-Model Variants
-gpt-5 : Designed for logic-heavy and multi-step tasks.
-gpt-5-mini : A lightweight version for cost-sensitive applications.
-gpt-5-nano : Optimized for speed, ideal for applications requiring low latency.
-gpt-5-chat : Advanced, natural, multimodal, and context-aware conversations for enterprise applications.import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // AI API helper functions
@@ -224,6 +212,7 @@ serve(async (req) => {
   }
 })
 
+// Helper functions for enrichment
 async function findContactImage(data: any) {
   const contact = data.contact || data
   const name = contact.name || contact.firstName + ' ' + contact.lastName || 'professional person'
@@ -346,13 +335,13 @@ async function enrichByName(name: string, data: any) {
 
 async function enrichByLinkedIn(linkedin: string, data: any) {
   const enriched = await basicEnrichment({ linkedin, ...data })
-  
+
   enriched.socialProfiles = {
     linkedin: linkedin,
     twitter: null,
     facebook: null
   }
-  
+
   enriched.enrichmentLevel = 'linkedin'
   return { success: true, data: enriched }
 }

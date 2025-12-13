@@ -1,4 +1,5 @@
 /**
+import { SMARTCRM_DEFAULT_MODEL } from '../config/ai';
  * Agent Service
  * Handles agent metadata loading, run history management, and entity updates
  */
@@ -56,7 +57,7 @@ export class AgentService {
         trigger_options: data.trigger_options || {},
         prompt_template: data.prompt_template,
         instructions: data.instructions,
-        model: data.model || 'gpt-5.1',
+        model: data.model || SMARTCRM_DEFAULT_MODEL,
         reasoning_effort: data.reasoning_effort || 'medium',
         verbosity: data.verbosity || 'medium',
         max_output_tokens: data.max_output_tokens
@@ -350,7 +351,7 @@ export class AgentService {
       trigger_options: data.trigger_options || {},
       prompt_template: data.prompt_template,
       instructions: data.instructions,
-      model: data.model || 'gpt-5.1',
+      model: data.model || SMARTCRM_DEFAULT_MODEL,
       reasoning_effort: data.reasoning_effort || 'medium',
       verbosity: data.verbosity || 'medium',
       max_output_tokens: data.max_output_tokens

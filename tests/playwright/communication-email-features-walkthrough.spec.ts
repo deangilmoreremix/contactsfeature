@@ -76,7 +76,7 @@ test.describe('Communication & Email Features - 30 Second Walkthrough', () => {
     const overviewTab = page.locator('text=Overview').first();
     if (await overviewTab.isVisible()) {
       await overviewTab.click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(500);
     }
 
     // Demonstrate quick email button in header

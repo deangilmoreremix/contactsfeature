@@ -121,7 +121,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
           {activeTab === 'basic' && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
-                {/* Campaign Length */}
+                {/* Campaign Length - Enhanced with 1-20 step options */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Campaign Length
@@ -131,10 +131,15 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                     onChange={(e) => updateConfig({ campaignLength: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value={3}>Short (3 messages)</option>
-                    <option value={5}>Medium (5 messages)</option>
-                    <option value={7}>Long (7 messages)</option>
-                    <option value={10}>Extended (10 messages)</option>
+                    <option value={1}>Single Touch (1 message)</option>
+                    <option value={2}>Double Touch (2 messages)</option>
+                    <option value={3}>Triple Touch (3 messages)</option>
+                    <option value={4}>Quad Touch (4 messages)</option>
+                    <option value={5}>Five Touch (5 messages)</option>
+                    <option value={7}>Extended (7 messages)</option>
+                    <option value={10}>Long Nurture (10 messages)</option>
+                    <option value={15}>Extended Nurture (15 messages)</option>
+                    <option value={20}>Marathon Campaign (20 messages)</option>
                   </select>
                 </div>
 
