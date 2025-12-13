@@ -1,5 +1,4 @@
 const { createClient } = require('@supabase/supabase-js');
-const { callOpenAI } = require('../core/callOpenAI');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,

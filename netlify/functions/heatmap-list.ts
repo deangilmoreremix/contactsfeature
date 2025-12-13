@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { getDealsWithRisk } from "../lib/heatmap";
+import { getDealsWithRisk } from "../../lib/heatmap";
 
 export const handler: Handler = async () => {
   try {
