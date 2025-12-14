@@ -100,6 +100,9 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
     return iconMap[personaId] || Target;
   };
 
+  const [lastRunPersona, setLastRunPersona] = useState<OutboundPersonaId | null>(null);
+  const [runTimestamp, setRunTimestamp] = useState<Date | null>(null);
+
   const handleRunPersona = async (personaId: OutboundPersonaId) => {
     setSelectedPersona(personaId);
     setIsRunning(true);
@@ -114,6 +117,9 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
 
       // In a real implementation, this would call the appropriate SDR function
       // based on the persona type
+
+      setLastRunPersona(personaId);
+      setRunTimestamp(new Date());
 
     } catch (error) {
       console.error('Failed to run SDR persona:', error);
