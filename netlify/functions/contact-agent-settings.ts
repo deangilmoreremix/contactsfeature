@@ -1,5 +1,5 @@
 import type { Handler } from '@netlify/functions';
-import { getContactAgentSettings, upsertContactAgentSettings } from '../../server/contactAgentSettings';
+import { getContactAgentSettings, upsertContactAgentSettings } from '../../src/server/contactAgentSettings';
 
 export const handler: Handler = async (event) => {
   try {
