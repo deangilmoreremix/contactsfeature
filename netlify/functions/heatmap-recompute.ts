@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { updateDealRisk, recomputeAllDealRisks } from "../../src/lib/heatmap";
+import { updateDealRisk, recomputeAllDealRisks } from "../../lib/heatmap";
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") {

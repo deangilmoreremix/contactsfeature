@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { scheduleMeeting } from "../../src/lib/calendar";
+import { scheduleMeeting } from "../../lib/calendar";
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") {

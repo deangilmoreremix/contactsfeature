@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { runVideoAgent } from "../../src/lib/video/videoAgent";
+import { runVideoAgent } from "../../lib/video/videoAgent";
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") {

@@ -1,8 +1,8 @@
 import type { Handler } from '@netlify/functions';
 import { AgentMailClient } from "agentmail";
 import { createClient } from "@supabase/supabase-js";
-import type { OutboundAgent } from "../../src/types/outbound-agents";
-import { runOutboundAgent, type AgentContext } from "../../s../../src/lib/outboundAgent";
+import type { OutboundAgent } from "../../types/outbound-agents";
+import { runOutboundAgent, type AgentContext } from "../../lib/outboundAgent";
 
 const agentmail = new AgentMailClient({ apiKey: process.env.AGENTMAIL_API_KEY! });
 const supabase = createClient(
