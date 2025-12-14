@@ -71,6 +71,11 @@ const SDR_AGENTS = [
     id: "competitor_sdr",
     name: "Competitor-Aware SDR",
     description: "Handles 'we already use X' and positions SmartCRM against competitors."
+  },
+  {
+    id: "social_selling_sdr",
+    name: "Social Selling SDR",
+    description: "Creates personalized messages based on social media activity and engagement patterns."
   }
 ];
 

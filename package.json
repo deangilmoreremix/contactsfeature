@@ -20,7 +20,8 @@
     "test:functions": "node test-netlify-functions.js",
     "test:agentmail": "node test-agentmail-webhook.js",
     "generate-gifs": "node scripts/generate-gifs.js",
-    "rename-videos": "node scripts/rename-videos.js"
+    "rename-videos": "node scripts/rename-videos.js",
+    "demo:agents": "node scripts/demonstrate-agent-system.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.77",
@@ -40,6 +41,7 @@
     "dotenv": "^17.2.0",
     "fuse.js": "^7.0.0",
     "lucide-react": "^0.344.0",
+    "nodemailer": "^7.0.11",
     "openai": "^6.10.0",
     "process": "^0.11.10",
     "react": "^18.3.1",
@@ -50,6 +52,7 @@
     "react-hook-form": "^7.48.0",
     "react-select": "^5.8.0",
     "recharts": "^2.8.0",
+    "twilio": "^5.10.7",
     "util": "^0.12.5",
     "xlsx": "^0.18.5",
     "zustand": "^4.4.7"

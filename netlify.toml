@@ -6,6 +6,9 @@ command = "npx vite build"
 [functions]
 directory = "netlify/functions"
 
+[dev]
+targetPort = 5174
+
 [[redirects]]
 from = "/api/*"
 to = "/.netlify/functions/:splat"
