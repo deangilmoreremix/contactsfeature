@@ -89,6 +89,7 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
           dealId={contact.id}
           workspaceId="default-workspace" // TODO: Get actual workspace ID
           personaId="default-persona" // TODO: Get actual persona ID
+          contact={contact}
           onSequenceGenerated={(sequence) => console.log('SDR sequence generated:', sequence)}
         />
       </div>

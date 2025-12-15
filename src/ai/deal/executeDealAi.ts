@@ -163,6 +163,70 @@ export async function buildDealContext(dealId: string, workspaceId: string): Pro
   }
 }
 
+export async function buildContactContext(contact: any, workspaceId: string): Promise<DealContext> {
+  try {
+    // Create a mock deal from contact data
+    const mockDeal = {
+      id: contact.id,
+      name: `${contact.firstName} ${contact.lastName}`.trim() || contact.name,
+      value: contact.aiScore ? contact.aiScore * 1000 : 0,
+      company: contact.company,
+      stage: contact.status || 'prospect',
+      account_id: null,
+      pipeline_id: 'default',
+      workspace_id: workspaceId,
+      created_at: contact.createdAt,
+      updated_at: contact.updatedAt
+    };
+
+    // Fetch account if company exists
+    let account = null;
+    if (contact.company) {
+      const { data: acc, error: accError } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('name', contact.company)
+        .eq('workspace_id', workspaceId)
+        .single();
+
+      if (!accError) account = acc;
+    }
+
+    // Fetch last activities for this contact
+    const { data: lastActivities, error: activitiesError } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('contact_id', contact.id)
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (activitiesError) throw activitiesError;
+
+    // Mock pipeline
+    const pipeline = {
+      id: 'default',
+      name: 'Default Pipeline',
+      workspace_id: workspaceId
+    };
+
+    // Mock analytics
+    const analytics = {};
+
+    return {
+      deal: mockDeal,
+      contacts: [contact],
+      account,
+      lastActivities: lastActivities || [],
+      pipeline,
+      analytics
+    };
+  } catch (error) {
+    logger.error('Error building contact context:', error);
+    throw error;
+  }
+}
+
 function getModelForTask(task: DealAiTask): string {
   if (task.startsWith('email_') || task === 'deal_share_summary' || task === 'sidebar_find_new_image') {
     return 'gpt-5.2-instant';
@@ -508,23 +572,25 @@ export async function executeDealAi({
   task,
   dealId,
   workspaceId,
-  options = {}
+  options = {},
+  contact // Optional contact object for contact-based SDR execution
 }: {
   task: DealAiTask;
   dealId: string;
   workspaceId: string;
   options?: DealAiOptions;
+  contact?: any; // Contact object
 }): Promise<any> {
   try {
-    const context = await buildDealContext(dealId, workspaceId);
+    const context = contact
+      ? await buildContactContext(contact, workspaceId)
+      : await buildDealContext(dealId, workspaceId);
     const model = getModelForTask(task);
     const prompt = buildPromptForTask(task, context, options);
 
-    const response = await callOpenAI({
+    const response = await callOpenAI(prompt, {
       model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 2000
+      temperature: 0.7
     });
 
     const result = response.choices[0].message.content;

@@ -5,6 +5,7 @@ interface SDRButtonGroupProps {
   dealId: string;
   workspaceId: string;
   personaId?: string;
+  contact?: any; // Optional contact for contact-based SDR
   onSequenceGenerated?: (sequence: any) => void;
 }
 
@@ -14,7 +15,7 @@ interface SDRResult {
   generatedAt: Date;
 }
 
-export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspaceId, personaId, onSequenceGenerated }) => {
+export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspaceId, personaId, contact, onSequenceGenerated }) => {
   const [loading, setLoading] = useState<string | null>(null);
   const [results, setResults] = useState<SDRResult[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -33,7 +34,8 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
           channel: 'email',
           tone: 'friendly',
           ...options
-        }
+        },
+        contact
       });
 
       const sdrResult: SDRResult = {
