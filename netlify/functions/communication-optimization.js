@@ -122,7 +122,53 @@ Provide optimization analysis with:
         temperature: 0.2,
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "communication_optimization",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                optimalTiming: {
+                  type: "object",
+                  properties: {
+                    bestDay: { type: "string" },
+                    bestTime: { type: "string" },
+                    timezone: { type: "string" }
+                  },
+                  required: ["bestDay", "bestTime", "timezone"]
+                },
+                communicationStyle: {
+                  type: "object",
+                  properties: {
+                    tone: { type: "string" },
+                    frequency: { type: "string" },
+                    approach: { type: "string" }
+                  },
+                  required: ["tone", "frequency", "approach"]
+                },
+                channelPreferences: {
+                  type: "object",
+                  properties: {
+                    primary: { type: "string" },
+                    secondary: { type: "string" },
+                    avoid: { type: "array", items: { type: "string" } }
+                  },
+                  required: ["primary", "secondary", "avoid"]
+                },
+                engagementPatterns: {
+                  type: "object",
+                  properties: {
+                    peakHours: { type: "array", items: { type: "string" } },
+                    responseTime: { type: "string" },
+                    preferences: { type: "array", items: { type: "string" } }
+                  },
+                  required: ["peakHours", "responseTime", "preferences"]
+                },
+                recommendations: { type: "array", items: { type: "string" } },
+                nextSteps: { type: "array", items: { type: "string" } }
+              },
+              required: ["optimalTiming", "communicationStyle", "channelPreferences", "engagementPatterns", "recommendations", "nextSteps"]
+            }
           }
         }
       })
@@ -137,16 +183,14 @@ Provide optimization analysis with:
     // Handle Responses API format
     let content;
     if (data.output && data.output.length > 0) {
-      const messageItem = data.output.find(item => item.type === 'message');
-      if (messageItem && messageItem.content && messageItem.content.length > 0) {
-        content = JSON.parse(messageItem.content[0].text);
+      const textOutput = data.output.find(item => item.type === 'text');
+      if (textOutput && textOutput.text) {
+        content = JSON.parse(textOutput.text);
       } else {
-        throw new Error('No message content found in response output');
+        throw new Error('No text output found in response');
       }
-    } else if (data.output_text) {
-      content = JSON.parse(data.output_text);
     } else {
-      throw new Error('No response content found');
+      throw new Error('No response output found');
     }
 
     return {

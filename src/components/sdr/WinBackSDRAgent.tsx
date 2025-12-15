@@ -97,6 +97,55 @@ export const WinBackSDRAgent: React.FC = () => {
         Tries to bring back churned customers or lost deals with tailored win-back offers.
       </p>
 
+      {/* AI Indicator */}
+      <div style={{
+        marginBottom: 12,
+        padding: "8px 12px",
+        borderRadius: 8,
+        background: "#eff6ff",
+        border: "1px solid #bfdbfe"
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{
+            padding: "2px 6px",
+            borderRadius: 4,
+            background: "#2563eb",
+            color: "#ffffff",
+            fontSize: 10,
+            fontWeight: 600
+          }}>GPT-5.2 THINKING</span>
+          <span style={{ fontSize: 12, color: "#1e40af", fontWeight: 500 }}>AI-Powered Win-Back SDR</span>
+        </div>
+        <p style={{ fontSize: 11, color: "#3730a3", margin: 0 }}>
+          Intelligent win-back campaigns based on churn analysis and customer history.
+        </p>
+      </div>
+
+      {/* Thinking Display */}
+      {loading && (
+        <div style={{
+          marginBottom: 12,
+          padding: "8px 12px",
+          borderRadius: 8,
+          background: "#fef3c7",
+          border: "1px solid #f59e0b"
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: "#f59e0b",
+              animation: "pulse 2s infinite"
+            }}></div>
+            <span style={{ fontSize: 12, color: "#92400e", fontWeight: 500 }}>AI Processing Win-Back Campaign</span>
+          </div>
+          <p style={{ fontSize: 11, color: "#78350f", margin: 0 }}>
+            GPT-5.2 is analyzing churn reasons and crafting personalized win-back offers...
+          </p>
+        </div>
+      )}
+
       {error && (
         <div
           style={{

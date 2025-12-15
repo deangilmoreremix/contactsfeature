@@ -582,31 +582,21 @@ export async function executeDealAi({
   contact?: any; // Contact object
 }): Promise<any> {
   try {
-    const context = contact
-      ? await buildContactContext(contact, workspaceId)
-      : await buildDealContext(dealId, workspaceId);
-    const model = getModelForTask(task);
-    const prompt = buildPromptForTask(task, context, options);
-
-    const response = await callOpenAI(prompt, {
-      model,
-      temperature: 0.7
+    const response = await fetch('/.netlify/functions/execute-deal-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task, dealId, workspaceId, options, contact })
     });
 
-    const result = response.choices[0].message.content;
+    const data = await response.json();
 
-    // Parse JSON for sequence tasks
-    if (task.startsWith('sdr_') && task !== 'sdr_enrich_contact') {
-      try {
-        return JSON.parse(result);
-      } catch (e) {
-        logger.warn('Failed to parse SDR sequence JSON, returning raw result');
-      }
+    if (!response.ok) {
+      throw new Error(data.error || 'Server error');
     }
 
-    return result;
+    return data.result;
   } catch (error) {
-    logger.error('Error executing deal AI:', error);
+    console.error('Error calling SDR service:', error);
     throw error;
   }
 }

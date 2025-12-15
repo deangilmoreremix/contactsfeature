@@ -119,7 +119,28 @@ Return as JSON with "questions" array containing objects with category, question
         temperature: 0.3,
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "discovery_questions",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                questions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      category: { type: "string" },
+                      question: { type: "string" },
+                      rationale: { type: "string" },
+                      priority: { type: "string", enum: ["high", "medium", "low"] }
+                    },
+                    required: ["category", "question", "rationale", "priority"]
+                  }
+                }
+              },
+              required: ["questions"]
+            }
           }
         }
       })
@@ -134,16 +155,14 @@ Return as JSON with "questions" array containing objects with category, question
     // Handle Responses API format
     let content;
     if (data.output && data.output.length > 0) {
-      const messageItem = data.output.find(item => item.type === 'message');
-      if (messageItem && messageItem.content && messageItem.content.length > 0) {
-        content = JSON.parse(messageItem.content[0].text);
+      const textOutput = data.output.find(item => item.type === 'text');
+      if (textOutput && textOutput.text) {
+        content = JSON.parse(textOutput.text);
       } else {
-        throw new Error('No message content found in response output');
+        throw new Error('No text output found in response');
       }
-    } else if (data.output_text) {
-      content = JSON.parse(data.output_text);
     } else {
-      throw new Error('No response content found');
+      throw new Error('No response output found');
     }
 
     return {

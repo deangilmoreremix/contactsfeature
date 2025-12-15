@@ -142,6 +142,15 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
         </div>
       </div>
 
+      {/* AI Indicator */}
+      <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">GPT-5.2 THINKING</span>
+          <span className="text-sm text-blue-700">AI-Powered SDR Personas</span>
+        </div>
+        <p className="text-xs text-blue-600">Click any "Run SDR" button to execute AI-powered outreach campaigns</p>
+      </div>
+
       {/* Persona Groups */}
       {Object.entries(personaGroups).map(([groupName, personas]) => {
         if (personas.length === 0) return null;
@@ -200,6 +209,19 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
           </div>
         );
       })}
+
+      {/* Results Section */}
+      {lastRunPersona && runTimestamp && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-sm font-medium text-green-800">SDR Campaign Executed</span>
+          </div>
+          <p className="text-sm text-green-700">
+            Successfully ran <strong>{OUTBOUND_PERSONAS.find(p => p.id === lastRunPersona)?.label}</strong> persona for {contact.firstName || contact.name} at {runTimestamp.toLocaleTimeString()}
+          </p>
+        </div>
+      )}
 
       {/* Info Section */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

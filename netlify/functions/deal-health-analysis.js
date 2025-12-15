@@ -148,7 +148,58 @@ Generate comprehensive health analysis with:
         temperature: 0.2,
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "deal_health_analysis",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                healthScore: { type: "number", minimum: 0, maximum: 100 },
+                riskLevel: { type: "string", enum: ["low", "medium", "high", "critical"] },
+                healthIndicators: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      metric: { type: "string" },
+                      value: { type: "number" },
+                      status: { type: "string", enum: ["good", "warning", "critical"] },
+                      trend: { type: "string", enum: ["improving", "stable", "declining"] }
+                    },
+                    required: ["metric", "value", "status", "trend"]
+                  }
+                },
+                riskFactors: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      factor: { type: "string" },
+                      severity: { type: "string", enum: ["low", "medium", "high"] },
+                      probability: { type: "number", minimum: 0, maximum: 1 },
+                      mitigation: { type: "string" }
+                    },
+                    required: ["factor", "severity", "probability", "mitigation"]
+                  }
+                },
+                recommendations: { type: "array", items: { type: "string" } },
+                nextActions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      action: { type: "string" },
+                      priority: { type: "string", enum: ["high", "medium", "low"] },
+                      timeline: { type: "string" },
+                      owner: { type: "string" }
+                    },
+                    required: ["action", "priority", "timeline", "owner"]
+                  }
+                },
+                healthTrends: { type: "array", items: { type: "string" } }
+              },
+              required: ["healthScore", "riskLevel", "healthIndicators", "riskFactors", "recommendations", "nextActions", "healthTrends"]
+            }
           }
         }
       })
@@ -163,16 +214,14 @@ Generate comprehensive health analysis with:
     // Handle Responses API format
     let content;
     if (data.output && data.output.length > 0) {
-      const messageItem = data.output.find(item => item.type === 'message');
-      if (messageItem && messageItem.content && messageItem.content.length > 0) {
-        content = JSON.parse(messageItem.content[0].text);
+      const textOutput = data.output.find(item => item.type === 'text');
+      if (textOutput && textOutput.text) {
+        content = JSON.parse(textOutput.text);
       } else {
-        throw new Error('No message content found in response output');
+        throw new Error('No text output found in response');
       }
-    } else if (data.output_text) {
-      content = JSON.parse(data.output_text);
     } else {
-      throw new Error('No response content found');
+      throw new Error('No response output found');
     }
 
     return {
