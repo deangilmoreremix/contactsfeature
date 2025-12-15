@@ -5,6 +5,7 @@ import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOp
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
 import { SDRPersonaSelector } from './SDRPersonaSelector';
+import { SDRButtonGroup } from '../deals/SDRButtonGroup';
 import { Target, Settings, Brain } from 'lucide-react';
 
 interface ContactSalesIntelligenceTabProps {
@@ -38,7 +39,7 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
           </div>
           <div className="flex items-center space-x-2">
             <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-              4 AI Tools Available
+              5 AI Tools Available
             </span>
             <button
               onClick={() => setShowAPIConfig(true)}
@@ -79,6 +80,16 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
           ]}
           title="Partnership & Growth SDRs"
           description="AI-powered SDR personas for partnerships, growth initiatives, and strategic outreach"
+        />
+      </div>
+
+      {/* SDR Tasks Section */}
+      <div className="mb-8">
+        <SDRButtonGroup
+          dealId={contact.id}
+          workspaceId="default-workspace" // TODO: Get actual workspace ID
+          personaId="default-persona" // TODO: Get actual persona ID
+          onSequenceGenerated={(sequence) => console.log('SDR sequence generated:', sequence)}
         />
       </div>
 
