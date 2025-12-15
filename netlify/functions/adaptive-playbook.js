@@ -16,6 +16,58 @@ function getPlaybookTypeInstructions(playbookType) {
   return instructions[playbookType] || instructions.comprehensive;
 }
 
+function validateInput(contact, currentStage, businessGoals, automationType, playbookType, aiProvider) {
+  // Validate contact object
+  if (!contact || typeof contact !== 'object') {
+    throw new Error('Invalid contact: must be an object');
+  }
+  if (!contact.id || typeof contact.id !== 'string') {
+    throw new Error('Invalid contact.id: must be a non-empty string');
+  }
+  if (!contact.name || typeof contact.name !== 'string') {
+    throw new Error('Invalid contact.name: must be a non-empty string');
+  }
+  if (!contact.company || typeof contact.company !== 'string') {
+    throw new Error('Invalid contact.company: must be a non-empty string');
+  }
+
+  // Validate currentStage
+  const validStages = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+  if (!validStages.includes(currentStage)) {
+    throw new Error(`Invalid currentStage: must be one of ${validStages.join(', ')}`);
+  }
+
+  // Validate businessGoals
+  if (!Array.isArray(businessGoals)) {
+    throw new Error('Invalid businessGoals: must be an array');
+  }
+  if (businessGoals.length > 10) {
+    throw new Error('Invalid businessGoals: maximum 10 goals allowed');
+  }
+  for (const goal of businessGoals) {
+    if (typeof goal !== 'string' || goal.length > 200) {
+      throw new Error('Invalid businessGoals: each goal must be a string under 200 characters');
+    }
+  }
+
+  // Validate automationType
+  const validAutomationTypes = ['comprehensive', 'aggressive', 'conservative', 'relationship', 'transactional'];
+  if (!validAutomationTypes.includes(automationType)) {
+    throw new Error(`Invalid automationType: must be one of ${validAutomationTypes.join(', ')}`);
+  }
+
+  // Validate playbookType
+  if (!validAutomationTypes.includes(playbookType)) {
+    throw new Error(`Invalid playbookType: must be one of ${validAutomationTypes.join(', ')}`);
+  }
+
+  // Validate aiProvider
+  const validProviders = ['openai', 'gemini'];
+  if (!validProviders.includes(aiProvider)) {
+    throw new Error(`Invalid aiProvider: must be one of ${validProviders.join(', ')}`);
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
@@ -33,6 +85,9 @@ exports.handler = async (event) => {
       playbookType = 'comprehensive',
       aiProvider = 'openai'
     } = JSON.parse(event.body);
+
+    // Validate all inputs
+    validateInput(contact, currentStage, businessGoals, automationType, playbookType, aiProvider);
 
     console.log('Adaptive playbook request:', {
       contactId: contact.id,
