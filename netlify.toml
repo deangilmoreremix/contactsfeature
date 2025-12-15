@@ -7,7 +7,7 @@ command = "npx vite build"
 directory = "netlify/functions"
 
 [dev]
-targetPort = 5174
+targetPort = 5175
 
 [[redirects]]
 from = "/api/*"
