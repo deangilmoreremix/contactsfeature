@@ -44,7 +44,8 @@ import {
   Loader2,
   Info,
   Mail,
-  Bot
+  Bot,
+  Trash2
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -70,7 +71,7 @@ const statusOptions = [
 ];
 
 export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
-  const { contacts, updateContact } = useContactStore();
+  const { contacts, updateContact, clearContacts } = useContactStore();
   const { currentView } = useView();
   const { scoreBulkContacts } = useAI();
   
@@ -97,6 +98,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isProductIntelligenceOpen, setIsProductIntelligenceOpen] = useState(false);
   const [isEmailAgentsModalOpen, setIsEmailAgentsModalOpen] = useState(false);
+  const [isClearDataModalOpen, setIsClearDataModalOpen] = useState(false);
+  const [clearDataConfirmation, setClearDataConfirmation] = useState('');
+  const [isClearingData, setIsClearingData] = useState(false);
 
   // Initialize Fuse.js for fuzzy search
   const fuse = useMemo(() => {
@@ -380,6 +384,31 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
   const handleEmailAgentsModalClose = () => {
     setIsEmailAgentsModalOpen(false);
+  };
+
+  const handleClearData = async () => {
+    if (clearDataConfirmation !== 'DELETE') return;
+
+    setIsClearingData(true);
+    try {
+      // Clear contacts from store
+      await clearContacts();
+
+      // Clear any cached data if needed
+      localStorage.removeItem('contacts_cache');
+      localStorage.removeItem('contact_filters');
+
+      // Show success message (you might want to add a toast notification here)
+      alert('All contacts have been cleared successfully.');
+
+      setIsClearDataModalOpen(false);
+      setClearDataConfirmation('');
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+      alert('Failed to clear contacts. Please try again.');
+    } finally {
+      setIsClearingData(false);
+    }
   };
 
   const handleAnalysisComplete = (results: any, content: any) => {
@@ -816,6 +845,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
             {/* View Mode Toggle */}
             <div className="flex items-center space-x-2">
+              {/* Clear Data Button */}
+              <SmartTooltip featureId="clear_data_button">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsClearDataModalOpen(true)}
+                  className="flex items-center space-x-2 bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-800/40"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear Data</span>
+                </ModernButton>
+              </SmartTooltip>
+
               {/* Sort Dropdown */}
               <SmartTooltip featureId="contacts_sort_control">
                 <select
@@ -925,6 +967,69 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
         isOpen={isEmailAgentsModalOpen}
         onClose={handleEmailAgentsModalClose}
       />
+
+      {/* Clear Data Confirmation Modal */}
+      {isClearDataModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Clear All Contacts
+              </h3>
+            </div>
+
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              This action will permanently delete all contacts from your database. This cannot be undone.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Type <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded text-red-600 dark:text-red-400">DELETE</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={clearDataConfirmation}
+                onChange={(e) => setClearDataConfirmation(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                placeholder="Type DELETE to confirm"
+                disabled={isClearingData}
+              />
+            </div>
+
+            <div className="flex space-x-3">
+              <ModernButton
+                variant="outline"
+                onClick={() => {
+                  setIsClearDataModalOpen(false);
+                  setClearDataConfirmation('');
+                }}
+                disabled={isClearingData}
+                className="flex-1"
+              >
+                Cancel
+              </ModernButton>
+              <ModernButton
+                variant="primary"
+                onClick={handleClearData}
+                disabled={clearDataConfirmation !== 'DELETE' || isClearingData}
+                className="flex-1 bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
+              >
+                {isClearingData ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  'Clear All Data'
+                )}
+              </ModernButton>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

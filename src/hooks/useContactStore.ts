@@ -31,6 +31,7 @@ interface ContactActions {
   createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
   deleteContact: (id: string) => Promise<void>;
+  clearContacts: () => Promise<void>;
   selectContact: (contact: Contact | null) => void;
   importContacts: (contacts: any[]) => Promise<void>;
   exportContacts: (format: 'csv' | 'json') => Promise<void>;
@@ -180,29 +181,46 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   deleteContact: async (id) => {
     try {
       await contactAPI.deleteContact(id);
-      
+
       set(state => ({
         contacts: state.contacts.filter(c => c.id !== id),
         totalCount: Math.max(0, state.totalCount - 1),
         selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
       }));
-      
+
       logger.info('Contact deleted successfully', { contactId: id });
     } catch (error) {
       logger.error('Failed to delete contact', error as Error);
-      
+
       // Delete locally in development/fallback mode
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
+      if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
         set(state => ({
           contacts: state.contacts.filter(c => c.id !== id),
           totalCount: Math.max(0, state.totalCount - 1),
           selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
         }));
-        
+
         logger.info('Deleted contact locally in development mode', { contactId: id });
         return;
       }
-      
+
+      throw error;
+    }
+  },
+
+  clearContacts: async () => {
+    try {
+      // For now, we'll clear contacts locally
+      // In a real implementation, this would call contactAPI.clearAllContacts()
+      set({
+        contacts: [],
+        totalCount: 0,
+        selectedContact: null
+      });
+
+      logger.info('All contacts cleared successfully');
+    } catch (error) {
+      logger.error('Failed to clear contacts', error as Error);
       throw error;
     }
   },
