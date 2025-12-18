@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { executeDealAi } from '../../ai/deal/executeDealAi';
+import { metorialService } from '../../services/metorialService';
 
 interface SDRButtonGroupProps {
   dealId: string;
@@ -74,6 +75,97 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
         if (onSequenceGenerated) onSequenceGenerated(mockSequences);
       } catch (error) {
         console.error('Mock SDR generation failed:', error);
+      } finally {
+        setLoading(null);
+        setCampaignProgress(null);
+      }
+      return;
+    }
+
+    // Special handling for Metorial research
+    if (task === 'sdr_metorial_research') {
+      try {
+        if (!contact) {
+          throw new Error('Contact information required for research');
+        }
+
+        setCampaignProgress({
+          task,
+          step: 1,
+          totalSteps: 3,
+          currentStep: 'Researching company and contact profiles'
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        setCampaignProgress({
+          task,
+          step: 2,
+          totalSteps: 3,
+          currentStep: 'Analyzing SDR insights and opportunities'
+        });
+
+        const result = await metorialService.generateSDRInsights(
+          contact.firstName || contact.name,
+          contact.company,
+          `Research for SDR campaign targeting ${contact.firstName || contact.name} at ${contact.company}`
+        );
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        setCampaignProgress({
+          task,
+          step: 3,
+          totalSteps: 3,
+          currentStep: 'Generating comprehensive research report'
+        });
+
+        // Transform Metorial result to match expected format
+        const transformedResult = {
+          sequence: [{
+            day_offset: 0,
+            channel: 'research',
+            subject: `Research Report: ${contact.firstName || contact.name} at ${contact.company}`,
+            body_html: `
+              <h3>Metorial Research Insights</h3>
+              <p><strong>Executive Summary:</strong> ${result.executiveSummary}</p>
+
+              <h4>Key Findings:</h4>
+              <ul>
+                ${result.keyFindings.map(finding => `<li>${finding}</li>`).join('')}
+              </ul>
+
+              <h4>Recommendations:</h4>
+              <ul>
+                ${result.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+              </ul>
+
+              <h4>Detailed Insights:</h4>
+              ${result.insights.map(insight => `
+                <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa;">
+                  <h5>${insight.title}</h5>
+                  <p>${insight.content}</p>
+                  <small>Confidence: ${insight.confidence}%</small>
+                </div>
+              `).join('')}
+            `
+          }],
+          metadata: result.researchMetadata
+        };
+
+        const sdrResult: SDRResult = {
+          task,
+          sequence: transformedResult,
+          generatedAt: new Date()
+        };
+
+        setResults(prev => [sdrResult, ...prev]);
+        setSelectedResult(sdrResult);
+        setShowModal(true);
+
+        if (onSequenceGenerated) onSequenceGenerated(transformedResult);
+      } catch (error) {
+        console.error('Metorial research failed:', error);
       } finally {
         setLoading(null);
         setCampaignProgress(null);
@@ -216,6 +308,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
   };
 
   const getSequenceDuration = (task: string) => {
+    if (task.includes('metorial_research')) return 'Research Report';
     if (task.includes('follow_up') || task.includes('bump')) return '10 days';
     if (task.includes('winback') || task.includes('reactivation')) return '20 days';
     if (task.includes('cold_email') || task.includes('high_intent')) return '30 days';
@@ -240,7 +333,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
             'sdr_objection_handler', 'sdr_high_intent', 'sdr_bump',
             'sdr_reactivation', 'sdr_winback', 'sdr_linkedin',
             'sdr_whatsapp', 'sdr_event', 'sdr_referral',
-            'sdr_newsletter', 'sdr_cold_email'
+            'sdr_newsletter', 'sdr_cold_email', 'sdr_metorial_research'
           ].map((task) => (
             <button
               key={task}
@@ -295,6 +388,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
                     {task === 'sdr_referral' && '👥'}
                     {task === 'sdr_newsletter' && '📰'}
                     {task === 'sdr_cold_email' && '❄️'}
+                    {task === 'sdr_metorial_research' && '🔍'}
                   </div>
                   <div className="text-xs font-medium">{getTaskLabel(task)}</div>
                   <div className="text-[10px] text-gray-500 mt-0.5">{getSequenceDuration(task)}</div>
