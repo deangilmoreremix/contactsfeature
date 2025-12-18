@@ -38,13 +38,18 @@ export interface OpenAIToolFormat {
 
 export class MCPAdapter {
   private static instance: MCPAdapter;
-  private mcpServerUrl: string;
-  private connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
+  private rubeServerUrl: string;
+  private metorialServerUrl: string;
+  private connectionStatus: Record<string, 'disconnected' | 'connecting' | 'connected' | 'error'> = {
+    rube: 'disconnected',
+    metorial: 'disconnected'
+  };
   private cachedTools: Map<string, MCPTool> = new Map();
   private toolCacheExpiry: number = 5 * 60 * 1000; // 5 minutes
 
   private constructor() {
-    this.mcpServerUrl = (import.meta.env as any).VITE_RUBE_MCP_SERVER_URL || 'http://localhost:3001';
+    this.rubeServerUrl = (import.meta.env as any).VITE_RUBE_MCP_SERVER_URL || 'http://localhost:3001';
+    this.metorialServerUrl = (import.meta.env as any).VITE_METORIAL_MCP_SERVER_URL || 'https://api.metorial.com';
   }
 
   static getInstance(): MCPAdapter {
@@ -55,108 +60,126 @@ export class MCPAdapter {
   }
 
   /**
-   * Connect to the MCP server
-   */
-  async connect(): Promise<boolean> {
-    try {
-      if (this.connectionStatus === 'connected') {
-        return true;
-      }
+    * Connect to a specific MCP server
+    */
+   async connect(server: 'rube' | 'metorial' = 'rube'): Promise<boolean> {
+     try {
+       if (this.connectionStatus[server] === 'connected') {
+         return true;
+       }
 
-      logger.info('Connecting to MCP server', { url: this.mcpServerUrl });
-      this.connectionStatus = 'connecting';
+       const serverUrl = server === 'rube' ? this.rubeServerUrl : this.metorialServerUrl;
+       logger.info(`Connecting to ${server} MCP server`, { url: serverUrl });
+       this.connectionStatus[server] = 'connecting';
 
-      // Test connection by fetching server info
-      const response = await fetch(`${this.mcpServerUrl}/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+       // Test connection by fetching server info
+       const response = await fetch(`${serverUrl}/health`, {
+         method: 'GET',
+         headers: {
+           'Content-Type': 'application/json',
+           ...(server === 'metorial' && (import.meta.env as any).VITE_METORIAL_API_KEY ? {
+             'Authorization': `Bearer ${(import.meta.env as any).VITE_METORIAL_API_KEY}`
+           } : {})
+         }
+       });
 
-      if (!response.ok) {
-        throw new Error(`MCP server health check failed: ${response.status}`);
-      }
+       if (!response.ok) {
+         throw new Error(`${server} MCP server health check failed: ${response.status}`);
+       }
 
-      this.connectionStatus = 'connected';
-      logger.info('Successfully connected to MCP server');
-      return true;
-    } catch (error) {
-      this.connectionStatus = 'error';
-      logger.error('Failed to connect to MCP server', error as Error);
-      return false;
-    }
-  }
-
-  /**
-   * Disconnect from MCP server
-   */
-  async disconnect(): Promise<void> {
-    this.connectionStatus = 'disconnected';
-    this.cachedTools.clear();
-    logger.info('Disconnected from MCP server');
-  }
+       this.connectionStatus[server] = 'connected';
+       logger.info(`Successfully connected to ${server} MCP server`);
+       return true;
+     } catch (error) {
+       this.connectionStatus[server] = 'error';
+       logger.error(`Failed to connect to ${server} MCP server`, error as Error);
+       return false;
+     }
+   }
 
   /**
-   * Get connection status
-   */
-  getConnectionStatus(): string {
-    return this.connectionStatus;
-  }
+    * Disconnect from MCP server
+    */
+   async disconnect(server: 'rube' | 'metorial' = 'rube'): Promise<void> {
+     this.connectionStatus[server] = 'disconnected';
+     // Clear tools cache if disconnecting from the primary server
+     if (server === 'rube') {
+       this.cachedTools.clear();
+     }
+     logger.info(`Disconnected from ${server} MCP server`);
+   }
 
   /**
-   * Discover available tools from MCP server
-   */
-  async discoverTools(): Promise<MCPTool[]> {
-    try {
-      if (this.connectionStatus !== 'connected') {
-        await this.connect();
-      }
+    * Get connection status for a specific server
+    */
+   getConnectionStatus(server: 'rube' | 'metorial' = 'rube'): string {
+     return this.connectionStatus[server] || 'disconnected';
+   }
 
-      // Check localStorage cache first
-      const cacheKey = 'mcp_tools_cache';
-      const cachedData = localStorage.getItem(cacheKey);
-      if (cachedData) {
-        const cached = JSON.parse(cachedData);
-        if (Date.now() - cached.timestamp < this.toolCacheExpiry) {
-          this.cachedTools = new Map(Object.entries(cached.tools));
-          return Array.from(this.cachedTools.values());
-        }
-      }
+  /**
+    * Discover available tools from MCP server
+    */
+   async discoverTools(server: 'rube' | 'metorial' = 'rube'): Promise<MCPTool[]> {
+     try {
+       if (this.connectionStatus[server] !== 'connected') {
+         await this.connect(server);
+       }
 
-      logger.info('Discovering tools from MCP server');
+       // Check localStorage cache first
+       const cacheKey = `${server}_mcp_tools_cache`;
+       const cachedData = localStorage.getItem(cacheKey);
+       if (cachedData) {
+         const cached = JSON.parse(cachedData);
+         if (Date.now() - cached.timestamp < this.toolCacheExpiry) {
+           // Load cached tools for this server
+           const serverTools = new Map(Object.entries(cached.tools));
+           // Merge with existing cached tools
+           serverTools.forEach((tool, name) => {
+             this.cachedTools.set(`${server}_${name}`, tool);
+           });
+           return Array.from(serverTools.values());
+         }
+       }
 
-      const response = await fetch(`${this.mcpServerUrl}/tools`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+       const serverUrl = server === 'rube' ? this.rubeServerUrl : this.metorialServerUrl;
+       logger.info(`Discovering tools from ${server} MCP server`);
 
-      if (!response.ok) {
-        throw new Error(`Failed to discover tools: ${response.status}`);
-      }
+       const response = await fetch(`${serverUrl}/tools`, {
+         method: 'GET',
+         headers: {
+           'Content-Type': 'application/json',
+           ...(server === 'metorial' && (import.meta.env as any).VITE_METORIAL_API_KEY ? {
+             'Authorization': `Bearer ${(import.meta.env as any).VITE_METORIAL_API_KEY}`
+           } : {})
+         }
+       });
 
-      const tools: MCPTool[] = await response.json();
+       if (!response.ok) {
+         throw new Error(`Failed to discover tools from ${server}: ${response.status}`);
+       }
 
-      // Cache tools in localStorage
-      this.cachedTools.clear();
-      tools.forEach(tool => {
-        this.cachedTools.set(tool.name, tool);
-      });
+       const tools: MCPTool[] = await response.json();
 
-      localStorage.setItem(cacheKey, JSON.stringify({
-        tools: Object.fromEntries(this.cachedTools),
-        timestamp: Date.now()
-      }));
+       // Cache tools in localStorage with server prefix
+       const serverTools = new Map();
+       tools.forEach(tool => {
+         const toolKey = `${server}_${tool.name}`;
+         this.cachedTools.set(toolKey, tool);
+         serverTools.set(tool.name, tool);
+       });
 
-      logger.info('Discovered MCP tools', { count: tools.length });
-      return tools;
-    } catch (error) {
-      logger.error('Failed to discover MCP tools', error as Error);
-      return [];
-    }
-  }
+       localStorage.setItem(cacheKey, JSON.stringify({
+         tools: Object.fromEntries(serverTools),
+         timestamp: Date.now()
+       }));
+
+       logger.info(`Discovered ${server} MCP tools`, { count: tools.length });
+       return tools;
+     } catch (error) {
+       logger.error(`Failed to discover ${server} MCP tools`, error as Error);
+       return [];
+     }
+   }
 
   /**
    * Get a specific tool by name

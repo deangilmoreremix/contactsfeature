@@ -1,11 +1,12 @@
 /**
  * Metorial Service
- * Research and intelligence API integration for SDR campaigns
+ * MCP-based research and intelligence integration for SDR campaigns
  * Provides company insights, contact research, and competitive intelligence
  * Features AI-powered research with citation tracking and source validation
  */
 
 import { logger } from './logger.service';
+import { mcpAdapter } from './mcpAdapter';
 
 export interface MetorialResearchOptions {
   researchType?: 'company' | 'contact' | 'industry' | 'competitive';
@@ -85,7 +86,7 @@ class MetorialService {
     companyName: string,
     options: MetorialResearchOptions = {}
   ): Promise<MetorialCompanyProfile> {
-    const useMockData = !this.apiKey || import.meta.env['VITE_USE_MOCK_DATA'] === 'true' || options.useMockData === true;
+    const useMockData = import.meta.env['VITE_USE_MOCK_DATA'] === 'true' || options.useMockData === true;
 
     if (useMockData) {
       logger.info('Using mock data for Metorial company research (demo mode)');
@@ -95,34 +96,21 @@ class MetorialService {
     const startTime = Date.now();
 
     try {
-      logger.info(`🔍 Researching company with Metorial API`, { companyName });
+      logger.info(`🔍 Researching company with Metorial MCP`, { companyName });
 
-      const response = await fetch(`${this.baseUrl}/research/company`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          company: companyName,
-          depth: options.depth || 'comprehensive',
-          focusAreas: options.focusAreas || ['overview', 'financials', 'news', 'competition']
-        })
+      // Use MCP tool for company research
+      const result = await mcpAdapter.executeTool('metorial_research_company', {
+        company: companyName,
+        depth: options.depth || 'comprehensive',
+        focusAreas: options.focusAreas || ['overview', 'financials', 'news', 'competition']
       });
 
-      if (!response.ok) {
-        throw new Error(`Metorial API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      logger.info(`✅ Company research completed`, {
+      logger.info(`✅ Company research completed via MCP`, {
         companyName,
-        researchTime: Date.now() - startTime,
-        sourcesFound: data.sources?.length || 0
+        researchTime: Date.now() - startTime
       });
 
-      return this.parseCompanyProfile(data, companyName);
+      return this.parseCompanyProfile(result, companyName);
 
     } catch (error) {
       logger.error('Metorial company research failed', error as Error);
@@ -135,7 +123,7 @@ class MetorialService {
     companyName: string,
     options: MetorialResearchOptions = {}
   ): Promise<MetorialContactProfile> {
-    const useMockData = !this.apiKey || import.meta.env['VITE_USE_MOCK_DATA'] === 'true' || options.useMockData === true;
+    const useMockData = import.meta.env['VITE_USE_MOCK_DATA'] === 'true' || options.useMockData === true;
 
     if (useMockData) {
       logger.info('Using mock data for Metorial contact research (demo mode)');
@@ -145,34 +133,22 @@ class MetorialService {
     const startTime = Date.now();
 
     try {
-      logger.info(`🔍 Researching contact with Metorial API`, { contactName, companyName });
+      logger.info(`🔍 Researching contact with Metorial MCP`, { contactName, companyName });
 
-      const response = await fetch(`${this.baseUrl}/research/contact`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          name: contactName,
-          company: companyName,
-          depth: options.depth || 'comprehensive'
-        })
+      // Use MCP tool for contact research
+      const result = await mcpAdapter.executeTool('metorial_research_contact', {
+        name: contactName,
+        company: companyName,
+        depth: options.depth || 'comprehensive'
       });
 
-      if (!response.ok) {
-        throw new Error(`Metorial API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      logger.info(`✅ Contact research completed`, {
+      logger.info(`✅ Contact research completed via MCP`, {
         contactName,
         companyName,
         researchTime: Date.now() - startTime
       });
 
-      return this.parseContactProfile(data, contactName);
+      return this.parseContactProfile(result, contactName);
 
     } catch (error) {
       logger.error('Metorial contact research failed', error as Error);
@@ -185,7 +161,7 @@ class MetorialService {
     companyName: string,
     context: string = ''
   ): Promise<MetorialResearchResult> {
-    const useMockData = !this.apiKey || import.meta.env['VITE_USE_MOCK_DATA'] === 'true';
+    const useMockData = import.meta.env['VITE_USE_MOCK_DATA'] === 'true';
 
     if (useMockData) {
       logger.info('Using mock data for Metorial SDR insights (demo mode)');
@@ -195,36 +171,24 @@ class MetorialService {
     const startTime = Date.now();
 
     try {
-      logger.info(`🎯 Generating SDR insights with Metorial API`, { contactName, companyName });
+      logger.info(`🎯 Generating SDR insights with Metorial MCP`, { contactName, companyName });
 
-      const response = await fetch(`${this.baseUrl}/research/sdr-insights`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          contact: contactName,
-          company: companyName,
-          context: context,
-          focusAreas: ['pain-points', 'timeline', 'competition', 'budget', 'stakeholders']
-        })
+      // Use MCP tool for SDR insights generation
+      const result = await mcpAdapter.executeTool('metorial_generate_sdr_insights', {
+        contact: contactName,
+        company: companyName,
+        context: context,
+        focusAreas: ['pain-points', 'timeline', 'competition', 'budget', 'stakeholders']
       });
 
-      if (!response.ok) {
-        throw new Error(`Metorial API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      logger.info(`✅ SDR insights generated`, {
+      logger.info(`✅ SDR insights generated via MCP`, {
         contactName,
         companyName,
-        insightsCount: data.insights?.length || 0,
+        insightsCount: result.insights?.length || 0,
         researchTime: Date.now() - startTime
       });
 
-      return this.parseResearchResult(data, `${contactName} at ${companyName}`);
+      return this.parseResearchResult(result, `${contactName} at ${companyName}`);
 
     } catch (error) {
       logger.error('Metorial SDR insights generation failed', error as Error);
@@ -304,12 +268,12 @@ class MetorialService {
       recentNews: [
         {
           title: `${companyName} secures $15M Series A funding`,
-          date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+          date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
           impact: 'high'
         },
         {
           title: `${companyName} launches new AI features`,
-          date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+          date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
           impact: 'medium'
         }
       ],
@@ -334,13 +298,13 @@ class MetorialService {
         {
           type: 'post',
           title: `Excited about our latest AI developments at ${companyName}`,
-          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
           engagement: 45
         },
         {
           type: 'article',
           title: 'The Future of Enterprise AI',
-          date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+          date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
           engagement: 120
         }
       ],
@@ -360,7 +324,7 @@ class MetorialService {
             url: `https://linkedin.com/company/${companyName.toLowerCase().replace(/\s+/g, '-')}`,
             title: `${companyName} Company Updates`,
             credibility: 90,
-            date: new Date().toISOString().split('T')[0] || new Date().toISOString().split('T')[0]
+            date: new Date().toISOString().substring(0, 10)
           }
         ]
       },
@@ -374,7 +338,7 @@ class MetorialService {
             url: `https://linkedin.com/in/${contactName.toLowerCase().replace(/\s+/g, '')}`,
             title: `${contactName} LinkedIn Profile`,
             credibility: 95,
-            date: new Date().toISOString().split('T')[0]
+            date: new Date().toISOString().substring(0, 10)
           }
         ]
       },
@@ -388,7 +352,7 @@ class MetorialService {
             url: `https://crunchbase.com/organization/${companyName.toLowerCase().replace(/\s+/g, '-')}`,
             title: `${companyName} Crunchbase Profile`,
             credibility: 85,
-            date: new Date().toISOString().split('T')[0]
+            date: new Date().toISOString().substring(0, 10)
           }
         ]
       }
