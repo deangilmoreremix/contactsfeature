@@ -6,31 +6,31 @@ import { Calendar, Clock, CheckCircle, AlertCircle, TrendingUp } from 'lucide-re
 const upcomingDeals = [
   {
     id: 1,
-    company: 'TechCorp Solutions',
-    value: '$85,000',
-    probability: '85%',
+    company: 'GreenLeaf Marketing',
+    value: '$180,000',
+    probability: '88%',
     dueDate: 'Tomorrow',
-    contact: 'Sarah Johnson',
+    contact: 'Sarah Martinez',
     avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&dpr=2',
     status: 'active'
   },
   {
     id: 2,
-    company: 'Innovation Labs',
-    value: '$120,000',
-    probability: '60%',
+    company: 'TechSolutions Consulting',
+    value: '$175,000',
+    probability: '92%',
     dueDate: 'Friday',
-    contact: 'Mike Chen',
+    contact: 'Michael Thompson',
     avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&dpr=2',
-    status: 'pending'
+    status: 'active'
   },
   {
     id: 3,
-    company: 'Global Dynamics',
-    value: '$95,500',
-    probability: '75%',
+    company: 'Innovate Fitness',
+    value: '$95,000',
+    probability: '78%',
     dueDate: 'Next Week',
-    contact: 'Emily Davis',
+    contact: 'Jennifer Park',
     avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&dpr=2',
     status: 'success'
   }
@@ -40,34 +40,34 @@ const recentActivities = [
   {
     type: 'deal',
     icon: TrendingUp,
-    title: 'Deal moved to negotiation',
-    description: 'TechCorp Solutions - $85,000',
+    title: 'Playbook execution completed',
+    description: 'Marketing Agency Retainer - $180K MRR secured',
     time: '2 hours ago',
-    color: 'text-blue-600'
+    color: 'text-green-600'
   },
   {
     type: 'task',
     icon: CheckCircle,
-    title: 'Task completed',
-    description: 'Follow-up call with Innovation Labs',
+    title: 'SDR campaign successful',
+    description: '23 meetings booked from automated outreach',
     time: '4 hours ago',
-    color: 'text-green-600'
+    color: 'text-blue-600'
   },
   {
     type: 'meeting',
     icon: Calendar,
-    title: 'Meeting scheduled',
-    description: 'Product demo with Global Dynamics',
+    title: 'Proposal delivered',
+    description: 'MSP transition deal - $175K annual value',
     time: '6 hours ago',
     color: 'text-purple-600'
   },
   {
     type: 'alert',
-    icon: AlertCircle,
-    title: 'Deal at risk',
-    description: 'No activity on Enterprise Corp deal',
+    icon: CheckCircle,
+    title: 'Deal closed won',
+    description: 'Wellness membership model - $50K MRR',
     time: '1 day ago',
-    color: 'text-yellow-600'
+    color: 'text-green-600'
   }
 ];
 

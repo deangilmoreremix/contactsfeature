@@ -27,16 +27,49 @@ export const AutopilotControlPanel: React.FC = () => {
     setActionMessage(null);
 
     try {
-      const res = await fetch("/.netlify/functions/get-autopilot-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to load status");
+      // Check if this is a mock contact (for demo purposes)
+      const isMockContact = contactId.includes('demo') || contactId.includes('mock') || contactId.startsWith('sample-');
+
+      if (isMockContact) {
+        // Return excellent mock autopilot status
+        const mockStatus: AutopilotStatus = {
+          contact: {
+            id: contactId,
+            name: 'Sarah Martinez',
+            email: 'sarah@greenleafmarketing.com',
+            company: 'GreenLeaf Marketing',
+            lead_status: 'qualified'
+          },
+          settings: {
+            autopilot_enabled: true,
+            escalated_to_ae: false,
+            current_step: 3,
+            sequence_length: 5,
+            last_activity: new Date().toISOString(),
+            engagement_score: 85,
+            conversion_probability: 78
+          },
+          lastLog: {
+            created_at: new Date().toISOString(),
+            level: 'INFO',
+            message: 'Successfully executed SDR step 3: Sent personalized proposal email. Contact engaged with 3 link clicks and scheduled follow-up call for tomorrow.'
+          }
+        };
+        setStatus(mockStatus);
+        setActionMessage('Mock autopilot status loaded successfully - showing excellent performance!');
+      } else {
+        // Real API call for actual contacts
+        const res = await fetch("/.netlify/functions/get-autopilot-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || "Failed to load status");
+        }
+        setStatus(json);
       }
-      setStatus(json);
     } catch (e: any) {
       setError(e.message || "Unknown error");
     } finally {

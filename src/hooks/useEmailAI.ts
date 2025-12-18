@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { logger } from '../services/logger.service';
 import { cacheService } from '../services/cache.service';
+import { supabase } from '../services/supabaseClient';
 import { Contact } from '../types';
 
 // Enhanced interfaces with streaming and caching support
@@ -143,18 +144,23 @@ export const useEmailAI = () => {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
 
-      if (!supabaseUrl || !supabaseKey) {
+      if (!supabaseUrl) {
         throw new Error('Supabase configuration is missing. Please check your environment variables.');
+      }
+
+      // Get the user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
       const response = await fetch(`${supabaseUrl}/functions/v1/email-composer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'X-Client-Info': 'supabase-js-web'
         },
         body: JSON.stringify({
@@ -209,18 +215,23 @@ export const useEmailAI = () => {
     setState(prev => ({ ...prev, isAnalyzing: true, error: null }));
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
 
-      if (!supabaseUrl || !supabaseKey) {
+      if (!supabaseUrl) {
         throw new Error('Supabase configuration is missing. Please check your environment variables.');
+      }
+
+      // Get the user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
       const response = await fetch(`${supabaseUrl}/functions/v1/email-analyzer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'X-Client-Info': 'supabase-js-web'
         },
         body: JSON.stringify({
@@ -272,33 +283,27 @@ export const useEmailAI = () => {
     length: string = 'medium'
   ): Promise<PersonalizedMessage> => {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
-    
+
     try {
-      // Get Supabase URL and key from environment
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-      
-      if (!supabaseUrl || !supabaseKey) {
-        console.warn('Supabase environment variables not defined, using fallback mode');
-        
-        // Create fallback message
-        const fallbackMessage = createFallbackPersonalizedMessage(contact, platform, purpose);
-        
-        setState(prev => ({
-          ...prev,
-          isGenerating: false,
-          personalizedMessage: fallbackMessage
-        }));
-        
-        return fallbackMessage;
+      // Get Supabase URL from environment
+      const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
+
+      if (!supabaseUrl) {
+        throw new Error('Supabase configuration is missing. Please check your environment variables.');
       }
-      
+
+      // Get the user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('User not authenticated. Please sign in to use this feature.');
+      }
+
       // Call the Supabase Edge Function
       const response = await fetch(`${supabaseUrl}/functions/v1/personalized-messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           contact,
@@ -308,41 +313,38 @@ export const useEmailAI = () => {
           length
         })
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to generate message: ${errorText}`);
       }
-      
+
       const result = await response.json();
-      
+
       setState(prev => ({
         ...prev,
         isGenerating: false,
         personalizedMessage: result
       }));
-      
+
       logger.info('Personalized message generated successfully', {
         platform,
         purpose,
         model: result.model
       });
-      
+
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate message';
-      
+
       setState(prev => ({
         ...prev,
         isGenerating: false,
         error: errorMessage
       }));
-      
+
       logger.error('Message generation failed', error as Error);
-      
-      // Return fallback message
-      const fallbackMessage = createFallbackPersonalizedMessage(contact, platform, purpose);
-      return fallbackMessage;
+      throw new Error(errorMessage);
     }
   }, []);
 
@@ -352,11 +354,16 @@ export const useEmailAI = () => {
     setState(prev => ({ ...prev, isFetching: true, error: null }));
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
 
-      if (!supabaseUrl || !supabaseKey) {
+      if (!supabaseUrl) {
         throw new Error('Supabase configuration is missing. Please check your environment variables.');
+      }
+
+      // Get the user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
       const url = new URL(`${supabaseUrl}/functions/v1/email-templates`);
@@ -368,7 +375,7 @@ export const useEmailAI = () => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'X-Client-Info': 'supabase-js-web'
         }
       });
@@ -525,10 +532,15 @@ export const useEmailAI = () => {
         yield { type: 'progress', progress: 10, data: 'Initializing AI generation...' };
 
         const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
-        const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 
-        if (!supabaseUrl || !supabaseKey) {
+        if (!supabaseUrl) {
           throw new Error('Supabase configuration is missing. Please check your environment variables.');
+        }
+
+        // Get the user's session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+          throw new Error('User not authenticated. Please sign in to use this feature.');
         }
 
         yield { type: 'progress', progress: 30, data: 'Connecting to AI service...' };
@@ -537,7 +549,7 @@ export const useEmailAI = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'X-Client-Info': 'supabase-js-web'
           },
           body: JSON.stringify({
@@ -614,36 +626,6 @@ export const useEmailAI = () => {
 };
 
 // Helper functions for template variables
-
-// Fallback message creation for when AI services are unavailable
-function createFallbackPersonalizedMessage(
-  contact: Contact,
-  platform: string,
-  purpose: string
-): PersonalizedMessage {
-  const baseMessage = `Hi ${contact.firstName || 'there'}, I wanted to connect regarding opportunities at ${contact.company || 'your company'}.`;
-
-  const platformLimits = {
-    linkedin: { min: 50, max: 3000, ideal: 200 },
-    twitter: { min: 1, max: 280, ideal: 120 },
-    facebook: { min: 1, max: 63206, ideal: 150 },
-    default: { min: 10, max: 1000, ideal: 100 }
-  };
-
-  const limits = platformLimits[platform as keyof typeof platformLimits] || platformLimits.default;
-
-  return {
-    message: baseMessage,
-    platform,
-    purpose,
-    tone: 'professional',
-    characterCount: baseMessage.length,
-    characterLimit: limits,
-    confidence: 0.5,
-    model: 'fallback',
-    generatedAt: new Date().toISOString()
-  };
-}
 
 function getPainPoint(industry?: string): string {
   const painPoints: Record<string, string[]> = {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useEmailAI } from '../../hooks/useEmailAI';
+import { supabase } from '../../services/supabaseClient';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
+import { useToast } from '../ui/Toast';
 import { Contact } from '../../types';
 import {
   Mail,
@@ -30,6 +32,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
   className = ''
 }) => {
   const { fetchEmailTemplates, applyTemplate, isFetching, emailTemplates, error } = useEmailAI();
+  const { showToast } = useToast();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -102,24 +105,33 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
   const handleCreateTemplate = async () => {
     if (!newTemplate.name || !newTemplate.subject || !newTemplate.body) {
-      alert('Please fill in all required fields: name, subject, and body');
+      showToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'Please fill in all required fields: name, subject, and body'
+      });
       return;
     }
 
     setIsCreating(true);
     try {
       const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
-      const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Supabase configuration is missing');
+      if (!supabaseUrl) {
+        throw new Error('Supabase configuration is missing. Please check your environment variables.');
+      }
+
+      // Get the user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
       const response = await fetch(`${supabaseUrl}/functions/v1/create-email-template`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           name: newTemplate.name,
@@ -151,11 +163,23 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
       // Refresh templates
       loadTemplates();
 
+      showToast({
+        type: 'success',
+        title: 'Template Created',
+        message: 'Email template created successfully!'
+      });
+
       console.log('Template created successfully:', result.template);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create template';
       console.error('Failed to create template:', error);
-      alert('Failed to create template: ' + (error instanceof Error ? error.message : 'Unknown error'));
+
+      showToast({
+        type: 'error',
+        title: 'Creation Failed',
+        message: errorMessage
+      });
     } finally {
       setIsCreating(false);
     }

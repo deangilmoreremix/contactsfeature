@@ -4,9 +4,14 @@ import { analyticsService } from '../../services/analyticsService';
 import { cacheService } from '../../services/cacheService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { BookOpen, Target, TrendingUp, CheckCircle, Clock, Users, DollarSign, Sparkles, Brain, Zap, Loader2 } from 'lucide-react';
+import { BookOpen, Sparkles, Brain, Loader2 } from 'lucide-react';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { PlaybookHeader } from './PlaybookHeader';
+import { StreamingProgress } from './StreamingProgress';
+import { PlaybookStrategy } from './PlaybookStrategy';
+import { PlaybookPhases } from './PlaybookPhases';
+import { PlaybookRisks } from './PlaybookRisks';
 
 interface Deal {
   id: string;
@@ -94,8 +99,6 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 }) => {
   const [playbook, setPlaybook] = useState<PlaybookStrategy | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
-  const [draggedPhase, setDraggedPhase] = useState<string | null>(null);
   const [playbookType, setPlaybookType] = useState<'comprehensive' | 'aggressive' | 'conservative' | 'relationship' | 'transactional'>('comprehensive');
 
   // Streaming features
@@ -362,60 +365,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
     };
   };
 
-  const getPhaseIcon = (phaseName: string) => {
-    if (phaseName.toLowerCase().includes('discovery')) return <Users className="w-5 h-5" />;
-    if (phaseName.toLowerCase().includes('proposal')) return <BookOpen className="w-5 h-5" />;
-    if (phaseName.toLowerCase().includes('negotiation')) return <DollarSign className="w-5 h-5" />;
-    if (phaseName.toLowerCase().includes('closing')) return <Target className="w-5 h-5" />;
-    return <Clock className="w-5 h-5" />;
-  };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'text-red-600 bg-red-50';
-      case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'on_track': return 'text-green-600 bg-green-50';
-      case 'at_risk': return 'text-yellow-600 bg-yellow-50';
-      case 'behind': return 'text-red-600 bg-red-50';
-      default: return 'text-gray-600 bg-gray-50';
-    }
-  };
-
-  const handleDragStart = (phaseId: string) => {
-    setDraggedPhase(phaseId);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, targetPhaseId: string) => {
-    e.preventDefault();
-    if (!draggedPhase || draggedPhase === targetPhaseId) return;
-
-    setPlaybook(prev => {
-      if (!prev) return prev;
-      const phases = [...prev.phases];
-      const draggedIndex = phases.findIndex(p => p.id === draggedPhase);
-      const targetIndex = phases.findIndex(p => p.id === targetPhaseId);
-
-      const [draggedPhaseData] = phases.splice(draggedIndex, 1);
-      if (draggedPhaseData) {
-        phases.splice(targetIndex, 0, draggedPhaseData);
-      }
-
-      return { ...prev, phases };
-    });
-
-    setDraggedPhase(null);
-  };
 
   return (
     <>
@@ -428,84 +378,17 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
       />
 
       <GlassCard className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg">
-              <BookOpen className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                Adaptive Sales Playbook
-                <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
-              </h2>
-              <p className="text-sm text-gray-600">GPT-5 powered strategy for {deal.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Streaming Mode Toggle */}
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={isStreamingMode}
-                  onChange={(e) => setIsStreamingMode(e.target.checked)}
-                  className="rounded"
-                  disabled={loading}
-                />
-                <Zap className="w-4 h-4" />
-                Streaming
-              </label>
-            </div>
-
-            <select
-              value={playbookType}
-              onChange={(e) => setPlaybookType(e.target.value as any)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-              disabled={loading}
-            >
-              <option value="comprehensive">Comprehensive</option>
-              <option value="aggressive">Aggressive</option>
-              <option value="conservative">Conservative</option>
-              <option value="relationship">Relationship-Focused</option>
-              <option value="transactional">Transactional</option>
-            </select>
-
-            <div className="flex items-center gap-2">
-              <ModernButton
-                variant="outline"
-                size="sm"
-                onClick={() => generatePlaybook()}
-                loading={loading}
-                className="flex items-center space-x-2"
-                aria-label="Generate adaptive sales playbook"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{isStreamingMode ? 'Streaming...' : 'Generating...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Brain className="w-4 h-4" />
-                    <span>🎯 Generate</span>
-                  </>
-                )}
-              </ModernButton>
-
-              {loading && activeStreams.size > 0 && (
-                <ModernButton
-                  variant="outline"
-                  size="sm"
-                  onClick={stopStreaming}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  Stop
-                </ModernButton>
-              )}
-            </div>
-          </div>
-        </div>
+        <PlaybookHeader
+          deal={deal}
+          loading={loading}
+          isStreamingMode={isStreamingMode}
+          playbookType={playbookType}
+          onStreamingModeChange={setIsStreamingMode}
+          onPlaybookTypeChange={(type) => setPlaybookType(type as any)}
+          onGenerate={() => generatePlaybook()}
+          onStopStreaming={activeStreams.size > 0 ? stopStreaming : undefined}
+          activeStreams={activeStreams}
+        />
 
       {/* Deal Summary */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
@@ -535,278 +418,28 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
         </div>
       </div>
 
-      {/* Streaming Progress */}
-      {isStreamingMode && (loading || streamingProgress > 0) && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-blue-800 flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              Generation Progress
-            </span>
-            <span className="text-sm text-blue-600">{Math.round(streamingProgress)}%</span>
-          </div>
-          <div className="w-full bg-blue-200 rounded-full h-2 mb-3">
-            <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${streamingProgress}%` }}
-            ></div>
-          </div>
-
-          {streamingPhases.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-blue-800">Completed Phases:</p>
-              {streamingPhases.map((phase, index) => (
-                <div key={index} className="flex items-center gap-2 text-xs text-blue-700">
-                  <CheckCircle className="w-3 h-3" />
-                  <span>{phase.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeStreams.size > 0 && (
-            <p className="text-xs text-blue-600 mt-2">
-              Active streams: {activeStreams.size}
-            </p>
-          )}
-        </div>
-      )}
+      <StreamingProgress
+        isStreamingMode={isStreamingMode}
+        loading={loading}
+        streamingProgress={streamingProgress}
+        streamingPhases={streamingPhases}
+        activeStreams={activeStreams}
+      />
 
       {playbook && (
         <>
-          {/* Strategy Overview */}
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Target className="w-5 h-5 text-blue-600 mt-1" />
-              <div className="flex-1">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {playbook.strategy.name}
-                </h3>
-                <p className="text-sm text-gray-700 mb-3">
-                  {playbook.strategy.description}
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Confidence:</span>
-                    <span className="text-sm font-medium text-blue-600">
-                      {Math.round(playbook.strategy.confidence * 100)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Phases:</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {playbook.phases.length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <PlaybookStrategy strategy={playbook.strategy} />
 
-          {/* Success Indicators */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Success Indicators</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {playbook.successIndicators.map((indicator, index) => (
-                <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-900">
-                      {indicator.metric}
-                    </span>
-                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(indicator.status)}`}>
-                      {indicator.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600">Current: {indicator.current}</span>
-                    <span className="text-xs text-gray-600">Target: {indicator.target}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <PlaybookPhases
+            phases={playbook.phases}
+            onExecutePhase={onExecutePhase || (() => {})}
+          />
 
-          {/* Phases */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Strategy Phases</h3>
-            <div className="space-y-4">
-              {playbook.phases.map((phase, index) => (
-                <div
-                  key={phase.id}
-                  className="border border-gray-200 rounded-lg overflow-hidden"
-                  draggable
-                  onDragStart={() => handleDragStart(phase.id)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, phase.id)}
-                >
-                  <div
-                    className="p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => setSelectedPhase(
-                      selectedPhase === phase.id ? null : phase.id
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-lg">
-                          {getPhaseIcon(phase.name)}
-                        </div>
-                        <div>
-                          <h4 className="text-md font-medium text-gray-900">
-                            Phase {index + 1}: {phase.name}
-                          </h4>
-                          <p className="text-sm text-gray-600">{phase.timeline}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">
-                          {phase.tactics.length} tactics
-                        </span>
-                        <ModernButton
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onExecutePhase?.(phase.id)}
-                          aria-label={`Execute phase ${phase.name}`}
-                        >
-                          Execute
-                        </ModernButton>
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedPhase === phase.id && (
-                    <div className="p-4 border-t border-gray-200">
-                      {/* Objectives */}
-                      <div className="mb-4">
-                        <h5 className="text-sm font-medium text-gray-900 mb-2">Objectives</h5>
-                        <ul className="space-y-1">
-                          {phase.objectives.map((objective, objIndex) => (
-                            <li key={objIndex} className="flex items-start gap-2">
-                              <CheckCircle className="w-4 h-4 text-green-600 mt-1 flex-shrink-0" />
-                              <span className="text-sm text-gray-700">{objective}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      {/* Tactics */}
-                      <div className="mb-4">
-                        <h5 className="text-sm font-medium text-gray-900 mb-2">Tactics</h5>
-                        <div className="space-y-3">
-                          {phase.tactics.map((tactic) => (
-                            <div key={tactic.id} className="p-3 bg-white rounded-lg border border-gray-200">
-                              <div className="flex items-start justify-between mb-2">
-                                <h6 className="text-sm font-medium text-gray-900">
-                                  {tactic.name}
-                                </h6>
-                                <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(tactic.priority)}`}>
-                                  {tactic.priority}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-700 mb-2">{tactic.description}</p>
-                              <div className="flex items-center gap-4 text-xs text-gray-600">
-                                <span>Effort: {tactic.estimatedEffort}</span>
-                                <span>{tactic.successMetrics.length} metrics</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Milestones */}
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-900 mb-2">Milestones</h5>
-                        <div className="space-y-2">
-                          {phase.milestones.map((milestone) => (
-                            <div key={milestone.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-200">
-                              <div>
-                                <span className="text-sm font-medium text-gray-900">
-                                  {milestone.name}
-                                </span>
-                                <span className="text-xs text-gray-600 ml-2">
-                                  Due: {new Date(milestone.dueDate).toLocaleDateString()}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">{milestone.owner}</span>
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  milestone.status === 'completed' ? 'bg-green-100 text-green-600' :
-                                  milestone.status === 'in_progress' ? 'bg-blue-100 text-blue-600' :
-                                  'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {milestone.status.replace('_', ' ')}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Risk Mitigation */}
-          {playbook.riskMitigation.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Risk Mitigation</h3>
-              <div className="space-y-3">
-                {playbook.riskMitigation.map((risk, index) => (
-                  <div key={index} className="p-4 bg-yellow-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <TrendingUp className="w-5 h-5 text-yellow-600 mt-1" />
-                      <div className="flex-1">
-                        <h4 className="text-sm font-medium text-gray-900 mb-1">
-                          {risk.risk}
-                        </h4>
-                        <div className="flex items-center gap-4 mb-2">
-                          <span className="text-xs text-gray-600">
-                            Probability: {Math.round(risk.probability * 100)}%
-                          </span>
-                          <span className="text-xs text-gray-600">
-                            Impact: {risk.impact}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700">
-                          <strong>Mitigation:</strong> {risk.mitigation}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Competitive Positioning */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Competitive Positioning</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-green-50 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Our Strengths</h4>
-                <ul className="space-y-1">
-                  {playbook.competitivePositioning.strengths.map((strength, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600 mt-1 flex-shrink-0" />
-                      <span className="text-sm text-gray-700">{strength}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Win Themes</h4>
-                <ul className="space-y-1">
-                  {playbook.competitivePositioning.winThemes.map((theme, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <Target className="w-4 h-4 text-blue-600 mt-1 flex-shrink-0" />
-                      <span className="text-sm text-gray-700">{theme}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
+          <PlaybookRisks
+            riskMitigation={playbook.riskMitigation}
+            successIndicators={playbook.successIndicators}
+            competitivePositioning={playbook.competitivePositioning}
+          />
 
           {/* Action Buttons */}
           <div className="flex gap-3">

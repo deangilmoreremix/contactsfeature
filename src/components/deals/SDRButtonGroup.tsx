@@ -17,20 +17,117 @@ interface SDRResult {
 
 export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspaceId, personaId, contact, onSequenceGenerated }) => {
   const [loading, setLoading] = useState<string | null>(null);
+  const [campaignProgress, setCampaignProgress] = useState<{
+    task: string;
+    step: number;
+    totalSteps: number;
+    currentStep: string;
+  } | null>(null);
   const [results, setResults] = useState<SDRResult[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SDRResult | null>(null);
 
   const handleSDRTask = async (task: string, options: any = {}) => {
     setLoading(task);
+
+    // Check if this is a demo/mock contact (only for product demos)
+    const isDemoMode = (process.env as any).NODE_ENV === 'development' ||
+                      window.location.hostname === 'localhost' ||
+                      window.location.hostname.includes('demo') ||
+                      window.location.hostname.includes('staging') ||
+                      window.location.hostname.includes('netlify');
+
+    const isMockContact = isDemoMode && (
+      contact?.isMockData ||
+      contact?.id?.includes('demo-contact') ||
+      contact?.id?.includes('sample-contact') ||
+      contact?.name?.includes('[Demo]') ||
+      contact?.company?.includes('[Demo Company]')
+    );
+
+    if (isMockContact) {
+      // For mock contacts, show pre-built campaigns immediately
+      try {
+        // Simulate brief "processing" for mock contacts
+        setCampaignProgress({
+          task,
+          step: 1,
+          totalSteps: 1,
+          currentStep: 'Loading pre-built campaign...'
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Use pre-built mock sequences
+        const mockSequences = getMockSequenceForTask(task);
+
+        const sdrResult: SDRResult = {
+          task,
+          sequence: mockSequences,
+          generatedAt: new Date()
+        };
+
+        setResults(prev => [sdrResult, ...prev]);
+        setSelectedResult(sdrResult);
+        setShowModal(true);
+
+        if (onSequenceGenerated) onSequenceGenerated(mockSequences);
+      } catch (error) {
+        console.error('Mock SDR generation failed:', error);
+      } finally {
+        setLoading(null);
+        setCampaignProgress(null);
+      }
+      return;
+    }
+
+    // For real contacts, do full campaign creation process
+    const campaignSteps = [
+      'Analyzing contact profile and engagement history',
+      'Researching company and industry context',
+      'Generating personalized messaging strategy',
+      'Creating sequence timeline and cadence',
+      'Optimizing subject lines and content',
+      'Finalizing campaign sequence'
+    ];
+
+    setCampaignProgress({
+      task,
+      step: 0,
+      totalSteps: campaignSteps.length,
+      currentStep: campaignSteps[0] || 'Initializing campaign creation'
+    });
+
     try {
+      // Simulate campaign creation progress
+      for (let i = 0; i < campaignSteps.length; i++) {
+        setCampaignProgress({
+          task,
+          step: i + 1,
+          totalSteps: campaignSteps.length,
+          currentStep: campaignSteps[i] || 'Processing campaign data'
+        });
+
+        // Wait between steps (simulate processing time)
+        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
+      }
+
+      // Determine sequence length based on task type
+      const getSequenceLength = (taskType: string) => {
+        if (taskType.includes('follow_up') || taskType.includes('bump')) return 10;
+        if (taskType.includes('winback') || taskType.includes('reactivation')) return 20;
+        if (taskType.includes('cold_email') || taskType.includes('high_intent')) return 30;
+        if (taskType.includes('objection_handler')) return 15;
+        return 7; // Default
+      };
+
       const result = await executeDealAi({
         task: task as any,
         dealId,
         workspaceId,
         options: {
           personaId,
-          lengthDays: 7,
+          lengthDays: getSequenceLength(task),
           channel: 'email',
           tone: 'friendly',
           ...options
@@ -54,11 +151,76 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
       // Show error notification
     } finally {
       setLoading(null);
+      setCampaignProgress(null);
     }
+  };
+
+  // Mock sequence generator for demo contacts
+  const getMockSequenceForTask = (task: string) => {
+    const getSequenceLength = (taskType: string) => {
+      if (taskType.includes('follow_up') || taskType.includes('bump')) return 10;
+      if (taskType.includes('winback') || taskType.includes('reactivation')) return 20;
+      if (taskType.includes('cold_email') || taskType.includes('high_intent')) return 30;
+      if (taskType.includes('objection_handler')) return 15;
+      return 7;
+    };
+
+    const length = getSequenceLength(task);
+    const sequence = [];
+
+    // Generate mock sequence based on task type
+    if (task.includes('follow_up')) {
+      sequence.push(
+        { day_offset: 1, channel: 'email', subject: 'Following up on our conversation', body_html: '<p>Hi [Name], I wanted to follow up on our discussion about [topic]...</p>' },
+        { day_offset: 3, channel: 'email', subject: 'Quick check-in', body_html: '<p>Hello [Name], just checking in to see if you had any questions...</p>' },
+        { day_offset: 7, channel: 'email', subject: 'Value add resource', body_html: '<p>Hi [Name], I thought you might find this resource helpful...</p>' },
+        { day_offset: 10, channel: 'email', subject: 'Final follow-up', body_html: '<p>Hello [Name], this will be my final follow-up...</p>' }
+      );
+    } else if (task.includes('cold_email')) {
+      sequence.push(
+        { day_offset: 1, channel: 'email', subject: 'Introduction and value proposition', body_html: '<p>Hi [Name], I help companies like [Company] achieve [benefit]...</p>' },
+        { day_offset: 3, channel: 'email', subject: 'Social proof and case study', body_html: '<p>Hello [Name], here\'s how we helped [Similar Company]...</p>' },
+        { day_offset: 7, channel: 'email', subject: 'Educational content', body_html: '<p>Hi [Name], I noticed [industry trend] and thought you might find this relevant...</p>' },
+        { day_offset: 10, channel: 'email', subject: 'Question to engage', body_html: '<p>Hello [Name], I\'d love to hear your thoughts on [topic]...</p>' },
+        { day_offset: 14, channel: 'email', subject: 'Value demonstration', body_html: '<p>Hi [Name], let me show you how [solution] works...</p>' },
+        { day_offset: 18, channel: 'email', subject: 'Social validation', body_html: '<p>Hello [Name], [Customer] said this about working with us...</p>' },
+        { day_offset: 22, channel: 'email', subject: 'Scarcity and urgency', body_html: '<p>Hi [Name], we have limited spots for [offer]...</p>' },
+        { day_offset: 26, channel: 'email', subject: 'Final value proposition', body_html: '<p>Hello [Name], here\'s everything you need to know...</p>' },
+        { day_offset: 30, channel: 'email', subject: 'Last chance offer', body_html: '<p>Hi [Name], this is your final opportunity...</p>' }
+      );
+    } else if (task.includes('winback')) {
+      sequence.push(
+        { day_offset: 1, channel: 'email', subject: 'We miss working with you', body_html: '<p>Hi [Name], we noticed you haven\'t been active lately...</p>' },
+        { day_offset: 5, channel: 'email', subject: 'Special return offer', body_html: '<p>Hello [Name], we\'d love to welcome you back with this special offer...</p>' },
+        { day_offset: 10, channel: 'email', subject: 'Customer success story', body_html: '<p>Hi [Name], here\'s how [Customer] is succeeding with us...</p>' },
+        { day_offset: 15, channel: 'email', subject: 'Personalized solution', body_html: '<p>Hello [Name], based on your previous usage, here\'s what we recommend...</p>' },
+        { day_offset: 20, channel: 'email', subject: 'Final opportunity', body_html: '<p>Hi [Name], this is your last chance to take advantage of...</p>' }
+      );
+    } else {
+      // Generic sequence for other types
+      for (let i = 1; i <= Math.min(length, 7); i++) {
+        sequence.push({
+          day_offset: i * 2 - 1,
+          channel: 'email',
+          subject: `Campaign email ${i}`,
+          body_html: `<p>Hi [Name], this is campaign email ${i} in our sequence...</p>`
+        });
+      }
+    }
+
+    return { sequence };
   };
 
   const getTaskLabel = (task: string) => {
     return task.replace('sdr_', '').replace('_', ' ').toUpperCase();
+  };
+
+  const getSequenceDuration = (task: string) => {
+    if (task.includes('follow_up') || task.includes('bump')) return '10 days';
+    if (task.includes('winback') || task.includes('reactivation')) return '20 days';
+    if (task.includes('cold_email') || task.includes('high_intent')) return '30 days';
+    if (task.includes('objection_handler')) return '15 days';
+    return '7 days';
   };
 
   return (
@@ -90,7 +252,28 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
                   : 'bg-white border-gray-300 hover:border-blue-400 hover:bg-blue-50'
               }`}
             >
-              {loading === task ? (
+              {loading === task && campaignProgress && campaignProgress.task === task ? (
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                  <div className="text-xs font-medium text-blue-700 mb-1">
+                    Creating Campaign...
+                  </div>
+                  <div className="text-[10px] text-blue-600 mb-2">
+                    {campaignProgress.step}/{campaignProgress.totalSteps}
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-1 mb-1">
+                    <div
+                      className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                      style={{ width: `${(campaignProgress.step / campaignProgress.totalSteps) * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-[9px] text-blue-600 leading-tight">
+                    {campaignProgress.currentStep}
+                  </div>
+                </div>
+              ) : loading === task ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                   <span className="ml-2 text-sm">Generating...</span>
@@ -114,6 +297,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
                     {task === 'sdr_cold_email' && '❄️'}
                   </div>
                   <div className="text-xs font-medium">{getTaskLabel(task)}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">{getSequenceDuration(task)}</div>
                 </div>
               )}
             </button>
@@ -160,7 +344,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
                 <span className="text-sm text-blue-700">AI-Generated Campaign</span>
               </div>
               <p className="text-xs text-blue-600">
-                Personalized {selectedResult.task.replace('sdr_', '').replace('_', ' ')} sequence based on contact data and deal context.
+                Personalized {selectedResult.task.replace('sdr_', '').replace('_', ' ')} sequence ({getSequenceDuration(selectedResult.task)}) based on contact data and deal context.
               </p>
             </div>
 

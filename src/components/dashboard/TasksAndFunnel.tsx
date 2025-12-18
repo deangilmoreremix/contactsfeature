@@ -62,10 +62,11 @@ const taskData = [
 ];
 
 const funnelData = [
-  { stage: 'Total in Pipeline', value: '350,500', color: 'bg-gray-600' },
-  { stage: 'Qualification', value: '92,350$', color: 'bg-gray-500' },
-  { stage: 'Royal Package Opportunity', value: '67,120$', color: 'bg-gray-400' },
-  { stage: 'Value Proposition', value: '28,980$', color: 'bg-gray-300' },
+  { stage: 'Total in Pipeline', value: '$4.2M', color: 'bg-gray-600' },
+  { stage: 'Qualification', value: '$1.8M', color: 'bg-gray-500' },
+  { stage: 'Proposal', value: '$890K', color: 'bg-gray-400' },
+  { stage: 'Negotiation', value: '$425K', color: 'bg-gray-300' },
+  { stage: 'Closed Won', value: '$185K', color: 'bg-green-500' },
 ];
 
 // New component to display assignee avatars

@@ -15,6 +15,7 @@ import { useContactTabs } from '../../hooks/useContactTabs';
 // Lazy load tab components for better performance
 const ContactOverviewTab = lazy(() => import('../contacts/ContactOverviewTab').then(module => ({ default: module.ContactOverviewTab })));
 const ContactSalesIntelligenceTab = lazy(() => import('../contacts/ContactSalesIntelligenceTab').then(module => ({ default: module.ContactSalesIntelligenceTab })));
+const ContactPlaybooksTab = lazy(() => import('../contacts/ContactPlaybooksTab').then(module => ({ default: module.ContactPlaybooksTab })));
 const ContactJourneyTimeline = lazy(() => import('../contacts/ContactJourneyTimeline').then(module => ({ default: module.ContactJourneyTimeline })));
 const ContactAnalytics = lazy(() => import('../contacts/ContactAnalytics').then(module => ({ default: module.ContactAnalytics })));
 const CommunicationHub = lazy(() => import('../contacts/CommunicationHub').then(module => ({ default: module.CommunicationHub })));
@@ -155,6 +156,16 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
 
                   {activeTab === 'sales-intelligence' && (
                     <ContactSalesIntelligenceTab
+                      contact={contact}
+                      showAPIConfig={showAPIConfig}
+                      setShowAPIConfig={setShowAPIConfig}
+                      showAISettings={showAISettings}
+                      setShowAISettings={setShowAISettings}
+                    />
+                  )}
+
+                  {activeTab === 'playbooks' && (
+                    <ContactPlaybooksTab
                       contact={contact}
                       showAPIConfig={showAPIConfig}
                       setShowAPIConfig={setShowAPIConfig}

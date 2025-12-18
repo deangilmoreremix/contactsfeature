@@ -280,5 +280,113 @@ export const sampleContacts: Contact[] = [
     updatedAt: '2024-01-14T10:30:00Z',
     isMockData: true,
     dataSource: 'mock'
+  },
+  {
+    id: '11',
+    firstName: 'Sarah',
+    lastName: 'Martinez',
+    name: 'Sarah Martinez',
+    email: 'sarah.martinez@greenleafmarketing.com',
+    phone: '+1 555 7821',
+    title: 'CEO & Founder',
+    company: 'GreenLeaf Marketing Agency',
+    industry: 'Marketing',
+    avatarSrc: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+    sources: ['LinkedIn SDR Campaign', 'Website'],
+    interestLevel: 'hot',
+    status: 'prospect',
+    lastConnected: '2024-12-17T14:30:00Z',
+    notes: 'Perfect fit for Marketing Agency Retainer playbook. Currently doing $45K/month in project work but wants to transition to recurring revenue. Pain points: inconsistent cash flow, client acquisition costs. Budget: $15K/month retainer. Currently in Phase 2 of playbook - discovery audit revealed 40% wasted ad spend. Proposal delivered yesterday, following up today.',
+    aiScore: 88,
+    tags: ['Marketing Agency', 'Recurring Revenue Target', 'High Intent', 'Perfect Playbook Fit'],
+    isFavorite: true,
+    socialProfiles: {
+      linkedin: 'https://linkedin.com/in/sarahmartinez',
+      website: 'https://greenleafmarketing.com'
+    },
+    customFields: {
+      'Current Revenue': '$45K/month (project-based)',
+      'Target Retainer': '$15K/month',
+      'Pain Points': 'Cash flow inconsistency, high client acquisition costs',
+      'Playbook Phase': 'Phase 2 - Discovery Complete',
+      'Conversion Probability': '85%'
+    },
+    createdAt: '2024-11-15T00:00:00Z',
+    updatedAt: '2024-12-17T14:30:00Z',
+    isMockData: true,
+    dataSource: 'mock'
+  },
+  {
+    id: '12',
+    firstName: 'Michael',
+    lastName: 'Thompson',
+    name: 'Michael Thompson',
+    email: 'michael.thompson@techsolutions.com',
+    phone: '+1 555 3498',
+    title: 'Managing Partner',
+    company: 'TechSolutions Consulting',
+    industry: 'Technology',
+    avatarSrc: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+    sources: ['IT Managed Services SDR Campaign', 'Referral'],
+    interestLevel: 'hot',
+    status: 'prospect',
+    lastConnected: '2024-12-16T10:15:00Z',
+    notes: 'Ideal candidate for IT Managed Services playbook. 45-employee MSP doing break-fix work, losing clients to larger providers. Pain points: inconsistent revenue, high technician turnover, competitive pressure. Currently evaluating managed services transition. In Phase 1 - assessment completed showing $3,500/month potential per client. Trial implementation starting next week.',
+    aiScore: 92,
+    tags: ['MSP', 'Managed Services', 'Break-Fix to Recurring', 'High Value Target'],
+    isFavorite: true,
+    socialProfiles: {
+      linkedin: 'https://linkedin.com/in/michaelthompson',
+      website: 'https://techsolutions.com'
+    },
+    customFields: {
+      'Company Size': '45 employees',
+      'Current Model': 'Break-fix services',
+      'Monthly Revenue': '$180K',
+      'Target MRR': '$175K',
+      'Assessment Results': '40% efficiency improvement potential',
+      'Playbook Phase': 'Phase 1 - Assessment Complete',
+      'Trial Start': '2024-12-23'
+    },
+    createdAt: '2024-11-20T00:00:00Z',
+    updatedAt: '2024-12-16T10:15:00Z',
+    isMockData: true,
+    dataSource: 'mock'
+  },
+  {
+    id: '13',
+    firstName: 'Jennifer',
+    lastName: 'Park',
+    name: 'Jennifer Park',
+    email: 'jennifer.park@innovatefitness.com',
+    phone: '+1 555 6247',
+    title: 'Owner',
+    company: 'Innovate Fitness & Wellness',
+    industry: 'Healthcare',
+    avatarSrc: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+    sources: ['Local Business Outreach', 'Google Ads'],
+    interestLevel: 'medium',
+    status: 'prospect',
+    lastConnected: '2024-12-15T16:45:00Z',
+    notes: 'Perfect for Senior Care Management playbook. 200+ client wellness center looking to add recurring revenue streams. Currently offering one-time services, wants membership model. Pain points: seasonal revenue fluctuations, client retention. Assessment showed $8K/month potential per membership tier. Currently in Phase 2 - business model workshop completed, pricing strategy developed.',
+    aiScore: 78,
+    tags: ['Wellness Center', 'Membership Model', 'Recurring Revenue', 'Local Business'],
+    isFavorite: true,
+    socialProfiles: {
+      linkedin: 'https://linkedin.com/in/jenniferpark',
+      website: 'https://innovatefitness.com'
+    },
+    customFields: {
+      'Client Base': '200+ active clients',
+      'Current Revenue Model': 'One-time services',
+      'Target Membership Tiers': 'Basic $99/month, Premium $199/month, VIP $299/month',
+      'Estimated MRR Potential': '$50K/month',
+      'Playbook Phase': 'Phase 2 - Strategy Developed',
+      'Implementation Timeline': 'Q1 2025'
+    },
+    createdAt: '2024-10-15T00:00:00Z',
+    updatedAt: '2024-12-15T16:45:00Z',
+    isMockData: true,
+    dataSource: 'mock'
   }
 ];

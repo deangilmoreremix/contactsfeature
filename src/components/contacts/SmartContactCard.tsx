@@ -15,7 +15,9 @@ import {
   Clock,
   Heart,
   Zap,
-  Sparkles
+  Sparkles,
+  Target,
+  BookOpen
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -32,6 +34,8 @@ interface SmartContactCardProps {
   enableQuickActions?: boolean;
   hoverDelay?: number;
   className?: string;
+  onOpenSDRModal?: (contact: Contact) => void;
+  onOpenPlaybookModal?: (contact: Contact) => void;
 }
 
 const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
@@ -46,7 +50,9 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
   showMetrics = true,
   enableQuickActions = true,
   hoverDelay = 300,
-  className
+  className,
+  onOpenSDRModal,
+  onOpenPlaybookModal
 }) => {
   const { metrics } = useContactMetrics(contact);
   const {
@@ -75,6 +81,20 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
     // Quick call action - could initiate call
     console.log('Quick call to:', contact.phone);
   }, [contact.phone]);
+
+  const handleOpenSDRModal = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenSDRModal) {
+      onOpenSDRModal(contact);
+    }
+  }, [contact, onOpenSDRModal]);
+
+  const handleOpenPlaybookModal = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenPlaybookModal) {
+      onOpenPlaybookModal(contact);
+    }
+  }, [contact, onOpenPlaybookModal]);
 
   const getActivityColor = (level: string) => {
     switch (level) {
@@ -228,7 +248,7 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
 
         {/* Quick Actions */}
         {enableQuickActions && (
-          <div className="grid grid-cols-3 gap-1.5 mb-4">
+          <div className="grid grid-cols-5 gap-1.5 mb-4">
             <button
               onClick={handleQuickEmail}
               className="flex items-center justify-center py-1.5 px-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-full hover:from-blue-100 hover:to-blue-200 text-xs font-medium transition-all duration-200 border border-blue-200/50 shadow-sm"
@@ -242,6 +262,20 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
               title="Quick Call"
             >
               <Phone className="w-3 h-3 mr-1" /> Call
+            </button>
+            <button
+              onClick={handleOpenSDRModal}
+              className="flex items-center justify-center py-1.5 px-2 bg-gradient-to-r from-red-50 to-red-100 text-red-700 rounded-full hover:from-red-100 hover:to-red-200 text-xs font-medium transition-all duration-200 border border-red-200/50 shadow-sm"
+              title="Run SDR Campaign"
+            >
+              <Target className="w-3 h-3 mr-1" /> SDR
+            </button>
+            <button
+              onClick={handleOpenPlaybookModal}
+              className="flex items-center justify-center py-1.5 px-2 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-full hover:from-orange-100 hover:to-orange-200 text-xs font-medium transition-all duration-200 border border-orange-200/50 shadow-sm"
+              title="Execute Sales Playbook"
+            >
+              <BookOpen className="w-3 h-3 mr-1" /> Book
             </button>
             <button
               onClick={onClick}

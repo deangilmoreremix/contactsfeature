@@ -57,31 +57,55 @@ interface EmailAnalyticsProps {
 const mockEmailHistory: EmailRecord[] = [
   {
     id: '1',
-    subject: 'Introduction and Project Discussion',
+    subject: 'Strategic Partnership Opportunity - Marketing Agency Growth',
     sentAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     openedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
     clickedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
     repliedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
     status: 'replied',
     sequenceStep: 1,
-    templateUsed: 'Introduction Template'
+    templateUsed: 'Value Proposition Template'
   },
   {
     id: '2',
-    subject: 'Follow-up on Previous Discussion',
-    sentAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    openedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    status: 'opened',
+    subject: 'How to Scale Your Agency to $500K MRR',
+    sentAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    openedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    clickedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    repliedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    status: 'replied',
     sequenceStep: 2,
-    templateUsed: 'Follow-up Template'
+    templateUsed: 'Case Study Template'
   },
   {
     id: '3',
-    subject: 'Project Proposal Review',
-    sentAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    status: 'sent',
+    subject: 'Custom Retainer Proposal - $15K/month',
+    sentAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    openedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    clickedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    repliedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+    status: 'replied',
     sequenceStep: 3,
     templateUsed: 'Proposal Template'
+  },
+  {
+    id: '4',
+    subject: 'Implementation Timeline & Success Metrics',
+    sentAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    openedAt: new Date(Date.now() - 18 * 60 * 60 * 1000),
+    clickedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+    status: 'clicked',
+    sequenceStep: 4,
+    templateUsed: 'Implementation Template'
+  },
+  {
+    id: '5',
+    subject: 'Welcome to Your Growth Journey',
+    sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    openedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+    status: 'opened',
+    sequenceStep: 5,
+    templateUsed: 'Onboarding Template'
   }
 ];
 
@@ -140,9 +164,9 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
   }, [emailHistory]);
 
   const performanceData = useMemo(() => [
-    { name: 'Open Rate', value: metrics.openRate, target: 25, color: '#3b82f6' },
-    { name: 'Click Rate', value: metrics.clickRate, target: 5, color: '#10b981' },
-    { name: 'Reply Rate', value: metrics.replyRate, target: 10, color: '#f59e0b' }
+    { name: 'Open Rate', value: metrics.openRate, target: 35, color: '#3b82f6' },
+    { name: 'Click Rate', value: metrics.clickRate, target: 12, color: '#10b981' },
+    { name: 'Reply Rate', value: metrics.replyRate, target: 15, color: '#f59e0b' }
   ], [metrics]);
 
   const handleRefresh = async () => {

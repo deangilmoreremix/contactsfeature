@@ -10,6 +10,8 @@ import { NewContactModal } from './NewContactModal';
 import { SettingsModal } from './SettingsModal';
 import { ProductIntelligenceModal } from '../product-intelligence/ProductIntelligenceModal';
 import { EmailAgentsModal } from './EmailAgentsModal';
+import { SDRModal } from './SDRModal';
+import { PlaybookModal } from '../playbooks/PlaybookModal';
 import { useContactStore } from '../../hooks/useContactStore';
 import { useView } from '../../contexts/ViewContext';
 import { Contact } from '../../types';
@@ -101,6 +103,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [isClearDataModalOpen, setIsClearDataModalOpen] = useState(false);
   const [clearDataConfirmation, setClearDataConfirmation] = useState('');
   const [isClearingData, setIsClearingData] = useState(false);
+  const [sdrModalContact, setSdrModalContact] = useState<Contact | null>(null);
+  const [playbookModalContact, setPlaybookModalContact] = useState<Contact | null>(null);
 
   // Initialize Fuse.js for fuzzy search
   const fuse = useMemo(() => {
@@ -228,6 +232,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                     variant="standard"
                     showMetrics={true}
                     enableQuickActions={true}
+                    onOpenSDRModal={handleOpenSDRModal}
+                    onOpenPlaybookModal={handleOpenPlaybookModal}
                   />
                 </div>
               </SmartTooltip>
@@ -384,6 +390,22 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
 
   const handleEmailAgentsModalClose = () => {
     setIsEmailAgentsModalOpen(false);
+  };
+
+  const handleOpenSDRModal = (contact: Contact) => {
+    setSdrModalContact(contact);
+  };
+
+  const handleCloseSDRModal = () => {
+    setSdrModalContact(null);
+  };
+
+  const handleOpenPlaybookModal = (contact: Contact) => {
+    setPlaybookModalContact(contact);
+  };
+
+  const handleClosePlaybookModal = () => {
+    setPlaybookModalContact(null);
   };
 
   const handleClearData = async () => {
@@ -967,6 +989,24 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
         isOpen={isEmailAgentsModalOpen}
         onClose={handleEmailAgentsModalClose}
       />
+
+      {/* SDR Modal */}
+      {sdrModalContact && (
+        <SDRModal
+          isOpen={!!sdrModalContact}
+          onClose={handleCloseSDRModal}
+          contact={sdrModalContact}
+        />
+      )}
+
+      {/* Playbook Modal */}
+      {playbookModalContact && (
+        <PlaybookModal
+          isOpen={!!playbookModalContact}
+          onClose={handleClosePlaybookModal}
+          contact={playbookModalContact}
+        />
+      )}
 
       {/* Clear Data Confirmation Modal */}
       {isClearDataModalOpen && (
