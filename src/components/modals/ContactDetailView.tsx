@@ -23,6 +23,7 @@ const AutomationPanel = lazy(() => import('../contacts/AutomationPanel').then(mo
 const AIInsightsPanel = lazy(() => import('../contacts/AIInsightsPanel').then(module => ({ default: module.AIInsightsPanel })));
 const ContactEmailPanel = lazy(() => import('../contacts/ContactEmailPanel').then(module => ({ default: module.ContactEmailPanel })));
 const ContactOutboundAgentPanel = lazy(() => import('../contacts/ContactOutboundAgentPanel').then(module => ({ default: module.ContactOutboundAgentPanel })));
+const ContactSDRPanel = lazy(() => import('../contacts/ContactSDRPanel').then(module => ({ default: module.ContactSDRPanel })));
 
 interface ContactDetailViewProps {
   contact: Contact;
@@ -189,6 +190,12 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                   {activeTab === 'agents' && (
                     <div className="p-6">
                       <ContactOutboundAgentPanel contact={contact} />
+                    </div>
+                  )}
+
+                  {activeTab === 'sdr-agents' && (
+                    <div className="p-6">
+                      <ContactSDRPanel contact={contact} />
                     </div>
                   )}
                 </Suspense>

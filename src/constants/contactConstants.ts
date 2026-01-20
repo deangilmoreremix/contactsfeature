@@ -47,6 +47,7 @@ export const contactTabs = [
   { id: 'ai-insights', label: 'AI Insights', icon: User },
   { id: 'email', label: 'Email', icon: Mail },
   { id: 'agents', label: 'AI Agents', icon: Bot },
+  { id: 'sdr-agents', label: 'SDR Agents', icon: Target },
 ];
 
 export const quickSourceSuggestions = ['LinkedIn', 'Website', 'Email', 'Cold Call', 'Referral'];

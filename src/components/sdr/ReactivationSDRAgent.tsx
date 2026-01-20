@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Settings, RotateCcw } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { Contact } from "../../types/contact";
 
 interface ReactivationResponse {
   contactId: string;
@@ -11,8 +12,18 @@ interface ReactivationResponse {
   debug?: any;
 }
 
-export const ReactivationSDRAgent: React.FC = () => {
-  const [contactId, setContactId] = useState("");
+interface ReactivationSDRAgentProps {
+  contact?: Contact;
+}
+
+export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ contact }) => {
+  const [contactId, setContactId] = useState(contact?.id || "");
+
+  useEffect(() => {
+    if (contact?.id) {
+      setContactId(contact.id);
+    }
+  }, [contact?.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReactivationResponse | null>(null);
@@ -111,30 +122,39 @@ export const ReactivationSDRAgent: React.FC = () => {
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 500,
-            marginBottom: 4
-          }}
-        >
-          Contact ID
-        </label>
-        <input
-          value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
-          placeholder="Enter contact UUID"
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e0",
-            fontSize: 13
-          }}
-        />
-      </div>
+      {contact ? (
+        <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+          <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
+            Target: {contact.firstName || contact.name} {contact.lastName || ''}
+          </div>
+          <div style={{ fontSize: 11, color: "#15803d" }}>{contact.email}</div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 8 }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 4
+            }}
+          >
+            Contact ID
+          </label>
+          <input
+            value={contactId}
+            onChange={(e) => setContactId(e.target.value)}
+            placeholder="Enter contact UUID"
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid #cbd5e0",
+              fontSize: 13
+            }}
+          />
+        </div>
+      )}
 
       <button
         type="button"

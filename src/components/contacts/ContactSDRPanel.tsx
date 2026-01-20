@@ -48,6 +48,13 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
       icon: Trophy,
       title: 'Win-Back SDR',
       description: 'Recover lost deals and churned customers'
+    },
+    {
+      id: 'discovery',
+      component: DiscoverySDRAgent,
+      icon: Search,
+      title: 'Discovery SDR',
+      description: 'Research and qualify prospects with AI intelligence'
     }
   ];
 
@@ -84,7 +91,7 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
                 </div>
               </div>
 
-              <AgentComponent />
+              <AgentComponent contact={contact} />
             </div>
           );
         })}
