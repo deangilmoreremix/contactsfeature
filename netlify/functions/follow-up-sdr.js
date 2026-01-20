@@ -87,10 +87,13 @@ exports.handler = async (event, context) => {
 };
 
 async function generateFollowUpContent(contact, followUpNumber, activities) {
+  console.log('[follow-up-sdr] Starting generation for contact:', contact.id, 'followUpNumber:', followUpNumber);
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
+    console.error('[follow-up-sdr] OpenAI API key not configured');
     throw new Error('OpenAI API key not configured');
   }
+  console.log('[follow-up-sdr] API key found, proceeding...');
 
   // Analyze previous interactions
   const hasReplied = activities.some(a => a.type === 'email_reply' || a.type === 'email_received');
@@ -167,6 +170,7 @@ Create a compelling follow-up that re-engages the contact.
 Return JSON with "subject" and "body" fields.`;
   }
 
+  console.log('[follow-up-sdr] Calling OpenAI API...');
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -181,11 +185,15 @@ Return JSON with "subject" and "body" fields.`;
     })
   });
 
+  console.log('[follow-up-sdr] OpenAI response status:', response.status);
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    const errorText = await response.text();
+    console.error('[follow-up-sdr] OpenAI API error:', response.status, errorText);
+    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
+  console.log('[follow-up-sdr] OpenAI response received');
   const content = data.choices[0].message.content;
 
   try {
