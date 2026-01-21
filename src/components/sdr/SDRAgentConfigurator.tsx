@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SDRUserPreferences, createDefaultPreferences, validatePreferences } from '../../types/sdr-preferences';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { CampaignBuilder } from './CampaignBuilder';
-import { X, Settings, Clock, MessageSquare, Target, Zap, Save, RotateCcw, Workflow } from 'lucide-react';
+import { X, Settings, Clock, Target, Zap, Save, RotateCcw, Workflow } from 'lucide-react';
+
+type TabId = 'basic' | 'advanced' | 'ai' | 'timing';
+type ToneValue = SDRUserPreferences['tone'];
+type ChannelValue = SDRUserPreferences['channels'][number];
+type PersonalizationValue = SDRUserPreferences['personalizationLevel'];
+type ActionValue = 'continue' | 'escalate' | 'handover' | 'stop' | 'pause';
+type ModelValue = SDRUserPreferences['aiSettings']['model'];
 
 interface SDRAgentConfiguratorProps {
   agentId: string;
@@ -28,7 +35,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
     currentConfig ? { ...createDefaultPreferences('temp-user', agentId), ...currentConfig } :
     createDefaultPreferences('temp-user', agentId)
   );
-  const [activeTab, setActiveTab] = useState<'basic' | 'advanced' | 'ai' | 'timing'>('basic');
+  const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
@@ -103,7 +110,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id as any)}
+              onClick={() => setActiveTab(id as TabId)}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                 activeTab === id
                   ? 'bg-white text-blue-600 shadow-sm border border-gray-200'
@@ -150,7 +157,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                   </label>
                   <select
                     value={config.tone}
-                    onChange={(e) => updateConfig({ tone: e.target.value as any })}
+                    onChange={(e) => updateConfig({ tone: e.target.value as ToneValue })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="professional">Professional</option>
@@ -167,19 +174,19 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                   Communication Channels
                 </label>
                 <div className="flex gap-4">
-                  {[
-                    { key: 'email', label: 'Email' },
-                    { key: 'linkedin', label: 'LinkedIn' },
-                    { key: 'whatsapp', label: 'WhatsApp' },
-                    { key: 'phone', label: 'Phone' }
-                  ].map(({ key, label }) => (
+                  {([
+                    { key: 'email' as ChannelValue, label: 'Email' },
+                    { key: 'linkedin' as ChannelValue, label: 'LinkedIn' },
+                    { key: 'whatsapp' as ChannelValue, label: 'WhatsApp' },
+                    { key: 'phone' as ChannelValue, label: 'Phone' }
+                  ]).map(({ key, label }) => (
                     <label key={key} className="flex items-center">
                       <input
                         type="checkbox"
-                        checked={config.channels.includes(key as any)}
+                        checked={config.channels.includes(key)}
                         onChange={(e) => {
                           const newChannels = e.target.checked
-                            ? [...config.channels, key as any]
+                            ? [...config.channels, key]
                             : config.channels.filter(c => c !== key);
                           updateConfig({ channels: newChannels });
                         }}
@@ -198,7 +205,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                 </label>
                 <select
                   value={config.personalizationLevel}
-                  onChange={(e) => updateConfig({ personalizationLevel: e.target.value as any })}
+                  onChange={(e) => updateConfig({ personalizationLevel: e.target.value as PersonalizationValue })}
                   className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="low">Low - Generic messaging</option>
@@ -354,7 +361,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                           onChange={(e) => updateConfig({
                             successCriteria: {
                               ...config.successCriteria,
-                              [criterion]: { ...settings, action: e.target.value as any }
+                              [criterion]: { ...settings, action: e.target.value as ActionValue }
                             }
                           })}
                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
@@ -414,7 +421,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                   <select
                     value={config.aiSettings.model}
                     onChange={(e) => updateConfig({
-                      aiSettings: { ...config.aiSettings, model: e.target.value as any }
+                      aiSettings: { ...config.aiSettings, model: e.target.value as ModelValue }
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >

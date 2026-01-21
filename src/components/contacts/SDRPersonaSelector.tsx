@@ -103,20 +103,47 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
   const [lastRunPersona, setLastRunPersona] = useState<OutboundPersonaId | null>(null);
   const [runTimestamp, setRunTimestamp] = useState<Date | null>(null);
 
+  const getSDREndpointForPersona = (personaId: OutboundPersonaId): string => {
+    const coldOutreachPersonas = ['cold_saas_founder', 'b2b_saas_sdr', 'high_ticket_coach', 'agency_retainer_builder', 'local_biz_offer', 'd2c_brand_sales'];
+    const followUpPersonas = ['course_creator_nurture', 'trial_to_paid_conversion', 'upsell_cross_sell', 'webinar_followup', 'app_user_onboarding'];
+    const reactivationPersonas = ['list_reactivation', 'churn_winback'];
+    const winBackPersonas = ['abandoned_cart_recovery'];
+    const discoveryPersonas = ['product_feedback_research', 'beta_user_recruitment', 'influencer_collab_hunter'];
+
+    if (coldOutreachPersonas.includes(personaId)) return '/.netlify/functions/cold-email-sdr';
+    if (followUpPersonas.includes(personaId)) return '/.netlify/functions/follow-up-sdr';
+    if (reactivationPersonas.includes(personaId)) return '/.netlify/functions/reactivation-sdr';
+    if (winBackPersonas.includes(personaId)) return '/.netlify/functions/win-back-sdr';
+    if (discoveryPersonas.includes(personaId)) return '/.netlify/functions/discovery-sdr';
+
+    return '/.netlify/functions/cold-email-sdr';
+  };
+
   const handleRunPersona = async (personaId: OutboundPersonaId) => {
     setSelectedPersona(personaId);
     setIsRunning(true);
 
     try {
-      // Here you would integrate with the actual SDR execution logic
-      // For now, we'll simulate the process
-      console.log(`Running SDR persona ${personaId} for contact ${contact.id}`);
+      const endpoint = getSDREndpointForPersona(personaId);
+      console.log(`Running SDR persona ${personaId} via ${endpoint} for contact ${contact.id}`);
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactId: contact.id,
+          personaId,
+          followUpNumber: 1
+        })
+      });
 
-      // In a real implementation, this would call the appropriate SDR function
-      // based on the persona type
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `SDR request failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('SDR persona result:', result);
 
       setLastRunPersona(personaId);
       setRunTimestamp(new Date());

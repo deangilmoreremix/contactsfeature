@@ -48,10 +48,14 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
       .from('contacts')
       .select('*')
       .eq('id', leadId)
-      .single();
+      .maybeSingle();
 
     if (leadError) {
       throw new Error(`Failed to fetch lead: ${leadError.message}`);
+    }
+
+    if (!lead) {
+      throw new Error(`Lead not found with id: ${leadId}`);
     }
 
     // Fetch related emails
@@ -109,10 +113,14 @@ export async function sendViaAgentMail(args: {
       .from('contacts')
       .select('email, first_name, last_name')
       .eq('id', args.lead_id)
-      .single();
+      .maybeSingle();
 
-    if (leadError || !lead?.email) {
-      throw new Error(`Lead not found or missing email: ${leadError?.message}`);
+    if (leadError) {
+      throw new Error(`Failed to fetch lead: ${leadError.message}`);
+    }
+
+    if (!lead || !lead.email) {
+      throw new Error(`Lead not found or missing email for id: ${args.lead_id}`);
     }
 
     // Map mailbox_key to actual email address
@@ -156,7 +164,7 @@ export async function sendViaAgentMail(args: {
     console.error('Error in sendViaAgentMail:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -177,10 +185,14 @@ export async function createTaskInSmartCRM(args: {
         created_at: new Date().toISOString()
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to create task: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Task was not created');
     }
 
     return {
@@ -192,7 +204,7 @@ export async function createTaskInSmartCRM(args: {
     console.error('Error in createTaskInSmartCRM:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -217,10 +229,14 @@ export async function updateDealStageInSmartCRM(args: {
       .update(updateData)
       .eq('id', args.deal_id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to update deal stage: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error(`Deal not found with id: ${args.deal_id}`);
     }
 
     return {
@@ -233,7 +249,7 @@ export async function updateDealStageInSmartCRM(args: {
     console.error('Error in updateDealStageInSmartCRM:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -248,10 +264,14 @@ export async function scheduleMeetingForLead(args: {
       .from('contacts')
       .select('email, first_name, last_name, company')
       .eq('id', args.lead_id)
-      .single();
+      .maybeSingle();
 
     if (leadError) {
-      throw new Error(`Lead not found: ${leadError.message}`);
+      throw new Error(`Failed to fetch lead: ${leadError.message}`);
+    }
+
+    if (!lead) {
+      throw new Error(`Lead not found with id: ${args.lead_id}`);
     }
 
     // Schedule meeting via calendar integration
@@ -265,7 +285,7 @@ export async function scheduleMeetingForLead(args: {
       .from('calendar_events')
       .insert({
         contact_id: args.lead_id,
-        title: `Meeting with ${lead.first_name} ${lead.last_name}`,
+        title: `Meeting with ${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
         description: `Discovery call scheduled via SDR Autopilot`,
         start_time: meetingResult.time,
         end_time: new Date(new Date(meetingResult.time).getTime() + 60 * 60 * 1000).toISOString(), // 1 hour
@@ -275,10 +295,14 @@ export async function scheduleMeetingForLead(args: {
         created_by: 'sdr_autopilot'
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (eventError) {
       throw new Error(`Failed to create calendar event: ${eventError.message}`);
+    }
+
+    if (!eventData) {
+      throw new Error('Calendar event was not created');
     }
 
     return {
@@ -291,7 +315,7 @@ export async function scheduleMeetingForLead(args: {
     console.error('Error in scheduleMeetingForLead:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -314,7 +338,7 @@ export async function saveAutopilotStateWrapper(args: {
     console.error('Error in saveAutopilotStateWrapper:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }

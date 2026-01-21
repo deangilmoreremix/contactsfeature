@@ -67,7 +67,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
 }) => {
   const [sequence, setSequence] = useState<CampaignStep[]>(
     initialSequence.length > 0 ? initialSequence.map((step, index) => ({
-      id: (step as any).id || `step-${index}`,
+      id: ('id' in step && typeof step.id === 'string') ? step.id : `step-${index}`,
       day: step.day,
       type: step.type,
       template: step.template,
@@ -95,9 +95,10 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
   const dragRef = useRef<HTMLDivElement>(null);
 
   const addStep = () => {
+    const lastStep = sequence.at(-1);
     const newStep: CampaignStep = {
       id: `step-${Date.now()}`,
-      day: sequence.length > 0 ? sequence[sequence.length - 1]!.day + 3 : 0,
+      day: lastStep ? lastStep.day + 3 : 0,
       type: 'email',
       template: 'follow-up',
       subject: '',
@@ -283,7 +284,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                           <div className="flex items-center gap-4 text-sm text-gray-600">
                             <select
                               value={step.type}
-                              onChange={(e) => updateStep(step.id, { type: e.target.value as any })}
+                              onChange={(e) => updateStep(step.id, { type: e.target.value as CampaignStep['type'] })}
                               className="px-2 py-1 border border-gray-300 rounded text-xs"
                             >
                               {STEP_TYPES.map(type => (
@@ -416,7 +417,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
               <h5 className="text-sm font-medium text-gray-900 mb-2">Campaign Overview</h5>
               <div className="space-y-1 text-sm text-gray-600">
                 <div>Total Steps: {sequence.length}</div>
-                <div>Duration: {sequence.length > 0 ? sequence[sequence.length - 1]!.day : 0} days</div>
+                <div>Duration: {sequence.at(-1)?.day ?? 0} days</div>
                 <div>Channels Used: {new Set(sequence.map(s => s.type)).size}</div>
                 <div>Avg Delay: {sequence.length > 1 ?
                   Math.round(sequence.slice(1).reduce((sum, step) => sum + (step.delay || 3), 0) / (sequence.length - 1)) : 0
