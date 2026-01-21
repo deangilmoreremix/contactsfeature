@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   X,
   ChevronRight,
@@ -10,7 +10,10 @@ import {
   Check,
   Plus,
   Trash2,
+  Bot,
+  Sparkles,
 } from 'lucide-react';
+import { ProductAIAssistant } from './ProductAIAssistant';
 import type {
   UserProduct,
   CreateProductInput,
@@ -116,6 +119,8 @@ const COMPANY_SIZES: { value: CompanySize; label: string }[] = [
 export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>('basics');
   const [saving, setSaving] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [isAIMinimized, setIsAIMinimized] = useState(false);
 
   const [name, setName] = useState(product?.name || '');
   const [tagline, setTagline] = useState(product?.tagline || '');
@@ -236,6 +241,80 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       setter([...current, value]);
     }
   };
+
+  const handleApplySuggestion = (field: string, value: any) => {
+    switch (field) {
+      case 'target_industries':
+        if (typeof value === 'string') {
+          setTargetIndustries(prev => [...prev, value]);
+        } else if (Array.isArray(value)) {
+          setTargetIndustries(prev => [...new Set([...prev, ...value])]);
+        }
+        break;
+      case 'target_titles':
+        if (typeof value === 'string') {
+          setTargetTitles(prev => [...prev, value]);
+        } else if (Array.isArray(value)) {
+          setTargetTitles(prev => [...new Set([...prev, ...value])]);
+        }
+        break;
+      case 'pain_points_addressed':
+        if (typeof value === 'string') {
+          setPainPoints(prev => {
+            const filtered = prev.filter(p => p.trim());
+            return [...filtered, value];
+          });
+        }
+        break;
+      case 'value_propositions':
+        if (typeof value === 'object' && value.title) {
+          setValuePropositions(prev => [...prev, value]);
+        }
+        break;
+      case 'competitive_advantages':
+        if (typeof value === 'string') {
+          setCompetitiveAdvantages(prev => {
+            const filtered = prev.filter(c => c.trim());
+            return [...filtered, value];
+          });
+        }
+        break;
+      case 'use_cases':
+        if (typeof value === 'string') {
+          setUseCases(prev => {
+            const filtered = prev.filter(u => u.trim());
+            return [...filtered, value];
+          });
+        }
+        break;
+      case 'ideal_customer_profile':
+        if (typeof value === 'string') {
+          setIdealCustomerProfile(value);
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  const getCurrentProductState = (): Partial<UserProduct> => ({
+    name,
+    tagline,
+    description,
+    category,
+    features: features.filter(f => f.trim()),
+    pricing_model: pricingModel,
+    pricing_tiers: pricingTiers.filter(t => t.name.trim()),
+    target_industries: targetIndustries,
+    target_company_sizes: targetCompanySizes,
+    target_titles: targetTitles,
+    target_departments: targetDepartments,
+    ideal_customer_profile: idealCustomerProfile,
+    value_propositions: valuePropositions.filter(v => v.title.trim()),
+    pain_points_addressed: painPoints.filter(p => p.trim()),
+    competitive_advantages: competitiveAdvantages.filter(c => c.trim()),
+    use_cases: useCases.filter(u => u.trim()),
+  });
 
   const renderBasicsStep = () => (
     <div className="space-y-5">
@@ -717,18 +796,35 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {product ? 'Edit Product' : 'Add New Product'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+      <div className={`flex gap-4 max-h-[90vh] ${showAIAssistant && !isAIMinimized ? 'max-w-5xl' : 'max-w-2xl'} w-full transition-all duration-300`}>
+        <div className="bg-white rounded-2xl shadow-2xl flex-1 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {product ? 'Edit Product' : 'Add New Product'}
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowAIAssistant(!showAIAssistant);
+                  setIsAIMinimized(false);
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  showAIAssistant
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Assistant
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+          </div>
 
         <div className="px-6 py-3 border-b border-gray-100 bg-gray-50">
           <div className="flex items-center justify-between">
@@ -804,6 +900,30 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
             </button>
           )}
         </div>
+        </div>
+
+        {showAIAssistant && (
+          <div className={`w-96 flex-shrink-0 ${isAIMinimized ? 'hidden' : ''}`}>
+            <ProductAIAssistant
+              product={getCurrentProductState()}
+              currentStep={currentStep}
+              onApplySuggestion={handleApplySuggestion}
+              onClose={() => setShowAIAssistant(false)}
+              isMinimized={isAIMinimized}
+              onToggleMinimize={() => setIsAIMinimized(!isAIMinimized)}
+            />
+          </div>
+        )}
+
+        {showAIAssistant && isAIMinimized && (
+          <ProductAIAssistant
+            product={getCurrentProductState()}
+            currentStep={currentStep}
+            onApplySuggestion={handleApplySuggestion}
+            isMinimized={true}
+            onToggleMinimize={() => setIsAIMinimized(false)}
+          />
+        )}
       </div>
     </div>
   );

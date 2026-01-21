@@ -8,6 +8,8 @@ import type {
   PersonalizationToken,
   ProductContactMatch,
 } from '../types/userProduct';
+import { gpt52ProductIntelligenceService, AIContentGeneration } from './gpt52ProductIntelligenceService';
+import { logger } from './logger.service';
 
 interface DraftGenerationContext {
   product: UserProduct;
@@ -20,6 +22,12 @@ interface GeneratedDraft {
   subject?: string;
   body: string;
   personalization_tokens: Record<string, PersonalizationToken>;
+}
+
+interface AIGeneratedDraft extends GeneratedDraft {
+  aiReasoning?: string;
+  alternativeVersions?: string[];
+  callToAction?: string;
 }
 
 const TONE_MODIFIERS: Record<DraftTone, { style: string; phrases: string[] }> = {
@@ -467,6 +475,264 @@ Looking forward to it`;
     }
 
     return drafts;
+  }
+
+  async generateAIDraft(
+    product: UserProduct,
+    contact: Contact,
+    match: ProductContactMatch,
+    draftType: DraftType,
+    tone: DraftTone = 'professional'
+  ): Promise<AIGeneratedDraft> {
+    logger.info('Generating AI-powered draft', {
+      draftType,
+      tone,
+      contactId: contact.id,
+      productId: product.id
+    });
+
+    try {
+      const contentType = this.mapDraftTypeToContentType(draftType);
+
+      const aiContent = await gpt52ProductIntelligenceService.generatePersonalizedContent(
+        product,
+        contact,
+        match,
+        contentType,
+        tone
+      );
+
+      const tokens = this.buildPersonalizationTokens(product, contact, match);
+
+      Object.entries(aiContent.personalizationTokens).forEach(([key, value]) => {
+        if (!tokens[key]) {
+          tokens[key] = {
+            key,
+            value,
+            source: 'ai_generated'
+          };
+        }
+      });
+
+      return {
+        subject: aiContent.subject,
+        body: aiContent.body,
+        personalization_tokens: tokens,
+        aiReasoning: aiContent.reasoning,
+        alternativeVersions: aiContent.alternativeVersions,
+        callToAction: aiContent.callToAction
+      };
+    } catch (error) {
+      logger.warn('AI draft generation failed, falling back to template', error as Error);
+      const context: DraftGenerationContext = { product, contact, match, tone };
+      return this.generateDraft(draftType, context);
+    }
+  }
+
+  async createAndSaveAIDraft(
+    product: UserProduct,
+    contact: Contact,
+    userId: string,
+    draftType: DraftType,
+    tone: DraftTone = 'professional',
+    match?: ProductContactMatch
+  ): Promise<ProductDraft | null> {
+    const defaultMatch: ProductContactMatch = match || {
+      id: '',
+      product_id: product.id,
+      contact_id: contact.id,
+      user_id: userId,
+      match_score: 50,
+      match_reasons: [],
+      calculated_at: new Date().toISOString()
+    };
+
+    const generated = await this.generateAIDraft(product, contact, defaultMatch, draftType, tone);
+
+    const { data, error } = await supabase
+      .from('product_drafts')
+      .insert({
+        product_id: product.id,
+        contact_id: contact.id,
+        user_id: userId,
+        draft_type: draftType,
+        subject: generated.subject,
+        body: generated.body,
+        tone,
+        personalization_tokens: generated.personalization_tokens,
+        is_edited: false,
+        is_sent: false,
+        ai_reasoning: generated.aiReasoning,
+        alternative_versions: generated.alternativeVersions,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Error saving AI draft', error);
+      return null;
+    }
+
+    return data as ProductDraft;
+  }
+
+  async refineAIDraft(
+    draftId: string,
+    currentContent: string,
+    feedback: string,
+    conversationId: string
+  ): Promise<AIGeneratedDraft | null> {
+    logger.info('Refining AI draft', { draftId, conversationId });
+
+    try {
+      const refined = await gpt52ProductIntelligenceService.refineContentWithFeedback(
+        currentContent,
+        feedback,
+        conversationId
+      );
+
+      const { data: draft } = await supabase
+        .from('product_drafts')
+        .select('personalization_tokens')
+        .eq('id', draftId)
+        .single();
+
+      const tokens = (draft?.personalization_tokens as Record<string, PersonalizationToken>) || {};
+
+      await supabase
+        .from('product_drafts')
+        .update({
+          subject: refined.subject,
+          body: refined.body,
+          is_edited: true,
+          ai_reasoning: refined.reasoning,
+          alternative_versions: refined.alternativeVersions,
+        })
+        .eq('id', draftId);
+
+      return {
+        subject: refined.subject,
+        body: refined.body,
+        personalization_tokens: tokens,
+        aiReasoning: refined.reasoning,
+        alternativeVersions: refined.alternativeVersions,
+        callToAction: refined.callToAction
+      };
+    } catch (error) {
+      logger.error('AI draft refinement failed', error as Error);
+      return null;
+    }
+  }
+
+  async batchCreateAIDrafts(
+    product: UserProduct,
+    contacts: Contact[],
+    userId: string,
+    draftType: DraftType,
+    tone: DraftTone = 'professional',
+    matches?: Map<string, ProductContactMatch>,
+    onProgress?: (completed: number, total: number, currentContact?: string) => void
+  ): Promise<ProductDraft[]> {
+    logger.info('Starting batch AI draft generation', {
+      productId: product.id,
+      contactCount: contacts.length,
+      draftType,
+      tone
+    });
+
+    const drafts: ProductDraft[] = [];
+    const batchSize = 5;
+
+    for (let i = 0; i < contacts.length; i += batchSize) {
+      const batch = contacts.slice(i, i + batchSize);
+
+      const batchPromises = batch.map(async (contact) => {
+        const match = matches?.get(contact.id);
+        const defaultMatch: ProductContactMatch = match || {
+          id: '',
+          product_id: product.id,
+          contact_id: contact.id,
+          user_id: userId,
+          match_score: 50,
+          match_reasons: [],
+          calculated_at: new Date().toISOString()
+        };
+
+        try {
+          const generated = await this.generateAIDraft(product, contact, defaultMatch, draftType, tone);
+          return {
+            product_id: product.id,
+            contact_id: contact.id,
+            user_id: userId,
+            draft_type: draftType,
+            subject: generated.subject,
+            body: generated.body,
+            tone,
+            personalization_tokens: generated.personalization_tokens,
+            is_edited: false,
+            is_sent: false,
+            ai_reasoning: generated.aiReasoning,
+            alternative_versions: generated.alternativeVersions,
+          };
+        } catch {
+          const context: DraftGenerationContext = { product, contact, match, tone };
+          const generated = this.generateDraft(draftType, context);
+          return {
+            product_id: product.id,
+            contact_id: contact.id,
+            user_id: userId,
+            draft_type: draftType,
+            subject: generated.subject,
+            body: generated.body,
+            tone,
+            personalization_tokens: generated.personalization_tokens,
+            is_edited: false,
+            is_sent: false,
+          };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+
+      const { data, error } = await supabase
+        .from('product_drafts')
+        .insert(batchResults)
+        .select();
+
+      if (error) {
+        logger.error('Error in batch AI draft save', error);
+      } else if (data) {
+        drafts.push(...(data as ProductDraft[]));
+      }
+
+      if (onProgress) {
+        const currentContact = contacts[Math.min(i + batchSize - 1, contacts.length - 1)]?.name || '';
+        onProgress(Math.min(i + batchSize, contacts.length), contacts.length, currentContact);
+      }
+
+      if (i + batchSize < contacts.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    logger.info('Batch AI draft generation complete', { totalDrafts: drafts.length });
+
+    return drafts;
+  }
+
+  private mapDraftTypeToContentType(draftType: DraftType): 'email' | 'call_script' | 'linkedin_message' | 'sms' {
+    switch (draftType) {
+      case 'email':
+        return 'email';
+      case 'call_script':
+        return 'call_script';
+      case 'linkedin':
+        return 'linkedin_message';
+      case 'sms':
+        return 'sms';
+      default:
+        return 'email';
+    }
   }
 }
 

@@ -8,11 +8,21 @@ import type {
   DEFAULT_SCORE_WEIGHTS,
   CompanySize,
 } from '../types/userProduct';
+import { gpt52ProductIntelligenceService, AIMatchAnalysis } from './gpt52ProductIntelligenceService';
+import { logger } from './logger.service';
 
 interface ScoreResult {
   score: number;
   maxScore: number;
   reasons: MatchReason[];
+}
+
+interface AIEnhancedMatchResult {
+  ruleBasedScore: number;
+  aiScore: number;
+  combinedScore: number;
+  aiAnalysis: AIMatchAnalysis;
+  matchReasons: MatchReason[];
 }
 
 interface MatchCalculationResult {
@@ -468,6 +478,236 @@ export class ProductMatchingService {
     }
 
     return matches;
+  }
+
+  async calculateAIEnhancedMatch(
+    product: UserProduct,
+    contact: Contact,
+    reasoningEffort: 'none' | 'low' | 'medium' | 'high' = 'medium'
+  ): Promise<AIEnhancedMatchResult> {
+    logger.info('Starting AI-enhanced match calculation', {
+      productId: product.id,
+      contactId: contact.id,
+      reasoningEffort
+    });
+
+    const ruleBasedResult = this.calculateMatch(product, contact);
+    const aiAnalysis = await gpt52ProductIntelligenceService.analyzeContactMatch(
+      product,
+      contact,
+      reasoningEffort
+    );
+
+    const aiWeight = reasoningEffort === 'high' ? 0.6 : reasoningEffort === 'medium' ? 0.5 : 0.3;
+    const ruleWeight = 1 - aiWeight;
+
+    const combinedScore = Math.round(
+      (ruleBasedResult.match_score * ruleWeight) + (aiAnalysis.semanticScore * aiWeight)
+    );
+
+    const aiReasons: MatchReason[] = aiAnalysis.talkingPoints.map(tp => ({
+      category: 'AI Insight',
+      reason: tp.content,
+      score_contribution: tp.relevance === 'high' ? 15 : tp.relevance === 'medium' ? 10 : 5
+    }));
+
+    return {
+      ruleBasedScore: ruleBasedResult.match_score,
+      aiScore: aiAnalysis.semanticScore,
+      combinedScore,
+      aiAnalysis,
+      matchReasons: [...ruleBasedResult.match_reasons, ...aiReasons]
+        .sort((a, b) => b.score_contribution - a.score_contribution)
+    };
+  }
+
+  async calculateAndSaveAIEnhancedMatch(
+    product: UserProduct,
+    contact: Contact,
+    userId: string,
+    reasoningEffort: 'none' | 'low' | 'medium' | 'high' = 'medium'
+  ): Promise<ProductContactMatch | null> {
+    try {
+      const aiResult = await this.calculateAIEnhancedMatch(product, contact, reasoningEffort);
+      const ruleBasedResult = this.calculateMatch(product, contact);
+
+      const { data, error } = await supabase
+        .from('product_contact_matches')
+        .upsert({
+          product_id: product.id,
+          contact_id: contact.id,
+          user_id: userId,
+          match_score: aiResult.combinedScore,
+          match_reasons: aiResult.matchReasons,
+          industry_score: ruleBasedResult.industry_score,
+          company_size_score: ruleBasedResult.company_size_score,
+          title_score: ruleBasedResult.title_score,
+          tags_score: ruleBasedResult.tags_score,
+          status_score: ruleBasedResult.status_score,
+          recommended_approach: ruleBasedResult.recommended_approach,
+          why_buy_reasons: ruleBasedResult.why_buy_reasons,
+          objections_anticipated: ruleBasedResult.objections_anticipated,
+          ai_confidence: aiResult.aiAnalysis.aiConfidence,
+          ai_reasoning: aiResult.aiAnalysis.aiReasoning,
+          ai_talking_points: aiResult.aiAnalysis.talkingPoints,
+          ai_objections: aiResult.aiAnalysis.anticipatedObjections,
+          predicted_conversion: aiResult.aiAnalysis.predictedConversion,
+          optimal_outreach_time: aiResult.aiAnalysis.optimalOutreachTime,
+          ai_processed_at: new Date().toISOString(),
+          calculated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'product_id,contact_id',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Error saving AI-enhanced match', error);
+        return null;
+      }
+
+      return data as ProductContactMatch;
+    } catch (error) {
+      logger.error('AI-enhanced match calculation failed', error as Error);
+      return this.calculateAndSaveMatch(product, contact, userId);
+    }
+  }
+
+  async batchCalculateAIEnhancedMatches(
+    product: UserProduct,
+    contacts: Contact[],
+    userId: string,
+    reasoningEffort: 'none' | 'low' | 'medium' | 'high' = 'low',
+    onProgress?: (completed: number, total: number, currentContact?: string) => void
+  ): Promise<ProductContactMatch[]> {
+    logger.info('Starting batch AI-enhanced matching', {
+      productId: product.id,
+      contactCount: contacts.length,
+      reasoningEffort
+    });
+
+    const matches: ProductContactMatch[] = [];
+
+    const aiResults = await gpt52ProductIntelligenceService.batchAnalyzeMatches(
+      product,
+      contacts,
+      (completed, total) => {
+        if (onProgress) {
+          const currentContact = contacts[completed - 1]?.name || '';
+          onProgress(completed, total, currentContact);
+        }
+      }
+    );
+
+    const batchSize = 50;
+    const contactsWithAI = contacts.map(contact => ({
+      contact,
+      aiAnalysis: aiResults.get(contact.id)
+    }));
+
+    for (let i = 0; i < contactsWithAI.length; i += batchSize) {
+      const batch = contactsWithAI.slice(i, i + batchSize);
+
+      const batchMatches = batch.map(({ contact, aiAnalysis }) => {
+        const ruleBasedResult = this.calculateMatch(product, contact);
+
+        if (aiAnalysis) {
+          const aiWeight = reasoningEffort === 'high' ? 0.6 : reasoningEffort === 'medium' ? 0.5 : 0.3;
+          const ruleWeight = 1 - aiWeight;
+          const combinedScore = Math.round(
+            (ruleBasedResult.match_score * ruleWeight) + (aiAnalysis.semanticScore * aiWeight)
+          );
+
+          return {
+            product_id: product.id,
+            contact_id: contact.id,
+            user_id: userId,
+            match_score: combinedScore,
+            match_reasons: ruleBasedResult.match_reasons,
+            industry_score: ruleBasedResult.industry_score,
+            company_size_score: ruleBasedResult.company_size_score,
+            title_score: ruleBasedResult.title_score,
+            tags_score: ruleBasedResult.tags_score,
+            status_score: ruleBasedResult.status_score,
+            recommended_approach: ruleBasedResult.recommended_approach,
+            why_buy_reasons: ruleBasedResult.why_buy_reasons,
+            objections_anticipated: ruleBasedResult.objections_anticipated,
+            ai_confidence: aiAnalysis.aiConfidence,
+            ai_reasoning: aiAnalysis.aiReasoning,
+            ai_talking_points: aiAnalysis.talkingPoints,
+            ai_objections: aiAnalysis.anticipatedObjections,
+            predicted_conversion: aiAnalysis.predictedConversion,
+            optimal_outreach_time: aiAnalysis.optimalOutreachTime,
+            ai_processed_at: new Date().toISOString(),
+            calculated_at: new Date().toISOString(),
+          };
+        }
+
+        return {
+          product_id: product.id,
+          contact_id: contact.id,
+          user_id: userId,
+          ...ruleBasedResult,
+          calculated_at: new Date().toISOString(),
+        };
+      });
+
+      const { data, error } = await supabase
+        .from('product_contact_matches')
+        .upsert(batchMatches, {
+          onConflict: 'product_id,contact_id',
+        })
+        .select();
+
+      if (error) {
+        logger.error('Error in batch AI-enhanced save', error);
+      } else if (data) {
+        matches.push(...(data as ProductContactMatch[]));
+      }
+    }
+
+    logger.info('Batch AI-enhanced matching complete', {
+      totalMatches: matches.length,
+      aiEnhancedCount: Array.from(aiResults.values()).length
+    });
+
+    return matches;
+  }
+
+  async enrichMatchWithWebResearch(
+    product: UserProduct,
+    contact: Contact,
+    matchId: string
+  ): Promise<void> {
+    logger.info('Enriching match with web research', { matchId, contactId: contact.id });
+
+    try {
+      const enrichments = await gpt52ProductIntelligenceService.enrichContactWithWebResearch(
+        contact,
+        product
+      );
+
+      const enrichmentData: Record<string, any> = {};
+      enrichments.forEach(e => {
+        enrichmentData[e.type] = {
+          data: e.data,
+          sources: e.sources,
+          fetchedAt: new Date().toISOString()
+        };
+      });
+
+      await supabase
+        .from('product_contact_matches')
+        .update({
+          ai_enrichment_data: enrichmentData,
+          ai_processed_at: new Date().toISOString()
+        })
+        .eq('id', matchId);
+
+      logger.info('Match enrichment complete', { matchId, enrichmentTypes: Object.keys(enrichmentData) });
+    } catch (error) {
+      logger.error('Match enrichment failed', error as Error);
+    }
   }
 }
 
