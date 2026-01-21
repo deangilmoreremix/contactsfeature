@@ -166,7 +166,12 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
   }, [loadData]);
 
   const handleGeneratePredictiveInsights = async () => {
-    researchThinking.startResearch('🔍 Researching predictive journey insights...');
+    if (!contact.id) {
+      console.error('Cannot generate predictive insights: contact.id is missing');
+      return;
+    }
+
+    researchThinking.startResearch('Researching predictive journey insights...');
 
     try {
       researchThinking.moveToAnalyzing('🌐 Analyzing company news and industry trends...');
@@ -208,9 +213,10 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       setResearchSources(sources);
 
       // Generate predictive journey events based on web research
+      const contactId = contact.id;
       const predictiveEventsInput: CreateJourneyEventInput[] = [
         {
-          contact_id: contact.id!,
+          contact_id: contactId,
           event_type: 'ai_insight',
           title: 'Predicted: Company Announcement',
           description: 'Based on industry trends, company likely to announce new product features in Q2',
@@ -221,7 +227,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           metadata: { source: 'ai_prediction', research_query: searchQuery }
         },
         {
-          contact_id: contact.id!,
+          contact_id: contactId,
           event_type: 'milestone',
           title: 'Predicted: Budget Planning',
           description: 'Industry analysis suggests Q3 budget planning cycle approaching',
@@ -231,7 +237,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           metadata: { source: 'ai_prediction' }
         },
         {
-          contact_id: contact.id!,
+          contact_id: contactId,
           event_type: 'interaction',
           title: 'Predicted: Follow-up Touchpoint',
           description: 'Optimal timing for relationship-building interaction based on engagement patterns',
@@ -261,17 +267,24 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
-    // Check if this is mock data
-    const mockDetection = isMockContact(contact);
-    if (mockDetection.isMockData) {
-      alert(`${mockDetection.reason}. File uploads are disabled for demo data.`);
+    // Validate contact.id exists
+    if (!contact.id) {
+      console.error('Cannot upload files: contact.id is missing');
       return;
     }
 
+    // Check if this is mock data
+    const mockDetection = isMockContact(contact);
+    if (mockDetection.isMockData) {
+      console.warn(`${mockDetection.reason}. File uploads are disabled for demo data.`);
+      return;
+    }
+
+    const contactId = contact.id;
     setIsUploading(true);
     try {
       const uploadPromises = files.map(file =>
-        fileStorageService.uploadFile(file, contact.id || 'unknown-contact')
+        fileStorageService.uploadFile(file, contactId)
       );
 
       const results = await Promise.all(uploadPromises);
@@ -293,7 +306,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
 
       // Create journey events for file uploads in database
       const fileEventInputs: CreateJourneyEventInput[] = successfulUploads.map(result => ({
-        contact_id: contact.id!,
+        contact_id: contactId,
         event_type: 'file_upload' as const,
         title: `File Uploaded: ${result.fileName}`,
         description: `Uploaded ${result.fileName} (${formatFileSize(result.fileSize)})`,
