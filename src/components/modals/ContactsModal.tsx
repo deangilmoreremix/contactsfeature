@@ -47,12 +47,14 @@ import {
   Info,
   Mail,
   Bot,
-  Trash2
+  Trash2,
+  Package
 } from 'lucide-react';
 
 interface ContactsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onNavigate?: (view: string) => void;
 }
 
 
@@ -72,7 +74,7 @@ const statusOptions = [
   { label: 'Churned', value: 'churned' }
 ];
 
-export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose }) => {
+export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, onNavigate }) => {
   const { contacts, updateContact, clearContacts } = useContactStore();
   const { currentView } = useView();
   const { scoreBulkContacts } = useAI();
@@ -691,6 +693,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   <Sparkles className="w-3 h-3 text-yellow-300" />
                 </ModernButton>
               </SmartTooltip>
+
+              {/* My Products Button */}
+              {onNavigate && (
+                <ModernButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => onNavigate('products')}
+                  className="flex items-center space-x-2 bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700"
+                >
+                  <Package className="w-4 h-4" />
+                  <span>My Products</span>
+                </ModernButton>
+              )}
 
               {/* Email Agents Button */}
               <SmartTooltip featureId="email_agents_button">
