@@ -102,41 +102,46 @@ class FileStorageService {
 
       // Store metadata in database
       const fileMetadata = {
-        id: fileId,
-        contactId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        filePath,
-        publicUrl: urlData.publicUrl,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: user?.id || 'anonymous',
+        contact_id: contactId,
+        user_id: user?.id || null,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        file_path: filePath,
+        public_url: urlData.publicUrl,
         checksum: await this.calculateChecksum(file),
+        description: metadata?.description || null,
+        tags: metadata?.tags || [],
         metadata: metadata || {}
       };
 
-      const { error: dbError } = await supabase
+      const { data: insertedFile, error: dbError } = await supabase
         .from('contact_files')
-        .insert([fileMetadata]);
+        .insert([fileMetadata])
+        .select()
+        .single();
 
       if (dbError) {
         logger.error('File metadata storage failed', dbError);
-        // Don't throw here - file is uploaded, just metadata failed
       }
 
-      // Cache file metadata
-      cacheService.setFileMetadata(fileId, fileMetadata);
+      const resultFileId = insertedFile?.id || fileId;
 
-      logger.info('File uploaded successfully', { fileId, fileName: file.name });
+      // Cache file metadata
+      if (insertedFile) {
+        cacheService.setFileMetadata(resultFileId, insertedFile);
+      }
+
+      logger.info('File uploaded successfully', { fileId: resultFileId, fileName: file.name });
 
       return {
         success: true,
-        fileId,
+        fileId: resultFileId,
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
         url: urlData.publicUrl,
-        uploadedAt: fileMetadata.uploadedAt
+        uploadedAt: insertedFile?.created_at || new Date().toISOString()
       };
 
     } catch (error) {
@@ -185,16 +190,33 @@ class FileStorageService {
         .from('contact_files')
         .select('*')
         .eq('id', fileId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
+      if (error || !data) {
         logger.error('Failed to get file metadata', error);
         return null;
       }
 
+      // Transform to FileMetadata format
+      const metadata: FileMetadata = {
+        id: data.id,
+        name: data.file_name,
+        size: data.file_size,
+        type: data.file_type,
+        url: data.public_url,
+        uploadedAt: data.created_at,
+        uploadedBy: data.user_id || 'unknown',
+        checksum: data.checksum,
+        thumbnailUrl: data.thumbnail_url,
+        contactId: data.contact_id,
+        filePath: data.file_path,
+        publicUrl: data.public_url,
+        metadata: data.metadata
+      };
+
       // Cache the metadata
-      cacheService.setFileMetadata(fileId, data);
-      return data;
+      cacheService.setFileMetadata(fileId, metadata);
+      return metadata;
     } catch (error) {
       logger.error('File metadata retrieval failed', error as Error);
       return null;
@@ -209,20 +231,36 @@ class FileStorageService {
       const { data, error } = await supabase
         .from('contact_files')
         .select('*')
-        .eq('contactId', contactId)
-        .order('uploadedAt', { ascending: false });
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false });
 
       if (error) {
         logger.error('Failed to get contact files', error);
         return [];
       }
 
-      // Cache file metadata
-      data.forEach(file => {
-        cacheService.setFileMetadata(file.id, file);
+      // Transform to FileMetadata format and cache
+      const files: FileMetadata[] = (data || []).map(file => {
+        const metadata: FileMetadata = {
+          id: file.id,
+          name: file.file_name,
+          size: file.file_size,
+          type: file.file_type,
+          url: file.public_url,
+          uploadedAt: file.created_at,
+          uploadedBy: file.user_id || 'unknown',
+          checksum: file.checksum,
+          thumbnailUrl: file.thumbnail_url,
+          contactId: file.contact_id,
+          filePath: file.file_path,
+          publicUrl: file.public_url,
+          metadata: file.metadata
+        };
+        cacheService.setFileMetadata(file.id, metadata);
+        return metadata;
       });
 
-      return data || [];
+      return files;
     } catch (error) {
       logger.error('Contact files retrieval failed', error as Error);
       return [];
@@ -234,16 +272,22 @@ class FileStorageService {
    */
   async deleteFile(fileId: string): Promise<boolean> {
     try {
-      // Get file metadata first
-      const metadata = await this.getFileMetadata(fileId);
-      if (!metadata) {
+      // Get file data from database first
+      const { data: fileData, error: fetchError } = await supabase
+        .from('contact_files')
+        .select('file_path')
+        .eq('id', fileId)
+        .maybeSingle();
+
+      if (fetchError || !fileData) {
+        logger.error('File not found for deletion', { fileId });
         return false;
       }
 
       // Delete from storage
       const { error: storageError } = await supabase.storage
         .from(this.BUCKET_NAME)
-        .remove([metadata.filePath]);
+        .remove([fileData.file_path]);
 
       if (storageError) {
         logger.error('File storage deletion failed', storageError);
@@ -276,15 +320,21 @@ class FileStorageService {
    */
   async downloadFile(fileId: string): Promise<boolean> {
     try {
-      const metadata = await this.getFileMetadata(fileId);
-      if (!metadata) {
+      const { data: fileData, error } = await supabase
+        .from('contact_files')
+        .select('file_name, public_url')
+        .eq('id', fileId)
+        .maybeSingle();
+
+      if (error || !fileData) {
+        logger.error('File not found for download', { fileId });
         return false;
       }
 
       // Create download link
       const link = document.createElement('a');
-      link.href = metadata.publicUrl;
-      link.download = metadata.name;
+      link.href = fileData.public_url;
+      link.download = fileData.file_name;
       link.target = '_blank';
 
       document.body.appendChild(link);

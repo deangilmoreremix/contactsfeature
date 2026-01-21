@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
@@ -7,7 +7,8 @@ import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOv
 import { Contact } from '../../types';
 import { webSearchService } from '../../services/webSearchService';
 import { useDocumentSummarization } from '../../hooks/useDocumentSummarization';
-import { fileStorageService, FileUploadResult } from '../../services/fileStorage.service';
+import { fileStorageService, FileUploadResult, FileMetadata } from '../../services/fileStorage.service';
+import { journeyService, JourneyEvent as DbJourneyEvent, CreateJourneyEventInput } from '../../services/journeyService';
 import { isMockContact } from '../../utils/mockDataDetection';
 import {
   Mail,
@@ -86,83 +87,42 @@ const sentimentColors = {
   negative: 'text-red-600'
 };
 
-// Sample journey data - in a real app, this would come from your backend
-const sampleJourneyEvents: JourneyEvent[] = [
-  {
-    id: '1',
-    type: 'interaction',
-    title: 'Initial Contact',
-    description: 'First outreach email sent introducing our services',
-    timestamp: '2024-01-15T10:30:00Z',
-    status: 'completed',
-    metadata: {
-      channel: 'email',
-      sentiment: 'neutral'
-    }
-  },
-  {
-    id: '2',
-    type: 'interaction',
-    title: 'Discovery Call',
-    description: 'Scheduled 30-minute discovery call to understand requirements',
-    timestamp: '2024-01-18T14:00:00Z',
-    status: 'completed',
-    metadata: {
-      channel: 'phone',
-      sentiment: 'positive'
-    }
-  },
-  {
-    id: '3',
-    type: 'milestone',
-    title: 'Demo Completed',
-    description: 'Product demo delivered, feedback collected',
-    timestamp: '2024-01-22T11:00:00Z',
-    status: 'completed'
-  },
-  {
-    id: '4',
-    type: 'ai_insight',
-    title: 'AI Score Update',
-    description: 'Lead score increased to 85/100 based on engagement patterns',
-    timestamp: '2024-01-23T09:15:00Z',
-    status: 'completed',
-    metadata: {
-      score: 85
-    }
-  },
-  {
-    id: '5',
-    type: 'interaction',
-    title: 'Follow-up Email',
-    description: 'Sent personalized proposal based on discovery call insights',
-    timestamp: '2024-01-25T16:30:00Z',
-    status: 'completed',
-    metadata: {
-      channel: 'email',
-      sentiment: 'positive'
-    }
-  },
-  {
-    id: '6',
-    type: 'status_change',
-    title: 'Status Changed',
-    description: 'Contact moved from "Prospect" to "Qualified Lead"',
-    timestamp: '2024-01-26T10:00:00Z',
-    status: 'completed'
+const transformDbEventToLocal = (dbEvent: DbJourneyEvent): JourneyEvent => ({
+  id: dbEvent.id,
+  type: dbEvent.event_type,
+  title: dbEvent.title,
+  description: dbEvent.description || '',
+  timestamp: dbEvent.event_timestamp,
+  status: dbEvent.status,
+  metadata: {
+    channel: dbEvent.channel,
+    sentiment: dbEvent.sentiment,
+    score: dbEvent.score,
+    ...(dbEvent.metadata as Record<string, unknown> || {})
   }
-];
+});
+
+const transformFileToUploaded = (file: FileMetadata): UploadedFile => ({
+  id: file.id,
+  name: file.name,
+  size: file.size,
+  type: file.type,
+  url: file.url,
+  uploadedAt: file.uploadedAt,
+  uploadedBy: file.uploadedBy
+});
 
 export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ contact }) => {
-    const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>(sampleJourneyEvents);
-     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-     const [isUploading, setIsUploading] = useState(false);
-     const [showFileUpload, setShowFileUpload] = useState(false);
-     const [filterType, setFilterType] = useState<string>('all');
-     const [filterDateRange, setFilterDateRange] = useState<string>('all');
-     const [summarizingFileId, setSummarizingFileId] = useState<string | null>(null);
-     const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
-     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [showFileUpload, setShowFileUpload] = useState(false);
+    const [filterType, setFilterType] = useState<string>('all');
+    const [filterDateRange, setFilterDateRange] = useState<string>('all');
+    const [summarizingFileId, setSummarizingFileId] = useState<string | null>(null);
+    const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Research state management
     const researchThinking = useResearchThinking();
@@ -179,31 +139,31 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       clearError
     } = useDocumentSummarization();
 
-  // Sample uploaded files - in a real app, this would come from your backend
-  const sampleFiles: UploadedFile[] = [
-    {
-      id: 'file-1',
-      name: 'Proposal_Document.pdf',
-      size: 2457600, // 2.4MB
-      type: 'application/pdf',
-      url: '#',
-      uploadedAt: '2024-01-20T14:30:00Z',
-      uploadedBy: 'Sam Rodriguez'
-    },
-    {
-      id: 'file-2',
-      name: 'Meeting_Notes.docx',
-      size: 512000, // 512KB
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      url: '#',
-      uploadedAt: '2024-01-18T11:15:00Z',
-      uploadedBy: 'Sam Rodriguez'
+  // Load journey events and files from database
+  const loadData = useCallback(async () => {
+    if (!contact.id) return;
+
+    setIsLoading(true);
+    try {
+      // Fetch journey events
+      const dbEvents = await journeyService.getContactJourneyEvents(contact.id);
+      const localEvents = dbEvents.map(transformDbEventToLocal);
+      setJourneyEvents(localEvents);
+
+      // Fetch uploaded files
+      const files = await fileStorageService.getContactFiles(contact.id);
+      const uploadedFilesList = files.map(transformFileToUploaded);
+      setUploadedFiles(uploadedFilesList);
+    } catch (error) {
+      console.error('Failed to load journey data:', error);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  }, [contact.id]);
 
   useEffect(() => {
-    setUploadedFiles(sampleFiles);
-  }, []);
+    loadData();
+  }, [loadData]);
 
   const handleGeneratePredictiveInsights = async () => {
     researchThinking.startResearch('🔍 Researching predictive journey insights...');
@@ -248,43 +208,48 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       setResearchSources(sources);
 
       // Generate predictive journey events based on web research
-      const predictiveEvents: JourneyEvent[] = [
+      const predictiveEventsInput: CreateJourneyEventInput[] = [
         {
-          id: `predictive_${Date.now()}_1`,
-          type: 'ai_insight',
+          contact_id: contact.id!,
+          event_type: 'ai_insight',
           title: 'Predicted: Company Announcement',
           description: 'Based on industry trends, company likely to announce new product features in Q2',
-          timestamp: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+          event_timestamp: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           status: 'pending',
-          metadata: {
-            score: 75
-          }
+          score: 75,
+          is_predicted: true,
+          metadata: { source: 'ai_prediction', research_query: searchQuery }
         },
         {
-          id: `predictive_${Date.now()}_2`,
-          type: 'milestone',
+          contact_id: contact.id!,
+          event_type: 'milestone',
           title: 'Predicted: Budget Planning',
           description: 'Industry analysis suggests Q3 budget planning cycle approaching',
-          timestamp: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days from now
-          status: 'pending'
+          event_timestamp: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+          status: 'pending',
+          is_predicted: true,
+          metadata: { source: 'ai_prediction' }
         },
         {
-          id: `predictive_${Date.now()}_3`,
-          type: 'interaction',
+          contact_id: contact.id!,
+          event_type: 'interaction',
           title: 'Predicted: Follow-up Touchpoint',
           description: 'Optimal timing for relationship-building interaction based on engagement patterns',
-          timestamp: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
+          event_timestamp: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
           status: 'pending',
-          metadata: {
-            channel: 'email',
-            sentiment: 'neutral'
-          }
+          channel: 'email',
+          sentiment: 'neutral',
+          is_predicted: true,
+          metadata: { source: 'ai_prediction' }
         }
       ];
 
-      setJourneyEvents(prev => [...predictiveEvents, ...prev]);
+      // Save to database
+      const savedEvents = await journeyService.createBulkJourneyEvents(predictiveEventsInput);
+      const localEvents = savedEvents.map(transformDbEventToLocal);
+      setJourneyEvents(prev => [...localEvents, ...prev]);
 
-      researchThinking.complete('✅ Predictive journey insights generated!');
+      researchThinking.complete('Predictive journey insights generated!');
 
     } catch (error) {
       console.error('Failed to generate predictive insights:', error);
@@ -326,14 +291,15 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
 
       setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
 
-      // Add to journey events
-      const fileEvents: JourneyEvent[] = successfulUploads.map(result => ({
-        id: `file-event-${result.fileId}`,
-        type: 'file_upload' as const,
+      // Create journey events for file uploads in database
+      const fileEventInputs: CreateJourneyEventInput[] = successfulUploads.map(result => ({
+        contact_id: contact.id!,
+        event_type: 'file_upload' as const,
         title: `File Uploaded: ${result.fileName}`,
         description: `Uploaded ${result.fileName} (${formatFileSize(result.fileSize)})`,
-        timestamp: result.uploadedAt,
+        event_timestamp: result.uploadedAt,
         status: 'completed',
+        file_id: result.fileId,
         metadata: {
           fileName: result.fileName,
           fileSize: result.fileSize,
@@ -342,7 +308,9 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         }
       }));
 
-      setJourneyEvents(prev => [...fileEvents, ...prev]);
+      const savedFileEvents = await journeyService.createBulkJourneyEvents(fileEventInputs);
+      const localFileEvents = savedFileEvents.map(transformDbEventToLocal);
+      setJourneyEvents(prev => [...localFileEvents, ...prev]);
 
       // Show results
       if (successfulUploads.length > 0) {
@@ -397,16 +365,27 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
   const handleFileDelete = async (fileId: string) => {
     if (confirm('Are you sure you want to delete this file?')) {
       try {
-        // In a real implementation, you would delete from your storage service
-        setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+        // Delete from storage service
+        const deleted = await fileStorageService.deleteFile(fileId);
 
-        // Remove from journey events
-        setJourneyEvents(prev => prev.filter(e =>
-          !(e.type === 'file_upload' && e.metadata?.fileName === uploadedFiles.find(f => f.id === fileId)?.name)
-        ));
+        if (deleted) {
+          setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
 
-        // Remove summary if it exists
-        // Note: In a real implementation, you'd also clean up the summary from storage
+          // Find and delete related journey event
+          const relatedEvent = journeyEvents.find(e =>
+            e.type === 'file_upload' && e.metadata?.fileName === uploadedFiles.find(f => f.id === fileId)?.name
+          );
+          if (relatedEvent) {
+            await journeyService.deleteJourneyEvent(relatedEvent.id);
+          }
+
+          // Update local state
+          setJourneyEvents(prev => prev.filter(e =>
+            !(e.type === 'file_upload' && e.metadata?.fileName === uploadedFiles.find(f => f.id === fileId)?.name)
+          ));
+        } else {
+          alert('File deletion failed. Please try again.');
+        }
       } catch (error) {
         console.error('File deletion failed:', error);
         alert('File deletion failed. Please try again.');
@@ -500,8 +479,18 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       />
 
       <div className="space-y-6">
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center space-y-3">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm text-gray-600">Loading journey data...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header with File Upload */}
-      <div className="flex items-center justify-between">
+      {!isLoading && <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Contact Journey & Files</h3>
           <p className="text-sm text-gray-600">Timeline of interactions, milestones, and uploaded files for {contact.name}</p>
@@ -563,10 +552,10 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* File Upload Section */}
-      {showFileUpload && (
+      {!isLoading && showFileUpload && (
         <GlassCard className="p-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -608,7 +597,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       )}
 
       {/* Uploaded Files Section */}
-      {uploadedFiles.length > 0 && (
+      {!isLoading && uploadedFiles.length > 0 && (
         <GlassCard className="p-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -762,8 +751,26 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       )}
 
       {/* Journey Timeline */}
-      <GlassCard className="p-6">
-        <div className="space-y-6">
+      {!isLoading && <GlassCard className="p-6">
+        {/* Empty State */}
+        {filteredEvents.length === 0 && (
+          <div className="text-center py-12">
+            <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h4 className="text-lg font-medium text-gray-900 mb-2">No Journey Events Yet</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              Start tracking interactions, milestones, and insights for this contact.
+            </p>
+            <button
+              onClick={handleGeneratePredictiveInsights}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Generate AI Insights</span>
+            </button>
+          </div>
+        )}
+
+        {filteredEvents.length > 0 && <div className="space-y-6">
           {filteredEvents.map((event, index) => {
             const Icon = getEventIcon(event.type);
             const isLast = index === journeyEvents.length - 1;
@@ -838,10 +845,10 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
               </div>
             );
           })}
-        </div>
+        </div>}
 
         {/* Journey Summary */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
+        {filteredEvents.length > 0 && <div className="mt-8 pt-6 border-t border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">{filteredEvents.length}</div>
@@ -860,8 +867,8 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
               <div className="text-sm text-gray-600">Interactions</div>
             </div>
           </div>
-        </div>
-      </GlassCard>
+        </div>}
+      </GlassCard>}
     </div>
     </>
   );
