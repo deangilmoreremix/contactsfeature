@@ -235,7 +235,7 @@ Generate a detailed sales playbook with the following structure:
   }
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -243,121 +243,12 @@ Generate a detailed sales playbook with the following structure:
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        instructions: systemPrompt,
-        input: userPrompt,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
         temperature: 0.3,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "playbook",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                strategy: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string" },
-                    description: { type: "string" },
-                    confidence: { type: "number", minimum: 0, maximum: 1 },
-                    rationale: { type: "string" }
-                  },
-                  required: ["name", "description", "confidence", "rationale"]
-                },
-                phases: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      id: { type: "string" },
-                      name: { type: "string" },
-                      timeline: { type: "string" },
-                      objectives: { type: "array", items: { type: "string" } },
-                      tactics: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            id: { type: "string" },
-                            name: { type: "string" },
-                            description: { type: "string" },
-                            priority: { type: "string", enum: ["high", "medium", "low"] },
-                            estimatedEffort: { type: "string" },
-                            successMetrics: { type: "array", items: { type: "string" } },
-                            dependencies: { type: "array", items: { type: "string" } }
-                          },
-                          required: ["id", "name", "description", "priority", "estimatedEffort", "successMetrics"]
-                        }
-                      },
-                      milestones: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            id: { type: "string" },
-                            name: { type: "string" },
-                            description: { type: "string" },
-                            dueDate: { type: "string" },
-                            owner: { type: "string" },
-                            status: { type: "string", enum: ["pending", "in_progress", "completed"] }
-                          },
-                          required: ["id", "name", "description", "dueDate", "owner", "status"]
-                        }
-                      }
-                    },
-                    required: ["id", "name", "timeline", "objectives", "tactics", "milestones"]
-                  }
-                },
-                riskMitigation: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      risk: { type: "string" },
-                      probability: { type: "number", minimum: 0, maximum: 1 },
-                      impact: { type: "string" },
-                      mitigation: { type: "string" }
-                    },
-                    required: ["risk", "probability", "impact", "mitigation"]
-                  }
-                },
-                successIndicators: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      metric: { type: "string" },
-                      target: { type: "string" },
-                      current: { type: "string" },
-                      status: { type: "string", enum: ["on_track", "at_risk", "behind"] }
-                    },
-                    required: ["metric", "target", "current", "status"]
-                  }
-                },
-                competitivePositioning: {
-                  type: "object",
-                  properties: {
-                    strengths: { type: "array", items: { type: "string" } },
-                    weaknesses: { type: "array", items: { type: "string" } },
-                    differentiation: { type: "array", items: { type: "string" } },
-                    winThemes: { type: "array", items: { type: "string" } }
-                  },
-                  required: ["strengths", "weaknesses", "differentiation", "winThemes"]
-                },
-                recommendedActions: { type: "array", items: { type: "string" } },
-                automationSequence: { type: "array", items: { type: "object" } },
-                triggers: { type: "array", items: { type: "object" } },
-                conditions: { type: "array", items: { type: "object" } },
-                successMetrics: { type: "array", items: { type: "string" } },
-                fallbackActions: { type: "array", items: { type: "object" } },
-                currentStage: { type: "string" },
-                automationType: { type: "string" },
-                generated: { type: "string" }
-              },
-              required: ["strategy", "phases", "riskMitigation", "successIndicators", "competitivePositioning"]
-            }
-          }
-        }
+        response_format: { type: 'json_object' }
       })
     });
 
@@ -367,17 +258,11 @@ Generate a detailed sales playbook with the following structure:
 
     const data = await response.json();
 
-    // Handle Responses API format
     let content;
-    if (data.output && data.output.length > 0) {
-      const textOutput = data.output.find(item => item.type === 'text');
-      if (textOutput && textOutput.text) {
-        content = JSON.parse(textOutput.text);
-      } else {
-        throw new Error('No text output found in response');
-      }
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      content = JSON.parse(data.choices[0].message.content);
     } else {
-      throw new Error('No response output found');
+      throw new Error('No response content found from OpenAI');
     }
 
     return {
