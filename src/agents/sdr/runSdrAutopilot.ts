@@ -105,10 +105,58 @@ export async function runSdrAutopilot(params: SdrAutopilotParams): Promise<SdrAu
   }
 }
 
+let cachedAssistantId: string | null = null;
+
 async function getOrCreateSdrAssistant(): Promise<string> {
-  // In a real implementation, you'd check if the assistant exists
-  // For now, return a placeholder - this would be created once and reused
-  return process.env.SDR_ASSISTANT_ID || 'asst_sdr_autopilot_placeholder';
+  if (process.env.SDR_ASSISTANT_ID) {
+    return process.env.SDR_ASSISTANT_ID;
+  }
+
+  if (cachedAssistantId) {
+    return cachedAssistantId;
+  }
+
+  try {
+    const assistants = await openai.beta.assistants.list({ limit: 100 });
+    const existingAssistant = assistants.data.find(
+      (a) => a.name === 'SmartCRM SDR Autopilot'
+    );
+
+    if (existingAssistant) {
+      cachedAssistantId = existingAssistant.id;
+      return cachedAssistantId;
+    }
+
+    const newAssistant = await openai.beta.assistants.create({
+      name: 'SmartCRM SDR Autopilot',
+      description: 'AI-powered SDR agent for automated outreach and lead nurturing',
+      model: pickModelForSdrTask('autopilot'),
+      instructions: `You are an AI SDR (Sales Development Representative) autopilot for SmartCRM.
+Your job is to nurture leads through personalized outreach campaigns.
+
+Key responsibilities:
+- Send personalized emails to leads based on their profile and engagement
+- Create follow-up tasks to ensure timely responses
+- Move deals through the pipeline based on lead engagement
+- Schedule discovery calls when leads show buying intent
+- Log all campaign state for tracking and optimization
+
+Always be professional, helpful, and focused on providing value to the prospect.
+Never be pushy or aggressive. Build genuine relationships.`,
+      tools: sdrTools.map(tool => ({
+        type: 'function' as const,
+        function: tool.function
+      }))
+    });
+
+    cachedAssistantId = newAssistant.id;
+    console.log('Created new SDR Assistant:', newAssistant.id);
+
+    return cachedAssistantId;
+  } catch (error) {
+    console.error('Error creating SDR Assistant:', error);
+    throw new Error('Failed to create or retrieve SDR Assistant');
+  }
 }
 
 async function waitForRunCompletion(threadId: string, runId: string) {

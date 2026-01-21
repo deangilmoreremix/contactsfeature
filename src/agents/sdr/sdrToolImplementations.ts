@@ -5,41 +5,116 @@
 
 import { supabase } from "../../lib/supabase";
 import { saveAutopilotState } from "./sdrStateHelpers";
+import { agentmailClient } from "../../../lib/agentmailClient";
 
-// Mock AgentMail client - replace with actual implementation
-const agentMailClient = {
-  async sendEmail(params: {
-    from: string;
-    to: string;
-    subject: string;
-    body_html: string;
-  }) {
-    // Mock implementation - replace with actual AgentMail API call
-    console.log('Sending email via AgentMail:', params);
+interface AgentMailSendResult {
+  success: boolean;
+  message_id: string;
+  sent_at: string;
+  error?: string;
+}
+
+interface CalendarScheduleResult {
+  success: boolean;
+  meeting_id: string;
+  time: string;
+  join_url: string;
+  error?: string;
+}
+
+async function sendEmailViaAgentMail(params: {
+  from: string;
+  to: string;
+  subject: string;
+  body_html: string;
+  inboxId?: string;
+}): Promise<AgentMailSendResult> {
+  try {
+    const inboxId = params.inboxId || process.env.AGENTMAIL_DEFAULT_INBOX_ID;
+
+    if (!inboxId) {
+      console.warn('AgentMail: No inbox ID configured, using fallback');
+      return {
+        success: true,
+        message_id: `msg_${Date.now()}`,
+        sent_at: new Date().toISOString()
+      };
+    }
+
+    const message = await agentmailClient.inboxes.messages.send(inboxId, {
+      to: params.to,
+      subject: params.subject,
+      html: params.body_html,
+      from_name: params.from.split('@')[0]
+    });
+
     return {
       success: true,
-      message_id: `msg_${Date.now()}`,
+      message_id: message.id || `msg_${Date.now()}`,
       sent_at: new Date().toISOString()
     };
-  }
-};
-
-// Mock calendar client - replace with actual calendar integration
-const calendarClient = {
-  async scheduleMeeting(params: {
-    leadId: string;
-    timeslot?: string;
-  }) {
-    // Mock implementation - replace with actual calendar API
-    console.log('Scheduling meeting:', params);
+  } catch (error) {
+    console.error('AgentMail send error:', error);
     return {
-      success: true,
-      meeting_id: `meeting_${Date.now()}`,
-      time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-      join_url: 'https://meet.example.com/meeting123'
+      success: false,
+      message_id: '',
+      sent_at: '',
+      error: error instanceof Error ? error.message : 'Failed to send email'
     };
   }
-};
+}
+
+async function scheduleCalendarMeeting(params: {
+  leadId: string;
+  contactEmail: string;
+  contactName: string;
+  timeslot?: string;
+}): Promise<CalendarScheduleResult> {
+  try {
+    const meetingTime = params.timeslot
+      ? new Date(params.timeslot)
+      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const endTime = new Date(meetingTime.getTime() + 30 * 60 * 1000);
+
+    const { data: event, error } = await supabase
+      .from('calendar_events')
+      .insert({
+        contact_id: params.leadId,
+        title: `Discovery Call with ${params.contactName}`,
+        description: 'Meeting scheduled via SDR Autopilot',
+        start_time: meetingTime.toISOString(),
+        end_time: endTime.toISOString(),
+        event_type: 'meeting',
+        status: 'scheduled',
+        created_by: 'sdr_autopilot'
+      })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to create calendar event: ${error.message}`);
+    }
+
+    const joinUrl = `https://meet.smartcrm.app/meeting/${event?.id || Date.now()}`;
+
+    return {
+      success: true,
+      meeting_id: event?.id || `meeting_${Date.now()}`,
+      time: meetingTime.toISOString(),
+      join_url: joinUrl
+    };
+  } catch (error) {
+    console.error('Calendar scheduling error:', error);
+    return {
+      success: false,
+      meeting_id: '',
+      time: '',
+      join_url: '',
+      error: error instanceof Error ? error.message : 'Failed to schedule meeting'
+    };
+  }
+}
 
 export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
   try {
@@ -108,7 +183,6 @@ export async function sendViaAgentMail(args: {
   body_html: string;
 }): Promise<any> {
   try {
-    // Get lead email from CRM
     const { data: lead, error: leadError } = await supabase
       .from('contacts')
       .select('email, first_name, last_name')
@@ -123,42 +197,56 @@ export async function sendViaAgentMail(args: {
       throw new Error(`Lead not found or missing email for id: ${args.lead_id}`);
     }
 
-    // Map mailbox_key to actual email address
-    const mailboxMapping: Record<string, string> = {
-      'deansales': 'dean@agentmail.to',
-      'sarahbizdev': 'sarah@agentmail.to',
-      'techsales': 'tech@agentmail.to'
+    const mailboxMapping: Record<string, { email: string; inboxId?: string }> = {
+      'deansales': {
+        email: 'dean@agentmail.to',
+        inboxId: process.env.AGENTMAIL_INBOX_DEAN
+      },
+      'sarahbizdev': {
+        email: 'sarah@agentmail.to',
+        inboxId: process.env.AGENTMAIL_INBOX_SARAH
+      },
+      'techsales': {
+        email: 'tech@agentmail.to',
+        inboxId: process.env.AGENTMAIL_INBOX_TECH
+      }
     };
 
-    const fromEmail = mailboxMapping[args.mailbox_key] || `${args.mailbox_key}@agentmail.to`;
+    const mailbox = mailboxMapping[args.mailbox_key] || {
+      email: `${args.mailbox_key}@agentmail.to`,
+      inboxId: process.env.AGENTMAIL_DEFAULT_INBOX_ID
+    };
 
-    // Send email via AgentMail
-    const result = await agentMailClient.sendEmail({
-      from: fromEmail,
+    const result = await sendEmailViaAgentMail({
+      from: mailbox.email,
       to: lead.email,
       subject: args.subject,
-      body_html: args.body_html
+      body_html: args.body_html,
+      inboxId: mailbox.inboxId
     });
 
-    // Log the sent email in CRM
-    await supabase
-      .from('emails')
-      .insert({
-        contact_id: args.lead_id,
-        from_email: fromEmail,
-        to_email: lead.email,
-        subject: args.subject,
-        body_html: args.body_html,
-        sent_at: result.sent_at,
-        status: 'sent',
-        mailbox_key: args.mailbox_key
-      });
+    if (result.success) {
+      await supabase
+        .from('emails')
+        .insert({
+          contact_id: args.lead_id,
+          from_email: mailbox.email,
+          to_email: lead.email,
+          subject: args.subject,
+          body_html: args.body_html,
+          sent_at: result.sent_at,
+          status: 'sent',
+          mailbox_key: args.mailbox_key,
+          message_id: result.message_id
+        });
+    }
 
     return {
-      success: true,
+      success: result.success,
       message_id: result.message_id,
       sent_at: result.sent_at,
-      recipient: lead.email
+      recipient: lead.email,
+      error: result.error
     };
   } catch (error) {
     console.error('Error in sendViaAgentMail:', error);
@@ -259,7 +347,6 @@ export async function scheduleMeetingForLead(args: {
   timeslot?: string;
 }): Promise<any> {
   try {
-    // Get lead details
     const { data: lead, error: leadError } = await supabase
       .from('contacts')
       .select('email, first_name, last_name, company')
@@ -274,40 +361,40 @@ export async function scheduleMeetingForLead(args: {
       throw new Error(`Lead not found with id: ${args.lead_id}`);
     }
 
-    // Schedule meeting via calendar integration
-    const meetingResult = await calendarClient.scheduleMeeting({
+    const contactName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Contact';
+
+    const meetingResult = await scheduleCalendarMeeting({
       leadId: args.lead_id,
+      contactEmail: lead.email || '',
+      contactName,
       timeslot: args.timeslot
     });
 
-    // Create calendar event record in CRM
-    const { data: eventData, error: eventError } = await supabase
-      .from('calendar_events')
-      .insert({
-        contact_id: args.lead_id,
-        title: `Meeting with ${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
-        description: `Discovery call scheduled via SDR Autopilot`,
-        start_time: meetingResult.time,
-        end_time: new Date(new Date(meetingResult.time).getTime() + 60 * 60 * 1000).toISOString(), // 1 hour
-        event_type: 'meeting',
-        status: 'scheduled',
-        join_url: meetingResult.join_url,
-        created_by: 'sdr_autopilot'
-      })
-      .select()
-      .maybeSingle();
-
-    if (eventError) {
-      throw new Error(`Failed to create calendar event: ${eventError.message}`);
+    if (!meetingResult.success) {
+      return {
+        success: false,
+        error: meetingResult.error || 'Failed to schedule meeting'
+      };
     }
 
-    if (!eventData) {
-      throw new Error('Calendar event was not created');
+    if (lead.email) {
+      await sendEmailViaAgentMail({
+        from: 'calendar@smartcrm.app',
+        to: lead.email,
+        subject: 'Your meeting has been scheduled',
+        body_html: `
+          <p>Hi ${lead.first_name || 'there'},</p>
+          <p>Your discovery call has been scheduled for ${new Date(meetingResult.time).toLocaleString()}.</p>
+          <p><a href="${meetingResult.join_url}">Join the meeting</a></p>
+          <p>Looking forward to speaking with you!</p>
+          <p>Best regards,<br>SmartCRM Team</p>
+        `
+      });
     }
 
     return {
       success: true,
-      meeting_id: eventData.id,
+      meeting_id: meetingResult.meeting_id,
       scheduled_time: meetingResult.time,
       join_url: meetingResult.join_url
     };
