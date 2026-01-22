@@ -10,26 +10,28 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('contacts');
 
   return (
-    <AIProvider>
-      <ViewProvider>
-        {currentView === 'contacts' && (
-          <ContactsModal
-            isOpen={true}
-            onClose={() => {}}
-            onNavigate={(view: string) => {
-              if (view === 'products') {
-                setCurrentView('products');
-              }
-            }}
-          />
-        )}
-        {currentView === 'products' && (
-          <div className="min-h-screen">
-            <Products onNavigateBack={() => setCurrentView('contacts')} />
-          </div>
-        )}
-      </ViewProvider>
-    </AIProvider>
+    <div className="min-h-screen bg-gray-100">
+      <AIProvider>
+        <ViewProvider>
+          {currentView === 'contacts' && (
+            <ContactsModal
+              isOpen={true}
+              onClose={() => {}}
+              onNavigate={(view: string) => {
+                if (view === 'products') {
+                  setCurrentView('products');
+                }
+              }}
+            />
+          )}
+          {currentView === 'products' && (
+            <div className="min-h-screen">
+              <Products onNavigateBack={() => setCurrentView('contacts')} />
+            </div>
+          )}
+        </ViewProvider>
+      </AIProvider>
+    </div>
   );
 };
 
