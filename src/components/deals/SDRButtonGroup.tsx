@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { executeDealAi } from '../../ai/deal/executeDealAi';
-import { metorialService } from '../../services/metorialService';
+import { gpt52EnrichmentService } from '../../services/gpt52EnrichmentService';
 
 interface SDRButtonGroupProps {
   dealId: string;
@@ -32,7 +32,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
     setLoading(task);
 
     // Check if this is a demo/mock contact (only for product demos)
-    const isDemoMode = (process.env as any).NODE_ENV === 'development' ||
+    const isDemoMode = import.meta.env.DEV ||
                       window.location.hostname === 'localhost' ||
                       window.location.hostname.includes('demo') ||
                       window.location.hostname.includes('staging') ||
@@ -82,8 +82,8 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
       return;
     }
 
-    // Special handling for Metorial research
-    if (task === 'sdr_metorial_research') {
+    // Special handling for AI research using GPT-5.2
+    if (task === 'sdr_ai_research') {
       try {
         if (!contact) {
           throw new Error('Contact information required for research');
@@ -92,65 +92,126 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
         setCampaignProgress({
           task,
           step: 1,
-          totalSteps: 3,
-          currentStep: 'Researching company and contact profiles'
+          totalSteps: 4,
+          currentStep: 'Initiating GPT-5.2 reasoning engine'
         });
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        setCampaignProgress({
-          task,
-          step: 2,
-          totalSteps: 3,
-          currentStep: 'Analyzing SDR insights and opportunities'
-        });
-
-        const result = await metorialService.generateSDRInsights(
-          contact.firstName || contact.name,
-          contact.company,
-          `Research for SDR campaign targeting ${contact.firstName || contact.name} at ${contact.company}`
-        );
 
         await new Promise(resolve => setTimeout(resolve, 500));
 
         setCampaignProgress({
           task,
-          step: 3,
-          totalSteps: 3,
-          currentStep: 'Generating comprehensive research report'
+          step: 2,
+          totalSteps: 4,
+          currentStep: 'Researching company and contact with AI tools'
         });
 
-        // Transform Metorial result to match expected format
+        // Use GPT-5.2 enrichment service
+        const enrichmentResult = await gpt52EnrichmentService.enrichContact(
+          {
+            name: contact.firstName || contact.name,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            company: contact.company,
+            title: contact.title,
+            linkedin: contact.linkedin,
+            email: contact.email
+          },
+          {
+            reasoningEffort: 'xhigh',
+            includeCompanyResearch: true,
+            includeContactResearch: true,
+            includeSDRInsights: true
+          }
+        );
+
+        setCampaignProgress({
+          task,
+          step: 3,
+          totalSteps: 4,
+          currentStep: 'Analyzing insights and generating recommendations'
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        setCampaignProgress({
+          task,
+          step: 4,
+          totalSteps: 4,
+          currentStep: 'Finalizing comprehensive research report'
+        });
+
+        // Transform enrichment result to match expected format
         const transformedResult = {
           sequence: [{
             day_offset: 0,
             channel: 'research',
-            subject: `Research Report: ${contact.firstName || contact.name} at ${contact.company}`,
+            subject: `AI Research Report: ${enrichmentResult.contact.firstName || contact.name} at ${enrichmentResult.company.name}`,
             body_html: `
-              <h3>Metorial Research Insights</h3>
-              <p><strong>Executive Summary:</strong> ${result.executiveSummary}</p>
+              <h3>🤖 GPT-5.2 AI Research Insights</h3>
+              <p><strong>Model:</strong> ${enrichmentResult.metadata.model} | <strong>Confidence:</strong> ${enrichmentResult.metadata.confidence}% | <strong>Reasoning:</strong> ${enrichmentResult.metadata.reasoningEffort}</p>
 
-              <h4>Key Findings:</h4>
+              <h4>Executive Summary</h4>
+              <p>${enrichmentResult.contact.bio || `Professional at ${enrichmentResult.company.name}`}</p>
+
+              <h4>Company Profile</h4>
               <ul>
-                ${result.keyFindings.map(finding => `<li>${finding}</li>`).join('')}
+                <li><strong>Name:</strong> ${enrichmentResult.company.name}</li>
+                <li><strong>Industry:</strong> ${enrichmentResult.company.industry}</li>
+                <li><strong>Size:</strong> ${enrichmentResult.company.size}</li>
+                ${enrichmentResult.company.revenue ? `<li><strong>Revenue:</strong> ${enrichmentResult.company.revenue}</li>` : ''}
+                ${enrichmentResult.company.growth ? `<li><strong>Growth:</strong> ${enrichmentResult.company.growth}</li>` : ''}
+                <li><strong>Key Products:</strong> ${enrichmentResult.company.keyProducts.join(', ')}</li>
+                <li><strong>Competitors:</strong> ${enrichmentResult.company.competitors.join(', ') || 'N/A'}</li>
               </ul>
 
-              <h4>Recommendations:</h4>
-              <ul>
-                ${result.recommendations.map(rec => `<li>${rec}</li>`).join('')}
-              </ul>
+              <h4>Sales Insights</h4>
+              <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa;">
+                <h5>🎯 Pain Points</h5>
+                <ul>${enrichmentResult.insights.painPoints.map(p => `<li>${p}</li>`).join('')}</ul>
+              </div>
+              <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #28a745; background: #f8f9fa;">
+                <h5>💡 Opportunities</h5>
+                <ul>${enrichmentResult.insights.opportunities.map(o => `<li>${o}</li>`).join('')}</ul>
+              </div>
+              <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #ffc107; background: #f8f9fa;">
+                <h5>📊 Decision Factors</h5>
+                <ul>${enrichmentResult.insights.decisionFactors.map(d => `<li>${d}</li>`).join('')}</ul>
+              </div>
+              <p><strong>Timeline:</strong> ${enrichmentResult.insights.timeline}</p>
+              <p><strong>Budget:</strong> ${enrichmentResult.insights.budget}</p>
 
-              <h4>Detailed Insights:</h4>
-              ${result.insights.map(insight => `
-                <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa;">
-                  <h5>${insight.title}</h5>
-                  <p>${insight.content}</p>
-                  <small>Confidence: ${insight.confidence}%</small>
+              <h4>🎤 SDR Outreach Strategy</h4>
+              <div style="padding: 10px; border-left: 4px solid #6f42c1; background: #f8f9fa;">
+                <p><strong>Approach:</strong> ${enrichmentResult.sdrRecommendations.approach}</p>
+                <h5>Talking Points:</h5>
+                <ul>${enrichmentResult.sdrRecommendations.talkingPoints.map(t => `<li>${t}</li>`).join('')}</ul>
+                <h5>Anticipated Objections:</h5>
+                <ul>${enrichmentResult.sdrRecommendations.objections.map(o => `<li>${o}</li>`).join('')}</ul>
+                <h5>Recommended Next Steps:</h5>
+                <ul>${enrichmentResult.sdrRecommendations.nextSteps.map(n => `<li>${n}</li>`).join('')}</ul>
+              </div>
+
+              ${enrichmentResult.company.recentNews.length > 0 ? `
+              <h4>📰 Recent News</h4>
+              ${enrichmentResult.company.recentNews.map(news => `
+                <div style="margin-bottom: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                  <strong>${news.title}</strong> <span style="color: ${news.impact === 'high' ? '#dc3545' : news.impact === 'medium' ? '#ffc107' : '#6c757d'}">[${news.impact.toUpperCase()}]</span>
+                  <br/><small>${news.date}</small>
                 </div>
               `).join('')}
+              ` : ''}
+
+              <hr/>
+              <p><small>Generated by GPT-5.2 with ${enrichmentResult.metadata.reasoningEffort} reasoning effort | Processing time: ${enrichmentResult.metadata.processingTime}ms</small></p>
             `
           }],
-          metadata: result.researchMetadata
+          metadata: {
+            model: enrichmentResult.metadata.model,
+            confidence: enrichmentResult.metadata.confidence,
+            reasoningEffort: enrichmentResult.metadata.reasoningEffort,
+            toolsUsed: enrichmentResult.metadata.toolsUsed,
+            processingTime: enrichmentResult.metadata.processingTime
+          }
         };
 
         const sdrResult: SDRResult = {
@@ -165,7 +226,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
 
         if (onSequenceGenerated) onSequenceGenerated(transformedResult);
       } catch (error) {
-        console.error('Metorial research failed:', error);
+        console.error('GPT-5.2 AI research failed:', error);
       } finally {
         setLoading(null);
         setCampaignProgress(null);
@@ -308,7 +369,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
   };
 
   const getSequenceDuration = (task: string) => {
-    if (task.includes('metorial_research')) return 'Research Report';
+    if (task.includes('ai_research')) return 'AI Research Report';
     if (task.includes('follow_up') || task.includes('bump')) return '10 days';
     if (task.includes('winback') || task.includes('reactivation')) return '20 days';
     if (task.includes('cold_email') || task.includes('high_intent')) return '30 days';
@@ -333,7 +394,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
             'sdr_objection_handler', 'sdr_high_intent', 'sdr_bump',
             'sdr_reactivation', 'sdr_winback', 'sdr_linkedin',
             'sdr_whatsapp', 'sdr_event', 'sdr_referral',
-            'sdr_newsletter', 'sdr_cold_email', 'sdr_metorial_research'
+            'sdr_newsletter', 'sdr_cold_email', 'sdr_ai_research'
           ].map((task) => (
             <button
               key={task}
@@ -388,7 +449,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
                     {task === 'sdr_referral' && '👥'}
                     {task === 'sdr_newsletter' && '📰'}
                     {task === 'sdr_cold_email' && '❄️'}
-                    {task === 'sdr_metorial_research' && '🔍'}
+                    {task === 'sdr_ai_research' && '🤖'}
                   </div>
                   <div className="text-xs font-medium">{getTaskLabel(task)}</div>
                   <div className="text-[10px] text-gray-500 mt-0.5">{getSequenceDuration(task)}</div>

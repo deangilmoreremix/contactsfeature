@@ -1,6 +1,6 @@
 import { AgentMailClient, AgentMail, AgentMailError, logging } from "agentmail";
 
-const client = new AgentMailClient({ apiKey: process.env.AGENTMAIL_API_KEY! });
+const client = new AgentMailClient({ apiKey: import.meta.env.VITE_AGENTMAIL_API_KEY! });
 
 export const agentmailClient = client;
 

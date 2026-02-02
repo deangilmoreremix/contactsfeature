@@ -4,9 +4,9 @@
  */
 
 // Environment-based model configuration
-export const SMARTCRM_DEFAULT_MODEL = process.env['SMARTCRM_MODEL'] || "gpt-5.2";
-export const SMARTCRM_THINKING_MODEL = process.env['SMARTCRM_THINKING_MODEL'] || "gpt-5.2-thinking";
-export const SMARTCRM_FAST_MODEL = process.env['SMARTCRM_FAST_MODEL'] || "gpt-5.2-instant";
+export const SMARTCRM_DEFAULT_MODEL = import.meta.env['SMARTCRM_MODEL'] || "gpt-5.2";
+export const SMARTCRM_THINKING_MODEL = import.meta.env['SMARTCRM_THINKING_MODEL'] || "gpt-5.2-thinking";
+export const SMARTCRM_FAST_MODEL = import.meta.env['SMARTCRM_FAST_MODEL'] || "gpt-5.2-instant";
 
 // Legacy model support (for backward compatibility)
 export const LEGACY_MODELS = {

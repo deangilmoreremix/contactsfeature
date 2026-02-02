@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { OutboundPersonaId } from '../agents/personas';
 
 const supabase = createClient(
-  process.env['SUPABASE_URL']!,
-  process.env['SUPABASE_SERVICE_ROLE_KEY']!
+  import.meta.env['VITE_SUPABASE_URL']!,
+  import.meta.env['VITE_SUPABASE_SERVICE_ROLE_KEY']!
 );
 
 export type FollowupMode = 'manual' | 'reply-only' | '2-step' | '5-step';

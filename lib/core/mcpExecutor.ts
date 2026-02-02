@@ -1,7 +1,7 @@
 import { requireEnv } from "./env";
 import { logger } from "./logger";
 
-const MCP_BASE_URL = requireEnv("MCP_BASE_URL");
+const MCP_BASE_URL = requireEnv("VITE_RUBE_MCP_SERVER_URL");
 
 /**
  * Generic MCP executor:

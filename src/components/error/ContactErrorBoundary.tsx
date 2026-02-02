@@ -67,7 +67,7 @@ export class ContactErrorBoundary extends Component<Props, State> {
               We encountered an error while loading this contact. This might be a temporary issue.
             </p>
 
-            {process.env['NODE_ENV'] === 'development' && this.state.error && (
+            {import.meta.env.DEV === 'development' && this.state.error && (
               <details className="mb-6 text-left">
                 <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Error Details (Development)

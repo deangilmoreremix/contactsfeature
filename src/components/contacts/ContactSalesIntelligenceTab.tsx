@@ -75,9 +75,15 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
               purpose: 'follow_up',
               previousInteractions: 1
             }}
-            onOptimize={(optimized) => console.log('Optimized:', optimized)}
-            onApplyOptimization={() => console.log('Apply optimization')}
-            onViewAnalytics={() => console.log('View analytics')}
+            onOptimize={(result) => {
+              console.log('Communication optimized:', result);
+            }}
+            onApplyOptimization={() => {
+              console.log('Optimization applied');
+            }}
+            onViewAnalytics={() => {
+              console.log('Viewing analytics');
+            }}
           />
         </div>
 

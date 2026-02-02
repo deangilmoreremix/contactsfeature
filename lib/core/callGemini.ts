@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { requireEnv } from "./env";
 import { logger } from "./logger";
 
-const GEMINI_API_KEY = requireEnv("GEMINI_API_KEY");
+const GEMINI_API_KEY = requireEnv("VITE_GEMINI_API_KEY");
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 

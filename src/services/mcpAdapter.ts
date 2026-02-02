@@ -1,10 +1,9 @@
 /**
  * MCP Adapter Service
- * Connects to Rube/Composio MCP server and exposes tools as OpenAI-compatible functions
+ * Connects to Rube MCP server and exposes tools as OpenAI-compatible functions
  */
 
 import { logger } from './logger.service';
-import { cacheService } from './cacheService';
 
 export interface MCPTool {
   name: string;
@@ -39,17 +38,12 @@ export interface OpenAIToolFormat {
 export class MCPAdapter {
   private static instance: MCPAdapter;
   private rubeServerUrl: string;
-  private metorialServerUrl: string;
-  private connectionStatus: Record<string, 'disconnected' | 'connecting' | 'connected' | 'error'> = {
-    rube: 'disconnected',
-    metorial: 'disconnected'
-  };
+  private connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private cachedTools: Map<string, MCPTool> = new Map();
   private toolCacheExpiry: number = 5 * 60 * 1000; // 5 minutes
 
   private constructor() {
     this.rubeServerUrl = (import.meta.env as any).VITE_RUBE_MCP_SERVER_URL || 'http://localhost:3001';
-    this.metorialServerUrl = (import.meta.env as any).VITE_METORIAL_MCP_SERVER_URL || 'https://api.metorial.com';
   }
 
   static getInstance(): MCPAdapter {
@@ -60,126 +54,114 @@ export class MCPAdapter {
   }
 
   /**
-    * Connect to a specific MCP server
-    */
-   async connect(server: 'rube' | 'metorial' = 'rube'): Promise<boolean> {
-     try {
-       if (this.connectionStatus[server] === 'connected') {
-         return true;
-       }
+   * Connect to Rube MCP server
+   */
+  async connect(): Promise<boolean> {
+    try {
+      if (this.connectionStatus === 'connected') {
+        return true;
+      }
 
-       const serverUrl = server === 'rube' ? this.rubeServerUrl : this.metorialServerUrl;
-       logger.info(`Connecting to ${server} MCP server`, { url: serverUrl });
-       this.connectionStatus[server] = 'connecting';
+      logger.info(`Connecting to Rube MCP server`, { url: this.rubeServerUrl });
+      this.connectionStatus = 'connecting';
 
-       // Test connection by fetching server info
-       const response = await fetch(`${serverUrl}/health`, {
-         method: 'GET',
-         headers: {
-           'Content-Type': 'application/json',
-           ...(server === 'metorial' && (import.meta.env as any).VITE_METORIAL_API_KEY ? {
-             'Authorization': `Bearer ${(import.meta.env as any).VITE_METORIAL_API_KEY}`
-           } : {})
-         }
-       });
+      // Test connection by fetching server info
+      const response = await fetch(`${this.rubeServerUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-       if (!response.ok) {
-         throw new Error(`${server} MCP server health check failed: ${response.status}`);
-       }
+      if (!response.ok) {
+        throw new Error(`Rube MCP server health check failed: ${response.status}`);
+      }
 
-       this.connectionStatus[server] = 'connected';
-       logger.info(`Successfully connected to ${server} MCP server`);
-       return true;
-     } catch (error) {
-       this.connectionStatus[server] = 'error';
-       logger.error(`Failed to connect to ${server} MCP server`, error as Error);
-       return false;
-     }
-   }
+      this.connectionStatus = 'connected';
+      logger.info(`Successfully connected to Rube MCP server`);
+      return true;
+    } catch (error) {
+      this.connectionStatus = 'error';
+      logger.error(`Failed to connect to Rube MCP server`, error as Error);
+      return false;
+    }
+  }
 
   /**
-    * Disconnect from MCP server
-    */
-   async disconnect(server: 'rube' | 'metorial' = 'rube'): Promise<void> {
-     this.connectionStatus[server] = 'disconnected';
-     // Clear tools cache if disconnecting from the primary server
-     if (server === 'rube') {
-       this.cachedTools.clear();
-     }
-     logger.info(`Disconnected from ${server} MCP server`);
-   }
+   * Disconnect from MCP server
+   */
+  async disconnect(): Promise<void> {
+    this.connectionStatus = 'disconnected';
+    this.cachedTools.clear();
+    logger.info(`Disconnected from Rube MCP server`);
+  }
 
   /**
-    * Get connection status for a specific server
-    */
-   getConnectionStatus(server: 'rube' | 'metorial' = 'rube'): string {
-     return this.connectionStatus[server] || 'disconnected';
-   }
+   * Get connection status
+   */
+  getConnectionStatus(): string {
+    return this.connectionStatus;
+  }
 
   /**
-    * Discover available tools from MCP server
-    */
-   async discoverTools(server: 'rube' | 'metorial' = 'rube'): Promise<MCPTool[]> {
-     try {
-       if (this.connectionStatus[server] !== 'connected') {
-         await this.connect(server);
-       }
+   * Discover available tools from MCP server
+   */
+  async discoverTools(): Promise<MCPTool[]> {
+    try {
+      if (this.connectionStatus !== 'connected') {
+        await this.connect();
+      }
 
-       // Check localStorage cache first
-       const cacheKey = `${server}_mcp_tools_cache`;
-       const cachedData = localStorage.getItem(cacheKey);
-       if (cachedData) {
-         const cached = JSON.parse(cachedData);
-         if (Date.now() - cached.timestamp < this.toolCacheExpiry) {
-           // Load cached tools for this server
-           const serverTools = new Map(Object.entries(cached.tools));
-           // Merge with existing cached tools
-           serverTools.forEach((tool, name) => {
-             this.cachedTools.set(`${server}_${name}`, tool);
-           });
-           return Array.from(serverTools.values());
-         }
-       }
+      // Check localStorage cache first
+      const cacheKey = 'rube_mcp_tools_cache';
+      const cachedData = localStorage.getItem(cacheKey);
+      if (cachedData) {
+        const cached = JSON.parse(cachedData);
+        if (Date.now() - cached.timestamp < this.toolCacheExpiry) {
+          // Load cached tools
+          const serverTools = new Map<string, MCPTool>(Object.entries(cached.tools));
+          // Merge with existing cached tools
+          serverTools.forEach((tool, name) => {
+            this.cachedTools.set(name, tool);
+          });
+          return Array.from(serverTools.values());
+        }
+      }
 
-       const serverUrl = server === 'rube' ? this.rubeServerUrl : this.metorialServerUrl;
-       logger.info(`Discovering tools from ${server} MCP server`);
+      logger.info(`Discovering tools from Rube MCP server`);
 
-       const response = await fetch(`${serverUrl}/tools`, {
-         method: 'GET',
-         headers: {
-           'Content-Type': 'application/json',
-           ...(server === 'metorial' && (import.meta.env as any).VITE_METORIAL_API_KEY ? {
-             'Authorization': `Bearer ${(import.meta.env as any).VITE_METORIAL_API_KEY}`
-           } : {})
-         }
-       });
+      const response = await fetch(`${this.rubeServerUrl}/tools`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-       if (!response.ok) {
-         throw new Error(`Failed to discover tools from ${server}: ${response.status}`);
-       }
+      if (!response.ok) {
+        throw new Error(`Failed to discover tools: ${response.status}`);
+      }
 
-       const tools: MCPTool[] = await response.json();
+      const tools: MCPTool[] = await response.json();
 
-       // Cache tools in localStorage with server prefix
-       const serverTools = new Map();
-       tools.forEach(tool => {
-         const toolKey = `${server}_${tool.name}`;
-         this.cachedTools.set(toolKey, tool);
-         serverTools.set(tool.name, tool);
-       });
+      // Cache tools in localStorage
+      const serverTools = new Map();
+      tools.forEach(tool => {
+        this.cachedTools.set(tool.name, tool);
+        serverTools.set(tool.name, tool);
+      });
 
-       localStorage.setItem(cacheKey, JSON.stringify({
-         tools: Object.fromEntries(serverTools),
-         timestamp: Date.now()
-       }));
+      localStorage.setItem(cacheKey, JSON.stringify({
+        tools: Object.fromEntries(serverTools),
+        timestamp: Date.now()
+      }));
 
-       logger.info(`Discovered ${server} MCP tools`, { count: tools.length });
-       return tools;
-     } catch (error) {
-       logger.error(`Failed to discover ${server} MCP tools`, error as Error);
-       return [];
-     }
-   }
+      logger.info(`Discovered Rube MCP tools`, { count: tools.length });
+      return tools;
+    } catch (error) {
+      logger.error(`Failed to discover MCP tools`, error as Error);
+      return [];
+    }
+  }
 
   /**
    * Get a specific tool by name
@@ -225,7 +207,7 @@ export class MCPAdapter {
 
       logger.info('Executing MCP tool', { toolName, args: Object.keys(args) });
 
-      const response = await fetch(`${this.mcpServerUrl}/tools/${toolName}/execute`, {
+      const response = await fetch(`${this.rubeServerUrl}/tools/${toolName}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -279,7 +261,7 @@ export class MCPAdapter {
    */
   async initiateOAuth(service: string): Promise<{ authUrl: string; state: string }> {
     try {
-      const response = await fetch(`${this.mcpServerUrl}/auth/${service}/initiate`, {
+      const response = await fetch(`${this.rubeServerUrl}/auth/${service}/initiate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -303,7 +285,7 @@ export class MCPAdapter {
    */
   async completeOAuth(service: string, code: string, state: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.mcpServerUrl}/auth/${service}/complete`, {
+      const response = await fetch(`${this.rubeServerUrl}/auth/${service}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -328,7 +310,7 @@ export class MCPAdapter {
    */
   async isAuthenticated(service: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.mcpServerUrl}/auth/${service}/status`, {
+      const response = await fetch(`${this.rubeServerUrl}/auth/${service}/status`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -352,7 +334,7 @@ export class MCPAdapter {
    */
   async refreshAuth(service: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.mcpServerUrl}/auth/${service}/refresh`, {
+      const response = await fetch(`${this.rubeServerUrl}/auth/${service}/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
