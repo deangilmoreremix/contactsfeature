@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,7 +26,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { contactId } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { contactId } = body;
+    const prefs = extractPreferences(body);
 
     if (!contactId) {
       return {
@@ -65,7 +68,7 @@ exports.handler = async (event) => {
       ? Math.floor((Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
       : 90;
 
-    const emailContent = await generateReactivationEmail(contact, activities || [], daysSinceLastContact);
+    const emailContent = await generateReactivationEmail(contact, activities || [], daysSinceLastContact, prefs);
 
     return {
       statusCode: 200,
@@ -93,15 +96,19 @@ exports.handler = async (event) => {
   }
 };
 
-async function generateReactivationEmail(contact, activities, daysSinceLastContact) {
+async function generateReactivationEmail(contact, activities, daysSinceLastContact, prefs) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const sdrModel = process.env.SMARTCRM_MODEL || 'gpt-5.2';
+  const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+  const temperature = resolveTemperature(prefs, 0.7);
+  const maxTokens = resolveMaxTokens(prefs, 1000);
   const contactName = contact.firstName || contact.name || 'there';
   const company = contact.company || 'your company';
+
+  const prefsBlock = buildPreferencesPromptBlock(prefs);
 
   const prompt = `Generate a reactivation email to re-engage a dormant lead.
 
@@ -120,7 +127,7 @@ The reactivation email should:
 - Mention something that might have changed (industry trends, new features, etc.)
 - Provide a compelling reason to re-engage
 - Be warm and non-pushy
-- Include a simple call-to-action
+- Include a simple call-to-action${prefsBlock}
 
 Return JSON with "subject" and "body" fields.`;
 
@@ -133,8 +140,8 @@ Return JSON with "subject" and "body" fields.`;
     body: JSON.stringify({
       model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
+      temperature,
+      max_tokens: maxTokens
     })
   });
 

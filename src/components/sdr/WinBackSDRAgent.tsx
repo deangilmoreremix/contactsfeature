@@ -3,6 +3,7 @@ import { Settings, Trophy, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface WinBackResponse {
   contactId: string;
@@ -20,6 +21,7 @@ interface WinBackSDRAgentProps {
 
 export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => {
   const [contactId, setContactId] = useState(contact?.id || "");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('win-back-sdr');
 
   useEffect(() => {
     if (contact?.id) {
@@ -65,7 +67,7 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
       const res = await fetch("/.netlify/functions/win-back-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -332,8 +334,13 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
         <SDRAgentConfigurator
           agentId="win-back-sdr"
           agentName="Win-Back SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

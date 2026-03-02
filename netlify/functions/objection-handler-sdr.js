@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,7 +26,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { contactId, objection } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { contactId, objection } = body;
+    const prefs = extractPreferences(body);
 
     if (!contactId) {
       return {
@@ -61,7 +64,7 @@ exports.handler = async (event) => {
       };
     }
 
-    const objectionResponse = await handleObjection(contact, objection);
+    const objectionResponse = await handleObjection(contact, objection, prefs);
 
     return {
       statusCode: 200,
@@ -89,15 +92,19 @@ exports.handler = async (event) => {
   }
 };
 
-async function handleObjection(contact, objection) {
+async function handleObjection(contact, objection, prefs) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
+  const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+  const temperature = resolveTemperature(prefs, 0.7);
+  const maxTokens = resolveMaxTokens(prefs, 1000);
   const contactName = contact.firstName || contact.name || 'the prospect';
   const company = contact.company || 'their company';
+
+  const prefsBlock = buildPreferencesPromptBlock(prefs);
 
   const prompt = `You are an expert sales development representative handling objections.
 
@@ -119,7 +126,7 @@ Craft a professional, empathetic response that:
 1. Acknowledges their concern without being dismissive
 2. Provides relevant context or reframe
 3. Offers a path forward
-4. Maintains the relationship even if they're not ready
+4. Maintains the relationship even if they're not ready${prefsBlock}
 
 Return JSON with:
 - "response": The full email response text
@@ -135,8 +142,8 @@ Return JSON with:
     body: JSON.stringify({
       model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
+      temperature,
+      max_tokens: maxTokens
     })
   });
 
@@ -153,13 +160,13 @@ Return JSON with:
     return {
       response: parsed.response,
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.8,
-      debug: { model: sdrModel, objectionType: parsed.objectionType }
+      debug: { model: sdrModel, temperature, objectionType: parsed.objectionType }
     };
   } catch (parseError) {
     return {
       response: content,
       confidence: 0.6,
-      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+      debug: { model: sdrModel, temperature, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
     };
   }
 }

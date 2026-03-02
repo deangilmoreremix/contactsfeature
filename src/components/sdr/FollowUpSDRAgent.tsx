@@ -3,6 +3,7 @@ import { Settings, MessageSquare, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface FollowUpResponse {
   contactId: string;
@@ -20,6 +21,7 @@ interface FollowUpSDRAgentProps {
 export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) => {
   const [contactId, setContactId] = useState(contact?.id || "");
   const [followUpNumber, setFollowUpNumber] = useState(1);
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('follow-up-sdr');
 
   useEffect(() => {
     if (contact?.id) {
@@ -65,7 +67,7 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
       const res = await fetch("/.netlify/functions/follow-up-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, followUpNumber })
+        body: JSON.stringify({ contactId, followUpNumber, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -359,8 +361,13 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
         <SDRAgentConfigurator
           agentId="follow-up-sdr"
           agentName="Follow-Up SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

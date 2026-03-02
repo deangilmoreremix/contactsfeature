@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,7 +26,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { contactId } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { contactId } = body;
+    const prefs = extractPreferences(body);
 
     if (!contactId) {
       return {
@@ -60,7 +63,7 @@ exports.handler = async (event) => {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const discoveryResult = await performDiscovery(contact, activities || []);
+    const discoveryResult = await performDiscovery(contact, activities || [], prefs);
 
     return {
       statusCode: 200,
@@ -86,16 +89,20 @@ exports.handler = async (event) => {
   }
 };
 
-async function performDiscovery(contact, activities) {
+async function performDiscovery(contact, activities, prefs) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
+  const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+  const temperature = resolveTemperature(prefs, 0.7);
+  const maxTokens = resolveMaxTokens(prefs, 1500);
   const contactName = contact.firstName || contact.name || 'Unknown';
   const company = contact.company || 'Unknown Company';
   const title = contact.title || contact.jobTitle || '';
+
+  const prefsBlock = buildPreferencesPromptBlock(prefs);
 
   const prompt = `You are a Sales Development Representative performing discovery research on a prospect.
 
@@ -122,7 +129,7 @@ Perform comprehensive discovery research and return JSON with:
 }
 3. "nextActions": ["List of 3-5 recommended next actions for the SDR"]
 
-Be specific and actionable in your analysis.`;
+Be specific and actionable in your analysis.${prefsBlock}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -133,8 +140,8 @@ Be specific and actionable in your analysis.`;
     body: JSON.stringify({
       model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1500
+      temperature,
+      max_tokens: maxTokens
     })
   });
 

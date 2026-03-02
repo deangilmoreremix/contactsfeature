@@ -3,6 +3,7 @@ import { Settings, RotateCcw, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface ReactivationResponse {
   contactId: string;
@@ -19,6 +20,7 @@ interface ReactivationSDRAgentProps {
 
 export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ contact }) => {
   const [contactId, setContactId] = useState(contact?.id || "");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('reactivation-sdr');
 
   useEffect(() => {
     if (contact?.id) {
@@ -64,7 +66,7 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
       const res = await fetch("/.netlify/functions/reactivation-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -278,8 +280,13 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
         <SDRAgentConfigurator
           agentId="reactivation-sdr"
           agentName="Re-Activation SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

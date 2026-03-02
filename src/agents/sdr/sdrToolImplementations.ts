@@ -3,11 +3,10 @@
  * Concrete implementations for each SDR Autopilot tool
  */
 
-import { supabase } from "../../lib/supabase";
+import { supabase, callEdgeFunction } from "../../lib/supabase";
 import { saveAutopilotState } from "./sdrStateHelpers";
-import { agentmailClient } from "../../../lib/agentmailClient";
 
-interface AgentMailSendResult {
+interface EmailSendResult {
   success: boolean;
   message_id: string;
   sent_at: string;
@@ -22,44 +21,39 @@ interface CalendarScheduleResult {
   error?: string;
 }
 
-async function sendEmailViaAgentMail(params: {
-  from: string;
+async function sendEmailViaEdgeFunction(params: {
+  from_name: string;
+  from_email: string;
   to: string;
   subject: string;
   body_html: string;
-  inboxId?: string;
-}): Promise<AgentMailSendResult> {
+  contact_id?: string;
+  mailbox_key?: string;
+}): Promise<EmailSendResult> {
   try {
-    const inboxId = params.inboxId || process.env.AGENTMAIL_DEFAULT_INBOX_ID;
-
-    if (!inboxId) {
-      console.warn('AgentMail: No inbox ID configured, using fallback');
-      return {
-        success: true,
-        message_id: `msg_${Date.now()}`,
-        sent_at: new Date().toISOString()
-      };
-    }
-
-    const message = await agentmailClient.inboxes.messages.send(inboxId, {
+    const result = await callEdgeFunction('send-email', {
       to: params.to,
       subject: params.subject,
-      html: params.body_html,
-      from_name: params.from.split('@')[0]
+      body_html: params.body_html,
+      from_name: params.from_name,
+      from_email: params.from_email,
+      contact_id: params.contact_id,
+      mailbox_key: params.mailbox_key,
     });
 
     return {
-      success: true,
-      message_id: message.id || `msg_${Date.now()}`,
-      sent_at: new Date().toISOString()
+      success: result.success,
+      message_id: result.message_id || `msg_${Date.now()}`,
+      sent_at: result.sent_at || new Date().toISOString(),
+      error: result.error,
     };
   } catch (error) {
-    console.error('AgentMail send error:', error);
+    console.error('Email send error:', error);
     return {
       success: false,
       message_id: '',
       sent_at: '',
-      error: error instanceof Error ? error.message : 'Failed to send email'
+      error: error instanceof Error ? error.message : 'Failed to send email',
     };
   }
 }
@@ -176,7 +170,7 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
   }
 }
 
-export async function sendViaAgentMail(args: {
+export async function sendEmailForLead(args: {
   lead_id: string;
   mailbox_key: string;
   subject: string;
@@ -197,65 +191,44 @@ export async function sendViaAgentMail(args: {
       throw new Error(`Lead not found or missing email for id: ${args.lead_id}`);
     }
 
-    const mailboxMapping: Record<string, { email: string; inboxId?: string }> = {
-      'deansales': {
-        email: 'dean@agentmail.to',
-        inboxId: process.env.AGENTMAIL_INBOX_DEAN
-      },
-      'sarahbizdev': {
-        email: 'sarah@agentmail.to',
-        inboxId: process.env.AGENTMAIL_INBOX_SARAH
-      },
-      'techsales': {
-        email: 'tech@agentmail.to',
-        inboxId: process.env.AGENTMAIL_INBOX_TECH
-      }
+    const mailboxMapping: Record<string, { name: string; email: string }> = {
+      'deansales': { name: 'Dean', email: 'dean@smartcrm.app' },
+      'sarahbizdev': { name: 'Sarah', email: 'sarah@smartcrm.app' },
+      'techsales': { name: 'Tech Sales', email: 'tech@smartcrm.app' },
     };
 
     const mailbox = mailboxMapping[args.mailbox_key] || {
-      email: `${args.mailbox_key}@agentmail.to`,
-      inboxId: process.env.AGENTMAIL_DEFAULT_INBOX_ID
+      name: args.mailbox_key,
+      email: `${args.mailbox_key}@smartcrm.app`,
     };
 
-    const result = await sendEmailViaAgentMail({
-      from: mailbox.email,
+    const result = await sendEmailViaEdgeFunction({
+      from_name: mailbox.name,
+      from_email: mailbox.email,
       to: lead.email,
       subject: args.subject,
       body_html: args.body_html,
-      inboxId: mailbox.inboxId
+      contact_id: args.lead_id,
+      mailbox_key: args.mailbox_key,
     });
-
-    if (result.success) {
-      await supabase
-        .from('emails')
-        .insert({
-          contact_id: args.lead_id,
-          from_email: mailbox.email,
-          to_email: lead.email,
-          subject: args.subject,
-          body_html: args.body_html,
-          sent_at: result.sent_at,
-          status: 'sent',
-          mailbox_key: args.mailbox_key,
-          message_id: result.message_id
-        });
-    }
 
     return {
       success: result.success,
       message_id: result.message_id,
       sent_at: result.sent_at,
       recipient: lead.email,
-      error: result.error
+      error: result.error,
     };
   } catch (error) {
-    console.error('Error in sendViaAgentMail:', error);
+    console.error('Error in sendEmailForLead:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
+
+export const sendViaAgentMail = sendEmailForLead;
 
 export async function createTaskInSmartCRM(args: {
   lead_id: string;
@@ -378,8 +351,9 @@ export async function scheduleMeetingForLead(args: {
     }
 
     if (lead.email) {
-      await sendEmailViaAgentMail({
-        from: 'calendar@smartcrm.app',
+      await sendEmailViaEdgeFunction({
+        from_name: 'SmartCRM Calendar',
+        from_email: 'calendar@smartcrm.app',
         to: lead.email,
         subject: 'Your meeting has been scheduled',
         body_html: `
@@ -388,7 +362,8 @@ export async function scheduleMeetingForLead(args: {
           <p><a href="${meetingResult.join_url}">Join the meeting</a></p>
           <p>Looking forward to speaking with you!</p>
           <p>Best regards,<br>SmartCRM Team</p>
-        `
+        `,
+        contact_id: args.lead_id,
       });
     }
 

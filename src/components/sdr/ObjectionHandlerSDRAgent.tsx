@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Settings, Shield } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface ObjectionResponse {
   contactId: string;
@@ -19,6 +20,7 @@ interface ObjectionHandlerSDRAgentProps {
 export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> = ({ contact }) => {
   const [contactId, setContactId] = useState(contact?.id || "");
   const [objection, setObjection] = useState("");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('objection-handler-sdr');
 
   useEffect(() => {
     if (contact?.id) {
@@ -48,7 +50,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
       const res = await fetch("/.netlify/functions/objection-handler-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, objection })
+        body: JSON.stringify({ contactId, objection, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -266,8 +268,13 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
         <SDRAgentConfigurator
           agentId="objection-handler-sdr"
           agentName="Objection-Handling SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

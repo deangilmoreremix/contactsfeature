@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,7 +26,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { contactId } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { contactId } = body;
+    const prefs = extractPreferences(body);
 
     if (!contactId) {
       return {
@@ -67,7 +70,7 @@ exports.handler = async (event) => {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    const winBackContent = await generateWinBackEmail(contact, activities || [], deals || []);
+    const winBackContent = await generateWinBackEmail(contact, activities || [], deals || [], prefs);
 
     return {
       statusCode: 200,
@@ -96,13 +99,15 @@ exports.handler = async (event) => {
   }
 };
 
-async function generateWinBackEmail(contact, activities, deals) {
+async function generateWinBackEmail(contact, activities, deals, prefs) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
+  const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+  const temperature = resolveTemperature(prefs, 0.7);
+  const maxTokens = resolveMaxTokens(prefs, 1200);
   const contactName = contact.firstName || contact.name || 'there';
   const company = contact.company || 'your company';
 
@@ -140,7 +145,7 @@ The email should:
 - Show you understand their potential concerns
 - Present a compelling reason to return
 - Include a special offer or incentive
-- Have a clear, low-friction call to action`;
+- Have a clear, low-friction call to action${buildPreferencesPromptBlock(prefs)}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -151,8 +156,8 @@ The email should:
     body: JSON.stringify({
       model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1200
+      temperature,
+      max_tokens: maxTokens
     })
   });
 

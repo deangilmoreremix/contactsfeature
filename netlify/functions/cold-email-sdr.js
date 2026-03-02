@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,7 +26,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { contactId } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { contactId } = body;
+    const prefs = extractPreferences(body);
 
     if (!contactId) {
       return {
@@ -53,7 +56,7 @@ exports.handler = async (event) => {
       };
     }
 
-    const emailContent = await generateColdEmail(contact);
+    const emailContent = await generateColdEmail(contact, prefs);
 
     return {
       statusCode: 200,
@@ -80,16 +83,20 @@ exports.handler = async (event) => {
   }
 };
 
-async function generateColdEmail(contact) {
+async function generateColdEmail(contact, prefs) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const sdrModel = process.env.SMARTCRM_MODEL || 'gpt-5.2';
+  const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+  const temperature = resolveTemperature(prefs, 0.7);
+  const maxTokens = resolveMaxTokens(prefs, 1000);
   const contactName = contact.firstName || contact.name || 'there';
   const company = contact.company || 'your company';
   const title = contact.title || contact.jobTitle || '';
+
+  const prefsBlock = buildPreferencesPromptBlock(prefs);
 
   const prompt = `Generate a personalized cold email to ${contactName}${title ? ` (${title})` : ''} at ${company}.
 
@@ -108,7 +115,7 @@ The cold email should:
 - Clearly articulate value proposition
 - Include a soft call-to-action (not pushy)
 - Be concise (under 150 words)
-- Sound human, not templated
+- Sound human, not templated${prefsBlock}
 
 Return JSON with "subject" and "body" fields.`;
 
@@ -121,8 +128,8 @@ Return JSON with "subject" and "body" fields.`;
     body: JSON.stringify({
       model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
+      temperature,
+      max_tokens: maxTokens
     })
   });
 
@@ -139,13 +146,13 @@ Return JSON with "subject" and "body" fields.`;
     return {
       subject: parsed.subject,
       body: parsed.body,
-      debug: { model: sdrModel, contactName, company }
+      debug: { model: sdrModel, temperature, contactName, company }
     };
   } catch (parseError) {
     return {
       subject: `Quick question for ${contactName} at ${company}`,
       body: content,
-      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+      debug: { model: sdrModel, temperature, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
     };
   }
 }

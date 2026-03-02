@@ -3,6 +3,7 @@ import { Settings, Send, Mail, Copy, Check } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface ColdEmailResponse {
   contactId: string;
@@ -18,6 +19,7 @@ interface ColdEmailSDRAgentProps {
 
 export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact }) => {
   const [contactId, setContactId] = useState(contact?.id || "");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('cold-email-sdr');
 
   useEffect(() => {
     if (contact?.id) {
@@ -63,7 +65,7 @@ export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact })
       const res = await fetch("/.netlify/functions/cold-email-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -290,8 +292,13 @@ export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact })
         <SDRAgentConfigurator
           agentId="cold-email-sdr"
           agentName="Cold Email SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

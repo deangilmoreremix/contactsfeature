@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search, Users, Building } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface DiscoveryResponse {
   contactId: string;
@@ -23,6 +24,7 @@ interface DiscoverySDRAgentProps {
 
 export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact }) => {
   const [contactId, setContactId] = useState(contact?.id || "");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('discovery-sdr');
 
   useEffect(() => {
     if (contact?.id) {
@@ -48,7 +50,7 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
       const res = await fetch("/.netlify/functions/discovery-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -260,8 +262,13 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
         <SDRAgentConfigurator
           agentId="discovery-sdr"
           agentName="Discovery SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

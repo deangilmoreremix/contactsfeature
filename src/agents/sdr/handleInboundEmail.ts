@@ -107,7 +107,7 @@ async function findLeadByEmail(email: string): Promise<string | null> {
       .from('contacts')
       .select('id')
       .eq('email', email.toLowerCase().trim())
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       return null;
@@ -130,7 +130,7 @@ async function checkAutopilotStatus(leadId: string): Promise<any> {
       .select('state_json, status')
       .eq('lead_id', leadId)
       .eq('agent_type', 'sdr_autopilot')
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       return null;
@@ -165,7 +165,7 @@ async function logInboundEmail(payload: AgentMailWebhookPayload, leadId: string)
         mailbox_key: payload.mailbox_key,
         thread_id: payload.thread_id,
         status: 'received',
-        source: 'agentmail_webhook'
+        source: 'inbound_webhook'
       });
   } catch (error) {
     console.error('Error logging inbound email:', error);
