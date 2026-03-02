@@ -1,31 +1,44 @@
 const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { fetchWithTimeout } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey'
-};
+const log = createLogger('autopilot-batch');
 
 const BATCH_SIZE = 20;
+const CONCURRENCY = 5;
 
-async function triggerAutopilotForContact(contactId) {
+async function triggerAutopilotForContact(contactId, authHeader) {
   const baseUrl = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
-  const response = await fetch(`${baseUrl}/.netlify/functions/trigger-autopilot`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contactId })
-  });
+  const response = await fetchWithTimeout(
+    `${baseUrl}/.netlify/functions/trigger-autopilot`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: JSON.stringify({ contactId }),
+    },
+    30000
+  );
   return response.json();
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
+async function processInChunks(items, fn, concurrency) {
+  const results = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const chunkResults = await Promise.allSettled(chunk.map(fn));
+    results.push(...chunkResults);
   }
+  return results;
+}
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
+
+  const authHeader = event.headers?.authorization || event.headers?.Authorization;
 
   try {
     const now = new Date().toISOString();
@@ -38,64 +51,59 @@ exports.handler = async (event) => {
       .order('next_action_at', { ascending: true })
       .limit(BATCH_SIZE);
 
-    if (statesError) {
-      throw new Error(`Failed to query autopilot states: ${statesError.message}`);
-    }
+    if (statesError) throw new Error(`Failed to query autopilot states: ${statesError.message}`);
 
     if (!dueStates || dueStates.length === 0) {
       return {
         statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify({ processed: 0, message: 'No contacts due for autopilot action' })
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ processed: 0, message: 'No contacts due for autopilot action' }),
       };
     }
 
-    const results = [];
     let processed = 0;
     let errors = 0;
+    const results = [];
 
-    for (const state of dueStates) {
-      try {
-        const result = await triggerAutopilotForContact(state.lead_id);
-        results.push({ contactId: state.lead_id, success: true, result });
+    const settled = await processInChunks(
+      dueStates,
+      async (state) => {
+        const result = await triggerAutopilotForContact(state.lead_id, authHeader);
+        return { contactId: state.lead_id, result };
+      },
+      CONCURRENCY
+    );
+
+    for (let i = 0; i < settled.length; i++) {
+      const outcome = settled[i];
+      const state = dueStates[i];
+      if (outcome.status === 'fulfilled') {
+        results.push({ contactId: state.lead_id, success: true });
         processed++;
-      } catch (err) {
-        results.push({ contactId: state.lead_id, success: false, error: err.message });
+      } else {
+        const errMsg = outcome.reason?.message || 'Unknown error';
+        results.push({ contactId: state.lead_id, success: false });
         errors++;
-
         await supabase.from('agent_logs').insert({
           contact_id: state.lead_id,
           user_id: state.user_id,
           agent_type: 'sdr',
           level: 'error',
-          message: `Batch autopilot error: ${err.message}`,
-          autopilot_state_id: state.id
+          message: `Batch autopilot error: ${errMsg}`,
+          autopilot_state_id: state.id,
         }).catch(() => {});
       }
     }
 
-    await supabase.from('agent_logs').insert({
-      agent_type: 'sdr_batch',
-      level: 'info',
-      message: `Batch run complete: ${processed} processed, ${errors} errors, ${dueStates.length} total`
-    }).catch(() => {});
+    log.info('Batch run complete', { processed, errors, total: dueStates.length });
 
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        processed,
-        errors,
-        total: dueStates.length,
-        results
-      })
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ processed, errors, total: dueStates.length, results }),
     };
   } catch (err) {
-    console.error('[autopilot-batch] error:', err);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Batch autopilot failed', details: err.message })
-    };
+    log.error('Batch autopilot failed', { error: err.message });
+    return errorResponse(500, 'Batch autopilot failed');
   }
-};
+});

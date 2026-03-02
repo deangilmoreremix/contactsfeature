@@ -1,52 +1,40 @@
 const { supabase } = require('./_supabaseClient');
-const { openai, buildSdrAgent } = require('./_aiClients');
+const { buildSdrAgent } = require('./_aiClients');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature } = require('./_sdrPreferences');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json'
-};
+const log = createLogger('run-agent');
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
+exports.handler = withAuth(async (event, user) => {
+  const correlationId = generateCorrelationId();
+  log.setCorrelationId(correlationId);
+
+  const body = parseBody(event);
+  if (!body) {
+    return errorResponse(400, 'Invalid JSON body');
   }
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+  const { contactId } = body;
+  const contactError = validateContactId(contactId);
+  if (contactError) {
+    return errorResponse(400, contactError);
   }
+
+  const prefs = extractPreferences(body);
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { contactId } = body;
-    const prefs = extractPreferences(body);
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'contactId is required' })
-      };
-    }
-
-    const { data: contact, error: contactError } = await supabase
+    const { data: contact, error: contactErr } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
-    if (contactError || !contact) {
-      return {
-        statusCode: 404,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact not found' })
-      };
+    if (contactErr || !contact) {
+      return errorResponse(404, 'Contact not found');
     }
 
     const { data: settings } = await supabase
@@ -71,7 +59,7 @@ exports.handler = async (event) => {
       personaId,
       sequenceLength,
       step: currentStep,
-      contact
+      contact,
     });
 
     const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
@@ -82,51 +70,24 @@ exports.handler = async (event) => {
 
 Contact: ${contact.name || 'Unknown'} at ${contact.company || 'Unknown Company'}
 Email: ${contact.email || 'N/A'}
-Title: ${contact.title || contact.jobTitle || 'N/A'}
+Title: ${contact.title || 'N/A'}
 Industry: ${contact.industry || 'N/A'}
-Status: ${contact.lead_status || 'new'}
+Status: ${contact.status || 'new'}
 Step: ${currentStep} of ${sequenceLength}
 ${prefsBlock}
 
 Generate the next outreach message for step ${currentStep}. Return JSON with "subject", "body", and "next_action" fields.`;
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return {
-        statusCode: 500,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'OpenAI API key not configured' })
-      };
-    }
+    const content = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      { model: sdrModel, temperature, maxTokens: 1500 }
+    );
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: sdrModel,
-        messages: [{ role: 'user', content: prompt }],
-        temperature,
-        max_tokens: 1500
-      })
+    const parsed = parseJSONResponse(content, {
+      subject: `Follow up - Step ${currentStep}`,
+      body: content,
+      next_action: 'follow_up',
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content || '';
-
-    let parsed;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-    } catch (_parseErr) {
-      parsed = { subject: `Follow up - Step ${currentStep}`, body: content, next_action: 'follow_up' };
-    }
 
     const nextStep = currentStep + 1;
     const isComplete = nextStep > sequenceLength;
@@ -136,7 +97,7 @@ Generate the next outreach message for step ${currentStep}. Return JSON with "su
         ...(autopilotRow.state_json || {}),
         current_step: isComplete ? sequenceLength : nextStep,
         last_executed_at: new Date().toISOString(),
-        last_result: { subject: parsed.subject, next_action: parsed.next_action }
+        last_result: { subject: parsed.subject, next_action: parsed.next_action },
       };
 
       await supabase
@@ -144,30 +105,29 @@ Generate the next outreach message for step ${currentStep}. Return JSON with "su
         .update({
           state_json: updatedState,
           status: isComplete ? 'completed' : 'active',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('lead_id', contactId)
         .eq('agent_type', 'sdr_autopilot');
     }
 
-    try {
-      await supabase.from('emails').insert({
-        contact_id: contactId,
-        from_email: 'sdr@smartcrm.ai',
-        to_email: contact.email,
-        subject: parsed.subject,
-        body_text: parsed.body,
-        status: 'draft',
-        is_inbound: false,
-        agent_type: 'sdr_autopilot'
-      });
-    } catch (_emailErr) {
-      console.warn('Failed to save email draft:', _emailErr);
-    }
+    await supabase.from('emails').insert({
+      contact_id: contactId,
+      from_email: 'sdr@smartcrm.ai',
+      to_email: contact.email,
+      subject: parsed.subject,
+      body_text: parsed.body,
+      status: 'draft',
+      is_inbound: false,
+      agent_type: 'sdr_autopilot',
+      user_id: user.id,
+    }).then(null, (err) => log.warn('Failed to save email draft', { error: err.message }));
+
+    log.info('Agent run completed', { contactId, step: currentStep, isComplete });
 
     return {
       statusCode: 200,
-      headers: corsHeaders,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         contactId,
         step: currentStep,
@@ -176,19 +136,11 @@ Generate the next outreach message for step ${currentStep}. Return JSON with "su
         body: parsed.body,
         next_action: parsed.next_action,
         isComplete,
-        nextStep: isComplete ? null : nextStep
-      })
+        nextStep: isComplete ? null : nextStep,
+      }),
     };
-
   } catch (error) {
-    console.error('[run-agent] Error:', error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        error: 'SDR agent execution failed',
-        details: error.message
-      })
-    };
+    log.error('Agent execution failed', { contactId, error: error.message });
+    return errorResponse(500, 'SDR agent execution failed');
   }
-};
+});

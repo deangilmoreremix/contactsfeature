@@ -1,55 +1,34 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
-};
+const log = createLogger('reactivation-sdr');
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
+
+  const prefs = extractPreferences(body);
 
   try {
-    const body = JSON.parse(event.body);
-    const { contactId } = body;
-    const prefs = extractPreferences(body);
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact ID is required' })
-      };
-    }
-
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
-    if (contactError) {
-      throw new Error(`Database error: ${contactError.message}`);
-    }
-
-    if (!contact) {
-      return {
-        statusCode: 404,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact not found' })
-      };
-    }
+    if (contactError) throw new Error(`Database error: ${contactError.message}`);
+    if (!contact) return errorResponse(404, 'Contact not found');
 
     const { data: activities } = await supabase
       .from('activities')
@@ -58,64 +37,30 @@ exports.handler = async (event) => {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const lastActivity = activities && activities.length > 0 ? activities[0] : null;
+    const activityList = activities || [];
+    const lastActivity = activityList[0];
     const daysSinceLastContact = lastActivity
       ? Math.floor((Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
       : 90;
 
-    const emailContent = await generateReactivationEmail(contact, activities || [], daysSinceLastContact, prefs);
+    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const temperature = resolveTemperature(prefs, 0.7);
+    const maxTokens = resolveMaxTokens(prefs, 1000);
+    const contactName = contact.firstname || contact.name || 'there';
+    const company = contact.company || 'your company';
+    const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        contactId,
-        subject: emailContent.subject,
-        body: emailContent.body,
-        sent: true,
-        daysSinceLastContact,
-        debug: emailContent.debug
-      })
-    };
-
-  } catch (error) {
-    console.error('Reactivation SDR error:', error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        error: 'Reactivation email generation failed',
-        details: error instanceof Error ? error.message : String(error)
-      })
-    };
-  }
-};
-
-async function generateReactivationEmail(contact, activities, daysSinceLastContact, prefs) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
-  const temperature = resolveTemperature(prefs, 0.7);
-  const maxTokens = resolveMaxTokens(prefs, 1000);
-  const contactName = contact.firstName || contact.name || 'there';
-  const company = contact.company || 'your company';
-
-  const prefsBlock = buildPreferencesPromptBlock(prefs);
-
-  const prompt = `Generate a reactivation email to re-engage a dormant lead.
+    const prompt = `Generate a reactivation email to re-engage a dormant lead.
 
 Contact: ${contactName} at ${company}
 Days since last contact: ${daysSinceLastContact}
-Previous interactions: ${JSON.stringify(activities.slice(0, 3))}
+Previous interactions: ${JSON.stringify(activityList.slice(0, 3))}
 Contact details: ${JSON.stringify({
-  title: contact.title || contact.jobTitle,
-  email: contact.email,
-  industry: contact.industry,
-  notes: contact.notes
-})}
+      title: contact.title,
+      email: contact.email,
+      industry: contact.industry,
+      notes: contact.notes,
+    })}
 
 The reactivation email should:
 - Acknowledge the time gap without being guilt-tripping
@@ -126,40 +71,31 @@ The reactivation email should:
 
 Return JSON with "subject" and "body" fields.`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: sdrModel,
-      messages: [{ role: 'user', content: prompt }],
-      temperature,
-      max_tokens: maxTokens
-    })
-  });
+    const content = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      { model: sdrModel, temperature, maxTokens }
+    );
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-    return {
-      subject: parsed.subject,
-      body: parsed.body,
-      debug: { model: sdrModel, daysSinceLastContact }
-    };
-  } catch (parseError) {
-    return {
+    const parsed = parseJSONResponse(content, {
       subject: `It's been a while, ${contactName}`,
       body: content,
-      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+    });
+
+    log.info('Reactivation email generated', { contactId, daysSinceLastContact });
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        contactId,
+        subject: parsed.subject,
+        body: parsed.body,
+        sent: true,
+        daysSinceLastContact,
+      }),
     };
+  } catch (error) {
+    log.error('Reactivation email generation failed', { contactId, error: error.message });
+    return errorResponse(500, 'Reactivation email generation failed');
   }
-}
+});

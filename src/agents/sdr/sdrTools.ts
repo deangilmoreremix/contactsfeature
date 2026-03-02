@@ -1,8 +1,3 @@
-/**
- * SDR Tools Specification
- * Defines the function tools that GPT-5.2 can call for SDR Autopilot operations
- */
-
 export const sdrTools = [
   {
     type: "function",
@@ -14,41 +9,37 @@ export const sdrTools = [
         properties: {
           lead_id: {
             type: "string",
-            description: "SmartCRM lead ID"
-          }
+            description: "SmartCRM lead ID",
+          },
         },
-        required: ["lead_id"]
-      }
-    }
+        required: ["lead_id"],
+      },
+    },
   },
   {
     type: "function",
     function: {
       name: "send_sdr_email",
-      description: "Send an SDR email via AgentMail using the correct SDR mailbox/persona.",
+      description: "Queue an SDR email for delivery to the lead.",
       parameters: {
         type: "object",
         properties: {
           lead_id: {
             type: "string",
-            description: "SmartCRM lead ID"
-          },
-          mailbox_key: {
-            type: "string",
-            description: "Which SDR inbox (e.g. 'deansales')."
+            description: "SmartCRM lead ID",
           },
           subject: {
             type: "string",
-            description: "Email subject line"
+            description: "Email subject line",
           },
           body_html: {
             type: "string",
-            description: "Email body in HTML format"
-          }
+            description: "Email body in HTML format",
+          },
         },
-        required: ["lead_id", "mailbox_key", "subject", "body_html"]
-      }
-    }
+        required: ["lead_id", "subject", "body_html"],
+      },
+    },
   },
   {
     type: "function",
@@ -60,20 +51,20 @@ export const sdrTools = [
         properties: {
           lead_id: {
             type: "string",
-            description: "SmartCRM lead ID"
+            description: "SmartCRM lead ID",
           },
           description: {
             type: "string",
-            description: "Task description"
+            description: "Task description",
           },
           due_date: {
             type: "string",
-            description: "ISO 8601 date string for task due date"
-          }
+            description: "ISO 8601 date string for task due date",
+          },
         },
-        required: ["lead_id", "description", "due_date"]
-      }
-    }
+        required: ["lead_id", "description", "due_date"],
+      },
+    },
   },
   {
     type: "function",
@@ -85,20 +76,20 @@ export const sdrTools = [
         properties: {
           deal_id: {
             type: "string",
-            description: "SmartCRM deal ID"
+            description: "SmartCRM deal ID",
           },
           new_stage: {
             type: "string",
-            description: "New pipeline stage (e.g., 'discovery', 'proposal', 'closed-won')"
+            description: "New pipeline stage (e.g., 'discovery', 'proposal', 'closed-won')",
           },
           reason: {
             type: "string",
-            description: "Optional reason for the stage change"
-          }
+            description: "Optional reason for the stage change",
+          },
         },
-        required: ["deal_id", "new_stage"]
-      }
-    }
+        required: ["deal_id", "new_stage"],
+      },
+    },
   },
   {
     type: "function",
@@ -110,16 +101,16 @@ export const sdrTools = [
         properties: {
           lead_id: {
             type: "string",
-            description: "SmartCRM lead ID"
+            description: "SmartCRM lead ID",
           },
           timeslot: {
             type: "string",
-            description: "Preferred time window or constraints (e.g., 'next Tuesday 2-4pm')"
-          }
+            description: "Preferred time window or constraints (e.g., 'next Tuesday 2-4pm')",
+          },
         },
-        required: ["lead_id"]
-      }
-    }
+        required: ["lead_id"],
+      },
+    },
   },
   {
     type: "function",
@@ -131,15 +122,15 @@ export const sdrTools = [
         properties: {
           lead_id: {
             type: "string",
-            description: "SmartCRM lead ID"
+            description: "SmartCRM lead ID",
           },
           state_json: {
             type: "string",
-            description: "Serialized JSON state of plan and progress"
-          }
+            description: "Serialized JSON state of plan and progress",
+          },
         },
-        required: ["lead_id", "state_json"]
-      }
-    }
-  }
+        required: ["lead_id", "state_json"],
+      },
+    },
+  },
 ];

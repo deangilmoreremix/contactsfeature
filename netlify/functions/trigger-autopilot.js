@@ -1,124 +1,13 @@
 const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey'
-};
+const log = createLogger('trigger-autopilot');
 
 const MAX_FOLLOW_UPS = 5;
 const FOLLOW_UP_DELAYS_HOURS = [24, 48, 72, 120, 168];
-
-async function generateEmailWithAI(contact, stage, followUpCount, persona, customInstructions) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
-
-  const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
-  const contactName = contact.firstname || contact.name || 'there';
-  const company = contact.company || 'your company';
-  const title = contact.title || '';
-
-  let stagePrompt = '';
-
-  if (stage === 'cold_email') {
-    stagePrompt = `Generate a personalized cold email to ${contactName}${title ? ` (${title})` : ''} at ${company}.
-The cold email should:
-- Have an attention-grabbing subject line
-- Open with something relevant to them or their company
-- Clearly articulate value proposition
-- Include a soft call-to-action (not pushy)
-- Be concise (under 150 words)
-- Sound human, not templated`;
-  } else if (stage === 'follow_up') {
-    const followUpNum = followUpCount + 1;
-    const urgency = followUpNum >= 3 ? 'Be more direct and create mild urgency.' : '';
-    const lastChance = followUpNum >= MAX_FOLLOW_UPS
-      ? 'This is the final follow-up. Give them an easy out if not interested.'
-      : '';
-
-    stagePrompt = `Generate follow-up email #${followUpNum} to ${contactName} at ${company}.
-Previous outreach has not received a response yet.
-The follow-up should:
-- Reference previous outreach without being annoying
-- Provide new value or a different angle
-- Keep it short and respectful
-- Ask a specific question to encourage a response
-${urgency}
-${lastChance}`;
-  } else if (stage === 're_engagement') {
-    stagePrompt = `Generate a re-engagement email to ${contactName} at ${company}.
-This contact has gone cold after previous interactions.
-The re-engagement should:
-- Acknowledge the gap in communication
-- Share something new or timely
-- Be warm and non-pressuring
-- Offer a clear, low-commitment next step`;
-  } else if (stage === 'win_back') {
-    stagePrompt = `Generate a win-back email to ${contactName} at ${company}.
-This contact was previously interested but the deal was lost.
-The win-back should:
-- Acknowledge their previous interest
-- Share what has changed or improved
-- Offer a compelling reason to re-engage
-- Be concise and respectful of their time`;
-  }
-
-  const personaBlock = persona
-    ? `\nYou are writing as the "${persona}" persona. Match the tone and style of this persona.`
-    : '';
-  const instructionsBlock = customInstructions
-    ? `\nAdditional instructions: ${customInstructions}`
-    : '';
-
-  const prompt = `${stagePrompt}
-
-Contact details: ${JSON.stringify({
-    name: contactName,
-    company,
-    title,
-    email: contact.email,
-    industry: contact.industry,
-    notes: contact.notes,
-    tags: contact.tags,
-    interestLevel: contact.interestlevel,
-    status: contact.status
-  })}
-${personaBlock}${instructionsBlock}
-
-Return JSON with "subject" and "body" fields only.`;
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert SDR (Sales Development Representative) AI. Generate personalized, human-sounding sales emails. Always return valid JSON with "subject" and "body" fields.'
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000
-    })
-  });
-
-  if (!response.ok) throw new Error(`OpenAI API error: ${response.status}`);
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    return JSON.parse(jsonMatch ? jsonMatch[0] : content);
-  } catch {
-    return { subject: `Quick note for ${contactName}`, body: content };
-  }
-}
 
 function getNextFollowUpDelay(followUpCount) {
   const idx = Math.min(followUpCount, FOLLOW_UP_DELAYS_HOURS.length - 1);
@@ -131,12 +20,12 @@ function isWithinBusinessHours(timezone) {
     const hourStr = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone || 'America/New_York',
       hour: 'numeric',
-      hour12: false
+      hour12: false,
     }).format(now);
     const hour = parseInt(hourStr);
     const day = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone || 'America/New_York',
-      weekday: 'short'
+      weekday: 'short',
     }).format(now);
     if (day === 'Sat' || day === 'Sun') return false;
     return hour >= 8 && hour < 18;
@@ -178,9 +67,90 @@ async function logAgentActivity(contactId, userId, stateId, level, message) {
     autopilot_state_id: stateId || null,
     metadata: {
       state: 'sdr_outreach',
-      event: level === 'error' ? 'ERROR' : 'OUTREACH_SENT'
-    }
+      event: level === 'error' ? 'ERROR' : 'OUTREACH_SENT',
+    },
   }).catch(() => {});
+}
+
+async function generateEmailWithAI(contact, stage, followUpCount, persona, customInstructions) {
+  const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
+  const contactName = contact.firstname || contact.name || 'there';
+  const company = contact.company || 'your company';
+  const title = contact.title || '';
+
+  let stagePrompt = '';
+  if (stage === 'cold_email') {
+    stagePrompt = `Generate a personalized cold email to ${contactName}${title ? ` (${title})` : ''} at ${company}.
+The cold email should:
+- Have an attention-grabbing subject line
+- Open with something relevant to them or their company
+- Clearly articulate value proposition
+- Include a soft call-to-action (not pushy)
+- Be concise (under 150 words)
+- Sound human, not templated`;
+  } else if (stage === 'follow_up') {
+    const followUpNum = followUpCount + 1;
+    const urgency = followUpNum >= 3 ? 'Be more direct and create mild urgency.' : '';
+    const lastChance = followUpNum >= MAX_FOLLOW_UPS
+      ? 'This is the final follow-up. Give them an easy out if not interested.'
+      : '';
+    stagePrompt = `Generate follow-up email #${followUpNum} to ${contactName} at ${company}.
+Previous outreach has not received a response yet.
+The follow-up should:
+- Reference previous outreach without being annoying
+- Provide new value or a different angle
+- Keep it short and respectful
+- Ask a specific question to encourage a response
+${urgency}
+${lastChance}`;
+  } else if (stage === 're_engagement') {
+    stagePrompt = `Generate a re-engagement email to ${contactName} at ${company}.
+This contact has gone cold after previous interactions.
+The re-engagement should:
+- Acknowledge the gap in communication
+- Share something new or timely
+- Be warm and non-pressuring
+- Offer a clear, low-commitment next step`;
+  } else if (stage === 'win_back') {
+    stagePrompt = `Generate a win-back email to ${contactName} at ${company}.
+This contact was previously interested but the deal was lost.
+The win-back should:
+- Acknowledge their previous interest
+- Share what has changed or improved
+- Offer a compelling reason to re-engage
+- Be concise and respectful of their time`;
+  }
+
+  const personaBlock = persona
+    ? `\nYou are writing as the "${persona}" persona. Match the tone and style of this persona.`
+    : '';
+  const instructionsBlock = customInstructions
+    ? `\nAdditional instructions: ${customInstructions}`
+    : '';
+
+  const prompt = `${stagePrompt}
+
+Contact details: ${JSON.stringify({
+    name: contactName, company, title,
+    email: contact.email, industry: contact.industry, notes: contact.notes,
+    tags: contact.tags, interestLevel: contact.interestlevel, status: contact.status,
+  })}
+${personaBlock}${instructionsBlock}
+
+Return JSON with "subject" and "body" fields only.`;
+
+  const content = await callOpenAI(
+    [
+      { role: 'system', content: 'You are an expert SDR (Sales Development Representative) AI. Generate personalized, human-sounding sales emails. Always return valid JSON with "subject" and "body" fields.' },
+      { role: 'user', content: prompt },
+    ],
+    { model, temperature: 0.7, maxTokens: 1000 }
+  );
+
+  return parseJSONResponse(content, {
+    subject: `Quick note for ${contactName}`,
+    body: content,
+  });
 }
 
 async function runAutopilotStep(contact, settings) {
@@ -205,7 +175,7 @@ async function runAutopilotStep(contact, settings) {
         persona_id: settings.persona_id,
         user_id: settings.user_id || null,
         next_action_at: new Date().toISOString(),
-        state_json: { initialized: true }
+        state_json: { initialized: true },
       })
       .select()
       .maybeSingle();
@@ -232,8 +202,8 @@ async function runAutopilotStep(contact, settings) {
     }
   }
 
-  let stage = state.current_stage || 'cold_email';
-  let followUpCount = state.follow_up_count || 0;
+  const stage = state.current_stage || 'cold_email';
+  const followUpCount = state.follow_up_count || 0;
 
   if (stage === 'follow_up' && followUpCount >= MAX_FOLLOW_UPS) {
     await supabase
@@ -241,7 +211,7 @@ async function runAutopilotStep(contact, settings) {
       .update({
         status: 'completed',
         state_json: { ...state.state_json, completed_reason: 'max_follow_ups_reached' },
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', state.id);
     await logAgentActivity(contact.id, state.user_id, state.id, 'info',
@@ -272,7 +242,7 @@ async function runAutopilotStep(contact, settings) {
     agent_type: stage,
     autopilot_state_id: state.id,
     is_inbound: false,
-    user_id: state.user_id || settings.user_id || null
+    user_id: state.user_id || settings.user_id || null,
   });
   if (emailError) throw new Error(`Failed to queue email: ${emailError.message}`);
 
@@ -287,13 +257,13 @@ async function runAutopilotStep(contact, settings) {
     messages_sent: (state.messages_sent || 0) + 1,
     next_action_at: nextActionAt,
     state_json: { ...state.state_json, last_subject: emailContent.subject, last_stage: stage },
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }).eq('id', state.id);
 
   await supabase.from('contact_agent_settings').update({
     current_step: (settings.current_step || 0) + 1,
     last_sent_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }).eq('contact_id', contact.id);
 
   await logAgentActivity(contact.id, state.user_id, state.id, 'info',
@@ -305,47 +275,55 @@ async function runAutopilotStep(contact, settings) {
     followUpCount: nextFollowUp,
     subject: emailContent.subject,
     nextActionAt,
-    emailQueued: true
+    emailQueued: true,
   };
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { contactId } = body;
-
-    if (!contactId) {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'contactId is required' }) };
-    }
-
     const { data: contact } = await supabase
-      .from('contacts').select('*').eq('id', contactId).maybeSingle();
-    if (!contact) {
-      return { statusCode: 404, headers: corsHeaders, body: JSON.stringify({ error: 'Contact not found' }) };
-    }
+      .from('contacts')
+      .select('*')
+      .eq('id', contactId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!contact) return errorResponse(404, 'Contact not found');
 
     const { data: settings } = await supabase
-      .from('contact_agent_settings').select('*').eq('contact_id', contactId).maybeSingle();
-    if (!settings) {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'No agent settings found' }) };
-    }
+      .from('contact_agent_settings')
+      .select('*')
+      .eq('contact_id', contactId)
+      .maybeSingle();
+    if (!settings) return errorResponse(400, 'No agent settings found');
 
     if (!settings.autopilot_enabled && !settings.is_enabled) {
-      return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ skipped: true, reason: 'Autopilot disabled' }) };
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ skipped: true, reason: 'Autopilot disabled' }),
+      };
     }
 
     const result = await runAutopilotStep(contact, settings);
-    return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ contactId, result }) };
+
+    log.info('Autopilot triggered', { contactId, result: result.skipped ? 'skipped' : 'executed' });
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ contactId, result }),
+    };
   } catch (err) {
-    console.error('[trigger-autopilot] error:', err);
-    return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'Failed to trigger autopilot', details: err.message }) };
+    log.error('Autopilot trigger failed', { contactId, error: err.message });
+    return errorResponse(500, 'Failed to trigger autopilot');
   }
-};
+});

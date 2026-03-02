@@ -1,55 +1,34 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
-};
+const log = createLogger('discovery-sdr');
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
+
+  const prefs = extractPreferences(body);
 
   try {
-    const body = JSON.parse(event.body);
-    const { contactId } = body;
-    const prefs = extractPreferences(body);
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact ID is required' })
-      };
-    }
-
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
-    if (contactError) {
-      throw new Error(`Database error: ${contactError.message}`);
-    }
-
-    if (!contact) {
-      return {
-        statusCode: 404,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact not found' })
-      };
-    }
+    if (contactError) throw new Error(`Database error: ${contactError.message}`);
+    if (!contact) return errorResponse(404, 'Contact not found');
 
     const { data: activities } = await supabase
       .from('activities')
@@ -58,59 +37,24 @@ exports.handler = async (event) => {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const discoveryResult = await performDiscovery(contact, activities || [], prefs);
+    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+    const temperature = resolveTemperature(prefs, 0.7);
+    const maxTokens = resolveMaxTokens(prefs, 1500);
+    const contactName = contact.firstname || contact.name || 'Unknown';
+    const company = contact.company || 'Unknown Company';
+    const title = contact.title || '';
+    const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        contactId,
-        research: discoveryResult.research,
-        qualification: discoveryResult.qualification,
-        nextActions: discoveryResult.nextActions
-      })
-    };
-
-  } catch (error) {
-    console.error('Discovery SDR error:', error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        error: 'Discovery research failed',
-        details: error instanceof Error ? error.message : String(error)
-      })
-    };
-  }
-};
-
-async function performDiscovery(contact, activities, prefs) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
-  const temperature = resolveTemperature(prefs, 0.7);
-  const maxTokens = resolveMaxTokens(prefs, 1500);
-  const contactName = contact.firstName || contact.name || 'Unknown';
-  const company = contact.company || 'Unknown Company';
-  const title = contact.title || contact.jobTitle || '';
-
-  const prefsBlock = buildPreferencesPromptBlock(prefs);
-
-  const prompt = `You are a Sales Development Representative performing discovery research on a prospect.
+    const prompt = `You are a Sales Development Representative performing discovery research on a prospect.
 
 Contact: ${contactName}
 Title: ${title || 'Not specified'}
 Company: ${company}
 Email: ${contact.email || 'Not specified'}
 Industry: ${contact.industry || 'Not specified'}
-LinkedIn: ${contact.linkedin || 'Not available'}
-Website: ${contact.website || 'Not available'}
 Notes: ${contact.notes || 'None'}
 
-Recent activities: ${JSON.stringify(activities.slice(0, 5))}
+Recent activities: ${JSON.stringify((activities || []).slice(0, 5))}
 
 Perform comprehensive discovery research and return JSON with:
 1. "research": {
@@ -126,48 +70,33 @@ Perform comprehensive discovery research and return JSON with:
 
 Be specific and actionable in your analysis.${prefsBlock}`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: sdrModel,
-      messages: [{ role: 'user', content: prompt }],
-      temperature,
-      max_tokens: maxTokens
-    })
-  });
+    const content = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      { model: sdrModel, temperature, maxTokens }
+    );
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-    return {
-      research: parsed.research || {
-        linkedin: 'Unable to generate LinkedIn summary',
-        company: 'Unable to generate company insights',
-        triggers: []
-      },
-      qualification: parsed.qualification || { score: 5, reasons: ['Default score'] },
-      nextActions: parsed.nextActions || ['Review contact manually']
-    };
-  } catch (parseError) {
-    return {
-      research: {
-        linkedin: `${contactName} at ${company}`,
-        company: `${company} - further research needed`,
-        triggers: ['Initial outreach recommended']
-      },
+    const fallback = {
+      research: { linkedin: `${contactName} at ${company}`, company: `${company} - further research needed`, triggers: ['Initial outreach recommended'] },
       qualification: { score: 5, reasons: ['Unable to fully analyze - manual review needed'] },
-      nextActions: ['Perform manual LinkedIn research', 'Visit company website', 'Schedule discovery call']
+      nextActions: ['Perform manual research', 'Visit company website', 'Schedule discovery call'],
     };
+
+    const parsed = parseJSONResponse(content, fallback);
+
+    log.info('Discovery research completed', { contactId });
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        contactId,
+        research: parsed.research || fallback.research,
+        qualification: parsed.qualification || fallback.qualification,
+        nextActions: parsed.nextActions || fallback.nextActions,
+      }),
+    };
+  } catch (error) {
+    log.error('Discovery research failed', { contactId, error: error.message });
+    return errorResponse(500, 'Discovery research failed');
   }
-}
+});

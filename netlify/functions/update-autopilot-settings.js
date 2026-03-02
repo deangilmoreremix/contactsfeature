@@ -1,36 +1,28 @@
 const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json'
-};
+const log = createLogger('update-autopilot-settings');
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId, autopilot_enabled, escalated_to_ae } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { contactId, autopilot_enabled, escalated_to_ae } = body;
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'contactId is required' })
-      };
-    }
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('id', contactId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!contact) return errorResponse(404, 'Contact not found');
 
     const { data: existing } = await supabase
       .from('contact_agent_settings')
@@ -52,7 +44,6 @@ exports.handler = async (event) => {
         .eq('contact_id', contactId)
         .select()
         .maybeSingle();
-
       if (error) throw new Error(`Update failed: ${error.message}`);
       settings = data;
     } else {
@@ -60,21 +51,20 @@ exports.handler = async (event) => {
         .from('contact_agent_settings')
         .insert({
           contact_id: contactId,
+          user_id: user.id,
           autopilot_enabled: autopilot_enabled ?? false,
           escalated_to_ae: escalated_to_ae ?? false,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .select()
         .maybeSingle();
-
       if (error) throw new Error(`Insert failed: ${error.message}`);
       settings = data;
     }
 
     if (typeof autopilot_enabled === 'boolean') {
       const autopilotStatus = autopilot_enabled ? 'active' : 'paused';
-
       const { data: existingState } = await supabase
         .from('autopilot_state')
         .select('id')
@@ -85,30 +75,21 @@ exports.handler = async (event) => {
       if (existingState) {
         await supabase
           .from('autopilot_state')
-          .update({
-            status: autopilotStatus,
-            updated_at: new Date().toISOString()
-          })
+          .update({ status: autopilotStatus, updated_at: new Date().toISOString() })
           .eq('lead_id', contactId)
           .eq('agent_type', 'sdr_autopilot');
       }
     }
 
+    log.info('Autopilot settings updated', { contactId });
+
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ settings })
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ settings }),
     };
-
   } catch (error) {
-    console.error('[update-autopilot-settings] Error:', error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        error: 'Failed to update autopilot settings',
-        details: error.message
-      })
-    };
+    log.error('Failed to update autopilot settings', { contactId, error: error.message });
+    return errorResponse(500, 'Failed to update autopilot settings');
   }
-};
+});

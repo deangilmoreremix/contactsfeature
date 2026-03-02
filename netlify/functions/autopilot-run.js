@@ -1,61 +1,57 @@
-const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { fetchWithTimeout } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json'
-};
+const log = createLogger('autopilot-run');
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
+
+  const authHeader = event.headers?.authorization || event.headers?.Authorization;
 
   try {
-    const body = event.body ? JSON.parse(event.body) : {};
-    const { contactId } = body;
-
-    if (!contactId) {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'contactId is required' }) };
-    }
-
     const baseUrl = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
-    const response = await fetch(`${baseUrl}/.netlify/functions/trigger-autopilot`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contactId })
-    });
+    const response = await fetchWithTimeout(
+      `${baseUrl}/.netlify/functions/trigger-autopilot`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader,
+        },
+        body: JSON.stringify({ contactId }),
+      },
+      30000
+    );
 
     const result = await response.json();
 
     if (!response.ok) {
+      log.warn('Autopilot trigger returned error', { contactId, status: response.status });
       return {
         statusCode: response.status,
-        headers: corsHeaders,
-        body: JSON.stringify(result)
+        headers: CORS_HEADERS,
+        body: JSON.stringify(result),
       };
     }
 
+    log.info('Autopilot run completed', { contactId });
+
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        contactId,
-        result,
-        message: 'Autopilot run completed'
-      })
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ contactId, result, message: 'Autopilot run completed' }),
     };
   } catch (error) {
-    console.error('[autopilot-run] Error:', error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: error.message || 'Internal Server Error' })
-    };
+    log.error('Autopilot run failed', { contactId, error: error.message });
+    return errorResponse(500, 'Autopilot run failed');
   }
-};
+});

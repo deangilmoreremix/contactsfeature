@@ -1,12 +1,7 @@
-/**
- * AgentMail Inbound Email Handler
- * Processes incoming emails and resumes SDR Autopilot campaigns
- */
-
 import { supabase } from "../../lib/supabase";
 import { resumeSdrAutopilot } from "./runSdrAutopilot";
 
-export interface AgentMailWebhookPayload {
+export interface InboundEmailPayload {
   id: string;
   from: string;
   to: string;
@@ -14,9 +9,8 @@ export interface AgentMailWebhookPayload {
   body_html: string;
   body_text?: string;
   timestamp: string;
-  mailbox_key: string;
   thread_id?: string;
-  attachments?: any[];
+  message_id?: string;
 }
 
 export interface WebhookResponse {
@@ -27,73 +21,37 @@ export interface WebhookResponse {
   error?: string;
 }
 
-/**
- * Main webhook handler for AgentMail inbound emails
- */
-export async function handleInboundEmail(payload: AgentMailWebhookPayload): Promise<WebhookResponse> {
+export async function handleInboundEmail(payload: InboundEmailPayload): Promise<WebhookResponse> {
   try {
-    console.log('Processing inbound email:', {
-      from: payload.from,
-      to: payload.to,
-      subject: payload.subject,
-      mailbox_key: payload.mailbox_key
-    });
-
-    // Step 1: Find the lead by email address
     const leadId = await findLeadByEmail(payload.from);
     if (!leadId) {
-      console.log('No lead found for email:', payload.from);
-      return {
-        ok: true,
-        processed: false,
-        error: 'No matching lead found'
-      };
+      return { ok: true, processed: false, error: 'No matching lead found' };
     }
 
-    // Step 2: Check if this lead has an active SDR Autopilot
     const autopilotState = await checkAutopilotStatus(leadId);
     if (!autopilotState || autopilotState.status !== 'active') {
-      console.log('No active SDR Autopilot for lead:', leadId);
-      // Still log the email for reference
       await logInboundEmail(payload, leadId);
-      return {
-        ok: true,
-        processed: true,
-        lead_id: leadId,
-        autopilot_resumed: false
-      };
+      return { ok: true, processed: true, lead_id: leadId, autopilot_resumed: false };
     }
 
-    // Step 3: Log the inbound email
     await logInboundEmail(payload, leadId);
 
-    // Step 4: Resume SDR Autopilot for this contact
     const result = await resumeSdrAutopilot(leadId);
-
-    console.log('SDR Autopilot resumed for lead:', leadId, {
-      success: result.success,
-      error: result.error
-    });
 
     return {
       ok: true,
       processed: true,
       lead_id: leadId,
-      autopilot_resumed: result.success
+      autopilot_resumed: result.success,
     };
-
   } catch (error) {
-    console.error('Error handling inbound email:', error);
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
 
-/**
- * Find lead by email address
- */
 async function findLeadByEmail(email: string): Promise<string | null> {
   try {
     const { data, error } = await supabase
@@ -102,21 +60,14 @@ async function findLeadByEmail(email: string): Promise<string | null> {
       .eq('email', email.toLowerCase().trim())
       .maybeSingle();
 
-    if (error || !data) {
-      return null;
-    }
-
+    if (error || !data) return null;
     return data.id;
-  } catch (error) {
-    console.error('Error finding lead by email:', error);
+  } catch {
     return null;
   }
 }
 
-/**
- * Check if lead has active SDR Autopilot
- */
-async function checkAutopilotStatus(leadId: string): Promise<any> {
+async function checkAutopilotStatus(leadId: string) {
   try {
     const { data, error } = await supabase
       .from('autopilot_state')
@@ -125,24 +76,18 @@ async function checkAutopilotStatus(leadId: string): Promise<any> {
       .eq('agent_type', 'sdr_autopilot')
       .maybeSingle();
 
-    if (error || !data) {
-      return null;
-    }
+    if (error || !data) return null;
 
     return {
       ...data.state_json,
-      status: data.status
+      status: data.status,
     };
-  } catch (error) {
-    console.error('Error checking autopilot status:', error);
+  } catch {
     return null;
   }
 }
 
-/**
- * Log inbound email to CRM
- */
-async function logInboundEmail(payload: AgentMailWebhookPayload, leadId: string): Promise<void> {
+async function logInboundEmail(payload: InboundEmailPayload, leadId: string): Promise<void> {
   try {
     await supabase
       .from('emails')
@@ -153,99 +98,12 @@ async function logInboundEmail(payload: AgentMailWebhookPayload, leadId: string)
         subject: payload.subject,
         body_html: payload.body_html,
         body_text: payload.body_text,
-        received_at: payload.timestamp,
-        direction: 'inbound',
-        mailbox_key: payload.mailbox_key,
-        thread_id: payload.thread_id,
+        is_inbound: true,
         status: 'received',
-        source: 'inbound_webhook'
+        thread_id: payload.thread_id,
+        message_id: payload.message_id,
       });
-  } catch (error) {
-    console.error('Error logging inbound email:', error);
-    // Don't throw - we don't want email logging to break the webhook
-  }
-}
-
-/**
- * Express.js route handler for AgentMail webhook
- * Usage: POST /api/webhooks/agentmail/inbound
- */
-export async function agentMailWebhookHandler(req: any, res: any) {
-  try {
-    const payload: AgentMailWebhookPayload = req.body;
-
-    // Validate required fields
-    if (!payload.from || !payload.to || !payload.subject) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Missing required fields: from, to, subject'
-      });
-    }
-
-    // Process the email
-    const result = await handleInboundEmail(payload);
-
-    // Return appropriate HTTP status
-    if (result.ok) {
-      return res.status(200).json(result);
-    } else {
-      return res.status(500).json(result);
-    }
-
-  } catch (error) {
-    console.error('Webhook handler error:', error);
-    return res.status(500).json({
-      ok: false,
-      error: 'Internal server error'
-    });
-  }
-}
-
-/**
- * Netlify Function handler
- * Usage: POST /.netlify/functions/agentmail-inbound
- */
-export async function netlifyAgentMailHandler(event: any) {
-  try {
-    if (event.httpMethod !== 'POST') {
-      return {
-        statusCode: 405,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
-    }
-
-    const payload: AgentMailWebhookPayload = JSON.parse(event.body);
-
-    // Validate required fields
-    if (!payload.from || !payload.to || !payload.subject) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          ok: false,
-          error: 'Missing required fields: from, to, subject'
-        })
-      };
-    }
-
-    // Process the email
-    const result = await handleInboundEmail(payload);
-
-    return {
-      statusCode: result.ok ? 200 : 500,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(result)
-    };
-
-  } catch (error) {
-    console.error('Netlify function error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        ok: false,
-        error: 'Internal server error'
-      })
-    };
+  } catch {
+    // Don't throw - email logging should not break the webhook
   }
 }

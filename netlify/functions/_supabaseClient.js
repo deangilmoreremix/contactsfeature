@@ -1,13 +1,26 @@
-// netlify/functions/_supabaseClient.js
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn("[Supabase] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY env vars");
+if (!SUPABASE_URL) {
+  throw new Error("[Supabase] Missing required SUPABASE_URL environment variable");
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("[Supabase] Missing required SUPABASE_SERVICE_ROLE_KEY environment variable");
+}
 
-module.exports = { supabase };
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
+
+function getUserClient(authHeader) {
+  const anonKey = process.env.SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
+  return createClient(SUPABASE_URL, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false },
+  });
+}
+
+module.exports = { supabase, getUserClient };

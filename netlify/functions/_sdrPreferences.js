@@ -1,14 +1,18 @@
+const { sanitizeModel, clampTemperature, clampMaxTokens, sanitizeString } = require('./_validation');
+
 function extractPreferences(body) {
   const prefs = body.preferences || {};
   return {
-    model: prefs.model || null,
-    temperature: typeof prefs.temperature === 'number' ? prefs.temperature : null,
-    maxTokens: typeof prefs.maxTokens === 'number' ? prefs.maxTokens : null,
-    tone: prefs.tone || null,
-    customInstructions: prefs.customInstructions || '',
-    companyName: prefs.companyName || '',
-    signature: prefs.signature || '',
-    personalizationLevel: prefs.personalizationLevel || 'medium',
+    model: sanitizeModel(prefs.model),
+    temperature: clampTemperature(typeof prefs.temperature === 'number' ? prefs.temperature : null),
+    maxTokens: clampMaxTokens(typeof prefs.maxTokens === 'number' ? prefs.maxTokens : null),
+    tone: sanitizeString(prefs.tone || '', 50) || null,
+    customInstructions: sanitizeString(prefs.customInstructions || '', 2000),
+    companyName: sanitizeString(prefs.companyName || '', 200),
+    signature: sanitizeString(prefs.signature || '', 500),
+    personalizationLevel: ['low', 'medium', 'high'].includes(prefs.personalizationLevel)
+      ? prefs.personalizationLevel
+      : 'medium',
   };
 }
 
@@ -56,12 +60,12 @@ function resolveModel(prefs, envDefault, envKey) {
 }
 
 function resolveTemperature(prefs, fallback) {
-  if (prefs.temperature !== null) return prefs.temperature;
+  if (prefs.temperature !== null && prefs.temperature !== undefined) return prefs.temperature;
   return fallback;
 }
 
 function resolveMaxTokens(prefs, fallback) {
-  if (prefs.maxTokens !== null) return prefs.maxTokens;
+  if (prefs.maxTokens !== null && prefs.maxTokens !== undefined) return prefs.maxTokens;
   return fallback;
 }
 

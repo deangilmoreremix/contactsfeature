@@ -1,44 +1,42 @@
-const { createClient } = require('@supabase/supabase-js');
+const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { fetchWithTimeout } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-);
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey'
-};
+const log = createLogger('process-email-queue');
 
 const BATCH_SIZE = 10;
 const MAX_RETRIES = 3;
 
-async function sendEmailViaProvider(email, contact) {
+async function sendEmailViaProvider(email) {
   const resendKey = process.env.RESEND_API_KEY;
   const sendgridKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SDR_FROM_EMAIL || process.env.FROM_EMAIL || 'noreply@smartcrm.app';
   const fromName = process.env.SDR_FROM_NAME || 'SmartCRM';
 
   if (resendKey) {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendKey}`,
-        'Content-Type': 'application/json'
+    const response = await fetchWithTimeout(
+      'https://api.resend.com/emails',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `${fromName} <${fromEmail}>`,
+          to: [email.to_email],
+          subject: email.subject,
+          html: email.body_html,
+          text: email.body_text,
+        }),
       },
-      body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
-        to: [email.to_email],
-        subject: email.subject,
-        html: email.body_html,
-        text: email.body_text
-      })
-    });
+      15000
+    );
 
     if (!response.ok) {
-      const errBody = await response.text();
-      throw new Error(`Resend API error: ${response.status} - ${errBody}`);
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`Resend API error: ${response.status}`);
     }
 
     const result = await response.json();
@@ -46,26 +44,29 @@ async function sendEmailViaProvider(email, contact) {
   }
 
   if (sendgridKey) {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendgridKey}`,
-        'Content-Type': 'application/json'
+    const response = await fetchWithTimeout(
+      'https://api.sendgrid.com/v3/mail/send',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sendgridKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: email.to_email }] }],
+          from: { email: fromEmail, name: fromName },
+          subject: email.subject,
+          content: [
+            { type: 'text/plain', value: email.body_text || email.body_html },
+            { type: 'text/html', value: email.body_html || email.body_text },
+          ],
+        }),
       },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: email.to_email }] }],
-        from: { email: fromEmail, name: fromName },
-        subject: email.subject,
-        content: [
-          { type: 'text/plain', value: email.body_text || email.body_html },
-          { type: 'text/html', value: email.body_html || email.body_text }
-        ]
-      })
-    });
+      15000
+    );
 
     if (!response.ok) {
-      const errBody = await response.text();
-      throw new Error(`SendGrid API error: ${response.status} - ${errBody}`);
+      throw new Error(`SendGrid API error: ${response.status}`);
     }
 
     const messageId = response.headers.get('x-message-id') || '';
@@ -76,20 +77,14 @@ async function sendEmailViaProvider(email, contact) {
     status: 'sent',
     sent_at: new Date().toISOString(),
     message_id: `local-${Date.now()}`,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }).eq('id', email.id);
 
-  return { provider: 'local', messageId: `local-${email.id}`, note: 'No email provider configured. Email marked as sent locally.' };
+  return { provider: 'local', messageId: `local-${email.id}` };
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
   try {
     const now = new Date().toISOString();
@@ -110,36 +105,36 @@ exports.handler = async (event) => {
     if (!queuedEmails || queuedEmails.length === 0) {
       return {
         statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify({ processed: 0, message: 'No emails in queue' })
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ processed: 0, message: 'No emails in queue' }),
       };
     }
 
-    const results = [];
     let sent = 0;
     let failed = 0;
+    const results = [];
 
     for (const email of queuedEmails) {
       try {
         await supabase.from('emails').update({
           send_attempts: (email.send_attempts || 0) + 1,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }).eq('id', email.id);
 
-        const sendResult = await sendEmailViaProvider(email, email.contacts);
+        const sendResult = await sendEmailViaProvider(email);
 
         await supabase.from('emails').update({
           status: 'sent',
           sent_at: new Date().toISOString(),
           message_id: sendResult.messageId || null,
           error_message: null,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }).eq('id', email.id);
 
         if (email.autopilot_state_id) {
           await supabase.from('autopilot_state').update({
             last_email_sent_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           }).eq('id', email.autopilot_state_id);
         }
 
@@ -148,8 +143,8 @@ exports.handler = async (event) => {
           user_id: email.user_id,
           agent_type: 'email_processor',
           level: 'info',
-          message: `Email sent via ${sendResult.provider}: "${email.subject}"`,
-          autopilot_state_id: email.autopilot_state_id
+          message: `Email sent via ${sendResult.provider}`,
+          autopilot_state_id: email.autopilot_state_id,
         }).catch(() => {});
 
         results.push({ emailId: email.id, success: true, provider: sendResult.provider });
@@ -161,7 +156,7 @@ exports.handler = async (event) => {
         await supabase.from('emails').update({
           status: newStatus,
           error_message: err.message,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }).eq('id', email.id);
 
         await supabase.from('agent_logs').insert({
@@ -169,26 +164,24 @@ exports.handler = async (event) => {
           user_id: email.user_id,
           agent_type: 'email_processor',
           level: 'error',
-          message: `Email send failed (attempt ${attempts}/${MAX_RETRIES}): ${err.message}`,
-          autopilot_state_id: email.autopilot_state_id
+          message: `Email send failed (attempt ${attempts}/${MAX_RETRIES})`,
+          autopilot_state_id: email.autopilot_state_id,
         }).catch(() => {});
 
-        results.push({ emailId: email.id, success: false, error: err.message, retriesLeft: MAX_RETRIES - attempts });
+        results.push({ emailId: email.id, success: false, retriesLeft: MAX_RETRIES - attempts });
         failed++;
       }
     }
 
+    log.info('Email queue processed', { sent, failed, total: queuedEmails.length });
+
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ sent, failed, total: queuedEmails.length, results })
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ sent, failed, total: queuedEmails.length, results }),
     };
   } catch (err) {
-    console.error('[process-email-queue] error:', err);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Email queue processing failed', details: err.message })
-    };
+    log.error('Email queue processing failed', { error: err.message });
+    return errorResponse(500, 'Email queue processing failed');
   }
-};
+});

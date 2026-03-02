@@ -1,15 +1,9 @@
-const { createClient } = require('@supabase/supabase-js');
+const { supabase } = require('./_supabaseClient');
+const { CORS_HEADERS, errorResponse } = require('./_auth');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-);
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey'
-};
+const log = createLogger('inbound-email-webhook');
 
 async function findContactByEmail(fromEmail) {
   const { data } = await supabase
@@ -21,10 +15,6 @@ async function findContactByEmail(fromEmail) {
 }
 
 async function generateAutoReply(contact, inboundSubject, inboundBody, autopilotState) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-
-  const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
   const contactName = contact.firstname || contact.name || 'there';
 
   const { data: sentEmails } = await supabase
@@ -57,34 +47,16 @@ Rules:
 
 Return JSON with "subject" and "body" fields.`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a skilled SDR handling inbound replies. Be helpful, concise, and human. Return valid JSON.'
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.6,
-      max_tokens: 800
-    })
-  });
-
-  if (!response.ok) return null;
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-
   try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+    const content = await callOpenAI(
+      [
+        { role: 'system', content: 'You are a skilled SDR handling inbound replies. Be helpful, concise, and human. Return valid JSON.' },
+        { role: 'user', content: prompt },
+      ],
+      { temperature: 0.6, maxTokens: 800 }
+    );
+
+    return parseJSONResponse(content, null);
   } catch {
     return null;
   }
@@ -92,19 +64,21 @@ Return JSON with "subject" and "body" fields.`;
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
+    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
+    return errorResponse(405, 'Method not allowed');
   }
+
+  log.setCorrelationId(generateCorrelationId());
 
   try {
     const body = JSON.parse(event.body || '{}');
     const { from, to, subject, text, html, messageId, inReplyTo } = body;
 
     if (!from) {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'from email is required' }) };
+      return errorResponse(400, 'from email is required');
     }
 
     const fromEmail = typeof from === 'string' ? from : (from.email || from.address || from);
@@ -114,14 +88,14 @@ exports.handler = async (event) => {
       await supabase.from('agent_logs').insert({
         agent_type: 'inbound_webhook',
         level: 'warn',
-        message: `Inbound email from unknown contact: ${fromEmail}`,
-        metadata: { subject, from: fromEmail }
+        message: `Inbound email from unknown contact`,
+        metadata: { subject },
       }).catch(() => {});
 
       return {
         statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify({ processed: false, reason: 'Contact not found' })
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ processed: false, reason: 'Contact not found' }),
       };
     }
 
@@ -136,7 +110,7 @@ exports.handler = async (event) => {
       message_id: messageId || null,
       thread_id: inReplyTo || null,
       is_inbound: true,
-      user_id: contact.user_id || null
+      user_id: contact.user_id || null,
     });
 
     const { data: autopilotState } = await supabase
@@ -153,16 +127,16 @@ exports.handler = async (event) => {
         state_json: {
           ...autopilotState.state_json,
           last_reply_subject: subject,
-          last_reply_preview: (text || '').substring(0, 200)
+          last_reply_preview: (text || '').substring(0, 200),
         },
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }).eq('id', autopilotState.id);
 
       await supabase.from('autopilot_logs').insert({
         contact_id: contact.id,
         state: autopilotState.current_stage || 'sdr_outreach',
         event: 'REPLY_RECEIVED',
-        details: { subject, preview: (text || '').substring(0, 200) }
+        details: { subject, preview: (text || '').substring(0, 200) },
       }).catch(() => {});
 
       const bodyLower = (text || '').toLowerCase();
@@ -175,7 +149,7 @@ exports.handler = async (event) => {
         await supabase.from('autopilot_state').update({
           status: 'stopped',
           state_json: { ...autopilotState.state_json, stopped_reason: 'unsubscribe_request' },
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }).eq('id', autopilotState.id);
 
         await supabase.from('agent_logs').insert({
@@ -183,14 +157,16 @@ exports.handler = async (event) => {
           user_id: autopilotState.user_id,
           agent_type: 'inbound_webhook',
           level: 'info',
-          message: `Autopilot stopped: contact requested to unsubscribe`,
-          autopilot_state_id: autopilotState.id
+          message: 'Autopilot stopped: contact requested to unsubscribe',
+          autopilot_state_id: autopilotState.id,
         }).catch(() => {});
+
+        log.info('Contact unsubscribed', { contactId: contact.id });
 
         return {
           statusCode: 200,
-          headers: corsHeaders,
-          body: JSON.stringify({ processed: true, action: 'unsubscribed', contactId: contact.id })
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ processed: true, action: 'unsubscribed', contactId: contact.id }),
         };
       }
 
@@ -205,13 +181,13 @@ exports.handler = async (event) => {
         await supabase.from('contacts').update({
           interestlevel: 'hot',
           status: 'prospect',
-          updatedat: new Date().toISOString()
+          updatedat: new Date().toISOString(),
         }).eq('id', contact.id);
 
         await supabase.from('autopilot_state').update({
           current_stage: 'meeting_requested',
           state_json: { ...autopilotState.state_json, interest_detected: true },
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }).eq('id', autopilotState.id);
       }
 
@@ -237,36 +213,27 @@ exports.handler = async (event) => {
             agent_type: 'auto_reply',
             autopilot_state_id: autopilotState.id,
             is_inbound: false,
-            user_id: autopilotState.user_id || contact.user_id || null
+            user_id: autopilotState.user_id || contact.user_id || null,
           });
 
-          await supabase.from('agent_logs').insert({
-            contact_id: contact.id,
-            user_id: autopilotState.user_id,
-            agent_type: 'inbound_webhook',
-            level: 'info',
-            message: `Auto-reply queued: "${autoReply.subject}"`,
-            autopilot_state_id: autopilotState.id
-          }).catch(() => {});
+          log.info('Auto-reply queued', { contactId: contact.id });
         }
       }
     }
 
+    log.info('Inbound email processed', { contactId: contact.id, autopilotActive: !!autopilotState });
+
     return {
       statusCode: 200,
-      headers: corsHeaders,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         processed: true,
         contactId: contact.id,
-        autopilotActive: !!autopilotState
-      })
+        autopilotActive: !!autopilotState,
+      }),
     };
   } catch (err) {
-    console.error('[inbound-email-webhook] error:', err);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Failed to process inbound email', details: err.message })
-    };
+    log.error('Failed to process inbound email', { error: err.message });
+    return errorResponse(500, 'Failed to process inbound email');
   }
 };

@@ -1,55 +1,34 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
-};
+const log = createLogger('win-back-sdr');
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
+
+  const prefs = extractPreferences(body);
 
   try {
-    const body = JSON.parse(event.body);
-    const { contactId } = body;
-    const prefs = extractPreferences(body);
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact ID is required' })
-      };
-    }
-
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
-    if (contactError) {
-      throw new Error(`Database error: ${contactError.message}`);
-    }
-
-    if (!contact) {
-      return {
-        statusCode: 404,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Contact not found' })
-      };
-    }
+    if (contactError) throw new Error(`Database error: ${contactError.message}`);
+    if (!contact) return errorResponse(404, 'Contact not found');
 
     const { data: activities } = await supabase
       .from('activities')
@@ -65,62 +44,27 @@ exports.handler = async (event) => {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    const winBackContent = await generateWinBackEmail(contact, activities || [], deals || [], prefs);
+    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+    const temperature = resolveTemperature(prefs, 0.7);
+    const maxTokens = resolveMaxTokens(prefs, 1200);
+    const contactName = contact.firstname || contact.name || 'there';
+    const company = contact.company || 'your company';
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        contactId,
-        subject: winBackContent.subject,
-        body: winBackContent.body,
-        sent: true,
-        churnReason: winBackContent.churnReason,
-        winBackOffer: winBackContent.winBackOffer,
-        debug: winBackContent.debug
-      })
-    };
+    const dealList = deals || [];
+    const activityList = activities || [];
+    const lostDeal = dealList.find(d => d.status === 'lost' || d.stage === 'lost');
+    const churnIndicators = activityList.filter(a =>
+      a.type === 'cancellation' || a.type === 'churn' || a.outcome === 'lost'
+    );
 
-  } catch (error) {
-    console.error('Win-back SDR error:', error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        error: 'Win-back email generation failed',
-        details: error instanceof Error ? error.message : String(error)
-      })
-    };
-  }
-};
-
-async function generateWinBackEmail(contact, activities, deals, prefs) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
-  const temperature = resolveTemperature(prefs, 0.7);
-  const maxTokens = resolveMaxTokens(prefs, 1200);
-  const contactName = contact.firstName || contact.name || 'there';
-  const company = contact.company || 'your company';
-
-  const lostDeal = deals.find(d => d.status === 'lost' || d.stage === 'lost');
-  const churnIndicators = activities.filter(a =>
-    a.type === 'cancellation' ||
-    a.type === 'churn' ||
-    a.outcome === 'lost'
-  );
-
-  const prompt = `You are creating a win-back campaign email for a churned or lost customer.
+    const prompt = `You are creating a win-back campaign email for a churned or lost customer.
 
 Contact: ${contactName} at ${company}
-Title: ${contact.title || contact.jobTitle || 'Not specified'}
+Title: ${contact.title || 'Not specified'}
 Industry: ${contact.industry || 'Not specified'}
 
-Deal history: ${JSON.stringify(deals.slice(0, 3))}
-Recent activities: ${JSON.stringify(activities.slice(0, 5))}
+Deal history: ${JSON.stringify(dealList.slice(0, 3))}
+Recent activities: ${JSON.stringify(activityList.slice(0, 5))}
 Lost deal info: ${lostDeal ? JSON.stringify(lostDeal) : 'No specific lost deal found'}
 Churn indicators: ${JSON.stringify(churnIndicators)}
 
@@ -142,44 +86,34 @@ The email should:
 - Include a special offer or incentive
 - Have a clear, low-friction call to action${buildPreferencesPromptBlock(prefs)}`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: sdrModel,
-      messages: [{ role: 'user', content: prompt }],
-      temperature,
-      max_tokens: maxTokens
-    })
-  });
+    const content = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      { model: sdrModel, temperature, maxTokens }
+    );
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-    return {
-      subject: parsed.subject,
-      body: parsed.body,
-      churnReason: parsed.churnReason || 'Unable to determine specific churn reason',
-      winBackOffer: parsed.winBackOffer || 'Special returning customer offer',
-      debug: { model: sdrModel, hasLostDeal: !!lostDeal }
-    };
-  } catch (parseError) {
-    return {
+    const parsed = parseJSONResponse(content, {
       subject: `We'd love to have you back, ${contactName}`,
       body: content,
       churnReason: 'Analysis unavailable',
       winBackOffer: 'Contact us for a special returning customer offer',
-      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+    });
+
+    log.info('Win-back email generated', { contactId });
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        contactId,
+        subject: parsed.subject,
+        body: parsed.body,
+        sent: true,
+        churnReason: parsed.churnReason || 'Unable to determine specific churn reason',
+        winBackOffer: parsed.winBackOffer || 'Special returning customer offer',
+      }),
     };
+  } catch (error) {
+    log.error('Win-back email generation failed', { contactId, error: error.message });
+    return errorResponse(500, 'Win-back email generation failed');
   }
-}
+});
