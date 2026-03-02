@@ -86,6 +86,7 @@ async function generateColdEmail(contact) {
     throw new Error('OpenAI API key not configured');
   }
 
+  const sdrModel = process.env.SMARTCRM_MODEL || 'gpt-5.2';
   const contactName = contact.firstName || contact.name || 'there';
   const company = contact.company || 'your company';
   const title = contact.title || contact.jobTitle || '';
@@ -118,7 +119,7 @@ Return JSON with "subject" and "body" fields.`;
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000
@@ -138,13 +139,13 @@ Return JSON with "subject" and "body" fields.`;
     return {
       subject: parsed.subject,
       body: parsed.body,
-      debug: { model: 'gpt-4o', contactName, company }
+      debug: { model: sdrModel, contactName, company }
     };
   } catch (parseError) {
     return {
       subject: `Quick question for ${contactName} at ${company}`,
       body: content,
-      debug: { model: 'gpt-4o', parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
     };
   }
 }

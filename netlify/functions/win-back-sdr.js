@@ -102,6 +102,7 @@ async function generateWinBackEmail(contact, activities, deals) {
     throw new Error('OpenAI API key not configured');
   }
 
+  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
   const contactName = contact.firstName || contact.name || 'there';
   const company = contact.company || 'your company';
 
@@ -148,7 +149,7 @@ The email should:
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1200
@@ -170,7 +171,7 @@ The email should:
       body: parsed.body,
       churnReason: parsed.churnReason || 'Unable to determine specific churn reason',
       winBackOffer: parsed.winBackOffer || 'Special returning customer offer',
-      debug: { model: 'gpt-4o', hasLostDeal: !!lostDeal }
+      debug: { model: sdrModel, hasLostDeal: !!lostDeal }
     };
   } catch (parseError) {
     return {
@@ -178,7 +179,7 @@ The email should:
       body: content,
       churnReason: 'Analysis unavailable',
       winBackOffer: 'Contact us for a special returning customer offer',
-      debug: { model: 'gpt-4o', parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
     };
   }
 }

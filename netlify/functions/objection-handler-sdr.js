@@ -95,6 +95,7 @@ async function handleObjection(contact, objection) {
     throw new Error('OpenAI API key not configured');
   }
 
+  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
   const contactName = contact.firstName || contact.name || 'the prospect';
   const company = contact.company || 'their company';
 
@@ -132,7 +133,7 @@ Return JSON with:
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000
@@ -152,13 +153,13 @@ Return JSON with:
     return {
       response: parsed.response,
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.8,
-      debug: { model: 'gpt-4o', objectionType: parsed.objectionType }
+      debug: { model: sdrModel, objectionType: parsed.objectionType }
     };
   } catch (parseError) {
     return {
       response: content,
       confidence: 0.6,
-      debug: { model: 'gpt-4o', parseError: parseError instanceof Error ? parseError.message : String(parseError) }
+      debug: { model: sdrModel, parseError: parseError instanceof Error ? parseError.message : String(parseError) }
     };
   }
 }

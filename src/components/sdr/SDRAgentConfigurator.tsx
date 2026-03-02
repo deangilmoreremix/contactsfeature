@@ -425,10 +425,10 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="gpt-4">GPT-4 (Most Capable)</option>
-                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fast)</option>
-                    <option value="claude-3">Claude 3 (Balanced)</option>
-                    <option value="claude-2">Claude 2 (Stable)</option>
+                    <option value="gpt-5.2-thinking">GPT-5.2 Thinking (Deep Reasoning)</option>
+                    <option value="gpt-5.2">GPT-5.2 (Balanced)</option>
+                    <option value="gpt-5.2-instant">GPT-5.2 Instant (Fast)</option>
+                    <option value="gpt-5.2-pro">GPT-5.2 Pro (Advanced Analytics)</option>
                   </select>
                 </div>
 

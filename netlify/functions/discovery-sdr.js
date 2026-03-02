@@ -92,6 +92,7 @@ async function performDiscovery(contact, activities) {
     throw new Error('OpenAI API key not configured');
   }
 
+  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
   const contactName = contact.firstName || contact.name || 'Unknown';
   const company = contact.company || 'Unknown Company';
   const title = contact.title || contact.jobTitle || '';
@@ -130,7 +131,7 @@ Be specific and actionable in your analysis.`;
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1500

@@ -121,6 +121,8 @@ async function generateFollowUpContent(contact, followUpNumber, activities) {
     throw new Error('OpenAI API key not configured');
   }
 
+  const sdrModel = process.env.SMARTCRM_THINKING_MODEL || 'gpt-5.2-thinking';
+
   // Analyze previous interactions
   const hasReplied = activities.some(a => a.type === 'email_reply' || a.type === 'email_received');
   const lastActivity = activities[0];
@@ -203,7 +205,7 @@ Return JSON with "subject" and "body" fields.`;
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: sdrModel,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000
