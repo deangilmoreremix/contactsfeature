@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { SDRCampaignTemplate, SDRUserPreferences } from '../../types/sdr-preferences';
-import { SDRPreferencesService } from '../../services/sdrPreferencesService';
+import { supabase, getCurrentUser } from '../../lib/supabase';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import {
@@ -166,23 +166,48 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
 
     setSaving(true);
     try {
-      const template: Omit<SDRCampaignTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'> = {
-        userId: 'demo-user', // In real app, get from auth
+      const user = await getCurrentUser();
+      const userId = user?.id || 'demo-user';
+
+      const { data, error } = await supabase
+        .from('sdr_campaigns')
+        .insert({
+          user_id: userId,
+          name: templateName,
+          description: templateDescription,
+          agent_id: agentId,
+          persona_id: preferences?.persona || 'cold_saas_founder',
+          sequence_config: sequence,
+          settings: preferences || {},
+          is_active: true,
+          total_steps: sequence.length,
+          duration_days: sequence.at(-1)?.day ?? 0,
+        })
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const savedTemplate: SDRCampaignTemplate = {
+        id: data?.id || `campaign-${Date.now()}`,
+        userId,
         name: templateName,
         description: templateDescription,
         agentId,
         sequence,
         settings: preferences || {},
         isPublic,
-        tags: []
+        tags: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        usageCount: 0,
       };
 
-      const savedTemplate = await SDRPreferencesService.saveCampaignTemplate('demo-user', template);
       onSave?.(savedTemplate);
-      alert('Campaign template saved successfully!');
+      alert('Campaign saved successfully!');
     } catch (error) {
-      console.error('Failed to save template:', error);
-      alert('Failed to save template. Please try again.');
+      console.error('Failed to save campaign:', error);
+      alert('Failed to save campaign. Please try again.');
     } finally {
       setSaving(false);
     }

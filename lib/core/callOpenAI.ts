@@ -27,7 +27,7 @@ export async function callOpenAI(
   options: CallOpenAIOptions = {}
 ): Promise<string | any> {
   const {
-    model = "gpt-4.1",
+    model = "gpt-5.2",
     temperature = 0.7,
     tools = [],
     systemPrompt

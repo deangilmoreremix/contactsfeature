@@ -7,7 +7,7 @@ export async function getContactAndDeal(contactId: string) {
     .from("contacts")
     .select("*")
     .eq("id", contactId)
-    .single();
+    .maybeSingle();
 
   if (cErr || !contact) {
     logger.error("Contact not found in autopilot", { contactId, cErr });
@@ -18,7 +18,7 @@ export async function getContactAndDeal(contactId: string) {
     .from("deals")
     .select("*")
     .eq("contact_id", contactId)
-    .single();
+    .maybeSingle();
 
   if (dErr || !deal) {
     logger.warn("Deal not found for contact in autopilot", { contactId, dErr });

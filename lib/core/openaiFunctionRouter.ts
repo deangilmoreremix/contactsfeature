@@ -1,16 +1,32 @@
 import { executeTool } from "./mcpExecutor";
+import { supabase } from "./supabaseClient";
 import { logger } from "./logger";
 
-/**
- * Maps OpenAI tool / function names → MCP tool calls
- */
+async function queueEmail(args: any): Promise<any> {
+  const { error } = await supabase.from("emails").insert({
+    contact_id: args.contact_id || args.lead_id,
+    to_email: args.to,
+    subject: args.subject,
+    body_html: args.body_html || args.body,
+    body_text: args.body_text || args.body,
+    status: "queued",
+    agent_type: args.agent_type || "sdr",
+    is_inbound: false,
+    user_id: args.user_id || null,
+  });
+
+  if (error) {
+    logger.error("Failed to queue email", { error, args });
+    throw new Error(`Failed to queue email: ${error.message}`);
+  }
+
+  return { success: true, queued: true, to: args.to, subject: args.subject };
+}
+
 export async function openaiFunctionRouter(fnName: string, args: any): Promise<any> {
   logger.info("Routing OpenAI tool call", { fnName, args });
 
   switch (fnName) {
-    //
-    // SMARTCRM CORE TOOLS
-    //
     case "save_activity":
       return executeTool("SmartCRMTools", "save_activity", args);
 
@@ -20,18 +36,11 @@ export async function openaiFunctionRouter(fnName: string, args: any): Promise<a
     case "write_score":
       return executeTool("SmartCRMTools", "write_score", args);
 
-    //
-    // EMAIL / AGENTMAIL TOOLS
-    //
     case "send_email":
-      return executeTool("AgentMail", "send_message", args);
-
     case "reply_email":
-      return executeTool("AgentMail", "reply_to_message", args);
+    case "send_sdr_email":
+      return queueEmail(args);
 
-    //
-    // CALENDAR TOOLS
-    //
     case "schedule_meeting":
       return executeTool("CalendarTools", "schedule_meeting", args);
 
@@ -41,24 +50,15 @@ export async function openaiFunctionRouter(fnName: string, args: any): Promise<a
     case "reschedule_meeting":
       return executeTool("CalendarTools", "reschedule_meeting", args);
 
-    //
-    // VOICE & VIDEO TOOLS
-    //
     case "send_voice_message":
       return executeTool("VoiceAgent", "send_voice_message", args);
 
     case "create_video":
       return executeTool("VideoAgent", "create_video", args);
 
-    //
-    // ANALYTICS / HEATMAP
-    //
     case "compute_deal_risk":
       return executeTool("Analytics", "compute_deal_risk", args);
 
-    //
-    // AUTOPILOT
-    //
     case "trigger_autopilot":
       return executeTool("Agents", "autopilot", args);
 
