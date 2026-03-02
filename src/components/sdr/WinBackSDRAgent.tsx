@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Trophy } from "lucide-react";
+import { Settings, Trophy, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
+import { saveSdrDraft } from "../../utils/sdrDraftUtils";
 
 interface WinBackResponse {
   contactId: string;
@@ -29,6 +30,26 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WinBackResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleSaveDraft = async () => {
+    if (!result) return;
+    const res = await saveSdrDraft({
+      contactId: result.contactId || contactId,
+      subject: result.subject,
+      body: result.body,
+      agentType: 'win-back-sdr',
+    });
+    if (res.success) setDraftSaved(true);
+  };
+
+  const handleCopy = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(`Subject: ${result.subject}\n\n${result.body}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleWinBack = async () => {
     setError(null);
@@ -177,7 +198,9 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
           <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
             Target: {contact.firstName || contact.name} {contact.lastName || ''}
           </div>
-          <div style={{ fontSize: 11, color: "#15803d" }}>{contact.email}</div>
+          <div style={{ fontSize: 11, color: contact.email ? "#15803d" : "#dc2626" }}>
+            {contact.email || "No email on file"}
+          </div>
         </div>
       ) : (
         <div style={{ marginBottom: 8 }}>
@@ -259,10 +282,6 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
             <strong>Subject:</strong> {result.subject}
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Status:</strong> {result.sent ? "✅ Sent" : "❌ Failed"}
-          </div>
-
           <div>
             <strong>Message:</strong>
             <pre
@@ -277,6 +296,34 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
             >
               {result.body}
             </pre>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              onClick={handleCopy}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db",
+                background: copied ? "#f0fdf4" : "white", fontSize: 12, cursor: "pointer",
+                color: copied ? "#166534" : "#374151"
+              }}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              onClick={handleSaveDraft}
+              disabled={draftSaved}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 4, padding: "6px 10px", borderRadius: 6, border: "none",
+                background: draftSaved ? "#dcfce7" : "#2563eb", color: draftSaved ? "#166534" : "white",
+                fontSize: 12, fontWeight: 500, cursor: draftSaved ? "default" : "pointer"
+              }}
+            >
+              {draftSaved ? <Check size={12} /> : <Mail size={12} />}
+              {draftSaved ? "Draft Saved" : "Save as Draft"}
+            </button>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import { OUTBOUND_PERSONAS, getPersonaById, OutboundPersonaId } from '../../agents/personas';
 import { Contact } from '../../types/contact';
+import { supabase } from '../../lib/supabase';
 import {
   Bot,
   Settings,
@@ -52,13 +53,21 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
   const [showPersonaDropdown, setShowPersonaDropdown] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
 
-  // Load existing settings (would come from API)
   useEffect(() => {
-    // Mock loading existing settings
     const loadSettings = async () => {
-      // In real implementation, fetch from API
-      // const existingSettings = await getContactAgentSettings(contact.id);
-      // setSettings(existingSettings);
+      const { data } = await supabase
+        .from('contact_agent_settings')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .maybeSingle();
+      if (data) {
+        setSettings({
+          personaId: data.persona_id || data.agent_key || 'cold_saas_founder',
+          isEnabled: data.is_enabled ?? false,
+          followupMode: data.followup_mode || 'manual',
+          customNotes: data.notes || data.custom_instructions || '',
+        });
+      }
     };
     loadSettings();
   }, [contact.id]);
@@ -72,10 +81,18 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      // In real implementation, save to API
-      // await upsertContactAgentSettings(contact.id, settings);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
-      setLastActivity(`Settings updated - ${new Date().toLocaleTimeString()}`);
+      const { error } = await supabase
+        .from('contact_agent_settings')
+        .upsert({
+          contact_id: contact.id,
+          persona_id: settings.personaId,
+          is_enabled: settings.isEnabled,
+          followup_mode: settings.followupMode,
+          notes: settings.customNotes,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'contact_id' });
+      if (error) throw error;
+      setLastActivity(`Settings saved - ${new Date().toLocaleTimeString()}`);
     } catch (error) {
       console.error('Failed to save agent settings:', error);
     } finally {

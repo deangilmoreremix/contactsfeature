@@ -14,24 +14,53 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { contactId, followUpNumber } = JSON.parse(event.body);
+    const { contactId, followUpNumber: rawFollowUp } = JSON.parse(event.body);
 
     if (!contactId) {
       return {
         statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        },
         body: JSON.stringify({ error: 'Contact ID is required' })
       };
     }
 
-    // Fetch contact data
+    const followUpNum = parseInt(rawFollowUp) || 1;
+    if (followUpNum < 1 || followUpNum > 10) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        },
+        body: JSON.stringify({ error: 'followUpNumber must be between 1 and 10' })
+      };
+    }
+
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
-      .single();
+      .maybeSingle();
 
     if (contactError) {
-      throw new Error(`Contact not found: ${contactError.message}`);
+      throw new Error(`Database error: ${contactError.message}`);
+    }
+
+    if (!contact) {
+      return {
+        statusCode: 404,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        },
+        body: JSON.stringify({ error: 'Contact not found' })
+      };
     }
 
     // Fetch recent activities for this contact
@@ -47,7 +76,7 @@ exports.handler = async (event, context) => {
     }
 
     // Generate follow-up content based on followUpNumber
-    const followUpContent = await generateFollowUpContent(contact, followUpNumber, activities || []);
+    const followUpContent = await generateFollowUpContent(contact, followUpNum, activities || []);
 
     // In a real implementation, you would send the email here
     // For now, we'll just return the generated content
@@ -63,8 +92,8 @@ exports.handler = async (event, context) => {
         contactId,
         subject: followUpContent.subject,
         body: followUpContent.body,
-        sent: true, // In real implementation, this would be the actual send status
-        followUpNumber,
+        sent: true,
+        followUpNumber: followUpNum,
         debug: followUpContent.debug
       })
     };

@@ -132,7 +132,9 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
           <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
             Target: {contact.firstName || contact.name} {contact.lastName || ''}
           </div>
-          <div style={{ fontSize: 11, color: "#15803d" }}>{contact.email}</div>
+          <div style={{ fontSize: 11, color: contact.email ? "#15803d" : "#dc2626" }}>
+            {contact.email || "No email on file"}
+          </div>
         </div>
       ) : (
         <div style={{ marginBottom: 8 }}>

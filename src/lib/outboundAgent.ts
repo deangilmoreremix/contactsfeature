@@ -1,6 +1,5 @@
 import { openai } from '@ai-sdk/openai';
 import { streamText } from 'ai';
-import { AgentMailToolkit } from 'agentmail/ai-sdk';
 import type { OutboundAgent } from '../types/outbound-agents';
 
 export type AgentContext = {
@@ -29,7 +28,6 @@ export type RunAgentArgs = {
 
 export async function runOutboundAgent({
   systemPrompt,
-  inboxEmail,
   message,
   context,
 }: RunAgentArgs): Promise<AgentReply> {
@@ -37,7 +35,6 @@ export async function runOutboundAgent({
     const result = await streamText({
       model: openai('gpt-4o'),
       system: systemPrompt,
-      tools: new AgentMailToolkit().getTools(),
       messages: [
         {
           role: 'user',
@@ -56,11 +53,8 @@ If you should not reply, indicate that you should not respond.
       ],
     });
 
-    // Process the AI response
     const response = await result.text;
 
-    // Simple logic to determine if we should reply
-    // In a real implementation, you'd parse the AI's tool calls and decisions
     const shouldReply = !response.toLowerCase().includes('do not reply') &&
                        !response.toLowerCase().includes('no response') &&
                        response.length > 10;
@@ -79,9 +73,6 @@ If you should not reply, indicate that you should not respond.
   }
 }
 
-// Helper function to get agent by key
 export async function getOutboundAgent(key: string): Promise<OutboundAgent | null> {
-  // This would typically come from your database
-  // For now, return null - implement when database is set up
   return null;
 }
