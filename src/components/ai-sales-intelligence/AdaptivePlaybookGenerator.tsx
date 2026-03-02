@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { analyticsService } from '../../services/analyticsService';
-import { cacheService } from '../../services/cacheService';
+import { cacheService } from '../../services/cache.service';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { BookOpen, Sparkles, Brain, Loader2 } from 'lucide-react';
@@ -288,12 +288,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
         onProgress?.({ type: 'complete' });
 
         // Cache the playbook
-        cacheService.set('AdaptivePlaybookGenerator', cacheKey, transformedPlaybook, 30 * 60 * 1000, {
-          contactId: deal.id,
-          dealId: deal.id,
-          toolName: 'AdaptivePlaybookGenerator',
-          parameters: cacheKey
-        });
+        cacheService.set('AdaptivePlaybookGenerator', cacheKey, transformedPlaybook, 30 * 60 * 1000, ['playbook', 'ai']);
 
         // End analytics tracking - success
         analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');

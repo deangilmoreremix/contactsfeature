@@ -4,7 +4,7 @@
  */
 
 import { logger } from './logger.service';
-import { cacheService } from './cacheService';
+import { cacheService } from './cache.service';
 
 export interface MCPTool {
   name: string;

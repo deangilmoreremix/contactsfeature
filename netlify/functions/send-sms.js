@@ -3,7 +3,6 @@
  * Handles SMS sending via Twilio with delivery tracking
  */
 
-const twilio = require('twilio');
 const { createClient } = require('@supabase/supabase-js');
 
 // Environment variables
@@ -48,13 +47,9 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Initialize Twilio client
-    const client = twilio(twilioConfig.account_sid, twilioConfig.auth_token);
-
-    // Determine from number
     let fromNumber = from;
     if (!fromNumber && twilioConfig.phone_numbers && twilioConfig.phone_numbers.length > 0) {
-      fromNumber = twilioConfig.phone_numbers[0]; // Use first available number
+      fromNumber = twilioConfig.phone_numbers[0];
     }
 
     if (!fromNumber) {
@@ -64,7 +59,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Check rate limits
     const canSend = await checkRateLimits(supabase, twilioConfig.id, twilioConfig.rate_limit);
     if (!canSend) {
       return {
@@ -73,14 +67,25 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Send SMS
-    const twilioMessage = await client.messages.create({
-      body: message,
-      from: fromNumber,
-      to: to
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig.account_sid}/Messages.json`;
+    const credentials = Buffer.from(`${twilioConfig.account_sid}:${twilioConfig.auth_token}`).toString('base64');
+    const body = new URLSearchParams({ Body: message, From: fromNumber, To: to });
+
+    const twilioResponse = await fetch(twilioUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
     });
 
-    // Log SMS event
+    const twilioMessage = await twilioResponse.json();
+
+    if (!twilioResponse.ok) {
+      throw new Error(twilioMessage.message || 'Twilio API error');
+    }
+
     await supabase.from('sms_events').insert({
       message_sid: twilioMessage.sid,
       contact_id: contactId,

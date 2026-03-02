@@ -1,12 +1,7 @@
 import type { Handler } from '@netlify/functions';
-import { AgentMailClient } from 'agentmail';
 import { runOutboundAgent } from '../../src/agents/runOutboundAgent';
 import { getContactAgentSettings } from '../../src/server/contactAgentSettings';
 import { OUTBOUND_PERSONAS } from '../../src/agents/personas';
-
-const agentmailClient = new AgentMailClient({
-  apiKey: process.env.AGENTMAIL_API_KEY!,
-});
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
