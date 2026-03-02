@@ -24,7 +24,7 @@ export async function getOrCreateThreadForLead(leadId: string): Promise<string> 
       .select('thread_id')
       .eq('lead_id', leadId)
       .eq('agent_type', 'sdr_autopilot')
-      .single();
+      .maybeSingle();
 
     if (existingThread && !fetchError) {
       return existingThread.thread_id;
@@ -112,15 +112,15 @@ export async function getAutopilotState(leadId: string): Promise<{
       .select('state_json, status')
       .eq('lead_id', leadId)
       .eq('agent_type', 'sdr_autopilot')
-      .single();
+      .maybeSingle();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        // No data found
-        return null;
-      }
       console.error('Failed to fetch autopilot state:', error);
       throw error;
+    }
+
+    if (!data) {
+      return null;
     }
 
     return {

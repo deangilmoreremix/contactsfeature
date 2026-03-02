@@ -1,9 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const { supabase } = require('./_supabaseClient');
 
 exports.handler = async (event, context) => {
   // Enable CORS
@@ -47,7 +42,7 @@ exports.handler = async (event, context) => {
       .from('contacts')
       .select('*')
       .eq('id', contactId)
-      .single();
+      .maybeSingle();
 
     if (contactError || !contact) {
       return {
@@ -62,7 +57,7 @@ exports.handler = async (event, context) => {
       .from('deals')
       .select('*')
       .eq('contact_id', contactId)
-      .single();
+      .maybeSingle();
 
     // Load agent memory
     const { data: memory } = await supabase
@@ -127,18 +122,54 @@ exports.handler = async (event, context) => {
       }
     ];
 
-    // Execute AE agent
-    const response = await callOpenAI(prompt, {
-      tools: aeTools,
-      systemPrompt: "You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Use tools to send emails, schedule meetings, and update deal status."
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'OpenAI API key not configured' })
+      };
+    }
+
+    const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Provide a clear action plan with next steps.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.5,
+        max_tokens: 2000
+      })
     });
 
-    // Log the AE agent execution
-    await supabase.from('agent_logs').insert({
-      contact_id: contactId,
-      level: 'info',
-      message: `[AE Agent] Executed for contact ${contact.name}. Response: ${response.substring(0, 200)}...`
-    });
+    if (!aiResponse.ok) {
+      throw new Error(`OpenAI API error: ${aiResponse.status}`);
+    }
+
+    const aiData = await aiResponse.json();
+    const response = aiData.choices[0]?.message?.content || 'No response generated';
+
+    try {
+      await supabase.from('agent_runs').insert({
+        agent_id: 'ae-agent',
+        contact_id: contactId,
+        status: 'completed',
+        output_data: { summary: response.substring(0, 500) },
+        completed_at: new Date().toISOString()
+      });
+    } catch (_logErr) {
+      console.warn('Failed to log AE agent run:', _logErr);
+    }
 
     // Update autopilot state to reflect AE involvement
     await supabase
@@ -163,13 +194,19 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('AE Agent execution failed:', error);
 
-    // Log the error
-    if (typeof contactId !== 'undefined') {
-      await supabase.from('agent_logs').insert({
-        contact_id: contactId,
-        level: 'error',
-        message: `[AE Agent Error] ${error.message}`
-      });
+    try {
+      const parsedBody = JSON.parse(event.body || '{}');
+      if (parsedBody.contactId) {
+        await supabase.from('agent_runs').insert({
+          agent_id: 'ae-agent',
+          contact_id: parsedBody.contactId,
+          status: 'failed',
+          error_message: error.message,
+          completed_at: new Date().toISOString()
+        });
+      }
+    } catch (_logErr) {
+      console.warn('Failed to log AE agent error:', _logErr);
     }
 
     return {

@@ -67,18 +67,11 @@ export async function handleInboundEmail(payload: AgentMailWebhookPayload): Prom
     // Step 3: Log the inbound email
     await logInboundEmail(payload, leadId);
 
-    // Step 4: Prepare email content for SDR agent
-    const emailContext = formatEmailForAgent(payload);
-
-    // Step 5: Resume SDR Autopilot with the new email
-    const result = await resumeSdrAutopilot(
-      leadId,
-      emailContext,
-      payload.mailbox_key
-    );
+    // Step 4: Resume SDR Autopilot for this contact
+    const result = await resumeSdrAutopilot(leadId);
 
     console.log('SDR Autopilot resumed for lead:', leadId, {
-      completed: result.completed,
+      success: result.success,
       error: result.error
     });
 
@@ -86,7 +79,7 @@ export async function handleInboundEmail(payload: AgentMailWebhookPayload): Prom
       ok: true,
       processed: true,
       lead_id: leadId,
-      autopilot_resumed: result.completed
+      autopilot_resumed: result.success
     };
 
   } catch (error) {
@@ -171,49 +164,6 @@ async function logInboundEmail(payload: AgentMailWebhookPayload, leadId: string)
     console.error('Error logging inbound email:', error);
     // Don't throw - we don't want email logging to break the webhook
   }
-}
-
-/**
- * Format email content for SDR agent processing
- */
-function formatEmailForAgent(payload: AgentMailWebhookPayload): string {
-  const emailContent = `
-New inbound email from lead:
-
-From: ${payload.from}
-To: ${payload.to}
-Subject: ${payload.subject}
-Received: ${payload.timestamp}
-Mailbox: ${payload.mailbox_key}
-
-Email Body:
-${payload.body_text || extractTextFromHtml(payload.body_html)}
-
-${payload.attachments && payload.attachments.length > 0 ?
-  `Attachments: ${payload.attachments.map(att => att.filename).join(', ')}` :
-  ''
-}
-
-Please analyze this email and decide the appropriate next action for the SDR campaign.
-Consider:
-- Is this a positive response, objection, or question?
-- Should we reply, schedule a meeting, update pipeline, or adjust the campaign?
-- What tone and messaging should we use in any response?
-- Are there any follow-up actions needed?
-`.trim();
-
-  return emailContent;
-}
-
-/**
- * Extract plain text from HTML (basic implementation)
- */
-function extractTextFromHtml(html: string): string {
-  // Basic HTML to text conversion
-  return html
-    .replace(/<[^>]*>/g, ' ') // Remove HTML tags
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
 }
 
 /**
