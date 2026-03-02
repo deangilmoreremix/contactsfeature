@@ -33,7 +33,7 @@ exports.handler = async (event) => {
 
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
-      .select('id, name, email, company, lead_status, autopilot_state')
+      .select('id, name, email, company, lead_status, pipeline_stage')
       .eq('id', contactId)
       .maybeSingle();
 

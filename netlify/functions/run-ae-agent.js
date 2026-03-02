@@ -163,6 +163,7 @@ exports.handler = async (event, context) => {
       await supabase.from('agent_runs').insert({
         agent_id: 'ae-agent',
         contact_id: contactId,
+        user_id: contact.user_id || null,
         status: 'completed',
         output_data: { summary: response.substring(0, 500) },
         completed_at: new Date().toISOString()
@@ -171,11 +172,10 @@ exports.handler = async (event, context) => {
       console.warn('Failed to log AE agent run:', _logErr);
     }
 
-    // Update autopilot state to reflect AE involvement
     await supabase
       .from('contacts')
       .update({
-        autopilot_state: 'relationship_building',
+        pipeline_stage: 'relationship_building',
         updated_at: new Date().toISOString()
       })
       .eq('id', contactId);

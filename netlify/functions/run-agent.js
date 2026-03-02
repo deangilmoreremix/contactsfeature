@@ -158,8 +158,8 @@ Generate the next outreach message for step ${currentStep}. Return JSON with "su
         subject: parsed.subject,
         body_text: parsed.body,
         status: 'draft',
-        source: 'sdr_autopilot',
-        direction: 'outbound'
+        is_inbound: false,
+        agent_type: 'sdr_autopilot'
       });
     } catch (_emailErr) {
       console.warn('Failed to save email draft:', _emailErr);

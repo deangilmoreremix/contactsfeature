@@ -1,9 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-);
+const { supabase } = require('./_supabaseClient');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -180,14 +175,11 @@ async function logAgentActivity(contactId, userId, stateId, level, message) {
     agent_type: 'sdr',
     level,
     message,
-    autopilot_state_id: stateId || null
-  }).catch(() => {});
-
-  await supabase.from('autopilot_logs').insert({
-    contact_id: contactId,
-    state: 'sdr_outreach',
-    event: level === 'error' ? 'ERROR' : 'OUTREACH_SENT',
-    details: { message }
+    autopilot_state_id: stateId || null,
+    metadata: {
+      state: 'sdr_outreach',
+      event: level === 'error' ? 'ERROR' : 'OUTREACH_SENT'
+    }
   }).catch(() => {});
 }
 

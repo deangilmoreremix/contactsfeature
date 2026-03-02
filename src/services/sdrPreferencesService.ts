@@ -26,14 +26,14 @@ export class SDRPreferencesService {
         .select('*')
         .eq('user_id', userId)
         .eq('agent_id', agentId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No preferences found, return null to use defaults
-          return null;
-        }
         throw error;
+      }
+
+      if (!data) {
+        return null;
       }
 
       // Transform database format to TypeScript interface
@@ -105,7 +105,7 @@ export class SDRPreferencesService {
           ignoreDuplicates: false
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         throw error;
@@ -228,7 +228,7 @@ export class SDRPreferencesService {
         .from('sdr_campaign_templates')
         .insert(dbData)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         throw error;
@@ -427,7 +427,7 @@ export class SDRPreferencesService {
         .select('id')
         .eq('user_id', userId)
         .eq('agent_id', agentId)
-        .single();
+        .maybeSingle();
 
       return !error && !!data;
     } catch (error) {
