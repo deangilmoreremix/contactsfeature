@@ -18,7 +18,7 @@ const PageLoader: React.FC = () => (
 type AppView = 'landing' | 'contacts' | 'products';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<AppView>('landing');
+  const [currentView, setCurrentView] = useState<AppView>('contacts');
 
   return (
     <div className="min-h-screen bg-gray-100">

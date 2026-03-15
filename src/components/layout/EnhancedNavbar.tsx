@@ -139,6 +139,16 @@ export const EnhancedNavbar: React.FC = () => {
           </div>
           
           <nav className="flex items-center space-x-1">
+            <button
+              onClick={() => {
+                // This would need to be connected to the app's state management
+                // For now, we'll just log it as a placeholder
+                console.log('Navigate to landing page');
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Landing
+            </button>
             <button className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white">
               Dashboard
             </button>
