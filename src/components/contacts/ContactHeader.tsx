@@ -57,7 +57,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
   return (
     <div className="border-b border-gray-200 bg-white flex-shrink-0">
       <div className="flex items-center justify-between p-5">
-        <div className="flex space-x-1">
+        <div className="flex space-x-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
           {contactTabs.map((tab) => {
             const Icon = tab.icon;
             return (
