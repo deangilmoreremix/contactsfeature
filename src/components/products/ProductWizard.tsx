@@ -319,7 +319,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   const renderBasicsStep = () => (
     <div className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Product Name <span className="text-red-500">*</span>
         </label>
         <input
@@ -327,12 +327,12 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="e.g., SmartCRM Pro"
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Tagline
         </label>
         <input
@@ -340,18 +340,18 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
           value={tagline}
           onChange={e => setTagline(e.target.value)}
           placeholder="e.g., The AI-powered CRM for modern sales teams"
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Category
         </label>
         <select
           value={category}
           onChange={e => setCategory(e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         >
           <option value="">Select a category</option>
           {CATEGORIES.map(cat => (
@@ -361,7 +361,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Description
         </label>
         <textarea
@@ -369,12 +369,12 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
           onChange={e => setDescription(e.target.value)}
           placeholder="Describe your product in detail..."
           rows={4}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Key Features
         </label>
         <div className="space-y-2">
@@ -412,7 +412,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   const renderPricingStep = () => (
     <div className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Pricing Model
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -433,7 +433,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Pricing Tiers (Optional)
         </label>
         <div className="space-y-4">
@@ -488,7 +488,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   const renderTargetingStep = () => (
     <div className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Target Industries
         </label>
         <div className="flex flex-wrap gap-2">
@@ -509,7 +509,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Target Company Sizes
         </label>
         <div className="flex flex-wrap gap-2">
@@ -530,7 +530,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Target Titles
         </label>
         <div className="flex flex-wrap gap-2">
@@ -551,7 +551,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Target Departments
         </label>
         <div className="flex flex-wrap gap-2">
@@ -572,7 +572,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Ideal Customer Profile (ICP)
         </label>
         <textarea
@@ -580,7 +580,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
           onChange={e => setIdealCustomerProfile(e.target.value)}
           placeholder="Describe your ideal customer in detail..."
           rows={3}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         />
       </div>
     </div>
@@ -589,7 +589,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   const renderValueStep = () => (
     <div className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Value Propositions
         </label>
         <div className="space-y-3">
@@ -640,7 +640,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Pain Points Addressed
         </label>
         <div className="space-y-2">
@@ -674,7 +674,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Competitive Advantages
         </label>
         <div className="space-y-2">
@@ -708,7 +708,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Use Cases
         </label>
         <div className="space-y-2">
@@ -746,60 +746,50 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   const renderReviewStep = () => (
     <div className="space-y-6">
       <div className="bg-gray-50 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-2">Basic Information</h4>
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt className="text-gray-500">Name:</dt>
-          <dd className="text-gray-900">{name || '-'}</dd>
-          <dt className="text-gray-500">Tagline:</dt>
-          <dd className="text-gray-900">{tagline || '-'}</dd>
-          <dt className="text-gray-500">Category:</dt>
-          <dd className="text-gray-900">{category || '-'}</dd>
-          <dt className="text-gray-500">Pricing:</dt>
-          <dd className="text-gray-900 capitalize">{pricingModel.replace('-', ' ')}</dd>
+        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Basic Information</h4>
+        <dl className="space-y-2">
+          <div className="flex justify-between">
+            <dt className="text-gray-500 dark:text-gray-400">Name:</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">{name || '-'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500 dark:text-gray-400">Tagline:</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">{tagline || '-'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500 dark:text-gray-400">Category:</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium">{category || '-'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500 dark:text-gray-400">Pricing:</dt>
+            <dd className="text-gray-900 dark:text-gray-100 font-medium capitalize">{pricingModel.replace('-', ' ')}</dd>
+          </div>
         </dl>
-      </div>
 
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-2">Target Market</h4>
+        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2 mt-6">Target Market</h4>
         <div className="space-y-2 text-sm">
-          {targetIndustries.length > 0 && (
-            <p><span className="text-gray-500">Industries:</span> {targetIndustries.join(', ')}</p>
-          )}
-          {targetCompanySizes.length > 0 && (
-            <p><span className="text-gray-500">Company Sizes:</span> {targetCompanySizes.join(', ')}</p>
-          )}
-          {targetTitles.length > 0 && (
-            <p><span className="text-gray-500">Titles:</span> {targetTitles.join(', ')}</p>
-          )}
-          {targetDepartments.length > 0 && (
-            <p><span className="text-gray-500">Departments:</span> {targetDepartments.join(', ')}</p>
-          )}
+            <p><span className="text-gray-500 dark:text-gray-400">Industries:</span> <span className="text-gray-900 dark:text-gray-100">{targetIndustries.join(', ')}</span></p>
+            <p><span className="text-gray-500 dark:text-gray-400">Company Sizes:</span> <span className="text-gray-900 dark:text-gray-100">{targetCompanySizes.join(', ')}</span></p>
+            <p><span className="text-gray-500 dark:text-gray-400">Titles:</span> <span className="text-gray-900 dark:text-gray-100">{targetTitles.join(', ')}</span></p>
+            <p><span className="text-gray-500 dark:text-gray-400">Departments:</span> <span className="text-gray-900 dark:text-gray-100">{targetDepartments.join(', ')}</span></p>
         </div>
-      </div>
 
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-2">Value & Features</h4>
+        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2 mt-6">Value & Features</h4>
         <div className="space-y-2 text-sm">
-          {features.filter(f => f.trim()).length > 0 && (
-            <p><span className="text-gray-500">Features:</span> {features.filter(f => f.trim()).join(', ')}</p>
-          )}
-          {valuePropositions.filter(v => v.title.trim()).length > 0 && (
-            <p><span className="text-gray-500">Value Props:</span> {valuePropositions.filter(v => v.title.trim()).map(v => v.title).join(', ')}</p>
-          )}
-          {painPoints.filter(p => p.trim()).length > 0 && (
-            <p><span className="text-gray-500">Pain Points:</span> {painPoints.filter(p => p.trim()).join(', ')}</p>
-          )}
+            <p><span className="text-gray-500 dark:text-gray-400">Features:</span> <span className="text-gray-900 dark:text-gray-100">{features.filter(f => f.trim()).join(', ')}</span></p>
+            <p><span className="text-gray-500 dark:text-gray-400">Value Props:</span> <span className="text-gray-900 dark:text-gray-100">{valuePropositions.filter(v => v.title.trim()).map(v => v.title).join(', ')}</span></p>
+            <p><span className="text-gray-500 dark:text-gray-400">Pain Points:</span> <span className="text-gray-900 dark:text-gray-100">{painPoints.filter(p => p.trim()).join(', ')}</span></p>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
       <div className={`flex gap-4 max-h-[90vh] ${showAIAssistant && !isAIMinimized ? 'max-w-5xl' : 'max-w-2xl'} w-full transition-all duration-300`}>
-        <div className="bg-white rounded-2xl shadow-2xl flex-1 max-h-[90vh] overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex-1 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {product ? 'Edit Product' : 'Add New Product'}
             </h2>
             <div className="flex items-center gap-2">
@@ -810,8 +800,8 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
                 }}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   showAIAssistant
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 <Sparkles className="w-4 h-4" />
@@ -819,20 +809,20 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
               </button>
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
           </div>
 
-        <div className="px-6 py-3 border-b border-gray-100 bg-gray-50">
+        <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="flex items-center justify-between">
             {STEPS.map((step, index) => (
               <div
                 key={step.key}
                 className={`flex items-center gap-2 ${
-                  index <= currentStepIndex ? 'text-blue-600' : 'text-gray-400'
+                  index <= currentStepIndex ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'
                 }`}
               >
                 <div
@@ -840,8 +830,8 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
                     index < currentStepIndex
                       ? 'bg-blue-600 text-white'
                       : index === currentStepIndex
-                      ? 'bg-blue-100 text-blue-600 border-2 border-blue-600'
-                      : 'bg-gray-100 text-gray-400'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-2 border-blue-600 dark:border-blue-400'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
                   }`}
                 >
                   {index < currentStepIndex ? (
@@ -871,11 +861,11 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
           {currentStep === 'review' && renderReviewStep()}
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <button
             onClick={handleBack}
             disabled={currentStepIndex === 0}
-            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-4 h-4" />
             Back
