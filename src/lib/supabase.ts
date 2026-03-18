@@ -9,26 +9,45 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
 const supabaseAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 
-// Validate environment variables
-if (!supabaseUrl) {
-  throw new Error('Missing VITE_SUPABASE_URL environment variable');
+// Track if client has been initialized
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
+
+// Create Supabase client with optimized settings - lazy initialization
+function getSupabaseClient() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not configured. Using mock client for development.');
+    // Return a mock client that won't crash the app
+    return createClient('https://placeholder.supabase.co', 'placeholder-key', {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+  }
+  
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'smartcrm-web'
+        }
+      }
+    });
+  }
+  
+  return supabaseInstance;
 }
 
-if (!supabaseAnonKey) {
-  throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
-}
-
-// Create Supabase client with optimized settings
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'smartcrm-web'
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_, prop) {
+    const client = getSupabaseClient();
+    const value = (client as any)[prop];
+    if (typeof value === 'function') {
+      return value.bind(client);
     }
+    return value;
   }
 });
 
