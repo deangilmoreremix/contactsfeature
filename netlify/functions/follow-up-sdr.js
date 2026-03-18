@@ -4,6 +4,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('follow-up-sdr');
 
@@ -57,6 +58,11 @@ exports.handler = withAuth(async (event, user) => {
     const contactName = contact.firstname || contact.name || 'there';
     const company = contact.company || 'your company';
 
+    const gtmPrompt = await getGTMPrompt('follow-up-sdr', contact.industry);
+    const gtmBlock = gtmPrompt 
+      ? `Use this proven follow-up framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      : '';
+
     const contextBlock = `Contact details: ${JSON.stringify({
       name: contactName, company, title: contact.title, email: contact.email, industry: contact.industry, notes: contact.notes,
     })}
@@ -67,16 +73,28 @@ Has replied before: ${hasReplied}`;
     let instructions = '';
     switch (followUpNum) {
       case 1:
-        instructions = `Generate a gentle first follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:\n- Reference any previous conversation\n- Provide additional value or resources\n- Ask a specific question to encourage response\n- Keep it concise and friendly`;
+        instructions = `${gtmBlock}Generate a gentle first follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:
+- Reference any previous conversation
+- Provide additional value or resources
+- Ask a specific question to encourage response
+- Keep it concise and friendly`;
         break;
       case 2:
-        instructions = `Generate a second follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:\n- Acknowledge that this is a second attempt\n- Offer something new or different value\n- Create urgency or scarcity if appropriate\n- Be more direct about next steps`;
+        instructions = `${gtmBlock}Generate a second follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:
+- Acknowledge that this is a second attempt
+- Offer something new or different value
+- Create urgency or scarcity if appropriate
+- Be more direct about next steps`;
         break;
       case 3:
-        instructions = `Generate a third follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:\n- Be more assertive about the value proposition\n- Include social proof or case studies if relevant\n- Give them an easy out if they're not interested\n- Consider this might be the last attempt`;
+        instructions = `${gtmBlock}Generate a third follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:
+- Be more assertive about the value proposition
+- Include social proof or case studies if relevant
+- Give them an easy out if they're not interested
+- Consider this might be the last attempt`;
         break;
       default:
-        instructions = `Generate a follow-up email (attempt #${followUpNum}) to ${contactName} at ${company}.\n\n${contextBlock}\n\nCreate a compelling follow-up that re-engages the contact.`;
+        instructions = `${gtmBlock}Generate a follow-up email (attempt #${followUpNum}) to ${contactName} at ${company}.\n\n${contextBlock}\n\nCreate a compelling follow-up that re-engages the contact.`;
     }
 
     const prompt = `${instructions}${prefsBlock}\n\nReturn JSON with "subject" and "body" fields.`;
@@ -91,7 +109,7 @@ Has replied before: ${hasReplied}`;
       body: content,
     });
 
-    log.info('Follow-up email generated', { contactId, followUpNum });
+    log.info('Follow-up email generated', { contactId, followUpNum, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
@@ -102,6 +120,7 @@ Has replied before: ${hasReplied}`;
         body: parsed.body,
         sent: true,
         followUpNumber: followUpNum,
+        gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {

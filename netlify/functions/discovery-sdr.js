@@ -4,6 +4,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('discovery-sdr');
 
@@ -45,7 +46,12 @@ exports.handler = withAuth(async (event, user) => {
     const title = contact.title || '';
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    const prompt = `You are a Sales Development Representative performing discovery research on a prospect.
+    const gtmPrompt = await getGTMPrompt('discovery-sdr', contact.industry);
+    const gtmBlock = gtmPrompt 
+      ? `Use this proven discovery framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      : '';
+
+    const prompt = `${gtmBlock}You are a Sales Development Representative performing discovery research on a prospect.
 
 Contact: ${contactName}
 Title: ${title || 'Not specified'}
@@ -83,7 +89,7 @@ Be specific and actionable in your analysis.${prefsBlock}`;
 
     const parsed = parseJSONResponse(content, fallback);
 
-    log.info('Discovery research completed', { contactId });
+    log.info('Discovery research completed', { contactId, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
@@ -93,6 +99,7 @@ Be specific and actionable in your analysis.${prefsBlock}`;
         research: parsed.research || fallback.research,
         qualification: parsed.qualification || fallback.qualification,
         nextActions: parsed.nextActions || fallback.nextActions,
+        gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {

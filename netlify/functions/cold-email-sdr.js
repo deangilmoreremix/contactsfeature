@@ -4,6 +4,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('cold-email-sdr');
 
@@ -38,7 +39,12 @@ exports.handler = withAuth(async (event, user) => {
     const title = contact.title || '';
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    const prompt = `Generate a personalized cold email to ${contactName}${title ? ` (${title})` : ''} at ${company}.
+    const gtmPrompt = await getGTMPrompt('cold-email-sdr', contact.industry);
+    const gtmBlock = gtmPrompt 
+      ? `Use this proven cold email framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      : '';
+
+    const prompt = `${gtmBlock}Generate a personalized cold email to ${contactName}${title ? ` (${title})` : ''} at ${company}.
 
 Contact details: ${JSON.stringify({
   name: contactName, company, title, email: contact.email, industry: contact.industry, notes: contact.notes,
@@ -64,7 +70,7 @@ Return JSON with "subject" and "body" fields.`;
       body: content,
     });
 
-    log.info('Cold email generated', { contactId });
+    log.info('Cold email generated', { contactId, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
@@ -74,6 +80,7 @@ Return JSON with "subject" and "body" fields.`;
         subject: parsed.subject,
         body: parsed.body,
         sent: true,
+        gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {
