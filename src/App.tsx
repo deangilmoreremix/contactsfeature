@@ -1,7 +1,8 @@
-import React, { useState, lazy, Suspense } from "react";
+import React, { useState, lazy, Suspense, useEffect } from "react";
 import { LandingPage } from "./components/landing/LandingPage";
 import { ViewProvider } from "./contexts/ViewContext";
 import { AIProvider } from "./contexts/AIContext";
+import { isAuthenticated } from "./lib/supabase";
 
 const ContactsModal = lazy(() => import("./components/modals/ContactsModal").then(m => ({ default: m.ContactsModal })));
 const Products = lazy(() => import("./pages/Products"));
@@ -19,6 +20,29 @@ type AppView = 'landing' | 'contacts' | 'products';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('landing');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const authed = await isAuthenticated();
+      if (authed) {
+        setCurrentView('contacts');
+      }
+      setLoading(false);
+    };
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+          <span className="text-sm text-gray-500">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
