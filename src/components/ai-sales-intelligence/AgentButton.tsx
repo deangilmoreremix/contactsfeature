@@ -7,6 +7,7 @@ import { Loader2, Sparkles, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface AgentButtonProps {
   agentId: string;
+  functionName?: string;
   contactId?: string;
   dealId?: string;
   variant?: 'primary' | 'outline' | 'glass' | 'ghost';
@@ -19,6 +20,7 @@ interface AgentButtonProps {
 
 export const AgentButton: React.FC<AgentButtonProps> = ({
   agentId,
+  functionName,
   contactId,
   dealId,
   variant = 'outline',
@@ -34,10 +36,18 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
   const [executionResult, setExecutionResult] = useState<AgentExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load agent metadata when component mounts
+  // Use functionName if provided, otherwise use agentId as function name
+  const activeFunctionName = functionName || agentId;
+
+  // Load agent metadata when component mounts (only if no functionName)
   React.useEffect(() => {
-    loadAgentMetadata();
-  }, [agentId]);
+    if (functionName) {
+      // Skip database lookup if we have a direct function name
+      setAgent({ id: agentId, name: activeFunctionName } as AgentConfig);
+    } else {
+      loadAgentMetadata();
+    }
+  }, [agentId, functionName]);
 
   const loadAgentMetadata = async () => {
     try {
@@ -56,28 +66,50 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
   };
 
   const handleExecuteAgent = async (input?: Record<string, any>) => {
-    if (!agent) return;
+    if (!agent && !functionName) return;
 
     setLoading(true);
     setError(null);
     setExecutionResult(null);
 
     try {
-      const request: AgentExecutionRequest = {
-        agentId,
-        userId: 'current-user', // This should come from auth context
-        ...(contactId && { contactId }),
-        ...(dealId && { dealId }),
-        ...(input && { input })
-      };
+      let result: AgentExecutionResult;
 
-      const response = await supabase.functions.invoke('agent-runner', {
-        body: request
-      });
+      if (functionName) {
+        // Call Netlify function directly
+        const response = await fetch(`/.netlify/functions/${functionName}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...(contactId && { contactId }),
+            ...(dealId && { dealId }),
+            ...(input && { input })
+          })
+        });
 
-      if (response.error) throw new Error(response.error.message);
+        if (!response.ok) {
+          throw new Error(`Function ${functionName} failed: ${response.statusText}`);
+        }
 
-      const result: AgentExecutionResult = response.data;
+        result = await response.json();
+      } else {
+        // Use agent-runner (database lookup)
+        const request: AgentExecutionRequest = {
+          agentId,
+          userId: 'current-user',
+          ...(contactId && { contactId }),
+          ...(dealId && { dealId }),
+          ...(input && { input })
+        };
+
+        const response = await supabase.functions.invoke('agent-runner', {
+          body: request
+        });
+
+        if (response.error) throw new Error(response.error.message);
+        result = response.data;
+      }
+
       setExecutionResult(result);
       onSuccess?.(result);
 

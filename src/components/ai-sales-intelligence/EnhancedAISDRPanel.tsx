@@ -35,6 +35,7 @@ interface AISDRFeature {
   icon: React.ReactNode;
   category: 'outreach' | 'intelligence' | 'automation' | 'analysis';
   agentId: string;
+  functionName: string;
   capabilities: string[];
   metrics: {
     successRate: number;
@@ -58,6 +59,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Target className="w-6 h-6" />,
       category: 'outreach',
       agentId: 'ai-sdr-agent',
+      functionName: 'cold-email-sdr',
       capabilities: [
         'Multi-channel outreach (Email, LinkedIn, Phone)',
         'A/B testing for messaging',
@@ -80,6 +82,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Phone className="w-6 h-6" />,
       category: 'outreach',
       agentId: 'ai-dialer-agent',
+      functionName: 'cold-call-sdr',
       capabilities: [
         'Real-time conversation analysis',
         'Automated objection handling',
@@ -102,6 +105,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <TrendingUp className="w-6 h-6" />,
       category: 'intelligence',
       agentId: 'signals-agent',
+      functionName: 'ai-enrichment',
       capabilities: [
         'Intent data analysis',
         'Technographics enrichment',
@@ -123,6 +127,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Users className="w-6 h-6" />,
       category: 'intelligence',
       agentId: 'lead-db-agent',
+      functionName: 'lead-enrichment-agent',
       capabilities: [
         'Duplicate lead detection',
         'Real-time data enrichment',
@@ -144,6 +149,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Calendar className="w-6 h-6" />,
       category: 'automation',
       agentId: 'meetings-agent',
+      functionName: 'video-call-scheduler',
       capabilities: [
         'Calendar availability analysis',
         'Timezone optimization',
@@ -165,6 +171,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Rocket className="w-6 h-6" />,
       category: 'automation',
       agentId: 'ai-journeys-agent',
+      functionName: 'lead-nurturing',
       capabilities: [
         'Journey mapping and visualization',
         'Predictive next step recommendations',
@@ -189,6 +196,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <MessageSquare className="w-6 h-6" />,
       category: 'outreach',
       agentId: 'social-selling-agent',
+      functionName: 'social-selling-agent',
       capabilities: [
         'LinkedIn profile analysis',
         'Personalized connection requests',
@@ -211,6 +219,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Mail className="w-6 h-6" />,
       category: 'outreach',
       agentId: 'email-personalization-agent',
+      functionName: 'email-personalization-agent',
       capabilities: [
         'Dynamic content insertion',
         'Behavioral email triggers',
@@ -232,6 +241,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <BarChart3 className="w-6 h-6" />,
       category: 'analysis',
       agentId: 'revenue-intelligence-agent',
+      functionName: 'revenue-intelligence-agent',
       capabilities: [
         'Revenue forecasting',
         'Pipeline health analysis',
@@ -254,6 +264,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Zap className="w-6 h-6" />,
       category: 'intelligence',
       agentId: 'competitive-intelligence-agent',
+      functionName: 'competitive-intelligence-agent',
       capabilities: [
         'Competitor website monitoring',
         'Pricing strategy analysis',
@@ -276,6 +287,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Brain className="w-6 h-6" />,
       category: 'automation',
       agentId: 'content-creation-agent',
+      functionName: 'content-creation-agent',
       capabilities: [
         'Blog post generation',
         'Social media content',
@@ -297,6 +309,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Bot className="w-6 h-6" />,
       category: 'analysis',
       agentId: 'negotiation-coach-agent',
+      functionName: 'negotiation-coach-agent',
       capabilities: [
         'Real-time negotiation strategy',
         'Objection response generation',
@@ -440,6 +453,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
             {/* Action Button */}
             <AgentButton
               agentId={feature.agentId}
+              functionName={feature.functionName}
               variant="primary"
               className="w-full"
               onSuccess={(result) => handleAgentExecute(feature.agentId, result)}
