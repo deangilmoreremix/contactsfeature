@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Package,
   Plus,
   Search,
-  Filter,
   FileText,
-  TrendingUp,
-  LayoutGrid,
-  List,
   RefreshCw,
   ArrowLeft,
+  LayoutGrid,
+  List,
+  Filter,
+  Sparkles,
 } from 'lucide-react';
 import { useUserProducts } from '../hooks/useUserProducts';
 import { useProductMatches, useProductDrafts } from '../hooks/useProductMatches';
@@ -17,10 +17,14 @@ import { ProductCard } from '../components/products/ProductCard';
 import { ProductWizard } from '../components/products/ProductWizard';
 import { ProductMatchDashboard } from '../components/products/ProductMatchDashboard';
 import { DraftManager } from '../components/products/DraftManager';
+import { ModernButton } from '../components/ui/ModernButton';
+import { SmartTooltip } from '../components/ui/SmartTooltip';
 import type { UserProduct, CreateProductInput } from '../types/userProduct';
 import { supabase } from '../lib/supabase';
+import Fuse from 'fuse.js';
 
 type ViewMode = 'library' | 'matches' | 'drafts';
+type DisplayMode = 'grid' | 'list';
 
 interface ProductStats {
   [productId: string]: {
@@ -33,6 +37,19 @@ interface ProductStats {
 interface ProductsProps {
   onNavigateBack?: () => void;
 }
+
+const filterOptions = [
+  { label: 'All', value: 'all' },
+  { label: 'Active', value: 'active' },
+  { label: 'Archived', value: 'archived' },
+];
+
+const sortOptions = [
+  { label: 'Name (A-Z)', value: 'name_asc' },
+  { label: 'Name (Z-A)', value: 'name_desc' },
+  { label: 'Newest First', value: 'newest' },
+  { label: 'Oldest First', value: 'oldest' },
+];
 
 export default function Products({ onNavigateBack }: ProductsProps) {
   const {
@@ -48,12 +65,22 @@ export default function Products({ onNavigateBack }: ProductsProps) {
   } = useUserProducts();
 
   const [viewMode, setViewMode] = useState<ViewMode>('library');
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('grid');
   const [showWizard, setShowWizard] = useState(false);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [productStats, setProductStats] = useState<ProductStats>({});
+
+  const fuse = useMemo(() => new Fuse(products, {
+    keys: ['name', 'tagline', 'category', 'description'],
+    threshold: 0.3,
+  }), [products]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -72,7 +99,7 @@ export default function Products({ onNavigateBack }: ProductsProps) {
         ]);
 
         const matches = matchesRes.data || [];
-        const highFit = matches.filter(m => m.match_score >= 80).length;
+        const highFit = matches.filter(m => (m.match_score || 0) >= 80).length;
 
         stats[product.id] = {
           matchCount: matchesRes.count || 0,
@@ -89,27 +116,50 @@ export default function Products({ onNavigateBack }: ProductsProps) {
     }
   }, [products]);
 
-  const filteredProducts = products.filter(product => {
-    if (!showArchived && !product.is_active) return false;
+  const filteredProducts = useMemo(() => {
+    let result = [...products];
+
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        product.name.toLowerCase().includes(query) ||
-        product.tagline?.toLowerCase().includes(query) ||
-        product.category?.toLowerCase().includes(query)
-      );
+      const searchResults = fuse.search(searchQuery);
+      result = searchResults.map(r => r.item);
     }
-    return true;
-  });
+
+    if (activeFilter === 'active') {
+      result = result.filter(p => p.is_active);
+    } else if (activeFilter === 'archived') {
+      result = result.filter(p => !p.is_active);
+    }
+
+    switch (sortBy) {
+      case 'name_asc':
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name_desc':
+        result.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'newest':
+        result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        break;
+      case 'oldest':
+        result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        break;
+    }
+
+    return result;
+  }, [products, searchQuery, activeFilter, sortBy, fuse]);
 
   const handleSaveProduct = async (input: CreateProductInput) => {
-    if (editingProduct) {
-      await updateProduct(editingProduct.id, input);
-    } else {
-      await createProduct(input);
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, input);
+      } else {
+        await createProduct(input);
+      }
+      setEditingProduct(null);
+      setShowWizard(false);
+    } catch (err) {
+      console.error('Failed to save product:', err);
     }
-    setEditingProduct(null);
-    setShowWizard(false);
   };
 
   const handleEdit = (product: UserProduct) => {
@@ -141,6 +191,35 @@ export default function Products({ onNavigateBack }: ProductsProps) {
     setViewMode('matches');
   };
 
+  const handleProductSelect = (productId: string) => {
+    setSelectedProducts(prev =>
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProducts.length === filteredProducts.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(filteredProducts.map(p => p.id));
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    for (const productId of selectedProducts) {
+      const product = products.find(p => p.id === productId);
+      if (product?.is_active) {
+        await archiveProduct(productId);
+      }
+    }
+    setSelectedProducts([]);
+  };
+
+  const activeFilterLabel = filterOptions.find(f => f.value === activeFilter)?.label || 'All';
+  const sortLabel = sortOptions.find(s => s.value === sortBy)?.label || 'Newest First';
+
   if (viewMode === 'matches' && selectedProduct) {
     return (
       <ProductMatchDashboard
@@ -155,19 +234,20 @@ export default function Products({ onNavigateBack }: ProductsProps) {
 
   if (viewMode === 'drafts') {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setViewMode('library')}
-                  className="text-gray-600 hover:text-gray-900"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
+                  <ArrowLeft className="w-4 h-4" />
                   Products
                 </button>
                 <span className="text-gray-400">/</span>
-                <h1 className="text-lg font-semibold text-gray-900">My Drafts</h1>
+                <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Drafts</h1>
               </div>
             </div>
           </div>
@@ -180,55 +260,71 @@ export default function Products({ onNavigateBack }: ProductsProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3">
               {onNavigateBack && (
                 <button
                   onClick={onNavigateBack}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5 text-gray-600" />
+                  <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                 </button>
               )}
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
-                <Package className="w-6 h-6 text-white" />
+              <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-white">
+                <Package className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">My Products</h1>
-                <p className="text-sm text-gray-500">
-                  {products.filter(p => p.is_active).length} active products
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                  My Products
+                  <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  {filteredProducts.length} products found
+                  {selectedProducts.length > 0 && ` • ${selectedProducts.length} selected`}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setViewMode('drafts')}
-                className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <FileText className="w-4 h-4" />
-                View Drafts
-              </button>
-              <button
-                onClick={() => {
-                  setEditingProduct(null);
-                  setShowWizard(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                Add Product
-              </button>
+              <SmartTooltip featureId="view_drafts_button">
+                <ModernButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode('drafts')}
+                  className="flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">Drafts</span>
+                </ModernButton>
+              </SmartTooltip>
+
+              <SmartTooltip featureId="add_product_button">
+                <ModernButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setShowWizard(true);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Product</span>
+                </ModernButton>
+              </SmartTooltip>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center gap-4 mb-6">
+      {/* Toolbar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+          {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -236,62 +332,169 @@ export default function Products({ onNavigateBack }: ProductsProps) {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search products..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-gray-100"
             />
           </div>
 
-          <label className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={e => setShowArchived(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700">Show archived</span>
-          </label>
+          {/* Filter Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsFilterDropdownOpen(!isFilterDropdownOpen);
+                setIsSortDropdownOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <Filter className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{activeFilterLabel}</span>
+            </button>
+            {isFilterDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsFilterDropdownOpen(false)} />
+                <div className="absolute left-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                  {filterOptions.map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setActiveFilter(option.value);
+                        setIsFilterDropdownOpen(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                        activeFilter === option.value
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsSortDropdownOpen(!isSortDropdownOpen);
+                setIsFilterDropdownOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <span className="text-sm text-gray-700 dark:text-gray-300">Sort: {sortLabel}</span>
+            </button>
+            {isSortDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsSortDropdownOpen(false)} />
+                <div className="absolute left-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                  {sortOptions.map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setSortBy(option.value);
+                        setIsSortDropdownOpen(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                        sortBy === option.value
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Refresh */}
           <button
             onClick={refreshProducts}
             disabled={loading}
-            className="p-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="p-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
           >
-            <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 text-gray-600 dark:text-gray-300 ${loading ? 'animate-spin' : ''}`} />
           </button>
+
+          {/* View Toggle */}
+          <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setDisplayMode('grid')}
+              className={`p-2 ${displayMode === 'grid' ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setDisplayMode('list')}
+              className={`p-2 ${displayMode === 'list' ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              <List className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
+        {/* Bulk Actions */}
+        {selectedProducts.length > 0 && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              {selectedProducts.length} product{selectedProducts.length > 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={handleBulkArchive}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Archive Selected
+            </button>
+            <button
+              onClick={() => setSelectedProducts([])}
+              className="text-sm text-gray-500 hover:underline"
+            >
+              Clear Selection
+            </button>
+          </div>
+        )}
+
+        {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
             {error}
           </div>
         )}
 
+        {/* Loading */}
         {loading && products.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-20">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <Package className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
               {searchQuery ? 'No products found' : 'No products yet'}
             </h3>
-            <p className="text-gray-500 mb-6">
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
               {searchQuery
                 ? 'Try adjusting your search terms'
                 : 'Add your first product to start matching contacts'}
             </p>
             {!searchQuery && (
-              <button
+              <ModernButton
+                variant="primary"
                 onClick={() => setShowWizard(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                className="inline-flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Add Your First Product
-              </button>
+              </ModernButton>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={displayMode === 'grid' 
+            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' 
+            : 'space-y-4'
+          }>
             {filteredProducts.map(product => (
               <ProductCard
                 key={product.id}
@@ -299,17 +502,21 @@ export default function Products({ onNavigateBack }: ProductsProps) {
                 matchCount={productStats[product.id]?.matchCount || 0}
                 highFitCount={productStats[product.id]?.highFitCount || 0}
                 draftCount={productStats[product.id]?.draftCount || 0}
+                isSelected={selectedProducts.includes(product.id)}
+                onSelect={() => handleProductSelect(product.id)}
                 onEdit={handleEdit}
                 onDuplicate={handleDuplicate}
                 onArchive={handleArchive}
                 onDelete={handleDelete}
                 onViewMatches={handleViewMatches}
+                displayMode={displayMode}
               />
             ))}
           </div>
         )}
       </div>
 
+      {/* Wizard Modal */}
       {showWizard && (
         <ProductWizard
           product={editingProduct || undefined}

@@ -1,5 +1,4 @@
 import React, { useState, lazy, Suspense } from "react";
-import { LandingPage } from "./components/landing/LandingPage";
 import { ViewProvider } from "./contexts/ViewContext";
 import { AIProvider } from "./contexts/AIContext";
 
@@ -15,7 +14,7 @@ const PageLoader: React.FC = () => (
   </div>
 );
 
-type AppView = 'landing' | 'contacts' | 'products';
+type AppView = 'contacts' | 'products';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('contacts');
@@ -24,19 +23,14 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-100">
       <AIProvider>
         <ViewProvider>
-          {currentView === 'landing' && (
-            <LandingPage onClose={() => setCurrentView('contacts')} />
-          )}
           <Suspense fallback={<PageLoader />}>
             {currentView === 'contacts' && (
               <ContactsModal
                 isOpen={true}
-                onClose={() => setCurrentView('landing')}
+                onClose={() => {}}
                 onNavigate={(view: string) => {
                   if (view === 'products') {
                     setCurrentView('products');
-                  } else if (view === 'landing') {
-                    setCurrentView('landing');
                   }
                 }}
               />
