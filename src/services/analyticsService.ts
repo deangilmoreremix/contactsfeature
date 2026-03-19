@@ -145,7 +145,7 @@ class AnalyticsService {
         error: usage.error,
         ai_provider: usage.aiProvider,
         model: usage.model,
-        user_agent: navigator.userAgent,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'server',
         session_id: this.generateSessionId()
       });
 

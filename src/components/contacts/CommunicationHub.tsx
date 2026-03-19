@@ -666,22 +666,6 @@ Sales Representative`
         })}
       </div>
 
-      {/* SDR Personas Section */}
-      <div className="mb-8">
-        <SDRPersonaSelector
-          contact={contact}
-          categoryFilter={[
-            'webinar_invite',
-            'webinar_followup',
-            'community_engagement',
-            'vip_concierge',
-            'app_user_onboarding'
-          ]}
-          title="Event & Engagement SDRs"
-          description="AI-powered SDR personas for events, webinars, and community engagement"
-        />
-      </div>
-
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Communication Timeline */}

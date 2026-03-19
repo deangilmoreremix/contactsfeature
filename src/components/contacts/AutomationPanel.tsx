@@ -1670,23 +1670,6 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         </nav>
       </div>
 
-      {/* SDR Personas Section */}
-      <div className="mb-8">
-        <SDRPersonaSelector
-          contact={contact}
-          categoryFilter={[
-            'course_creator_nurture',
-            'trial_to_paid_conversion',
-            'upsell_cross_sell',
-            'churn_winback',
-            'list_reactivation',
-            'abandoned_cart_recovery'
-          ]}
-          title="Lifecycle & Nurture SDRs"
-          description="AI-powered SDR personas for lifecycle management and lead nurturing"
-        />
-      </div>
-
       {/* Tab Content */}
       {activeTab === 'active' && (
         <div className="space-y-4">

@@ -23,6 +23,14 @@ export default defineConfig({
 
   define: {
     global: "globalThis",
+    DEFAULT_SCORE_WEIGHTS: JSON.stringify({
+      engagement: 0.2,
+      momentum: 0.25,
+      competition: 0.15,
+      stakeholder: 0.2,
+      qualification: 0.1,
+      risk: 0.1
+    })
   },
 
   server: {

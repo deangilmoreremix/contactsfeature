@@ -91,7 +91,7 @@ export async function buildDealSnapshot(dealId: string): Promise<CrmContext> {
       .single();
 
     // Fetch company info if available
-    let company = null;
+    const company = null;
     if (contact?.company) {
       // This would need a companies table or similar
       // For now, we'll use contact company field

@@ -117,7 +117,7 @@ export class ContextManager {
    */
   compactContext(maxTokens: number): CompactedContext {
     const originalTokens = this.getTotalTokens();
-    let items = [...this.context];
+    const items = [...this.context];
 
     // Always keep system messages and recent high-importance items
     const protectedItems = items.filter(item =>
@@ -138,7 +138,7 @@ export class ContextManager {
     });
 
     // Build compacted context
-    let compactedItems: ContextItem[] = [...protectedItems];
+    const compactedItems: ContextItem[] = [...protectedItems];
     let currentTokens = this.calculateTokens(protectedItems);
 
     // Add items until we hit the token limit
