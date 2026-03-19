@@ -4,6 +4,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('win-back-sdr');
 
@@ -57,7 +58,12 @@ exports.handler = withAuth(async (event, user) => {
       a.type === 'cancellation' || a.type === 'churn' || a.outcome === 'lost'
     );
 
-    const prompt = `You are creating a win-back campaign email for a churned or lost customer.
+    const gtmPrompt = await getGTMPrompt('win-back-sdr', contact.industry);
+    const gtmBlock = gtmPrompt 
+      ? `Use this proven win-back framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      : '';
+
+    const prompt = `${gtmBlock}You are creating a win-back campaign email for a churned or lost customer.
 
 Contact: ${contactName} at ${company}
 Title: ${contact.title || 'Not specified'}
@@ -98,7 +104,7 @@ The email should:
       winBackOffer: 'Contact us for a special returning customer offer',
     });
 
-    log.info('Win-back email generated', { contactId });
+    log.info('Win-back email generated', { contactId, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
@@ -110,6 +116,7 @@ The email should:
         sent: true,
         churnReason: parsed.churnReason || 'Unable to determine specific churn reason',
         winBackOffer: parsed.winBackOffer || 'Special returning customer offer',
+        gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {

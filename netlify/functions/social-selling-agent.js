@@ -6,7 +6,7 @@ const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
-const log = createLogger('cold-email-sdr');
+const log = createLogger('social-selling-agent');
 
 exports.handler = withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
@@ -14,7 +14,7 @@ exports.handler = withAuth(async (event, user) => {
   const body = parseBody(event);
   if (!body) return errorResponse(400, 'Invalid JSON body');
 
-  const { contactId } = body;
+  const { contactId, platform, campaignType } = body;
   const idErr = validateContactId(contactId);
   if (idErr) return errorResponse(400, idErr);
 
@@ -33,32 +33,36 @@ exports.handler = withAuth(async (event, user) => {
 
     const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
-    const maxTokens = resolveMaxTokens(prefs, 1000);
-    const contactName = contact.firstname || contact.name || 'there';
-    const company = contact.company || 'your company';
-    const title = contact.title || '';
+    const maxTokens = resolveMaxTokens(prefs, 2000);
+    const contactName = `${contact.firstname || ''} ${contact.lastname || ''}`.trim() || 'there';
+    const company = contact.company || 'their company';
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    const gtmPrompt = await getGTMPrompt('cold-email-sdr', contact.industry);
+    const gtmPrompt = await getGTMPrompt('social-selling-agent', contact.industry);
     const gtmBlock = gtmPrompt 
-      ? `Use this proven cold email framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      ? `Use this proven social selling framework as your guide:\n${gtmPrompt}\n\n---\n\n`
       : '';
 
-    const prompt = `${gtmBlock}Generate a personalized cold email to ${contactName}${title ? ` (${title})` : ''} at ${company}.
+    const prompt = `${gtmBlock}Generate personalized social selling content for ${contactName} at ${company}.
 
 Contact details: ${JSON.stringify({
-  name: contactName, company, title, email: contact.email, industry: contact.industry, notes: contact.notes,
+  name: contactName, company, title: contact.title, industry: contact.industry, 
+  linkedin: contact.social_profiles?.linkedin, notes: contact.notes,
 })}
 
-The cold email should:
-- Have an attention-grabbing subject line
-- Open with something relevant to them or their company
-- Clearly articulate value proposition
-- Include a soft call-to-action (not pushy)
-- Be concise (under 150 words)
-- Sound human, not templated${prefsBlock}
+Platform: ${platform || 'LinkedIn'}
+Campaign type: ${campaignType || 'connection_request'}
 
-Return JSON with "subject" and "body" fields.`;
+Generate:
+1. Connection request message
+2. Follow-up message
+3. Content engagement ideas
+4. Profile comment suggestions
+5. Timing recommendations
+
+Make it highly personalized and professional${prefsBlock}
+
+Return JSON with "connectionRequest", "followUpMessage", "engagementIdeas", "profileComments", "timingRecommendations".`;
 
     const content = await callOpenAI(
       [{ role: 'user', content: prompt }],
@@ -66,25 +70,28 @@ Return JSON with "subject" and "body" fields.`;
     );
 
     const parsed = parseJSONResponse(content, {
-      subject: `Quick question for ${contactName} at ${company}`,
-      body: content,
+      connectionRequest: '',
+      followUpMessage: '',
+      engagementIdeas: '',
+      profileComments: '',
+      timingRecommendations: '',
     });
 
-    log.info('Cold email generated', { contactId, gtmPromptUsed: !!gtmPrompt });
+    log.info('Social selling content generated', { contactId, platform, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
       body: JSON.stringify({
         contactId,
-        subject: parsed.subject,
-        body: parsed.body,
-        sent: true,
+        platform: platform || 'linkedin',
+        campaignType: campaignType || 'connection_request',
+        ...parsed,
         gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {
-    log.error('Cold email generation failed', { contactId, error: error.message });
-    return errorResponse(500, 'Cold email generation failed');
+    log.error('Social selling generation failed', { contactId, error: error.message });
+    return errorResponse(500, 'Social selling generation failed');
   }
 });

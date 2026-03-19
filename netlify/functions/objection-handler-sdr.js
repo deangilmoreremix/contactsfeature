@@ -4,6 +4,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody, sanitizeString } = require('./_validation');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('objection-handler-sdr');
 
@@ -40,7 +41,12 @@ exports.handler = withAuth(async (event, user) => {
     const company = contact.company || 'their company';
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    const prompt = `You are an expert sales development representative handling objections.
+    const gtmPrompt = await getGTMPrompt('objection-handler-sdr', contact.industry);
+    const gtmBlock = gtmPrompt 
+      ? `Use this proven objection handling framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      : '';
+
+    const prompt = `${gtmBlock}You are an expert sales development representative handling objections.
 
 Contact: ${contactName} at ${company}
 Title: ${contact.title || 'Not specified'}
@@ -78,7 +84,7 @@ Return JSON with:
       objectionType: 'unknown',
     });
 
-    log.info('Objection handled', { contactId });
+    log.info('Objection handled', { contactId, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
@@ -89,6 +95,7 @@ Return JSON with:
         response: parsed.response,
         sent: true,
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.8,
+        gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {

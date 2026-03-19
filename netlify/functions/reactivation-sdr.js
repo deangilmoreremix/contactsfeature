@@ -4,6 +4,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('reactivation-sdr');
 
@@ -50,7 +51,12 @@ exports.handler = withAuth(async (event, user) => {
     const company = contact.company || 'your company';
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 
-    const prompt = `Generate a reactivation email to re-engage a dormant lead.
+    const gtmPrompt = await getGTMPrompt('reactivation-sdr', contact.industry);
+    const gtmBlock = gtmPrompt 
+      ? `Use this proven reactivation framework as your guide:\n${gtmPrompt}\n\n---\n\n`
+      : '';
+
+    const prompt = `${gtmBlock}Generate a reactivation email to re-engage a dormant lead.
 
 Contact: ${contactName} at ${company}
 Days since last contact: ${daysSinceLastContact}
@@ -81,7 +87,7 @@ Return JSON with "subject" and "body" fields.`;
       body: content,
     });
 
-    log.info('Reactivation email generated', { contactId, daysSinceLastContact });
+    log.info('Reactivation email generated', { contactId, daysSinceLastContact, gtmPromptUsed: !!gtmPrompt });
 
     return {
       statusCode: 200,
@@ -92,6 +98,7 @@ Return JSON with "subject" and "body" fields.`;
         body: parsed.body,
         sent: true,
         daysSinceLastContact,
+        gtmPromptUsed: !!gtmPrompt,
       }),
     };
   } catch (error) {
