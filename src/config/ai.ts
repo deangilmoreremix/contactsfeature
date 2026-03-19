@@ -92,7 +92,8 @@ export function migrateModelToCurrent(model: string): string {
     default:
       return model; // Already current
   }
-}-e 
+}
+
 // SDR Autopilot specific models
 export const SMARTCRM_SDR_MODEL = "gpt-5.2-thinking";  // Main SDR/autopilot brain
 export const SMARTCRM_SDR_FAST  = "gpt-5.2-instant";   // Quick subject/reply helpers

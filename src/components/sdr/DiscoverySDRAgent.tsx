@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Users, Building } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { Contact } from "../../types/contact";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface DiscoveryResponse {
   contactId: string;
@@ -16,8 +18,19 @@ interface DiscoveryResponse {
   nextActions: string[];
 }
 
-export const DiscoverySDRAgent: React.FC = () => {
-  const [contactId, setContactId] = useState("");
+interface DiscoverySDRAgentProps {
+  contact?: Contact;
+}
+
+export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact }) => {
+  const [contactId, setContactId] = useState(contact?.id || "");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('discovery-sdr');
+
+  useEffect(() => {
+    if (contact?.id) {
+      setContactId(contact.id);
+    }
+  }, [contact?.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DiscoveryResponse | null>(null);
@@ -37,7 +50,7 @@ export const DiscoverySDRAgent: React.FC = () => {
       const res = await fetch("/.netlify/functions/discovery-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -116,30 +129,41 @@ export const DiscoverySDRAgent: React.FC = () => {
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 500,
-            marginBottom: 4
-          }}
-        >
-          Contact ID
-        </label>
-        <input
-          value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
-          placeholder="Enter contact UUID"
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e0",
-            fontSize: 13
-          }}
-        />
-      </div>
+      {contact ? (
+        <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+          <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
+            Target: {contact.firstName || contact.name} {contact.lastName || ''}
+          </div>
+          <div style={{ fontSize: 11, color: contact.email ? "#15803d" : "#dc2626" }}>
+            {contact.email || "No email on file"}
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 8 }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 4
+            }}
+          >
+            Contact ID
+          </label>
+          <input
+            value={contactId}
+            onChange={(e) => setContactId(e.target.value)}
+            placeholder="Enter contact UUID"
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid #cbd5e0",
+              fontSize: 13
+            }}
+          />
+        </div>
+      )}
 
       <button
         type="button"
@@ -238,8 +262,13 @@ export const DiscoverySDRAgent: React.FC = () => {
         <SDRAgentConfigurator
           agentId="discovery-sdr"
           agentName="Discovery SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

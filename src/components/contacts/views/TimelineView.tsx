@@ -206,11 +206,17 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-3 flex-1">
-                          <img
-                            src={event.contact.avatarSrc}
-                            alt={event.contact.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
+                           <img
+                             src={event.contact.avatarSrc}
+                             alt={event.contact.name}
+                             className="w-10 h-10 rounded-full object-cover"
+                             onError={(e) => {
+                               e.target.onerror = null;
+                               e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                               e.target.style.opacity = '0.7';
+                             }}
+                             loading="lazy"
+                           />
                           <div className="flex-1">
                             <h4 className="font-semibold text-gray-900 dark:text-white">
                               {event.title}

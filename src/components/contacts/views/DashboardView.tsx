@@ -194,11 +194,17 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                   {index + 1}
                 </div>
-                <img
-                  src={contact.avatarSrc}
-                  alt={contact.name}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
+                 <img
+                   src={contact.avatarSrc}
+                   alt={contact.name}
+                   className="w-10 h-10 rounded-full object-cover"
+                   onError={(e) => {
+                     e.target.onerror = null;
+                     e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                     e.target.style.opacity = '0.7';
+                   }}
+                   loading="lazy"
+                 />
                 <div className="flex-1 text-left">
                   <p className="font-medium text-gray-900 dark:text-white text-sm">{contact.name}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{contact.company}</p>

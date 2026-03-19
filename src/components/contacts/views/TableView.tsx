@@ -37,12 +37,18 @@ const allColumns: ColumnDefinition[] = [
     sortable: true,
     width: 200,
     render: (value, contact) => (
-      <div className="flex items-center gap-3">
-        <img
-          src={contact.avatarSrc}
-          alt={contact.name}
-          className="w-8 h-8 rounded-full object-cover"
-        />
+       <div className="flex items-center gap-3">
+         <img
+           src={contact.avatarSrc}
+           alt={contact.name}
+           className="w-8 h-8 rounded-full object-cover"
+           onError={(e) => {
+             e.target.onerror = null;
+             e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+             e.target.style.opacity = '0.7';
+           }}
+           loading="lazy"
+         />
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 dark:text-white">{value}</span>

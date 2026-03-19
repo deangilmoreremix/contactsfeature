@@ -1,6 +1,9 @@
-import React, { useState } from "react";
-import { Settings, RotateCcw } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Settings, RotateCcw, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { Contact } from "../../types/contact";
+import { saveSdrDraft } from "../../utils/sdrDraftUtils";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface ReactivationResponse {
   contactId: string;
@@ -11,12 +14,43 @@ interface ReactivationResponse {
   debug?: any;
 }
 
-export const ReactivationSDRAgent: React.FC = () => {
-  const [contactId, setContactId] = useState("");
+interface ReactivationSDRAgentProps {
+  contact?: Contact;
+}
+
+export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ contact }) => {
+  const [contactId, setContactId] = useState(contact?.id || "");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('reactivation-sdr');
+
+  useEffect(() => {
+    if (contact?.id) {
+      setContactId(contact.id);
+    }
+  }, [contact?.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReactivationResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleSaveDraft = async () => {
+    if (!result) return;
+    const res = await saveSdrDraft({
+      contactId: result.contactId || contactId,
+      subject: result.subject,
+      body: result.body,
+      agentType: 'reactivation-sdr',
+    });
+    if (res.success) setDraftSaved(true);
+  };
+
+  const handleCopy = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(`Subject: ${result.subject}\n\n${result.body}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleReactivate = async () => {
     setError(null);
@@ -32,7 +66,7 @@ export const ReactivationSDRAgent: React.FC = () => {
       const res = await fetch("/.netlify/functions/reactivation-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -111,30 +145,41 @@ export const ReactivationSDRAgent: React.FC = () => {
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 500,
-            marginBottom: 4
-          }}
-        >
-          Contact ID
-        </label>
-        <input
-          value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
-          placeholder="Enter contact UUID"
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e0",
-            fontSize: 13
-          }}
-        />
-      </div>
+      {contact ? (
+        <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+          <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
+            Target: {contact.firstName || contact.name} {contact.lastName || ''}
+          </div>
+          <div style={{ fontSize: 11, color: contact.email ? "#15803d" : "#dc2626" }}>
+            {contact.email || "No email on file"}
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 8 }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 4
+            }}
+          >
+            Contact ID
+          </label>
+          <input
+            value={contactId}
+            onChange={(e) => setContactId(e.target.value)}
+            placeholder="Enter contact UUID"
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid #cbd5e0",
+              fontSize: 13
+            }}
+          />
+        </div>
+      )}
 
       <button
         type="button"
@@ -185,10 +230,6 @@ export const ReactivationSDRAgent: React.FC = () => {
             <strong>Subject:</strong> {result.subject}
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Status:</strong> {result.sent ? "✅ Sent" : "❌ Failed"}
-          </div>
-
           <div>
             <strong>Message:</strong>
             <pre
@@ -204,6 +245,34 @@ export const ReactivationSDRAgent: React.FC = () => {
               {result.body}
             </pre>
           </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              onClick={handleCopy}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db",
+                background: copied ? "#f0fdf4" : "white", fontSize: 12, cursor: "pointer",
+                color: copied ? "#166534" : "#374151"
+              }}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              onClick={handleSaveDraft}
+              disabled={draftSaved}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 4, padding: "6px 10px", borderRadius: 6, border: "none",
+                background: draftSaved ? "#dcfce7" : "#2563eb", color: draftSaved ? "#166534" : "white",
+                fontSize: 12, fontWeight: 500, cursor: draftSaved ? "default" : "pointer"
+              }}
+            >
+              {draftSaved ? <Check size={12} /> : <Mail size={12} />}
+              {draftSaved ? "Draft Saved" : "Save as Draft"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -211,8 +280,13 @@ export const ReactivationSDRAgent: React.FC = () => {
         <SDRAgentConfigurator
           agentId="reactivation-sdr"
           agentName="Re-Activation SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

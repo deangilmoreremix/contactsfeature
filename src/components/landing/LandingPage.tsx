@@ -283,6 +283,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                       src={feature.image}
                       alt={feature.title}
                       className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => {
+                        // Fallback to a placeholder image or hide the broken image
+                        e.target.src = 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                        e.target.style.opacity = '0.7';
+                      }}
+                      loading="lazy"
                     />
                     <div className={clsx(
                       "absolute inset-0 bg-gradient-to-br opacity-20 group-hover:opacity-30 transition-opacity duration-300",

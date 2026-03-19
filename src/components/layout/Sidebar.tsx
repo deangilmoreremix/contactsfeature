@@ -12,7 +12,8 @@ import {
   FileText,
   Star,
   CheckSquare,
-  Brain
+  Brain,
+  Package
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ interface SidebarProps {
 const navigationItems = [
   { icon: Home, label: 'Dashboard', active: true, key: 'dashboard', featureId: 'nav_dashboard' },
   { icon: Users, label: 'Contacts', active: false, key: 'contacts', featureId: 'nav_contacts' },
+  { icon: Package, label: 'Products', active: false, key: 'products', featureId: 'nav_products' },
   { icon: TrendingUp, label: 'Pipeline', active: false, key: 'pipeline', featureId: 'nav_pipeline' },
   { icon: CheckSquare, label: 'Tasks', active: false, key: 'tasks', featureId: 'nav_tasks' },
   { icon: Calendar, label: 'Appointments', active: false, key: 'appointments', featureId: 'nav_appointments' },

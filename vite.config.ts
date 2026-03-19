@@ -40,7 +40,8 @@ export default defineConfig({
       overlay: false,
     },
     watch: {
-      usePolling: false,
+      usePolling: true,
+      interval: 1000,
     },
   },
 

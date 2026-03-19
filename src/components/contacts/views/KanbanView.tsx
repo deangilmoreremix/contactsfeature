@@ -212,11 +212,17 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={contact.avatarSrc}
-                            alt={contact.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
+                           <img
+                             src={contact.avatarSrc}
+                             alt={contact.name}
+                             className="w-10 h-10 rounded-full object-cover"
+                             onError={(e) => {
+                               e.target.onerror = null;
+                               e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                               e.target.style.opacity = '0.7';
+                             }}
+                             loading="lazy"
+                           />
                           <div>
                             <div className="flex items-center gap-2">
                               <h5 className="font-semibold text-gray-900 dark:text-white text-sm">

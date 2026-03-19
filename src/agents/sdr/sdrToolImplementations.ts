@@ -3,43 +3,112 @@
  * Concrete implementations for each SDR Autopilot tool
  */
 
-import { supabase } from "../../lib/supabase";
+import { supabase, callEdgeFunction } from "../../lib/supabase";
 import { saveAutopilotState } from "./sdrStateHelpers";
 
-// Mock AgentMail client - replace with actual implementation
-const agentMailClient = {
-  async sendEmail(params: {
-    from: string;
-    to: string;
-    subject: string;
-    body_html: string;
-  }) {
-    // Mock implementation - replace with actual AgentMail API call
-    console.log('Sending email via AgentMail:', params);
-    return {
-      success: true,
-      message_id: `msg_${Date.now()}`,
-      sent_at: new Date().toISOString()
-    };
-  }
-};
+interface EmailSendResult {
+  success: boolean;
+  message_id: string;
+  sent_at: string;
+  error?: string;
+}
 
-// Mock calendar client - replace with actual calendar integration
-const calendarClient = {
-  async scheduleMeeting(params: {
-    leadId: string;
-    timeslot?: string;
-  }) {
-    // Mock implementation - replace with actual calendar API
-    console.log('Scheduling meeting:', params);
+interface CalendarScheduleResult {
+  success: boolean;
+  meeting_id: string;
+  time: string;
+  join_url: string;
+  error?: string;
+}
+
+async function sendEmailViaEdgeFunction(params: {
+  from_name: string;
+  from_email: string;
+  to: string;
+  subject: string;
+  body_html: string;
+  contact_id?: string;
+  mailbox_key?: string;
+}): Promise<EmailSendResult> {
+  try {
+    const result = await callEdgeFunction('send-email', {
+      to: params.to,
+      subject: params.subject,
+      body_html: params.body_html,
+      from_name: params.from_name,
+      from_email: params.from_email,
+      contact_id: params.contact_id,
+      mailbox_key: params.mailbox_key,
+    });
+
     return {
-      success: true,
-      meeting_id: `meeting_${Date.now()}`,
-      time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-      join_url: 'https://meet.example.com/meeting123'
+      success: result.success,
+      message_id: result.message_id || `msg_${Date.now()}`,
+      sent_at: result.sent_at || new Date().toISOString(),
+      error: result.error,
+    };
+  } catch (error) {
+    console.error('Email send error:', error);
+    return {
+      success: false,
+      message_id: '',
+      sent_at: '',
+      error: error instanceof Error ? error.message : 'Failed to send email',
     };
   }
-};
+}
+
+async function scheduleCalendarMeeting(params: {
+  leadId: string;
+  contactEmail: string;
+  contactName: string;
+  timeslot?: string;
+}): Promise<CalendarScheduleResult> {
+  try {
+    const meetingTime = params.timeslot
+      ? new Date(params.timeslot)
+      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const endTime = new Date(meetingTime.getTime() + 30 * 60 * 1000);
+
+    const { data: event, error } = await supabase
+      .from('calendar_events')
+      .insert({
+        contact_id: params.leadId,
+        title: `Discovery Call with ${params.contactName}`,
+        description: 'Meeting scheduled via SDR Autopilot',
+        start_time: meetingTime.toISOString(),
+        end_time: endTime.toISOString(),
+        event_type: 'meeting',
+        status: 'scheduled',
+        created_by: 'sdr_autopilot'
+      })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to create calendar event: ${error.message}`);
+    }
+
+    const joinUrl = `https://meet.smartcrm.app/meeting/${event?.id || Date.now()}`;
+
+    return {
+      success: true,
+      meeting_id: event?.id || `meeting_${Date.now()}`,
+      time: meetingTime.toISOString(),
+      join_url: joinUrl
+    };
+  } catch (error) {
+    console.error('Calendar scheduling error:', error);
+    return {
+      success: false,
+      meeting_id: '',
+      time: '',
+      join_url: '',
+      error: error instanceof Error ? error.message : 'Failed to schedule meeting'
+    };
+  }
+}
 
 export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
   try {
@@ -48,10 +117,14 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
       .from('contacts')
       .select('*')
       .eq('id', leadId)
-      .single();
+      .maybeSingle();
 
     if (leadError) {
       throw new Error(`Failed to fetch lead: ${leadError.message}`);
+    }
+
+    if (!lead) {
+      throw new Error(`Lead not found with id: ${leadId}`);
     }
 
     // Fetch related emails
@@ -97,69 +170,65 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
   }
 }
 
-export async function sendViaAgentMail(args: {
+export async function sendEmailForLead(args: {
   lead_id: string;
   mailbox_key: string;
   subject: string;
   body_html: string;
 }): Promise<any> {
   try {
-    // Get lead email from CRM
     const { data: lead, error: leadError } = await supabase
       .from('contacts')
       .select('email, first_name, last_name')
       .eq('id', args.lead_id)
-      .single();
+      .maybeSingle();
 
-    if (leadError || !lead?.email) {
-      throw new Error(`Lead not found or missing email: ${leadError?.message}`);
+    if (leadError) {
+      throw new Error(`Failed to fetch lead: ${leadError.message}`);
     }
 
-    // Map mailbox_key to actual email address
-    const mailboxMapping: Record<string, string> = {
-      'deansales': 'dean@agentmail.to',
-      'sarahbizdev': 'sarah@agentmail.to',
-      'techsales': 'tech@agentmail.to'
+    if (!lead || !lead.email) {
+      throw new Error(`Lead not found or missing email for id: ${args.lead_id}`);
+    }
+
+    const mailboxMapping: Record<string, { name: string; email: string }> = {
+      'deansales': { name: 'Dean', email: 'dean@smartcrm.app' },
+      'sarahbizdev': { name: 'Sarah', email: 'sarah@smartcrm.app' },
+      'techsales': { name: 'Tech Sales', email: 'tech@smartcrm.app' },
     };
 
-    const fromEmail = mailboxMapping[args.mailbox_key] || `${args.mailbox_key}@agentmail.to`;
+    const mailbox = mailboxMapping[args.mailbox_key] || {
+      name: args.mailbox_key,
+      email: `${args.mailbox_key}@smartcrm.app`,
+    };
 
-    // Send email via AgentMail
-    const result = await agentMailClient.sendEmail({
-      from: fromEmail,
+    const result = await sendEmailViaEdgeFunction({
+      from_name: mailbox.name,
+      from_email: mailbox.email,
       to: lead.email,
       subject: args.subject,
-      body_html: args.body_html
+      body_html: args.body_html,
+      contact_id: args.lead_id,
+      mailbox_key: args.mailbox_key,
     });
 
-    // Log the sent email in CRM
-    await supabase
-      .from('emails')
-      .insert({
-        contact_id: args.lead_id,
-        from_email: fromEmail,
-        to_email: lead.email,
-        subject: args.subject,
-        body_html: args.body_html,
-        sent_at: result.sent_at,
-        status: 'sent',
-        mailbox_key: args.mailbox_key
-      });
-
     return {
-      success: true,
+      success: result.success,
       message_id: result.message_id,
       sent_at: result.sent_at,
-      recipient: lead.email
+      recipient: lead.email,
+      error: result.error,
     };
   } catch (error) {
-    console.error('Error in sendViaAgentMail:', error);
+    console.error('Error in sendEmailForLead:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
+
+export const sendViaAgentMail = sendEmailForLead;
 
 export async function createTaskInSmartCRM(args: {
   lead_id: string;
@@ -177,10 +246,14 @@ export async function createTaskInSmartCRM(args: {
         created_at: new Date().toISOString()
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to create task: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Task was not created');
     }
 
     return {
@@ -192,7 +265,7 @@ export async function createTaskInSmartCRM(args: {
     console.error('Error in createTaskInSmartCRM:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -217,10 +290,14 @@ export async function updateDealStageInSmartCRM(args: {
       .update(updateData)
       .eq('id', args.deal_id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to update deal stage: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error(`Deal not found with id: ${args.deal_id}`);
     }
 
     return {
@@ -233,7 +310,7 @@ export async function updateDealStageInSmartCRM(args: {
     console.error('Error in updateDealStageInSmartCRM:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -243,47 +320,56 @@ export async function scheduleMeetingForLead(args: {
   timeslot?: string;
 }): Promise<any> {
   try {
-    // Get lead details
     const { data: lead, error: leadError } = await supabase
       .from('contacts')
       .select('email, first_name, last_name, company')
       .eq('id', args.lead_id)
-      .single();
+      .maybeSingle();
 
     if (leadError) {
-      throw new Error(`Lead not found: ${leadError.message}`);
+      throw new Error(`Failed to fetch lead: ${leadError.message}`);
     }
 
-    // Schedule meeting via calendar integration
-    const meetingResult = await calendarClient.scheduleMeeting({
+    if (!lead) {
+      throw new Error(`Lead not found with id: ${args.lead_id}`);
+    }
+
+    const contactName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Contact';
+
+    const meetingResult = await scheduleCalendarMeeting({
       leadId: args.lead_id,
+      contactEmail: lead.email || '',
+      contactName,
       timeslot: args.timeslot
     });
 
-    // Create calendar event record in CRM
-    const { data: eventData, error: eventError } = await supabase
-      .from('calendar_events')
-      .insert({
-        contact_id: args.lead_id,
-        title: `Meeting with ${lead.first_name} ${lead.last_name}`,
-        description: `Discovery call scheduled via SDR Autopilot`,
-        start_time: meetingResult.time,
-        end_time: new Date(new Date(meetingResult.time).getTime() + 60 * 60 * 1000).toISOString(), // 1 hour
-        event_type: 'meeting',
-        status: 'scheduled',
-        join_url: meetingResult.join_url,
-        created_by: 'sdr_autopilot'
-      })
-      .select()
-      .single();
+    if (!meetingResult.success) {
+      return {
+        success: false,
+        error: meetingResult.error || 'Failed to schedule meeting'
+      };
+    }
 
-    if (eventError) {
-      throw new Error(`Failed to create calendar event: ${eventError.message}`);
+    if (lead.email) {
+      await sendEmailViaEdgeFunction({
+        from_name: 'SmartCRM Calendar',
+        from_email: 'calendar@smartcrm.app',
+        to: lead.email,
+        subject: 'Your meeting has been scheduled',
+        body_html: `
+          <p>Hi ${lead.first_name || 'there'},</p>
+          <p>Your discovery call has been scheduled for ${new Date(meetingResult.time).toLocaleString()}.</p>
+          <p><a href="${meetingResult.join_url}">Join the meeting</a></p>
+          <p>Looking forward to speaking with you!</p>
+          <p>Best regards,<br>SmartCRM Team</p>
+        `,
+        contact_id: args.lead_id,
+      });
     }
 
     return {
       success: true,
-      meeting_id: eventData.id,
+      meeting_id: meetingResult.meeting_id,
       scheduled_time: meetingResult.time,
       join_url: meetingResult.join_url
     };
@@ -291,7 +377,7 @@ export async function scheduleMeetingForLead(args: {
     console.error('Error in scheduleMeetingForLead:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -314,7 +400,7 @@ export async function saveAutopilotStateWrapper(args: {
     console.error('Error in saveAutopilotStateWrapper:', error);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }

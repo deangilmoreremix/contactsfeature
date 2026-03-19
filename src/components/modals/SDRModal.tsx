@@ -3,8 +3,12 @@ import { Contact } from '../../types/contact';
 import { SDRPersonaSelector } from '../contacts/SDRPersonaSelector';
 import { SDRButtonGroup } from '../deals/SDRButtonGroup';
 import { ContactOutboundAgentPanel } from '../contacts/ContactOutboundAgentPanel';
+import { ColdEmailSDRAgent } from '../sdr/ColdEmailSDRAgent';
 import { FollowUpSDRAgent } from '../sdr/FollowUpSDRAgent';
+import { ObjectionHandlerSDRAgent } from '../sdr/ObjectionHandlerSDRAgent';
+import { ReactivationSDRAgent } from '../sdr/ReactivationSDRAgent';
 import { WinBackSDRAgent } from '../sdr/WinBackSDRAgent';
+import { DiscoverySDRAgent } from '../sdr/DiscoverySDRAgent';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import {
@@ -206,9 +210,24 @@ export const SDRModal: React.FC<SDRModalProps> = ({
 
       case 'quick-actions':
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <FollowUpSDRAgent />
-            <WinBackSDRAgent />
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 border border-green-200">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Target className="w-5 h-5 mr-2 text-green-600" />
+                SDR Quick Actions for {contact.firstName || contact.name}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Execute specialized SDR campaigns with AI-powered personalization
+              </p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              <ColdEmailSDRAgent contact={contact} />
+              <FollowUpSDRAgent contact={contact} />
+              <ObjectionHandlerSDRAgent contact={contact} />
+              <ReactivationSDRAgent contact={contact} />
+              <WinBackSDRAgent contact={contact} />
+              <DiscoverySDRAgent contact={contact} />
+            </div>
           </div>
         );
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { executeDealAi } from '../../ai/deal/executeDealAi';
-import { gpt52EnrichmentService } from '../../services/gpt52EnrichmentService';
+import { metorialService } from '../../services/metorialService';
+import { sanitizeHtml } from '../../utils/validation';
 
 interface SDRButtonGroupProps {
   dealId: string;
@@ -514,7 +515,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
                     <h4 className="font-medium mb-1">{step.subject}</h4>
                     <div
                       className="text-sm text-gray-700 prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: step.body_html }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.body_html) }}
                     />
                   </div>
                 ))}

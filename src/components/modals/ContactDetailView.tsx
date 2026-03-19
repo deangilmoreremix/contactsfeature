@@ -193,7 +193,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                     </div>
                   )}
 
-                  {activeTab === 'sdr' && (
+                  {activeTab === 'sdr-agents' && (
                     <div className="p-6">
                       <ContactSDRPanel contact={contact} />
                     </div>

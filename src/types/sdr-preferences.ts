@@ -43,7 +43,7 @@ export interface SDRUserPreferences {
 
   // Advanced AI Settings
   aiSettings: {
-    model: 'gpt-4' | 'gpt-3.5-turbo' | 'claude-3' | 'claude-2';
+    model: 'gpt-5.2' | 'gpt-5.2-thinking' | 'gpt-5.2-instant' | 'gpt-5.2-pro';
     temperature: number;        // 0.0 - 1.0
     maxTokens: number;          // 500 - 2000
     reasoningEffort?: 'low' | 'medium' | 'high';
@@ -213,7 +213,7 @@ export const DEFAULT_SDR_PREFERENCES: Record<string, Partial<SDRUserPreferences>
       unsubscribed: { weight: -1.0, action: 'stop' }
     },
     aiSettings: {
-      model: 'gpt-4',
+      model: 'gpt-5.2-thinking',
       temperature: 0.7,
       maxTokens: 1000
     },
@@ -240,7 +240,7 @@ export const DEFAULT_SDR_PREFERENCES: Record<string, Partial<SDRUserPreferences>
       unsubscribed: { weight: -1.0, action: 'stop' }
     },
     aiSettings: {
-      model: 'gpt-4',
+      model: 'gpt-5.2',
       temperature: 0.8,
       maxTokens: 800
     },
@@ -267,7 +267,7 @@ export const DEFAULT_SDR_PREFERENCES: Record<string, Partial<SDRUserPreferences>
       unsubscribed: { weight: -1.0, action: 'stop' }
     },
     aiSettings: {
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-5.2-instant',
       temperature: 0.6,
       maxTokens: 600
     },
@@ -310,7 +310,7 @@ export const createDefaultPreferences = (
       signature: ''
     },
     aiSettings: defaults?.aiSettings || {
-      model: 'gpt-4',
+      model: 'gpt-5.2-thinking',
       temperature: 0.7,
       maxTokens: 1000
     },

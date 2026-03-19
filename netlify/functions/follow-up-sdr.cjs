@@ -1,224 +1,111 @@
-const { createClient } = require('@supabase/supabase-js');
+const { supabase } = require('./_supabaseClient');
+const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { validateContactId, parseBody } = require('./_validation');
+const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const log = createLogger('follow-up-sdr');
 
-exports.handler = async (event, context) => {
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
+
+  const body = parseBody(event);
+  if (!body) return errorResponse(400, 'Invalid JSON body');
+
+  const { contactId, followUpNumber: rawFollowUp } = body;
+  const idErr = validateContactId(contactId);
+  if (idErr) return errorResponse(400, idErr);
+
+  const followUpNum = parseInt(rawFollowUp) || 1;
+  if (followUpNum < 1 || followUpNum > 10) {
+    return errorResponse(400, 'followUpNumber must be between 1 and 10');
   }
 
+  const prefs = extractPreferences(body);
+
   try {
-    const { contactId, followUpNumber } = JSON.parse(event.body);
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Contact ID is required' })
-      };
-    }
-
-    // Fetch contact data
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
-      .single();
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    if (contactError) {
-      throw new Error(`Contact not found: ${contactError.message}`);
-    }
+    if (contactError) throw new Error(`Database error: ${contactError.message}`);
+    if (!contact) return errorResponse(404, 'Contact not found');
 
-    // Fetch recent activities for this contact
-    const { data: activities, error: activitiesError } = await supabase
+    const { data: activities } = await supabase
       .from('activities')
       .select('*')
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false })
       .limit(10);
 
-    if (activitiesError) {
-      console.warn('Could not fetch activities:', activitiesError.message);
+    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+    const temperature = resolveTemperature(prefs, 0.7);
+    const maxTokens = resolveMaxTokens(prefs, 1000);
+
+    const activityList = activities || [];
+    const hasReplied = activityList.some(a => a.type === 'email_reply' || a.type === 'email_received');
+    const lastActivity = activityList[0];
+    const daysSinceLastActivity = lastActivity
+      ? Math.floor((Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
+      : 30;
+
+    const prefsBlock = buildPreferencesPromptBlock(prefs);
+    const contactName = contact.firstname || contact.name || 'there';
+    const company = contact.company || 'your company';
+
+    const contextBlock = `Contact details: ${JSON.stringify({
+      name: contactName, company, title: contact.title, email: contact.email, industry: contact.industry, notes: contact.notes,
+    })}
+Last activity: ${lastActivity ? JSON.stringify({ type: lastActivity.type, created_at: lastActivity.created_at }) : 'No recent activity'}
+Days since last contact: ${daysSinceLastActivity}
+Has replied before: ${hasReplied}`;
+
+    let instructions = '';
+    switch (followUpNum) {
+      case 1:
+        instructions = `Generate a gentle first follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:\n- Reference any previous conversation\n- Provide additional value or resources\n- Ask a specific question to encourage response\n- Keep it concise and friendly`;
+        break;
+      case 2:
+        instructions = `Generate a second follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:\n- Acknowledge that this is a second attempt\n- Offer something new or different value\n- Create urgency or scarcity if appropriate\n- Be more direct about next steps`;
+        break;
+      case 3:
+        instructions = `Generate a third follow-up email to ${contactName} at ${company}.\n\n${contextBlock}\n\nThe follow-up should:\n- Be more assertive about the value proposition\n- Include social proof or case studies if relevant\n- Give them an easy out if they're not interested\n- Consider this might be the last attempt`;
+        break;
+      default:
+        instructions = `Generate a follow-up email (attempt #${followUpNum}) to ${contactName} at ${company}.\n\n${contextBlock}\n\nCreate a compelling follow-up that re-engages the contact.`;
     }
 
-    // Generate follow-up content based on followUpNumber
-    const followUpContent = await generateFollowUpContent(contact, followUpNumber, activities || []);
+    const prompt = `${instructions}${prefsBlock}\n\nReturn JSON with "subject" and "body" fields.`;
 
-    // In a real implementation, you would send the email here
-    // For now, we'll just return the generated content
+    const content = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      { model: sdrModel, temperature, maxTokens }
+    );
+
+    const parsed = parseJSONResponse(content, {
+      subject: `Follow-up #${followUpNum} - ${company}`,
+      body: content,
+    });
+
+    log.info('Follow-up email generated', { contactId, followUpNum });
 
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         contactId,
-        subject: followUpContent.subject,
-        body: followUpContent.body,
-        sent: true, // In real implementation, this would be the actual send status
-        followUpNumber,
-        debug: followUpContent.debug
-      })
+        subject: parsed.subject,
+        body: parsed.body,
+        sent: true,
+        followUpNumber: followUpNum,
+      }),
     };
-
   } catch (error) {
-    console.error('Follow-up SDR error:', error);
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        error: 'Follow-up generation failed',
-        details: error.message
-      })
-    };
+    log.error('Follow-up generation failed', { contactId, error: error.message });
+    return errorResponse(500, 'Follow-up generation failed');
   }
-};
-
-async function generateFollowUpContent(contact, followUpNumber, activities) {
-  console.log('[follow-up-sdr] Starting generation for contact:', contact.id, 'followUpNumber:', followUpNumber);
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.error('[follow-up-sdr] OpenAI API key not configured');
-    throw new Error('OpenAI API key not configured');
-  }
-  console.log('[follow-up-sdr] API key found, proceeding...');
-
-  // Analyze previous interactions
-  const hasReplied = activities.some(a => a.type === 'email_reply' || a.type === 'email_received');
-  const lastActivity = activities[0];
-  const daysSinceLastActivity = lastActivity
-    ? Math.floor((Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
-    : 30;
-
-  // Generate appropriate follow-up based on number and context
-  let prompt = '';
-
-  switch (followUpNumber) {
-    case 1:
-      prompt = `Generate a gentle first follow-up email to ${contact.firstName || contact.name} at ${contact.company}.
-
-Contact details: ${JSON.stringify(contact)}
-Last activity: ${lastActivity ? JSON.stringify(lastActivity) : 'No recent activity'}
-Days since last contact: ${daysSinceLastActivity}
-Has replied before: ${hasReplied}
-
-The follow-up should:
-- Reference any previous conversation
-- Provide additional value or resources
-- Ask a specific question to encourage response
-- Keep it concise and friendly
-
-Return JSON with "subject" and "body" fields.`;
-      break;
-
-    case 2:
-      prompt = `Generate a second follow-up email to ${contact.firstName || contact.name} at ${contact.company}.
-
-Contact details: ${JSON.stringify(contact)}
-Last activity: ${lastActivity ? JSON.stringify(lastActivity) : 'No recent activity'}
-Days since last contact: ${daysSinceLastActivity}
-Has replied before: ${hasReplied}
-
-The follow-up should:
-- Acknowledge that this is a second attempt
-- Offer something new or different value
-- Create urgency or scarcity if appropriate
-- Be more direct about next steps
-
-Return JSON with "subject" and "body" fields.`;
-      break;
-
-    case 3:
-      prompt = `Generate a third follow-up email to ${contact.firstName || contact.name} at ${contact.company}.
-
-Contact details: ${JSON.stringify(contact)}
-Last activity: ${lastActivity ? JSON.stringify(lastActivity) : 'No recent activity'}
-Days since last contact: ${daysSinceLastActivity}
-Has replied before: ${hasReplied}
-
-The follow-up should:
-- Be more assertive about the value proposition
-- Include social proof or case studies if relevant
-- Give them an easy out if they're not interested
-- Consider this might be the last attempt
-
-Return JSON with "subject" and "body" fields.`;
-      break;
-
-    default:
-      prompt = `Generate a follow-up email (attempt #${followUpNumber}) to ${contact.firstName || contact.name} at ${contact.company}.
-
-Contact details: ${JSON.stringify(contact)}
-Last activity: ${lastActivity ? JSON.stringify(lastActivity) : 'No recent activity'}
-Days since last contact: ${daysSinceLastActivity}
-Has replied before: ${hasReplied}
-
-Create a compelling follow-up that re-engages the contact.
-
-Return JSON with "subject" and "body" fields.`;
-  }
-
-  console.log('[follow-up-sdr] Calling OpenAI API...');
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
-    })
-  });
-
-  console.log('[follow-up-sdr] OpenAI response status:', response.status);
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[follow-up-sdr] OpenAI API error:', response.status, errorText);
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  console.log('[follow-up-sdr] OpenAI response received');
-  const content = data.choices[0].message.content;
-
-  try {
-    const parsed = JSON.parse(content);
-    return {
-      subject: parsed.subject,
-      body: parsed.body,
-      debug: {
-        followUpNumber,
-        daysSinceLastActivity,
-        hasReplied,
-        lastActivityType: lastActivity?.type
-      }
-    };
-  } catch (parseError) {
-    // If JSON parsing fails, return the raw content
-    return {
-      subject: `Follow-up #${followUpNumber} - ${contact.company}`,
-      body: content,
-      debug: {
-        followUpNumber,
-        daysSinceLastActivity,
-        hasReplied,
-        parseError: parseError.message
-      }
-    };
-  }
-}
+});

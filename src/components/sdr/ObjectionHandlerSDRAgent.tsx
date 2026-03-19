@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Settings, Shield } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { Contact } from "../../types/contact";
+import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface ObjectionResponse {
   contactId: string;
@@ -11,9 +13,20 @@ interface ObjectionResponse {
   debug?: any;
 }
 
-export const ObjectionHandlerSDRAgent: React.FC = () => {
-  const [contactId, setContactId] = useState("");
+interface ObjectionHandlerSDRAgentProps {
+  contact?: Contact;
+}
+
+export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> = ({ contact }) => {
+  const [contactId, setContactId] = useState(contact?.id || "");
   const [objection, setObjection] = useState("");
+  const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('objection-handler-sdr');
+
+  useEffect(() => {
+    if (contact?.id) {
+      setContactId(contact.id);
+    }
+  }, [contact?.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ObjectionResponse | null>(null);
@@ -37,7 +50,7 @@ export const ObjectionHandlerSDRAgent: React.FC = () => {
       const res = await fetch("/.netlify/functions/objection-handler-sdr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, objection })
+        body: JSON.stringify({ contactId, objection, preferences: apiPreferences })
       });
 
       if (!res.ok) {
@@ -116,30 +129,41 @@ export const ObjectionHandlerSDRAgent: React.FC = () => {
         </div>
       )}
 
-      <div style={{ marginBottom: 8 }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 500,
-            marginBottom: 4
-          }}
-        >
-          Contact ID
-        </label>
-        <input
-          value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
-          placeholder="Enter contact UUID"
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e0",
-            fontSize: 13
-          }}
-        />
-      </div>
+      {contact ? (
+        <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+          <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
+            Target: {contact.firstName || contact.name} {contact.lastName || ''}
+          </div>
+          <div style={{ fontSize: 11, color: contact.email ? "#15803d" : "#dc2626" }}>
+            {contact.email || "No email on file"}
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 8 }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 4
+            }}
+          >
+            Contact ID
+          </label>
+          <input
+            value={contactId}
+            onChange={(e) => setContactId(e.target.value)}
+            placeholder="Enter contact UUID"
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid #cbd5e0",
+              fontSize: 13
+            }}
+          />
+        </div>
+      )}
 
       <div style={{ marginBottom: 8 }}>
         <label
@@ -244,8 +268,13 @@ export const ObjectionHandlerSDRAgent: React.FC = () => {
         <SDRAgentConfigurator
           agentId="objection-handler-sdr"
           agentName="Objection-Handling SDR"
-          onSave={() => setShowSettings(false)}
+          currentConfig={preferences}
+          onSave={async (config) => {
+            await savePreferences(config);
+            setShowSettings(false);
+          }}
           onClose={() => setShowSettings(false)}
+          onReset={resetPreferences}
         />
       )}
     </div>

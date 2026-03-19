@@ -39,6 +39,49 @@ export const sanitizeFilename = (filename: string): string => {
     .substring(0, 100); // Limit length
 };
 
+const SAFE_TAGS = new Set([
+  'p', 'br', 'b', 'i', 'em', 'strong', 'u', 'a', 'ul', 'ol', 'li',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div', 'blockquote',
+  'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+]);
+
+const SAFE_ATTRIBUTES: Record<string, Set<string>> = {
+  a: new Set(['href', 'title', 'target', 'rel']),
+  span: new Set(['class']),
+  div: new Set(['class']),
+  td: new Set(['colspan', 'rowspan']),
+  th: new Set(['colspan', 'rowspan']),
+};
+
+export const sanitizeHtml = (html: string): string => {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const clean = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    if (!SAFE_TAGS.has(tag)) {
+      return Array.from(el.childNodes).map(clean).join('');
+    }
+    const allowed = SAFE_ATTRIBUTES[tag] ?? new Set<string>();
+    const attrs = Array.from(el.attributes)
+      .filter((a) => allowed.has(a.name))
+      .filter((a) => {
+        if (a.name === 'href') {
+          const v = a.value.trim().toLowerCase();
+          return v.startsWith('http://') || v.startsWith('https://') || v.startsWith('mailto:');
+        }
+        return true;
+      })
+      .map((a) => ` ${a.name}="${a.value.replace(/"/g, '&quot;')}"`)
+      .join('');
+    const children = Array.from(el.childNodes).map(clean).join('');
+    return `<${tag}${attrs}>${children}</${tag}>`;
+  };
+  return Array.from(doc.body.childNodes).map(clean).join('');
+};
+
 // URL encoding for external links
 export const encodeForUrl = (value: string): string => {
   return encodeURIComponent(value);
