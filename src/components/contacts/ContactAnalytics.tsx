@@ -1,12 +1,12 @@
 import React, { useState, useEffect, memo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
+import { logger } from '../../services/logger.service';
 import {
   BarChart3,
   TrendingUp,
@@ -94,12 +94,19 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
        setLoading(true);
        setError(null);
 
+       // Check if this is mock/demo data
+       const isMockData = contact.isMockData || 
+                          contact.dataSource === 'mock' || 
+                          contact.createdBy === 'demo' ||
+                          contact.name?.toLowerCase().includes('demo') ||
+                          contact.company?.toLowerCase().includes('demo');
+
        researchThinking.moveToAnalyzing('🌐 Analyzing industry trends and benchmarks...');
 
        // Perform web search for industry and company analytics
-       const searchQuery = `${contact.company} ${contact.industry} industry trends market analysis company performance financials`;
+       const searchQuery = `${contact.company} ${contact.industry || ''} industry trends market analysis company performance financials`;
        const systemPrompt = `You are a business intelligence analyst. Research this company's industry trends, market position, financial performance, and competitive landscape. Provide detailed analytics and insights for sales intelligence.`;
-       const userPrompt = `Research ${contact.company} in the ${contact.industry} industry. Provide market analysis, industry trends, company performance metrics, competitive positioning, and sales intelligence insights.`;
+       const userPrompt = `Research ${contact.company} in the ${contact.industry || 'relevant'} industry. Provide market analysis, industry trends, company performance metrics, competitive positioning, and sales intelligence insights.`;
 
        const searchResults = await webSearchService.searchWithAI(
          searchQuery,
@@ -107,39 +114,48 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
          userPrompt,
          {
            includeSources: true,
-           searchContextSize: 'high'
+           searchContextSize: 'high',
+           useMockData: isMockData
          }
        );
 
        researchThinking.moveToSynthesizing('📊 Synthesizing analytics with industry data...');
 
        // Convert search results to citations
-       const sources = searchResults.sources.map(source => ({
+       const sources = (searchResults.sources || []).map((source: { url: string; title: string; domain: string }) => ({
          url: source.url,
          title: source.title,
          domain: source.domain,
          type: 'company' as const,
          confidence: 85,
          timestamp: new Date(),
-         snippet: searchResults.content.substring(0, 200) + '...'
+         snippet: searchResults.content?.substring(0, 200) + '...' || ''
        }));
 
        setResearchSources(sources);
 
-       // Load analytics with enhanced context
-       const result = await edgeFunctionService.createAnalyticsData(contact.id || 'test-contact-123', {
-         timeRange,
-         metrics: ['engagement', 'response_time', 'conversion'],
-         webResearch: searchResults.content,
-         industryContext: searchResults.sources
-       });
-
-       setAnalyticsData(result);
+       // Only call edge function if we have a valid contact ID and not mock data
+       if (contact.id && !isMockData) {
+         const result = await edgeFunctionService.createAnalyticsData(contact.id, {
+           timeRange,
+           metrics: ['engagement', 'response_time', 'conversion'],
+           webResearch: searchResults.content,
+           industryContext: searchResults.sources
+         });
+         setAnalyticsData(result);
+       } else {
+         // For mock data or missing contact ID, generate local mock analytics
+         setAnalyticsData({
+           predictions: [],
+           riskAssessment: null,
+           trendAnalysis: null
+         });
+       }
 
        researchThinking.complete('✅ Industry-enhanced analytics loaded!');
 
      } catch (err) {
-       console.error('Failed to load analytics data:', err);
+       logger.error('Failed to load analytics data', err as Error, { contactId: contact.id });
        researchThinking.complete('❌ Failed to load analytics');
        setError('Failed to load analytics data');
      } finally {
@@ -152,97 +168,58 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
        setLoading(true);
        setError(null);
 
-       // Check if this is mock data (similar to other components)
-       const isMockData = contact.name.includes('Demo') || contact.company === 'Demo Company' || contact.name.startsWith('Mock');
+       // Check if this is mock/demo data using proper flags
+       const isMockData = contact.isMockData || 
+                          contact.dataSource === 'mock' || 
+                          contact.createdBy === 'demo' ||
+                          contact.name?.toLowerCase().includes('demo') ||
+                          contact.company?.toLowerCase().includes('demo');
 
-       if (isMockData) {
-         // For mock contacts, simulate prediction generation with mock data
-         await new Promise(resolve => setTimeout(resolve, 1500));
+       // Simulate prediction generation with mock data
+       await new Promise(resolve => setTimeout(resolve, 1500));
 
-         // Generate mock prediction data
-         const mockPredictions = [
-           {
-             predictionType: 'conversion',
-             value: 78,
-             confidence: 85,
-             timeframe: 'Next 30 days',
-             reasoning: [
-               'Strong engagement patterns observed',
-               'Positive response to recent communications',
-               'Company growth indicators align with our solution'
-             ]
-           },
-           {
-             predictionType: 'response_time',
-             value: 2.8,
-             confidence: 72,
-             timeframe: 'Next interaction',
-             reasoning: [
-               'Historical response time average: 3.2 hours',
-               'Recent activity suggests improved responsiveness',
-               'Optimal contact time identified: Tuesday 2-4 PM'
-             ]
-           },
-           {
-             predictionType: 'engagement',
-             value: 92,
-             confidence: 88,
-             timeframe: 'Next quarter',
-             reasoning: [
-               'Consistent interaction patterns',
-               'Multiple touchpoints established',
-               'Industry trends favor increased engagement'
-             ]
-           }
-         ];
+       // Generate mock prediction data (used for both mock and real contacts as fallback)
+       const mockPredictions = [
+         {
+           predictionType: 'conversion',
+           value: 78,
+           confidence: 85,
+           timeframe: 'Next 30 days',
+           reasoning: [
+             'Strong engagement patterns observed',
+             'Positive response to recent communications',
+             'Company growth indicators align with our solution'
+           ]
+         },
+         {
+           predictionType: 'response_time',
+           value: 2.8,
+           confidence: 72,
+           timeframe: 'Next interaction',
+           reasoning: [
+             'Historical response time average: 3.2 hours',
+             'Recent activity suggests improved responsiveness',
+             'Optimal contact time identified: Tuesday 2-4 PM'
+           ]
+         },
+         {
+           predictionType: 'engagement',
+           value: 92,
+           confidence: 88,
+           timeframe: 'Next quarter',
+           reasoning: [
+             'Consistent interaction patterns',
+             'Multiple touchpoints established',
+             'Industry trends favor increased engagement'
+           ]
+         }
+       ];
 
-         setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
-         setShowPredictive(true);
-       } else {
-         // Real prediction generation for non-mock contacts
-         // Note: edgeFunctionService.generatePredictions may not exist or have different signature
-         // For now, use mock data for all contacts
-         const mockPredictions = [
-           {
-             predictionType: 'conversion',
-             value: 78,
-             confidence: 85,
-             timeframe: 'Next 30 days',
-             reasoning: [
-               'Strong engagement patterns observed',
-               'Positive response to recent communications',
-               'Company growth indicators align with our solution'
-             ]
-           },
-           {
-             predictionType: 'response_time',
-             value: 2.8,
-             confidence: 72,
-             timeframe: 'Next interaction',
-             reasoning: [
-               'Historical response time average: 3.2 hours',
-               'Recent activity suggests improved responsiveness',
-               'Optimal contact time identified: Tuesday 2-4 PM'
-             ]
-           },
-           {
-             predictionType: 'engagement',
-             value: 92,
-             confidence: 88,
-             timeframe: 'Next quarter',
-             reasoning: [
-               'Consistent interaction patterns',
-               'Multiple touchpoints established',
-               'Industry trends favor increased engagement'
-             ]
-           }
-         ];
-
-         setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
-         setShowPredictive(true);
-       }
+       setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
+       setShowPredictive(true);
+       
      } catch (error) {
-       console.error('Failed to generate predictions:', error);
+       logger.error('Failed to generate predictions', error as Error, { contactId: contact.id });
        setError('Failed to generate predictions');
      } finally {
        setLoading(false);
