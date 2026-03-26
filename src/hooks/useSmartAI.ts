@@ -1,4 +1,4 @@
- fu/**
+/**
  * React Hook for Smart AI Operations
  * Provides easy access to enhanced AI capabilities with automatic model selection
  */

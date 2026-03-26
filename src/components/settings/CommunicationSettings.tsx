@@ -238,7 +238,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
   ];
 
   return (
-    <>
+    <React.Fragment>
       {/* Research Status Overlay */}
       <ResearchStatusOverlay
         status={researchStatus.status}
@@ -327,7 +327,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
                         <span className="font-medium">Host:</span> {config.host}:{config.port}
                       </div>
                       <div>
-                        <span className="font-medium">From:</span> {config.fromName} <{config.fromEmail}>
+                        <span className="font-medium">From:</span> {config.fromName} &lt;{config.fromEmail}&gt;
                       </div>
                       <div>
                         <span className="font-medium">Security:</span> {config.secure ? 'SSL/TLS' : 'None'}
@@ -1090,5 +1090,11 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
                   variant="outline"
                   onClick={() => setShowAddModal(false)}
                 >
-                  Cancel
-                </
+                                    Cancel
+                </ModernButton>
+              </div>
+            </div>
+          )}
+        </div>
+      </React.Fragment>
+    );

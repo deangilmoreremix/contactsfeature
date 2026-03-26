@@ -60,7 +60,11 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = mem
   }, [onClick]);
 
   const handleAnalyze = useCallback(async () => {
-    onAnalyze ? await onAnalyze(contact) : await scoreContact();
+    if (onAnalyze) {
+      await onAnalyze(contact);
+    } else {
+      await scoreContact();
+    }
   }, [onAnalyze, contact, scoreContact]);
 
   const handleFeedback = useCallback((type: 'positive' | 'negative') => {
