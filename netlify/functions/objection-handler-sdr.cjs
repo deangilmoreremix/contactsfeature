@@ -1,151 +1,245 @@
-const { createClient } = require('@supabase/supabase-js');
+const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { buildSdrSystemPrompt, parseJsonResponse } = require('./_streamingUtils');
+const { createStreamingResponse } = require('./_openaiClient');
+const { createLogger, generateCorrelationId } = require('./_logger');
+const { resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const log = createLogger('objection-handler-sdr');
 
-exports.handler = async (event, context) => {
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+// Objection handling prompts
+const OBJECTION_SYSTEM_PROMPT = `You are SmartCRM's expert objection handler, powered by GPT-5.2.
+
+Your role: Handle prospect objections with empathy, professionalism, and strategic responses.
+
+Guidelines:
+- Acknowledge the objection with empathy first
+- Never argue or be defensive
+- Reframe the objection as an opportunity
+- Provide evidence or alternatives
+- Include a clear, low-friction next step
+- Keep responses concise but thorough
+- Use a helpful, consultative tone`;
+
+const OBJECTION_TYPES = {
+  price: 'Price/Budget objection - acknowledge concern, present ROI, offer alternatives',
+  timing: 'Timing objection - acknowledge timing, create light urgency, offer flexibility',
+  competition: 'Competition objection - acknowledge competitor, highlight unique strengths',
+  no_authority: 'No authority/need to check with others - offer to provide materials, suggest next steps',
+  not_interested: 'Not interested - ask questions to understand concerns, offer value first',
+  default: 'General objection - acknowledge, empathize, and redirect to value',
+};
+
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
+
+  // Check if streaming is requested
+  const isStreaming = event.headers?.accept?.includes('text/event-stream') || 
+                      event.queryStringParameters?.stream === 'true';
+
+  // Parse body
+  let body = {};
+  if (event.body) {
+    if (typeof event.body === 'string') {
+      try {
+        body = JSON.parse(event.body);
+      } catch {
+        return errorResponse(400, 'Invalid JSON body');
+      }
+    } else {
+      body = event.body;
+    }
   }
 
+  const { contactId, objection, preferences = {} } = body;
+
+  if (!contactId) {
+    return errorResponse(400, 'Contact ID is required');
+  }
+
+  if (!objection || objection.trim().length === 0) {
+    return errorResponse(400, 'Objection text is required');
+  }
+
+  const model = resolveModel({ model: preferences.model }, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+  const temperature = resolveTemperature({ temperature: preferences.temperature }, 0.7);
+  const maxTokens = resolveMaxTokens({ maxTokens: preferences.maxTokens }, 1000);
+
   try {
-    const { contactId, objection } = JSON.parse(event.body);
-
-    if (!contactId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Contact ID is required' })
-      };
-    }
-
-    console.log('[objection-handler-sdr] Starting for contact:', contactId, 'objection:', objection);
-
-    // Fetch contact data
+    // Fetch contact with proper user filtering
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
-      .single();
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    if (contactError) {
-      throw new Error(`Contact not found: ${contactError.message}`);
-    }
+    if (contactError) throw new Error(`Database error: ${contactError.message}`);
+    if (!contact) return errorResponse(404, 'Contact not found');
 
-    // Fetch recent activities for this contact
-    const { data: activities, error: activitiesError } = await supabase
+    // Fetch recent activities
+    const { data: activities } = await supabase
       .from('activities')
       .select('*')
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false })
       .limit(10);
 
-    if (activitiesError) {
-      console.warn('Could not fetch activities:', activitiesError.message);
+    const contactName = contact.firstname || contact.name || 'there';
+    const company = contact.company || 'their company';
+    const activityList = activities || [];
+
+    // Categorize the objection
+    const objectionLower = objection.toLowerCase();
+    let objectionType = 'default';
+    if (objectionLower.includes('price') || objectionLower.includes('cost') || objectionLower.includes('budget') || objectionLower.includes('expensive')) {
+      objectionType = 'price';
+    } else if (objectionLower.includes('timing') || objectionLower.includes('later') || objectionLower.includes('busy') || objectionLower.includes('when')) {
+      objectionType = 'timing';
+    } else if (objectionLower.includes('competitor') || objectionLower.includes('other') || objectionLower.includes('using')) {
+      objectionType = 'competition';
+    } else if (objectionLower.includes('check') || objectionLower.includes('team') || objectionLower.includes('authority') || objectionLower.includes('boss')) {
+      objectionType = 'no_authority';
+    } else if (objectionLower.includes('not interested') || objectionLower.includes('dont') || objectionLower.includes("don't") || objectionLower.includes('no thanks')) {
+      objectionType = 'not_interested';
     }
 
-    // Generate objection handling content
-    const responseContent = await generateObjectionResponse(contact, objection, activities || []);
+    // Build user input
+    const userInput = `Handle this objection from ${contactName} at ${company}:
+
+Objection: "${objection}"
+Objection Type: ${objectionType} - ${OBJECTION_TYPES[objectionType]}
+
+Contact Details:
+- Name: ${contactName}
+- Title: ${contact.title || 'Not specified'}
+- Company: ${company}
+- Industry: ${contact.industry || 'Not specified'}
+- Email: ${contact.email || 'N/A'}
+
+Recent Activities: ${activityList.length > 0 ? activityList.slice(0, 3).map(a => `${a.type} on ${new Date(a.created_at).toLocaleDateString()}`).join(', ') : 'No recent activities'}
+
+${preferences.companyName ? `You are writing on behalf of: ${preferences.companyName}` : ''}
+
+Create a response that:
+- Acknowledges the objection with genuine empathy
+- Addresses the specific concern with evidence or alternatives
+- Reframes the objection positively
+- Includes a clear, easy next step
+- Maintains a helpful, non-defensive tone
+
+Return ONLY valid JSON with "subject" and "body" fields. Example: {"subject": "Re: Your concern about pricing", "body": "Hi ${contactName}, I completely understand..."}`;
+
+    // If streaming requested, return streaming response
+    if (isStreaming) {
+      const responseStream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          
+          try {
+            let fullContent = '';
+
+            for await (const chunk of createStreamingResponse({
+              instructions: OBJECTION_SYSTEM_PROMPT,
+              input: userInput,
+              model,
+              temperature,
+              maxTokens,
+            })) {
+              if (chunk.type === 'token') {
+                fullContent += chunk.token;
+                const data = JSON.stringify({ 
+                  type: 'token', 
+                  token: chunk.token,
+                  partial: fullContent 
+                });
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              } else if (chunk.type === 'error') {
+                const errorData = JSON.stringify({ type: 'error', error: chunk.error });
+                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+                controller.close();
+                return;
+              }
+            }
+
+            const parsed = parseJsonResponse(fullContent, {
+              subject: `Re: Handling your concern`,
+              body: fullContent,
+            });
+
+            log.info('Objection response generated (streaming)', { contactId, objectionType, model });
+
+            const completeData = JSON.stringify({ 
+              type: 'complete', 
+              data: {
+                ...parsed,
+                objectionType,
+              }
+            });
+            controller.enqueue(encoder.encode(`data: ${completeData}\n\n`));
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          } catch (error) {
+            log.error('Streaming objection handler failed', { contactId, error: error.message });
+            const errorData = JSON.stringify({ type: 'error', error: error.message });
+            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+            controller.close();
+          }
+        }
+      });
+
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+        body: responseStream,
+        isBase64Encoded: false,
+      };
+    }
+
+    // Non-streaming response
+    let fullContent = '';
+    for await (const chunk of createStreamingResponse({
+      instructions: OBJECTION_SYSTEM_PROMPT,
+      input: userInput,
+      model,
+      temperature,
+      maxTokens,
+    })) {
+      if (chunk.type === 'token') {
+        fullContent += chunk.token;
+      } else if (chunk.type === 'complete') {
+        fullContent = chunk.content;
+      }
+    }
+
+    const parsed = parseJsonResponse(fullContent, {
+      subject: `Re: Handling your concern`,
+      body: fullContent,
+    });
+
+    log.info('Objection response generated', { contactId, objectionType, model });
 
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         contactId,
-        subject: responseContent.subject,
-        body: responseContent.body,
+        subject: parsed.subject,
+        body: parsed.body,
         sent: true,
-        objection: objection,
-        debug: responseContent.debug
-      })
-    };
-
-  } catch (error) {
-    console.error('[objection-handler-sdr] Error:', error);
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        error: 'Objection handling failed',
-        details: error.message
-      })
-    };
-  }
-};
-
-async function generateObjectionResponse(contact, objection, activities) {
-  console.log('[objection-handler-sdr] Generating response for objection:', objection);
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.error('[objection-handler-sdr] OpenAI API key not configured');
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const prompt = `Generate a response to handle the objection: "${objection}"
-
-Contact: ${contact.firstName || contact.name} at ${contact.company}
-Contact details: ${JSON.stringify(contact)}
-Recent activities: ${activities.length > 0 ? JSON.stringify(activities) : 'No recent activities'}
-
-Create a professional response that:
-- Acknowledges the objection empathetically
-- Provides a thoughtful counter-argument or solution
-- Offers value or alternative perspectives
-- Includes a clear next step
-- Maintains a helpful, consultative tone
-
-Return JSON with "subject" and "body" fields.`;
-
-  console.log('[objection-handler-sdr] Calling OpenAI API...');
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
-    })
-  });
-
-  console.log('[objection-handler-sdr] OpenAI response status:', response.status);
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[objection-handler-sdr] OpenAI API error:', response.status, errorText);
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  console.log('[objection-handler-sdr] OpenAI response received');
-  const content = data.choices[0].message.content;
-
-  try {
-    const parsed = JSON.parse(content);
-    return {
-      subject: parsed.subject,
-      body: parsed.body,
-      debug: {
         objection,
-        activitiesCount: activities.length
-      }
+        objectionType,
+        model,
+      }),
     };
-  } catch (parseError) {
-    console.error('[objection-handler-sdr] Failed to parse OpenAI response:', content);
-    throw new Error('Failed to parse AI response');
+  } catch (error) {
+    log.error('Objection handling failed', { contactId, error: error.message });
+    return errorResponse(500, 'Objection handling failed');
   }
-}
+});
