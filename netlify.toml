@@ -1,7 +1,11 @@
 [build]
-publish = "dist"
-functions = "netlify/functions"
-command = "npx vite build"
+  publish = "dist"
+  functions = "netlify/functions"
+  command = "npm run build"
+
+[build.environment]
+  # Allow legacy peer deps to support Vite 8 + some plugins that haven't fully updated yet
+  NPM_FLAGS = "--legacy-peer-deps"
 
 [functions]
 directory = "netlify/functions"
