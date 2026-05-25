@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { AIProvider } from '../contexts/AIContext';
-import { ViewProvider } from '../contexts/ViewContext';
+import { AIProvider } from './contexts/AIContext';
+import { ViewProvider } from './contexts/ViewContext';
 
 // Simple root ErrorBoundary for safe embedding inside the host shell
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
