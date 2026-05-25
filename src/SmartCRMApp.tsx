@@ -39,6 +39,7 @@ import Pipeline from './pages/Pipeline';
 import Products from './pages/Products';
 import UserManagement from './pages/UserManagement';
 import GTMPromptHub from './pages/GTMPromptHub';
+import { LandingPage } from './components/landing/LandingPage';
 
 // SmartCRM Remote Props Contract (host bootstrap spec)
 export interface SmartCRMRemoteProps {
@@ -55,6 +56,7 @@ export interface SmartCRMRemoteProps {
 }
 
 type AppSection =
+  | 'landing'
   | 'dashboard'
   | 'contacts'
   | 'pipeline'
@@ -64,6 +66,7 @@ type AppSection =
   | 'ai-tools';
 
 const SECTION_LABELS: Record<AppSection, string> = {
+  landing: 'Overview',
   dashboard: 'Dashboard',
   contacts: 'Contacts',
   pipeline: 'Pipeline',
@@ -82,15 +85,19 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
   // Runtime confirmation that the FULL application loaded (visible in host + standalone)
   useEffect(() => {
     console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
+    console.log('%c[SmartCRM Remote] Default entry when loaded in host without initialRoute: beautiful Landing / Overview page', 'color:#6366f1');
   }, []);
   // === Internal Navigation (lightweight, no extra deps) ===
-  const [currentSection, setCurrentSection] = useState<AppSection>('dashboard');
+  const [currentSection, setCurrentSection] = useState<AppSection>('landing');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Map initialRoute from host to our sections
+  // Map initialRoute from host to our sections.
+  // When loaded in the main SmartCRM host with no specific deep link,
+  // we default to a beautiful landing/overview page first.
   const mapRouteToSection = (route?: string): AppSection => {
-    if (!route) return 'dashboard';
+    if (!route || route === '/' || route === '/landing') return 'landing';
     const r = route.toLowerCase();
+    if (r.includes('landing') || r.includes('overview') || r.includes('welcome')) return 'landing';
     if (r.includes('contact')) return 'contacts';
     if (r.includes('pipeline') || r.includes('deal')) return 'pipeline';
     if (r.includes('product')) return 'products';
@@ -140,6 +147,14 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
   // Render the active full feature page
   const renderCurrentSection = () => {
     switch (currentSection) {
+      case 'landing':
+        // When this remote is first loaded inside the main SmartCRM host
+        // (without a deep initialRoute), we show a rich landing/overview experience.
+        return (
+          <LandingPage
+            onClose={() => navigateTo('dashboard', { from: 'landing' })}
+          />
+        );
       case 'dashboard':
         return <Dashboard />;
       case 'contacts':
@@ -181,7 +196,7 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
           </div>
         );
       default:
-        return <Dashboard />;
+        return <LandingPage onClose={() => navigateTo('dashboard')} />;
     }
   };
 
@@ -218,6 +233,7 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
             {/* Enhanced full-app nav (works even if Sidebar is icon-only) */}
             <div className="mt-4 space-y-1 text-sm">
               {([
+                ['landing', '✨ Landing / Overview'],
                 ['dashboard', 'Dashboard'],
                 ['contacts', 'Contacts'],
                 ['pipeline', 'Pipeline'],
@@ -231,7 +247,7 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
                   onClick={() => navigateTo(key as AppSection)}
                   className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center gap-2 ${
                     currentSection === key
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-600 text-white font-medium'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
