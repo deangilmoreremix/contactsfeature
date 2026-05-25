@@ -32,7 +32,7 @@ function fixFederationCssForVite8(): Plugin {
 console.log("\n=== MF DIAGNOSTIC (ACTIVE) ===");
 console.log("MF STATUS: ENABLED with Vite 8 workaround");
 console.log("This remote will emit dist/remoteEntry.js and register as federated module.");
-console.log("Name: 'smartcrm', exposes: { './App': './src/App.tsx' } (full root per bootstrap spec)");
+console.log("Name: 'smartcrm', exposes: { './SmartCRMApp': './src/SmartCRMApp.tsx' (FULL APP), './App' (legacy) }");
 console.log("=== MF DIAGNOSTIC END ===\n");
 
 export default defineConfig({
@@ -42,9 +42,12 @@ export default defineConfig({
       name: "smartcrm",
       filename: "remoteEntry.js",
       exposes: {
+        // Primary full-application root (per host bootstrap spec)
+        "./SmartCRMApp": "./src/SmartCRMApp.tsx",
+        // Legacy / compatibility entry (still works, renders minimal shell)
         "./App": "./src/App.tsx",
       },
-      shared: ["react", "react-dom"],
+      shared: ["react", "react-dom", "zustand"],
     }),
     fixFederationCssForVite8(),
   ],

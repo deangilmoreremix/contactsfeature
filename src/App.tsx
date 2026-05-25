@@ -107,3 +107,7 @@ const App: React.FC<SmartCRMRemoteProps> = ({
 };
 
 export default App;
+
+// NOTE: For the complete SmartCRM experience (all features + full shell) use SmartCRMApp instead.
+// This file remains as the legacy minimal shell for backward compatibility with any host still referencing ./App.
+
