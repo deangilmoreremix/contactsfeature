@@ -15,6 +15,7 @@ export { default } from './App';
 // The host application should manage service workers
 
 // === TEMP DEBUG MARKER (for blank page diagnosis on Netlify) ===
+console.log('BUILD TIMESTAMP:', new Date().toISOString());
 console.log('%c[DEBUG] main.tsx script started executing', 'color:lime;font-size:14px;font-weight:bold');
 
 const rootEl = document.getElementById('root');
