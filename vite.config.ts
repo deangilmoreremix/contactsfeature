@@ -1,8 +1,53 @@
-import { defineConfig } from "vite";
+import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import federation from "@originjs/vite-plugin-federation";
+import path from "path";
+import fs from "fs";
+
+// === MODULE FEDERATION CONFIG (Vite 8 + Rolldown compatible) ===
+// Re-enabled + patched to support loading inside SmartCRM host (app.smartcrm.vip)
+// Workaround for https://github.com/originjs/vite-plugin-federation/issues/740
+
+/**
+ * Post-process remoteEntry.js after build to replace broken __v__css__ virtual module
+ * references (from Rolldown in Vite 8) with empty arrays so dynamicLoadingCss doesn't crash.
+ * This allows the remote to successfully bootstrap when imported by the host MF container.
+ */
+function fixFederationCssForVite8(): Plugin {
+  return {
+    name: "fix-federation-css-vite8",
+    apply: "build",
+    closeBundle() {
+      const remoteEntry = path.resolve("dist", "remoteEntry.js");
+      if (!fs.existsSync(remoteEntry)) return;
+      let code = fs.readFileSync(remoteEntry, "utf8");
+      // Replace any `__v__css__...` template literal passed to dynamicLoadingCss with []
+      code = code.replace(/`__v__css__[^`]*`/g, "[]");
+      fs.writeFileSync(remoteEntry, code);
+      console.log("[MF] Applied Vite 8 CSS workaround patch to remoteEntry.js");
+    },
+  };
+}
+
+console.log("\n=== MF DIAGNOSTIC (ACTIVE) ===");
+console.log("MF STATUS: ENABLED with Vite 8 workaround");
+console.log("This remote will emit dist/remoteEntry.js and register as federated module.");
+console.log("Name: 'smartcrm', exposes: { './App': './src/App.tsx' } (full root per bootstrap spec)");
+console.log("=== MF DIAGNOSTIC END ===\n");
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    federation({
+      name: "smartcrm",
+      filename: "remoteEntry.js",
+      exposes: {
+        "./App": "./src/App.tsx",
+      },
+      shared: ["react", "react-dom"],
+    }),
+    fixFederationCssForVite8(),
+  ],
   optimizeDeps: {
     include: ["react", "react-dom", "@supabase/supabase-js"],
   },
