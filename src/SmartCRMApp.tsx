@@ -85,17 +85,18 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
   // Runtime confirmation that the FULL application loaded (visible in host + standalone)
   useEffect(() => {
     console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
-    console.log('%c[SmartCRM Remote] Default entry when loaded in host without initialRoute: beautiful Landing / Overview page', 'color:#6366f1');
+    console.log('%c[SmartCRM Remote] Standalone (contacts.smartcrm.vip) defaults to full Contacts app. Landing only shown if host passes initialRoute containing "landing".', 'color:#6366f1');
   }, []);
   // === Internal Navigation (lightweight, no extra deps) ===
-  const [currentSection, setCurrentSection] = useState<AppSection>('landing');
+  // For standalone access (e.g. https://contacts.smartcrm.vip/), default to the full functional app.
+  // The landing page is only shown when explicitly requested via initialRoute (usually by the host).
+  const [currentSection, setCurrentSection] = useState<AppSection>('contacts');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Map initialRoute from host to our sections.
-  // When loaded in the main SmartCRM host with no specific deep link,
-  // we default to a beautiful landing/overview page first.
+  // Map initialRoute from host (or direct URL) to sections.
+  // Landing is opt-in via initialRoute containing 'landing' / 'overview'.
   const mapRouteToSection = (route?: string): AppSection => {
-    if (!route || route === '/' || route === '/landing') return 'landing';
+    if (!route) return 'contacts';
     const r = route.toLowerCase();
     if (r.includes('landing') || r.includes('overview') || r.includes('welcome')) return 'landing';
     if (r.includes('contact')) return 'contacts';
@@ -104,7 +105,8 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
     if (r.includes('user') || r.includes('team')) return 'user-management';
     if (r.includes('gtm') || r.includes('prompt')) return 'gtm-prompts';
     if (r.includes('ai') || r.includes('tool')) return 'ai-tools';
-    return 'dashboard';
+    if (r.includes('dashboard')) return 'dashboard';
+    return 'contacts'; // sensible default for contacts.smartcrm.vip subdomain
   };
 
   // Bootstrap from host props
@@ -148,11 +150,12 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
   const renderCurrentSection = () => {
     switch (currentSection) {
       case 'landing':
-        // When this remote is first loaded inside the main SmartCRM host
-        // (without a deep initialRoute), we show a rich landing/overview experience.
+        // Rich landing/overview experience. This is only shown when the host
+        // explicitly requests it via initialRoute (e.g. initialRoute: "/landing").
+        // Direct access to the subdomain always shows the full functional app.
         return (
           <LandingPage
-            onClose={() => navigateTo('dashboard', { from: 'landing' })}
+            onClose={() => navigateTo('contacts', { from: 'landing' })}
           />
         );
       case 'dashboard':
@@ -196,7 +199,7 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
           </div>
         );
       default:
-        return <LandingPage onClose={() => navigateTo('dashboard')} />;
+        return <Contacts />;
     }
   };
 
