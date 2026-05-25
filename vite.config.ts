@@ -95,6 +95,7 @@ export default defineConfig({
     sourcemap: false,
   },
   esbuild: {
-    drop: ['console', 'debugger'],
+    // Temporarily disabled for debugging blank page issue (no console output on Netlify)
+    // drop: ['console', 'debugger'],
   },
 });

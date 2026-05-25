@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import SmartCRMApp from './SmartCRMApp';
 import App from './App'; // legacy minimal shell still available
 import './index.css';
 
@@ -15,16 +14,47 @@ export { default } from './App';
 // Service worker disabled for module federation compatibility
 // The host application should manage service workers
 
-// === RUNTIME MF DIAGNOSTIC (FULL APP BOOTSTRAP) ===
-console.log('%c[MF DIAGNOSTIC] main.tsx loaded — FULL APPLICATION MODE. Federation plugin ACTIVE (Vite 8 patched).', 'color:#16a34a;font-weight:bold');
-console.log('[MF DIAGNOSTIC] Host: import remoteEntry → render <SmartCRMApp sharedData={...} initialRoute="..." onEvent={...} />');
-console.log('[MF DIAGNOSTIC] Standalone dev: full shell with Dashboard, Contacts, Pipeline, AI Studio, etc. is rendered.');
+// === TEMP DEBUG MARKER (for blank page diagnosis on Netlify) ===
+console.log('%c[DEBUG] main.tsx script started executing', 'color:lime;font-size:14px;font-weight:bold');
 
-// Render for standalone use — now the COMPLETE application
-console.log('main.tsx: Rendering FULL SmartCRMApp (complete application shell)');
-const root = createRoot(document.getElementById('root')!);
-root.render(
-  <StrictMode>
-    <SmartCRMApp />
-  </StrictMode>
-);
+const rootEl = document.getElementById('root');
+console.log('[DEBUG] #root element found in DOM:', !!rootEl);
+
+if (rootEl) {
+  // Ultra-early visible marker before any React code runs
+  rootEl.innerHTML = `
+    <div style="padding:32px; background:#fee2e2; color:#991b1b; font-family:monospace; font-size:14px; line-height:1.5;">
+      <strong style="font-size:16px">✅ JS EXECUTED — main.tsx reached</strong><br>
+      If you can see this red box, the bundle loaded and ran.<br>
+      React has NOT mounted yet (or crashed before rendering).<br><br>
+      <small>Check console for more [DEBUG] logs. Remove this marker after debugging.</small>
+    </div>
+  `;
+}
+
+console.log('[DEBUG] About to dynamically import SmartCRMApp...');
+
+// Dynamic import so we can log before/after
+import('./SmartCRMApp').then(({ default: SmartCRMApp }) => {
+  console.log('[DEBUG] SmartCRMApp module imported successfully. Now rendering React...');
+
+  const root = createRoot(rootEl!);
+  root.render(
+    <StrictMode>
+      <SmartCRMApp />
+    </StrictMode>
+  );
+
+  console.log('[DEBUG] React render() called on #root');
+}).catch(err => {
+  console.error('[DEBUG] FAILED to import or render SmartCRMApp:', err);
+  if (rootEl) {
+    rootEl.innerHTML = `
+      <div style="padding:32px; background:#fee2e2; color:#991b1b; font-family:monospace;">
+        <strong>❌ ERROR during SmartCRMApp import/render</strong><br>
+        ${err.message}<br><br>
+        <pre style="white-space:pre-wrap;font-size:11px;">${err.stack}</pre>
+      </div>
+    `;
+  }
+});
