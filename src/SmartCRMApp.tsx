@@ -82,16 +82,19 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
   onEvent,
   onDataUpdate,
 }) => {
-  // Runtime confirmation that the FULL application loaded (visible in host + standalone)
+  // Runtime confirmation + strict mode detection
   useEffect(() => {
     console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
-    console.log('%c[SmartCRM Remote] Standalone (contacts.smartcrm.vip) defaults to full Contacts app. Landing only shown if host passes initialRoute containing "landing".', 'color:#6366f1');
-  }, []);
+    console.log(`%c[SmartCRM Remote] Running in ${isStandalone ? 'STANDALONE' : 'EMBEDDED (MF Host)'} mode. Default = full app. Landing is opt-in via initialRoute.`, 'color:#6366f1');
+  }, [isStandalone]);
   // === Internal Navigation (lightweight, no extra deps) ===
   // For standalone access (e.g. https://contacts.smartcrm.vip/), default to the full functional app.
   // The landing page is only shown when explicitly requested via initialRoute (usually by the host).
   const [currentSection, setCurrentSection] = useState<AppSection>('contacts');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Strict standalone vs embedded detection (for better host vs direct URL behavior)
+  const isStandalone = !sharedData && !onEvent && !initialRoute;
 
   // Map initialRoute from host (or direct URL) to sections.
   // Landing is opt-in via initialRoute containing 'landing' / 'overview'.
@@ -264,15 +267,18 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
         {/* Primary Content Area — the complete application for the chosen section */}
         <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">
           <div className="min-h-full">
-            {/* Host context banner (only visible in remote mode) */}
-            {sharedData && (
-              <div className="px-4 py-1 text-[10px] bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-b border-blue-100 dark:border-blue-900 flex items-center justify-between">
-                <span>
-                  Running inside SmartCRM Host • User: {sharedData.user?.email || 'authenticated'} • Tenant: {sharedData.tenant?.name || 'default'}
-                </span>
-                <span className="font-mono">initialRoute: {initialRoute || '/'}</span>
-              </div>
-            )}
+            {/* Mode indicator + Host context banner */}
+            <div className={`px-4 py-1 text-[10px] flex items-center justify-between border-b ${isStandalone 
+              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900' 
+              : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900'
+            }`}>
+              <span>
+                {isStandalone 
+                  ? 'Running STANDALONE (direct URL access)' 
+                  : `Embedded in SmartCRM Host • ${sharedData?.user?.email || 'authenticated'} • ${sharedData?.tenant?.name || 'default'}`}
+              </span>
+              <span className="font-mono">initialRoute: {initialRoute || '/'} {isStandalone && '• full app default'}</span>
+            </div>
 
             {/* The actual full feature content */}
             <div className="p-4 md:p-6">

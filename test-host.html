@@ -3,56 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartCRM Host — Remote Test Page</title>
+  <title>SmartCRM Remote Test Harness</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; }
-    .header { background: #0f172a; color: white; padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .header { background: #1e2937; padding: 12px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #334155; }
     .header h1 { margin: 0; font-size: 18px; }
-    .container { max-width: 1400px; margin: 24px auto; padding: 0 24px; }
-    .controls { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .controls label { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; }
-    .controls input, .controls select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 12px; font-size: 14px; }
-    #remote-root { min-height: 600px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05); }
-    .status { font-size: 13px; padding: 8px 16px; background: #fefce8; border-bottom: 1px solid #fde047; }
-    button { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-    button:hover { background: #2563eb; }
-    .log { font-family: monospace; font-size: 12px; background: #0f172a; color: #94a3b8; padding: 12px; border-radius: 6px; white-space: pre-wrap; max-height: 200px; overflow: auto; margin-top: 16px; }
+    .container { max-width: 1600px; margin: 24px auto; padding: 0 24px; }
+    .mode-buttons { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .mode-btn { background: #334155; color: #e2e8f0; border: 1px solid #475569; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .mode-btn.active, .mode-btn:hover { background: #3b82f6; border-color: #3b82f6; }
+    .controls { background: #1e2937; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .controls label { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+    .controls input, .controls select { width: 100%; padding: 8px; border: 1px solid #475569; border-radius: 6px; margin-bottom: 10px; font-size: 14px; background: #0f172a; color: #e2e8f0; }
+    #remote-root { min-height: 700px; background: #1e2937; border: 1px solid #334155; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+    .status { font-size: 12px; padding: 8px 16px; background: #1e2937; border-bottom: 1px solid #334155; color: #64748b; }
+    button.primary { background: #3b82f6; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    button.primary:hover { background: #2563eb; }
+    .log { font-family: ui-monospace, monospace; font-size: 12px; background: #0f172a; color: #64748b; padding: 12px; border-radius: 6px; white-space: pre-wrap; max-height: 220px; overflow: auto; margin-top: 16px; border: 1px solid #334155; }
+    .mode-label { font-size: 10px; padding: 2px 8px; border-radius: 9999px; background: #334155; }
   </style>
 </head>
 <body>
   <div class="header">
-    <div style="width:28px;height:28px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;">S</div>
-    <h1>SmartCRM Host Shell (Test)</h1>
-    <span style="margin-left:auto;opacity:0.7;font-size:13px;">Loading remote via Module Federation</span>
+    <div style="width:28px;height:28px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;color:white;">S</div>
+    <h1>SmartCRM Remote Test Harness</h1>
+    <span style="margin-left:auto;opacity:0.6;font-size:12px;">Testing Module Federation remotes (e.g. contacts.smartcrm.vip)</span>
   </div>
 
   <div class="container">
+    <div style="margin-bottom: 8px; font-size: 13px; color: #94a3b8;">
+      This page lets you test the remote exactly as the real SmartCRM host loads it.
+    </div>
+
+    <!-- Mode Selector -->
     <div class="controls">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+      <div style="margin-bottom: 12px;">
+        <strong style="font-size:13px;">Quick Test Modes (click to load):</strong>
+      </div>
+      <div class="mode-buttons">
+        <button class="mode-btn" onclick="loadStandalone()">Standalone (direct URL)</button>
+        <button class="mode-btn" onclick="loadHostLanding()">Host → Landing First</button>
+        <button class="mode-btn" onclick="loadHostContacts()">Host → Deep link /contacts</button>
+        <button class="mode-btn" onclick="loadHostDashboard()">Host → /dashboard</button>
+        <button class="mode-btn" onclick="loadCustom()">Custom (use fields below)</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns: 1.2fr 1fr 1fr; gap:16px; align-items:end;">
         <div>
-          <label>initialRoute (passed to remote)</label>
-          <input id="route" value="/contacts" placeholder="/dashboard, /pipeline, /ai-tools..." />
+          <label>initialRoute (what the host sends)</label>
+          <input id="route" value="/contacts" placeholder="/landing, /dashboard, /contacts..." />
         </div>
         <div>
-          <label>Theme (sharedData)</label>
+          <label>Theme (from sharedData)</label>
           <select id="theme">
             <option value="light">light</option>
             <option value="dark">dark</option>
           </select>
         </div>
-        <div style="display:flex;align-items:flex-end;">
-          <button onclick="loadRemote()">Load / Reload Remote (SmartCRMApp)</button>
+        <div>
+          <button class="primary" onclick="loadCustom()" style="width:100%;">Load with above values</button>
         </div>
       </div>
-      <div style="font-size:12px;color:#64748b;margin-top:8px;">
-        This page simulates <strong>https://app.smartcrm.vip</strong> dynamically importing your remote.
+
+      <div style="margin-top:10px; font-size:11px; color:#64748b;">
+        <strong>Standalone</strong> = direct visit (e.g. contacts.smartcrm.vip) → should show full app.<br>
+        <strong>Host → Landing</strong> = host passes initialRoute containing "landing" → shows marketing landing first.
       </div>
     </div>
 
     <div id="remote-root">
-      <div class="status" id="status">Remote not loaded yet. Click the button above.</div>
+      <div class="status" id="status">Remote not loaded. Choose a mode above.</div>
     </div>
 
     <div class="log" id="log"></div>
@@ -67,89 +89,123 @@
       const time = new Date().toLocaleTimeString();
       logEl.textContent += `[${time}] ${msg}\n`;
       logEl.scrollTop = logEl.scrollHeight;
-      console.log('[Host Test]', msg);
+      console.log('[Test Harness]', msg);
     }
 
-    async function loadRemote() {
-      const route = document.getElementById('route').value || '/';
-      const theme = document.getElementById('theme').value;
+    function clearRemote() {
+      remoteRoot.innerHTML = '<div class="status" id="status">Loading...</div>';
+      statusEl = document.getElementById('status'); // rebind
+    }
 
-      statusEl.textContent = 'Loading remoteEntry.js ...';
+    async function loadRemote(props = {}) {
+      clearRemote();
       logEl.textContent = '';
-      log('Starting dynamic import of remoteEntry.js');
+      
+      const { initialRoute = '', sharedData = null, modeLabel = '' } = props;
+      
+      statusEl.textContent = `Loading remoteEntry.js (${modeLabel || 'custom'})...`;
+      log(`Loading with initialRoute="${initialRoute}"`);
 
       try {
-        // This is exactly how the real host loads the remote
         const remote = await import('./remoteEntry.js');
-        log('remoteEntry.js loaded successfully');
-        log('Available exports: ' + Object.keys(remote).join(', '));
+        log('remoteEntry.js loaded');
+        log('Exports: ' + Object.keys(remote).join(', '));
 
-        const SmartCRMApp = remote.SmartCRMApp || remote.default;
-        if (!SmartCRMApp) {
-          throw new Error('SmartCRMApp not found in remote exports');
-        }
+        const SmartCRMApp = remote.SmartCRMApp;
+        if (!SmartCRMApp) throw new Error('SmartCRMApp export not found');
 
-        // Create a container inside the host
         remoteRoot.innerHTML = '';
         const container = document.createElement('div');
-        container.id = 'smartcrm-remote-container';
         container.style.height = '100%';
         remoteRoot.appendChild(container);
 
-        // Mock shared data the real host would provide
-        const sharedData = {
-          user: { id: 'host-user-123', email: 'test@host.com' },
-          isAuthenticated: true,
-          tenant: { id: 'tenant-abc', name: 'Acme Corp' },
-          theme,
-          session: { token: 'mock-jwt-from-host' }
-        };
-
-        // Render the remote exactly like the host does
         const root = ReactDOM.createRoot(container);
         root.render(
           React.createElement(SmartCRMApp, {
-            sharedData,
-            initialRoute: route,
+            sharedData: sharedData || undefined,
+            initialRoute: initialRoute || undefined,
             onEvent: (event) => {
-              log('onEvent from remote → ' + JSON.stringify(event));
-              if (event.type === 'navigate') {
+              log('onEvent ← ' + JSON.stringify(event));
+              if (event.type === 'navigate' && event.payload?.to) {
                 document.getElementById('route').value = '/' + event.payload.to;
               }
             },
-            onDataUpdate: (data) => log('onDataUpdate from remote → ' + JSON.stringify(data))
+            onDataUpdate: (d) => log('onDataUpdate ← ' + JSON.stringify(d))
           })
         );
 
-        statusEl.textContent = `Remote mounted successfully • initialRoute="${route}" • theme="${theme}"`;
-        log('FULL SmartCRMApp mounted inside host container');
-        log('Try changing the route or theme and clicking "Load / Reload Remote" again');
+        statusEl.textContent = `Loaded • Mode: ${modeLabel || 'custom'} • initialRoute="${initialRoute || '/'}"`;
+        log('SmartCRMApp mounted successfully');
 
       } catch (err) {
-        statusEl.textContent = 'Failed to load remote';
+        statusEl.textContent = 'Load failed';
         log('ERROR: ' + err.message);
-        log('Stack: ' + (err.stack || ''));
         console.error(err);
       }
     }
 
-    // Auto-load on page ready with defaults
-    window.onload = () => {
-      log('Host test page ready. Click the button or wait 800ms for auto-load...');
-      setTimeout(() => {
-        // Auto-load once so the user immediately sees the full app
-        loadRemote();
-      }, 800);
-    };
+    // === The four important test scenarios ===
 
-    // Keyboard shortcut
-    document.addEventListener('keydown', (e) => {
-      if (e.key === '/' && document.activeElement.tagName === 'BODY') {
-        e.preventDefault();
-        document.getElementById('route').focus();
-        document.getElementById('route').select();
-      }
-    });
+    function loadStandalone() {
+      // Simulates direct browser visit to https://contacts.smartcrm.vip/
+      // No props from host → should default to full Contacts app
+      loadRemote({
+        initialRoute: '',
+        sharedData: null,
+        modeLabel: 'STANDALONE (direct URL)'
+      });
+    }
+
+    function loadHostLanding() {
+      // Simulates main host loading the remote and wanting the marketing landing first
+      loadRemote({
+        initialRoute: '/landing',
+        sharedData: {
+          user: { email: 'host-user@smartcrm.vip' },
+          tenant: { name: 'Acme Corp' },
+          theme: 'light'
+        },
+        modeLabel: 'HOST → Landing first'
+      });
+    }
+
+    function loadHostContacts() {
+      loadRemote({
+        initialRoute: '/contacts',
+        sharedData: { theme: 'light', tenant: { name: 'Host Tenant' } },
+        modeLabel: 'HOST → Deep /contacts'
+      });
+    }
+
+    function loadHostDashboard() {
+      loadRemote({
+        initialRoute: '/dashboard',
+        sharedData: { theme: 'dark' },
+        modeLabel: 'HOST → /dashboard'
+      });
+    }
+
+    function loadCustom() {
+      const route = document.getElementById('route').value || '';
+      const theme = document.getElementById('theme').value;
+      
+      const isLikelyStandalone = !route || route === '/';
+      
+      loadRemote({
+        initialRoute: route,
+        sharedData: isLikelyStandalone ? null : { theme, tenant: { name: 'Custom Host' } },
+        modeLabel: isLikelyStandalone ? 'STANDALONE' : 'HOST (custom)'
+      });
+    }
+
+    // Auto-load in standalone simulation on page load
+    window.onload = () => {
+      log('Test harness ready. Click any mode button above.');
+      // Default: simulate standalone (most common complaint scenario)
+      setTimeout(() => {
+        loadStandalone();
+      }, 600);
+    };
   </script>
 </body>
 </html>
