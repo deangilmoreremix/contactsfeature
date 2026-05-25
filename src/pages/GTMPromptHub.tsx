@@ -28,9 +28,9 @@ import {
   Target,
   ArrowRight,
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-import { ModernButton } from '../../components/ui/ModernButton';
-import { GlassCard } from '../../components/ui/GlassCard';
+import { supabase } from '../lib/supabase';
+import { ModernButton } from '../components/ui/ModernButton';
+import { GlassCard } from '../components/ui/GlassCard';
 
 interface GTMPrompt {
   id: string;

@@ -7,7 +7,7 @@ import './index.css';
 // === FULL APPLICATION EXPORTS FOR MODULE FEDERATION ===
 // Primary: the complete SmartCRM experience (recommended for host)
 export { default as SmartCRMApp } from './SmartCRMApp';
-export { SmartCRMRemoteProps } from './SmartCRMApp';
+export type { SmartCRMRemoteProps } from './SmartCRMApp';
 
 // Legacy / compatibility export (still works)
 export { default } from './App';

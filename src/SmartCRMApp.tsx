@@ -29,16 +29,16 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
 }
 
 // Layout
-import { EnhancedNavbar } from '../components/layout/EnhancedNavbar';
-import { Sidebar } from '../components/layout/Sidebar';
+import { EnhancedNavbar } from './components/layout/EnhancedNavbar';
+import { Sidebar } from './components/layout/Sidebar';
 
 // Full page components (the real application content)
-import Dashboard from '../pages/Dashboard';
-import Contacts from '../pages/Contacts';
-import Pipeline from '../pages/Pipeline';
-import Products from '../pages/Products';
-import UserManagement from '../pages/UserManagement';
-import GTMPromptHub from '../pages/GTMPromptHub';
+import Dashboard from './pages/Dashboard';
+import Contacts from './pages/Contacts';
+import Pipeline from './pages/Pipeline';
+import Products from './pages/Products';
+import UserManagement from './pages/UserManagement';
+import GTMPromptHub from './pages/GTMPromptHub';
 
 // SmartCRM Remote Props Contract (host bootstrap spec)
 export interface SmartCRMRemoteProps {
