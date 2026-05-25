@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import type { OutboundPersonaId } from '../agents/personas';
 
 const supabase = createClient(
-  import.meta.env['VITE_SUPABASE_URL']!,
-  import.meta.env['VITE_SUPABASE_SERVICE_ROLE_KEY']!
+  // Use process.env for Netlify Functions (import.meta.env is not available in CJS bundler output)
+  process.env.SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
 );
 
 export type FollowupMode = 'manual' | 'reply-only' | '2-step' | '5-step';
