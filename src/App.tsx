@@ -18,11 +18,17 @@ export interface SmartCRMRemoteProps {
   onDataUpdate?: (data: any) => void;
 }
 
-// Lazy loaded components with error handling
-const ContactsModal = lazy(() => 
-  import("./components/modals/ContactsModal").then(m => ({ default: m.ContactsModal }))
+// Lazy loaded components - each import is async and tracked individually
+const ContactsModal = lazy(
+  () => import("./components/modals/ContactsModal")
+    .then(m => { console.log('ContactsModal chunk loaded'); return { default: m.ContactsModal }; })
+    .catch(e => { console.error('ContactsModal chunk FAILED:', e); return { default: () => <div style={{padding:20,background:'#fef2f2',color:'#991b1b'}}>Failed to load ContactsModal: {String(e)}</div> }; })
 );
-const Products = lazy(() => import("./pages/Products"));
+const Products = lazy(
+  () => import("./pages/Products")
+    .then(m => { console.log('Products chunk loaded'); return m; })
+    .catch(e => { console.error('Products chunk FAILED:', e); return { default: () => <div>Failed to load Products</div> }; })
+);
 
 const PageLoader: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -33,19 +39,27 @@ const PageLoader: React.FC = () => (
   </div>
 );
 
-const LoadingTimeout: React.FC<{ timeoutMs?: number }> = ({ timeoutMs = 5000 }) => {
+// Timeout component to detect stuck loading states
+const LoadingTimeout: React.FC<{ timeoutMs?: number }> = ({ timeoutMs = 10000 }) => {
   const [timedOut, setTimedOut] = React.useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), timeoutMs);
+    console.log('[LoadingTimeout] Starting countdown for', timeoutMs, 'ms');
+    const timer = setTimeout(() => {
+      console.log('[LoadingTimeout] TIMED OUT after', timeoutMs, 'ms - Suspense is stuck!');
+      setTimedOut(true);
+    }, timeoutMs);
     return () => clearTimeout(timer);
   }, [timeoutMs]);
-  
+
   if (!timedOut) return <PageLoader />;
   return (
     <div className="min-h-screen flex items-center justify-center bg-orange-50">
-      <div className="text-center p-6">
-        <h3 className="text-lg font-semibold text-orange-900 mb-2">Still loading...</h3>
-        <p className="text-orange-700">The contacts modal is taking a while to load.</p>
+      <div className="text-center p-6 max-w-md">
+        <h3 className="text-lg font-semibold text-orange-900 mb-2">⚠️ Still loading...</h3>
+        <p className="text-orange-700 mb-4">The contacts modal is taking a very long time to load. This may indicate a chunk failed to load silently.</p>
+        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+          Reload Page
+        </button>
       </div>
     </div>
   );
