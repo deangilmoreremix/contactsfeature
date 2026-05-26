@@ -44,6 +44,23 @@ const path = require('path');
       console.warn('[postbuild] sw.js not found at', swPath);
     }
 
+    // 4) Write build environment diagnostics (presence of VITE/SUPABASE env vars)
+    try {
+      const envReport = {
+        VITE_SUPABASE_URL_present: !!process.env.VITE_SUPABASE_URL,
+        VITE_SUPABASE_ANON_KEY_present: !!process.env.VITE_SUPABASE_ANON_KEY,
+        SUPABASE_URL_present: !!process.env.SUPABASE_URL,
+        SUPABASE_ANON_KEY_present: !!process.env.SUPABASE_ANON_KEY,
+        SUPABASE_SERVICE_ROLE_KEY_present: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        TIMESTAMP: new Date().toISOString(),
+      };
+      const envReportPath = path.join(distDir, `build-env-report-${buildId}.json`);
+      fs.writeFileSync(envReportPath, JSON.stringify(envReport, null, 2));
+      console.log('[postbuild] wrote env report', envReportPath, envReport);
+    } catch (e) {
+      console.warn('[postbuild] failed to write env report', e);
+    }
+
     console.log('[postbuild] done');
   } catch (err) {
     console.error('[postbuild] error', err);
