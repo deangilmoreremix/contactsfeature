@@ -1,14 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-
-// Federation exports - these must be at the top level for correct module resolution
-export { default as SmartCRMApp } from './SmartCRMApp';
-export type { SmartCRMRemoteProps } from './SmartCRMApp';
-// Export App for backward compatibility with hosts that reference ./App
-export { default } from './SmartCRMApp';
-
-// Mount app
 import SmartCRMApp from './SmartCRMApp';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
@@ -35,8 +27,7 @@ const RootErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }
   );
 };
 
-// Bootstrap: Entry point called by main.tsx for standalone rendering.
-// Renders the full SmartCRMApp by default. For MF host mode, the host will use the mount API.
+// Bootstrap: Entry point for standalone rendering.
 console.log('[BOOTSTRAP] Starting bootstrap sequence...');
 
 const rootElement = document.getElementById('root');
@@ -44,8 +35,6 @@ if (rootElement) {
   console.log('[BOOTSTRAP] Root element found, creating React root...');
   const root = createRoot(rootElement);
   
-  // Render SmartCRMApp for standalone access
-  // In MF mode, the host uses the mount() API or lazy-loads the component directly
   root.render(
     <React.StrictMode>
       <RootErrorBoundary>
