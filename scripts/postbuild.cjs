@@ -61,6 +61,34 @@ const path = require('path');
       console.warn('[postbuild] failed to write env report', e);
     }
 
+    // 5) Copy dist -> public_dist so Netlify publish dir has the built files
+    try {
+      const publicDir = path.resolve(__dirname, '..', 'public_dist');
+      if (fs.existsSync(publicDir)) {
+        fs.rmSync(publicDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(publicDir, { recursive: true });
+
+      function copyDir(src, dest) {
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+        for (const entry of entries) {
+          const srcPath = path.join(src, entry.name);
+          const destPath = path.join(dest, entry.name);
+          if (entry.isDirectory()) {
+            fs.mkdirSync(destPath, { recursive: true });
+            copyDir(srcPath, destPath);
+          } else {
+            fs.copyFileSync(srcPath, destPath);
+          }
+        }
+      }
+
+      copyDir(distDir, publicDir);
+      console.log('[postbuild] copied dist to public_dist');
+    } catch (e) {
+      console.warn('[postbuild] failed to copy dist to public_dist', e);
+    }
+
     console.log('[postbuild] done');
   } catch (err) {
     console.error('[postbuild] error', err);
