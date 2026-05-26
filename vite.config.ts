@@ -46,6 +46,8 @@ exposes: {
          "./SmartCRMApp": "./src/SmartCRMApp.tsx",
          // Expose the FULL application layout as './App' for host compatibility
          "./App": "./src/SmartCRMApp.tsx",
+         // Mount API for host-controlled mounting/unmounting
+         "./mount": "./src/mount.ts",
        },
       shared: {
           react: { singleton: true, requiredVersion: '^18.0.0' },
