@@ -72,7 +72,7 @@ export default defineConfig({
     watch: { usePolling: true, interval: 1000 },
   },
   build: {
-    outDir: 'public_dist',
+    outDir: 'dist',
     emptyOutDir: true,
     target: "esnext",
     modulePreload: false,
