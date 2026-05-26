@@ -76,7 +76,11 @@ const SECTION_LABELS: Record<AppSection, string> = {
   'ai-tools': 'AI Studio',
 };
 
+// Build marker to force new bundle and aid CDN cache invalidation
+console.log('BUILD_ID:', new Date().toISOString());
+
 const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
+
   sharedData,
   initialRoute,
   onEvent,
