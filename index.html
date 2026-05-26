@@ -8,6 +8,19 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Inline bootstrap marker to detect whether any JS executes before the module bundle
+      try {
+        console.log('INLINE BOOTSTRAP: script executing');
+        var root = document.getElementById('root');
+        if (root) {
+          root.innerHTML = '<div style="padding:20px;background:#fff7ed;color:#92400e;font-family:system-ui;">INLINE BOOTSTRAP: DOM ready — module may not have executed yet.</div>';
+        }
+        window.__INLINE_BOOTSTRAP = true;
+      } catch (e) {
+        console.error('INLINE BOOTSTRAP ERROR', e);
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CuOwD3cc.js"></script>
   </body>
 </html>
