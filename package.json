@@ -54,7 +54,8 @@
     "util": "^0.12.5",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8",
-    "zustand": "^4.4.7"
+    "zustand": "^4.4.7",
+    "react-router-dom": "^6.15.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

@@ -41,12 +41,12 @@ export default defineConfig({
     federation({
       name: "smartcrm",
       filename: "remoteEntry.js",
-      exposes: {
-        // Primary full-application root (per host bootstrap spec)
-        "./SmartCRMApp": "./src/SmartCRMApp.tsx",
-        // Legacy / compatibility entry (still works, renders minimal shell)
-        "./App": "./src/App.tsx",
-      },
+exposes: {
+         // Primary full-application root (per host bootstrap spec)
+         "./SmartCRMApp": "./src/SmartCRMApp.tsx",
+         // Expose the FULL application layout as './App' for host compatibility
+         "./App": "./src/SmartCRMApp.tsx",
+       },
       shared: {
           react: { singleton: true, requiredVersion: '^18.0.0' },
           'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
