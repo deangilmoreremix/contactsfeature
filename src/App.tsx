@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { ViewProvider } from "./contexts/ViewContext";
 import { AIProvider } from "./contexts/AIContext";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
 // SmartCRM Remote Props Contract (per host bootstrap spec)
 // The host (app.smartcrm.vip) passes these when dynamically loading this remote via MF.
@@ -17,7 +18,10 @@ export interface SmartCRMRemoteProps {
   onDataUpdate?: (data: any) => void;
 }
 
-const ContactsModal = lazy(() => import("./components/modals/ContactsModal").then(m => ({ default: m.ContactsModal })));
+// Lazy loaded components with error handling
+const ContactsModal = lazy(() => 
+  import("./components/modals/ContactsModal").then(m => ({ default: m.ContactsModal }))
+);
 const Products = lazy(() => import("./pages/Products"));
 
 const PageLoader: React.FC = () => (
@@ -28,6 +32,24 @@ const PageLoader: React.FC = () => (
     </div>
   </div>
 );
+
+const LoadingTimeout: React.FC<{ timeoutMs?: number }> = ({ timeoutMs = 5000 }) => {
+  const [timedOut, setTimedOut] = React.useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), timeoutMs);
+    return () => clearTimeout(timer);
+  }, [timeoutMs]);
+  
+  if (!timedOut) return <PageLoader />;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-orange-50">
+      <div className="text-center p-6">
+        <h3 className="text-lg font-semibold text-orange-900 mb-2">Still loading...</h3>
+        <p className="text-orange-700">The contacts modal is taking a while to load.</p>
+      </div>
+    </div>
+  );
+};
 
 type AppView = 'contacts' | 'products';
 
@@ -73,33 +95,46 @@ const App: React.FC<SmartCRMRemoteProps> = ({
     <div className="min-h-screen bg-gray-100" data-smartcrm-remote="true">
       <AIProvider>
         <ViewProvider>
-          <Suspense fallback={<PageLoader />}>
-            {currentView === 'contacts' && (
-              <ContactsModal
-                isOpen={true}
-                onClose={() => {
-                  // In host context, closing may mean navigate away - notify host
-                  onEvent?.({ type: 'modal-closed', payload: { view: 'contacts' } });
-                }}
-                onNavigate={(view: string) => {
-                  if (view === 'products') {
-                    setCurrentView('products');
-                    onEvent?.({ type: 'navigate', payload: { to: 'products' } });
-                  }
-                }}
-              />
-            )}
-            {currentView === 'products' && (
-              <div className="min-h-screen">
-                <Products
-                  onNavigateBack={() => {
-                    setCurrentView('contacts');
-                    onEvent?.({ type: 'navigate', payload: { to: 'contacts' } });
+          <ErrorBoundary
+            onError={(error, errorInfo) => {
+              console.error('App ErrorBoundary caught:', error, errorInfo);
+              const root = document.getElementById('root');
+              if (root) {
+                const pre = root.querySelector('pre[data-app-error]');
+                if (pre) {
+                  pre.textContent = `APP ERROR: ${error.message}`;
+                }
+              }
+            }}
+          >
+            <Suspense fallback={<LoadingTimeout />}>
+              {currentView === 'contacts' && (
+                <ContactsModal
+                  isOpen={true}
+                  onClose={() => {
+                    // In host context, closing may mean navigate away - notify host
+                    onEvent?.({ type: 'modal-closed', payload: { view: 'contacts' } });
+                  }}
+                  onNavigate={(view: string) => {
+                    if (view === 'products') {
+                      setCurrentView('products');
+                      onEvent?.({ type: 'navigate', payload: { to: 'products' } });
+                    }
                   }}
                 />
-              </div>
-            )}
-          </Suspense>
+              )}
+              {currentView === 'products' && (
+                <div className="min-h-screen">
+                  <Products
+                    onNavigateBack={() => {
+                      setCurrentView('contacts');
+                      onEvent?.({ type: 'navigate', payload: { to: 'contacts' } });
+                    }}
+                  />
+                </div>
+              )}
+            </Suspense>
+          </ErrorBoundary>
         </ViewProvider>
       </AIProvider>
     </div>

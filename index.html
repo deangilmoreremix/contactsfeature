@@ -7,14 +7,16 @@
     <title>Smart CRM Dashboard</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- App will render here -->
+    </div>
     <script>
       // Inline bootstrap: show immediate visual marker and install global error handlers
       (function(){
         try {
           var root = document.getElementById('root');
           if (root) {
-            root.innerHTML = '<div id="__inline_bootstrap" style="padding:20px;background:#fff7ed;color:#92400e;font-family:system-ui;">INLINE BOOTSTRAP: DOM ready — awaiting module execution...</div>';
+            root.innerHTML = '<div id="__inline_bootstrap" style="padding:20px;background:#fff7ed;color:#92400e;font-family:system-ui;">INLINE BOOTSTRAP: DOM ready — awaiting module execution...</div><pre data-app-error style="margin:10px 0 0 0;padding:10px;background:#fef2f2;color:#991b1b;font-size:12px;display:none;"></pre>';
           }
           window.__INLINE_BOOTSTRAP = true;
 
@@ -45,8 +47,8 @@
         }
       })();
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" crossorigin src="/src/main.tsx"></script>
     <!-- Inline health-check: presence indicates server served latest files -->
-    <meta name="x-build-id" content="
+    <meta name="x-build-id" content="debug-build">
   </body>
 </html>
