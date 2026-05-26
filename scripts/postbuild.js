@@ -1,0 +1,52 @@
+const fs = require('fs');
+const path = require('path');
+
+(async function() {
+  try {
+    const buildId = Date.now().toString();
+    const distDir = path.resolve(__dirname, '..', 'dist');
+
+    // 1) Write force-new-deploy file
+    const touchPath = path.join(distDir, `force-new-deploy-${buildId}.txt`);
+    fs.writeFileSync(touchPath, new Date().toISOString());
+    console.log('[postbuild] wrote', touchPath);
+
+    // 2) Inject build-id meta into index.html
+    const indexPath = path.join(distDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      let indexHtml = fs.readFileSync(indexPath, 'utf8');
+      // Remove any existing x-build-id meta
+      indexHtml = indexHtml.replace(/<meta name="x-build-id" content="[^"]*">/g, '');
+      // Insert meta just before </head>
+      indexHtml = indexHtml.replace('</head>', `  <meta name="x-build-id" content="${buildId}">\n</head>`);
+      fs.writeFileSync(indexPath, indexHtml, 'utf8');
+      console.log('[postbuild] injected x-build-id into index.html', buildId);
+    } else {
+      console.warn('[postbuild] index.html not found at', indexPath);
+    }
+
+    // 3) Update sw.js cache names to include build id
+    const swPath = path.join(distDir, 'sw.js');
+    if (fs.existsSync(swPath)) {
+      let sw = fs.readFileSync(swPath, 'utf8');
+      // Replace CACHE_NAME, STATIC_CACHE, DYNAMIC_CACHE occurrences
+      sw = sw.replace(/const CACHE_NAME = 'contacts-app-[^']*';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-[^']*';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-[^']*';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+      // Fallback: if original constants are without -<id>, replace those too
+      sw = sw.replace(/const CACHE_NAME = 'contacts-app-v1';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-v1';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-v1';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+
+      fs.writeFileSync(swPath, sw, 'utf8');
+      console.log('[postbuild] updated sw.js cache names with buildId', buildId);
+    } else {
+      console.warn('[postbuild] sw.js not found at', swPath);
+    }
+
+    console.log('[postbuild] done');
+  } catch (err) {
+    console.error('[postbuild] error', err);
+    process.exit(1);
+  }
+})();
