@@ -39,24 +39,19 @@ export default defineConfig({
    base: '/',
    plugins: [
      react(),
-     federation({
-       name: "smartcrm",
-       filename: "remoteEntry.js",
-     exposes: {
-          // Primary full-application root (per host bootstrap spec)
-          "./SmartCRMApp": "./src/SmartCRMApp.tsx",
-          // Expose the FULL application layout as './App' for host compatibility
-          "./App": "./src/SmartCRMApp.tsx",
-          // Mount API for host-controlled mounting/unmounting
-          "./mount": "./src/mount.tsx",
-        },
-       shared: {
-           react: { singleton: true, requiredVersion: '^18.0.0' },
-           'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
-           'react-router-dom': { singleton: true, requiredVersion: '^6.0.0' },
-           zustand: { singleton: true }
+federation({
+        name: "smartcrm",
+        filename: "remoteEntry.js",
+exposes: {
+           // Primary full-application root (per host bootstrap spec)
+           "./SmartCRMApp": "./src/SmartCRMApp.tsx",
+           // Expose the FULL application layout as './App' for host compatibility
+           "./App": "./src/SmartCRMApp.tsx",
+           // Mount API for host-controlled mounting/unmounting
+           "./mount": "./src/mount.tsx",
          },
-     }),
+        shared: ["react", "react-dom", "zustand"],
+      }),
      fixFederationCssForVite8(),
    ],
    optimizeDeps: {

@@ -9,6 +9,7 @@ import './index.css';
 // Federation exports - these must be at top level for correct module resolution
 export { default as SmartCRMApp } from './SmartCRMApp';
 export type { SmartCRMRemoteProps } from './SmartCRMApp';
+
 // Default export for hosts that reference ./App
 export { default as App } from './SmartCRMApp';
 
@@ -27,4 +28,3 @@ if (rootElement) {
 } else {
   console.error('[MAIN] Root element not found!');
 }
-
