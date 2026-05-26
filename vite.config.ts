@@ -47,7 +47,12 @@ export default defineConfig({
         // Legacy / compatibility entry (still works, renders minimal shell)
         "./App": "./src/App.tsx",
       },
-      shared: ["react", "react-dom", "zustand"],
+      shared: {
+          react: { singleton: true, requiredVersion: '^18.0.0' },
+          'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
+          'react-router-dom': { singleton: true, requiredVersion: '^6.0.0' },
+          zustand: { singleton: true }
+        },
     }),
     fixFederationCssForVite8(),
   ],
