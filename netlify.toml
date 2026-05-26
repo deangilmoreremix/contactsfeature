@@ -1,5 +1,5 @@
 [build]
-  publish = "dist"
+  publish = "dist_publish"
   functions = "netlify/functions"
   command = "npm run build && node ./scripts/postbuild.cjs"
 
