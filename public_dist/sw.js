@@ -1,8 +1,8 @@
 // Service Worker for caching and performance optimization
 
-const CACHE_NAME = 'contacts-app-v1';
-const STATIC_CACHE = 'contacts-static-v1';
-const DYNAMIC_CACHE = 'contacts-dynamic-v1';
+const CACHE_NAME = 'contacts-app-1779813634650';
+const STATIC_CACHE = 'contacts-static-1779813634650';
+const DYNAMIC_CACHE = 'contacts-dynamic-1779813634650';
 
 // Files to cache immediately
 const STATIC_FILES = [

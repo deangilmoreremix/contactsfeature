@@ -11,7 +11,19 @@ const path = require('path');
     fs.writeFileSync(touchPath, new Date().toISOString());
     console.log('[postbuild] wrote', touchPath);
 
-    // 2) Inject build-id meta into index.html
+    // 2) Ensure _redirects includes remoteEntry.js redirect
+    const redirectsPath = path.join(distDir, '_redirects');
+    let redirectsContent = '';
+    if (fs.existsSync(redirectsPath)) {
+      redirectsContent = fs.readFileSync(redirectsPath, 'utf8');
+    }
+    if (!redirectsContent.includes('/remoteEntry.js')) {
+      redirectsContent += '\n/remoteEntry.js /assets/remoteEntry.js 200';
+      fs.writeFileSync(redirectsPath, redirectsContent.trim());
+      console.log('[postbuild] added remoteEntry.js redirect to _redirects');
+    }
+
+    // 3) Inject build-id meta into index.html
     const indexPath = path.join(distDir, 'index.html');
     if (fs.existsSync(indexPath)) {
       let indexHtml = fs.readFileSync(indexPath, 'utf8');
@@ -25,7 +37,7 @@ const path = require('path');
       console.warn('[postbuild] index.html not found at', indexPath);
     }
 
-    // 3) Update sw.js cache names to include build id
+    // 4) Update sw.js cache names to include build id
     const swPath = path.join(distDir, 'sw.js');
     if (fs.existsSync(swPath)) {
       let sw = fs.readFileSync(swPath, 'utf8');
@@ -44,7 +56,7 @@ const path = require('path');
       console.warn('[postbuild] sw.js not found at', swPath);
     }
 
-    // 4) Write build environment diagnostics (presence of VITE/SUPABASE env vars)
+    // 5) Write build environment diagnostics (presence of VITE/SUPABASE env vars)
     try {
       const envReport = {
         VITE_SUPABASE_URL_present: !!process.env.VITE_SUPABASE_URL,
@@ -61,7 +73,7 @@ const path = require('path');
       console.warn('[postbuild] failed to write env report', e);
     }
 
-    // 5) Copy dist -> public_dist so Netlify publish dir has the built files
+    // 6) Copy dist -> public_dist so Netlify publish dir has the built files
     try {
       const publicDir = path.resolve(__dirname, '..', 'public_dist');
       if (fs.existsSync(publicDir)) {

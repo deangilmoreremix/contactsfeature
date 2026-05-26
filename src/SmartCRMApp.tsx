@@ -86,11 +86,6 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
   onEvent,
   onDataUpdate,
 }) => {
-  // Runtime confirmation + strict mode detection
-  useEffect(() => {
-    console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
-    console.log(`%c[SmartCRM Remote] Running in ${isStandalone ? 'STANDALONE' : 'EMBEDDED (MF Host)'} mode. Default = full app. Landing is opt-in via initialRoute.`, 'color:#6366f1');
-  }, [isStandalone]);
   // === Internal Navigation (lightweight, no extra deps) ===
   // For standalone access (e.g. https://contacts.smartcrm.vip/), default to the full functional app.
   // The landing page is only shown when explicitly requested via initialRoute (usually by the host).
@@ -99,6 +94,12 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
 
   // Strict standalone vs embedded detection (for better host vs direct URL behavior)
   const isStandalone = !sharedData && !onEvent && !initialRoute;
+
+  // Runtime confirmation + strict mode detection
+  useEffect(() => {
+    console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
+    console.log(`%c[SmartCRM Remote] Running in ${isStandalone ? 'STANDALONE' : 'EMBEDDED (MF Host)'} mode. Default = full app. Landing is opt-in via initialRoute.`, 'color:#6366f1');
+  }, [isStandalone]);
 
   // Map initialRoute from host (or direct URL) to sections.
   // Landing is opt-in via initialRoute containing 'landing' / 'overview'.
