@@ -1,23 +1,20 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import SmartCRMApp from './SmartCRMApp';
+import App from './App'; // legacy minimal shell
 import './index.css';
 
-// === MODULE FEDERATION EXPORTS ===
+// Keep federation exports for remote consumption
 export { default as SmartCRMApp } from './SmartCRMApp';
 export type { SmartCRMRemoteProps } from './SmartCRMApp';
 
-// Legacy export (kept for compatibility)
+// Default export for legacy/compat
 export { default } from './App';
 
-// Service worker disabled for module federation compatibility
-// The host application should manage service workers
-
-// === STANDALONE RENDER ===
+// Render the legacy App for immediate recovery (more resilient)
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <StrictMode>
-    <SmartCRMApp />
+    <App />
   </StrictMode>
 );
 
