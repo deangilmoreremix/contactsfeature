@@ -1,7 +1,7 @@
 [build]
   publish = "dist"
   functions = "netlify/functions"
-  command = "npm run build && touch dist/force-new-deploy"
+  command = "npm run build && touch dist/force-new-deploy-$(date +%s)"
 
 [build.environment]
   # Allow legacy peer deps to support Vite 8 + some plugins that haven't fully updated yet
