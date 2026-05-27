@@ -103,6 +103,12 @@ exposes: {
     minify: 'esbuild',
     chunkSizeWarningLimit: 1000,
     sourcemap: false,
+    // Inject asset links into index.html
+    rollupOptions: {
+      output: {
+        assetFileNames: 'assets/[name]-[hash][extname]'
+      }
+    }
   },
   esbuild: {
     // Temporarily disabled for debugging blank page issue (no console output on Netlify)
