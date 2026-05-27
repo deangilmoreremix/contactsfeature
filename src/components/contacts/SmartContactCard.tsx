@@ -188,12 +188,7 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
             <p className="text-gray-500 dark:text-gray-400 text-xs">{contact.company}</p>
           </div>
 
-          {/* AI Score */}
-          {/* Agent Status */}
-          <AgentStatusIndicator
-            isActive={true} /* Mock - would check contact agent settings */
-            className="mt-2"
-          />
+{/* AI Score */}
           {contact.aiScore && (
             <div className="flex flex-col items-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center font-bold text-lg shadow-lg">
@@ -201,12 +196,12 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                 AI Score
-          {/* Agent Status */}
-          <AgentStatusIndicator
-            isActive={true} /* Mock - would check contact agent settings */
-            className="mt-2"
-          />
               </span>
+              {/* Agent Status */}
+              <AgentStatusIndicator
+                isActive={true} /* Mock - would check contact agent settings */
+                className="mt-2"
+              />
             </div>
           )}
         </div>

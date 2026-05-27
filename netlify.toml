@@ -4,14 +4,42 @@
   command = "npm run build && node ./scripts/postbuild.cjs"
 
 [build.environment]
-  # Allow legacy peer deps to support Vite 8 + some plugins that haven't fully updated yet
   NPM_FLAGS = "--legacy-peer-deps"
+  NODE_VERSION = "18"
 
 [functions]
-directory = "netlify/functions"
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/auth/login"
+  to = "/.netlify/functions/login"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/logout"
+  to = "/.netlify/functions/logout"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+  force = true
+
+[template.environment]
+  SUPABASE_URL = "Your Supabase project URL"
+  SUPABASE_ANON_KEY = "Your Supabase anon key"
 
 [dev]
-targetPort = 5175
+  targetPort = 5175
+  framework = "#custom"
 
 [[headers]]
   for = "/*"
@@ -22,9 +50,4 @@ targetPort = 5175
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.pexels.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.openai.com https://generativelanguage.googleapis.com; font-src 'self' data:; frame-ancestors 'none';"
-
-[[redirects]]
-from = "/api/*"
-to = "/.netlify/functions/:splat"
-status = 200
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://identity.netlify.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.pexels.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.openai.com https://generativelanguage.googleapis.com https://api.netlify.com; font-src 'self' data:; frame-ancestors 'none';"
