@@ -102,6 +102,9 @@ export default defineConfig({
     modulePreload: false,
     cssCodeSplit: true,
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {

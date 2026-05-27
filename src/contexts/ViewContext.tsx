@@ -74,8 +74,23 @@ export function ViewProvider({ children }: { children: ReactNode }) {
         }
 
         const viewTypes: ViewType[] = ['list', 'table', 'kanban', 'calendar', 'dashboard', 'timeline'];
-        const loadedFilters: Record<ViewType, ViewFilterConfig> = { ...filters };
-        const loadedSorts: Record<ViewType, ViewSortConfig> = { ...sortConfig };
+        // Use initial values (empty objects) instead of stale closure variables
+        const loadedFilters: Record<ViewType, ViewFilterConfig> = {
+          list: defaultFilters,
+          table: defaultFilters,
+          kanban: defaultFilters,
+          calendar: defaultFilters,
+          dashboard: defaultFilters,
+          timeline: defaultFilters,
+        };
+        const loadedSorts: Record<ViewType, ViewSortConfig> = {
+          list: defaultSort,
+          table: defaultSort,
+          kanban: defaultSort,
+          calendar: defaultSort,
+          dashboard: defaultSort,
+          timeline: defaultSort,
+        };
 
         for (const viewType of viewTypes) {
           const viewFilters = await viewPreferencesService.getViewFilters(viewType);
