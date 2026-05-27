@@ -1,10 +1,9 @@
 [build]
   publish = "public_dist"
   functions = "netlify/functions"
-  command = "npm run build && node ./scripts/postbuild.cjs"
+  command = "npm run build"
 
 [build.environment]
-  # Allow legacy peer deps to support Vite 8 + some plugins that haven't fully updated yet
   NPM_FLAGS = "--legacy-peer-deps"
 
 [functions]
@@ -25,6 +24,16 @@ targetPort = 5175
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.pexels.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.openai.com https://generativelanguage.googleapis.com; font-src 'self' data:; frame-ancestors 'none';"
 
 [[redirects]]
-from = "/api/*"
-to = "/.netlify/functions/:splat"
-status = 200
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

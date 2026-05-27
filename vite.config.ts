@@ -36,6 +36,7 @@ console.log("Name: 'smartcrm', exposes: { './SmartCRMApp': './src/SmartCRMApp.ts
 console.log("=== MF DIAGNOSTIC END ===\n");
 
 export default defineConfig({
+  base: "/",
   plugins: [
     react(),
     federation({

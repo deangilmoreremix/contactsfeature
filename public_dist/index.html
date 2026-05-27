@@ -2,53 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" crossorigin href="/assets/bootstrap-mttzmQDj.css">
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart CRM Dashboard</title>
     <script type="module" crossorigin src="/assets/index-BF9oT5DV.js"></script>
-    <meta name="x-build-id" content="1779865003198">
   </head>
   <body>
     <div id="root">
       <!-- App will render here -->
     </div>
-    <script>
-      // Inline bootstrap: show immediate visual marker and install global error handlers
-      (function(){
-        try {
-          var root = document.getElementById('root');
-          if (root) {
-            root.innerHTML = '<div id="__inline_bootstrap" style="padding:20px;background:#fff7ed;color:#92400e;font-family:system-ui;">INLINE BOOTSTRAP: DOM ready — awaiting module execution...</div><pre data-app-error style="margin:10px 0 0 0;padding:10px;background:#fef2f2;color:#991b1b;font-size:12px;display:none;"></pre>';
-          }
-          window.__INLINE_BOOTSTRAP = true;
-
-          // Unregister any service workers to avoid stale cached bundles
-          if (navigator && navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-            navigator.serviceWorker.getRegistrations().then(function(regs){
-              regs.forEach(function(reg){ try { reg.unregister(); console.log('SW unregistered for debug'); } catch(e){} });
-            }).catch(function(){/*ignore*/});
-          }
-
-          // Global error capture: show errors in the root to surface silent failures
-          window.addEventListener('error', function(evt){
-            try {
-              var el = document.getElementById('__inline_bootstrap');
-              if (el) el.innerHTML = '<strong style="color:#b91c1c">UNCAUGHT ERROR:</strong><br>' + (evt && evt.error && evt.error.message ? evt.error.message : evt.message || String(evt));
-            } catch(e){}
-          });
-          window.addEventListener('unhandledrejection', function(evt){
-            try {
-              var el = document.getElementById('__inline_bootstrap');
-              if (el) el.innerHTML = '<strong style="color:#b91c1c">UNHANDLED REJECTION:</strong><br>' + (evt && evt.reason ? String(evt.reason) : 'unknown');
-            } catch(e){}
-          });
-
-          console.log('INLINE BOOTSTRAP INSTALLED');
-        } catch (e) {
-          try { console.error('INLINE BOOTSTRAP ERROR', e); } catch(_){}
-        }
-      })();
-    </script>
   </body>
 </html>
