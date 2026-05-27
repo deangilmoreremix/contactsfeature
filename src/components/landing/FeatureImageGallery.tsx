@@ -21,7 +21,7 @@ export const FeatureImageGallery: React.FC = () => {
   const featureImages: FeatureImage[] = [
     {
       id: 'contacts',
-      src: '/contacts_smartcrm.png',
+      src: 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       alt: 'Smart CRM Contacts Interface',
       title: 'AI-Powered Contact Management',
       description: 'Intelligent contact cards with AI insights, scoring, and automated actions',
@@ -31,7 +31,7 @@ export const FeatureImageGallery: React.FC = () => {
     },
     {
       id: 'email',
-      src: '/email.png',
+      src: 'https://images.pexels.com/photos/5325757/pexels-photo-5325757.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       alt: 'AI Email Composer and Tools',
       title: 'AI Email Composer & Tools',
       description: 'Generate personalized emails with AI, templates, and analytics',
@@ -41,7 +41,7 @@ export const FeatureImageGallery: React.FC = () => {
     },
     {
       id: 'journey',
-      src: '/journey.png',
+      src: 'https://images.pexels.com/photos/3861968/pexels-photo-3861968.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       alt: 'Contact Journey Timeline',
       title: 'Visual Journey Timeline',
       description: 'Track complete customer journey with interactions and milestones',
@@ -51,7 +51,7 @@ export const FeatureImageGallery: React.FC = () => {
     },
     {
       id: 'new_contact',
-      src: '/new_contact.png',
+      src: 'https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       alt: 'New Contact Creation Form',
       title: 'Smart Contact Creation',
       description: 'AI-assisted contact creation with auto-fill and enrichment',
@@ -61,7 +61,7 @@ export const FeatureImageGallery: React.FC = () => {
     },
     {
       id: 'export',
-      src: '/export.png',
+      src: 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       alt: 'Data Export and Integration',
       title: 'Export & Integration Hub',
       description: 'Seamless data export and third-party integrations',
