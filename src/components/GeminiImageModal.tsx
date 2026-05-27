@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// Google Generative AI is optional - imported dynamically to prevent crashes
 import { ModernButton } from './ui/ModernButton';
 import { GlassCard } from './ui/GlassCard';
 import {
@@ -135,7 +135,26 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamingControllerRef = useRef<AbortController | null>(null);
 
-  const ai = useMemo(() => new GoogleGenerativeAI(import.meta.env['VITE_GEMINI_API_KEY'] || ''), []);
+  // Cached AI client for image generation - lazily initialized
+let aiClient: any = null;
+const getAIClient = async () => {
+  if (aiClient) return aiClient;
+  try {
+    const key = import.meta.env['VITE_GEMINI_API_KEY'];
+    if (!key) {
+      console.warn('VITE_GEMINI_API_KEY not configured - image generation disabled');
+      return null;
+    }
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    aiClient = new GoogleGenerativeAI(key);
+    return aiClient;
+  } catch (e) {
+    console.warn('Google Generative AI not available - image generation disabled', e);
+    return null;
+  }
+};
+
+const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
 
   // init / reset
   useEffect(() => {
@@ -219,6 +238,15 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
 
   // Enhanced streaming generation with collaborative features
   async function generate(runFromHistoryId?: string, onProgress?: (update: StreamingUpdate) => void) {
+    // Lazily get AI client
+    const ai = await getAIClient();
+    if (!ai) {
+      setError('Google Generative AI is not available. Please configure VITE_GEMINI_API_KEY.');
+      setLoading(false);
+      onProgress?.({ type: 'error', error: 'Google Generative AI not configured' });
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setImages([]);

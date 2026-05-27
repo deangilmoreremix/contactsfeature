@@ -4,6 +4,8 @@ import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import { ConversationalAIWidget } from '../ui/ConversationalAIWidget';
 import GeminiImageModal from '../GeminiImageModal';
+import { useNetlifyAuth } from '../../contexts/NetlifyAuthContext';
+import { LogIn, LogOut } from 'lucide-react';
 import {
   Search,
   Bell,
@@ -76,6 +78,41 @@ const contentTools = [
   { name: 'Voice Profiles', icon: MessageSquare },
   { name: 'Business Analysis', icon: BarChart3 },
 ];
+
+const NetlifyAuthNav: React.FC = () => {
+  const { user, isLoggedIn, isLoading, login, logout } = useNetlifyAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center space-x-2">
+      {isLoggedIn && user ? (
+        <>
+          <span className="text-sm text-gray-600">{user.email}</span>
+          <button
+            onClick={logout}
+            className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={login}
+          className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          title="Login with Netlify Identity"
+        >
+          <LogIn className="w-4 h-4" />
+          <span>Login</span>
+        </button>
+      )}
+    </div>
+  );
+};
 
 export const EnhancedNavbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -185,7 +222,7 @@ export const EnhancedNavbar: React.FC = () => {
               items={contentTools} 
               isOpen={activeDropdown === 'Content'} 
             />
-          </nav>
+</nav>
         </div>
 
         {/* Right Side - Search, Notifications, Profile */}
@@ -198,6 +235,8 @@ export const EnhancedNavbar: React.FC = () => {
               className="pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
             />
           </div>
+          
+          <NetlifyAuthNav />
           
           <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors relative">
             <Bell className="w-5 h-5" />

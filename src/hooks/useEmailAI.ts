@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { logger } from '../services/logger.service';
 import { cacheService } from '../services/cache.service';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabase';
 import { Contact } from '../types';
 
 // Enhanced interfaces with streaming and caching support

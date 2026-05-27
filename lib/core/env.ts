@@ -1,7 +1,8 @@
 export function requireEnv(name: string): string {
   const value = import.meta.env[name];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    console.warn(`Missing environment variable: ${name}. Using fallback for demo mode.`);
+    return '';
   }
   return value;
 }

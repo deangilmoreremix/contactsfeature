@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { AIProvider } from './contexts/AIContext';
 import { ViewProvider } from './contexts/ViewContext';
+import { NetlifyAuthProvider } from './contexts/NetlifyAuthContext';
 
 // Simple root ErrorBoundary for safe embedding inside the host shell
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
@@ -80,25 +81,25 @@ const SECTION_LABELS: Record<AppSection, string> = {
 console.log('BUILD_ID:', new Date().toISOString());
 
 const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
+   sharedData,
+   initialRoute,
+   onEvent,
+   onDataUpdate,
+ }) => {
+   // Strict standalone vs embedded detection (for better host vs direct URL behavior)
+   const isStandalone = !sharedData && !onEvent && !initialRoute;
 
-  sharedData,
-  initialRoute,
-  onEvent,
-  onDataUpdate,
-}) => {
-  // Runtime confirmation + strict mode detection
-  useEffect(() => {
-    console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
-    console.log(`%c[SmartCRM Remote] Running in ${isStandalone ? 'STANDALONE' : 'EMBEDDED (MF Host)'} mode. Default = full app. Landing is opt-in via initialRoute.`, 'color:#6366f1');
-  }, [isStandalone]);
-  // === Internal Navigation (lightweight, no extra deps) ===
-  // For standalone access (e.g. https://contacts.smartcrm.vip/), default to the full functional app.
-  // The landing page is only shown when explicitly requested via initialRoute (usually by the host).
-  const [currentSection, setCurrentSection] = useState<AppSection>('contacts');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+   // === Internal Navigation (lightweight, no extra deps) ===
+   // For standalone access (e.g. https://contacts.smartcrm.vip/), default to the full functional app.
+   // The landing page is only shown when explicitly requested via initialRoute (usually by the host).
+   const [currentSection, setCurrentSection] = useState<AppSection>('contacts');
+   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Strict standalone vs embedded detection (for better host vs direct URL behavior)
-  const isStandalone = !sharedData && !onEvent && !initialRoute;
+   // Runtime confirmation + strict mode detection
+   useEffect(() => {
+     console.log('%c[SmartCRM Remote] FULL APPLICATION BOOTSTRAP COMPLETE — every feature, layout, and page is now active.', 'color:#16a34a; font-weight:600');
+     console.log(`%c[SmartCRM Remote] Running in ${isStandalone ? 'STANDALONE' : 'EMBEDDED (MF Host)'} mode. Default = full app. Landing is opt-in via initialRoute.`, 'color:#6366f1');
+   }, [isStandalone]);
 
   // Map initialRoute from host (or direct URL) to sections.
   // Landing is opt-in via initialRoute containing 'landing' / 'overview'.
@@ -212,100 +213,100 @@ const SmartCRMApp: React.FC<SmartCRMRemoteProps> = ({
 
   // Root error boundary for host embedding robustness
   return (
-    <AIProvider>
-      <ViewProvider>
-        <RootErrorBoundary>
-          <div className="h-screen w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100" data-smartcrm-remote-root="true">
-      {/* Top Shell — full experience navbar */}
-      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur z-50">
-        <EnhancedNavbar />
-      </div>
+    <NetlifyAuthProvider>
+      <AIProvider>
+        <ViewProvider>
+          <RootErrorBoundary>
+            <div className="h-screen w-full flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100" data-smartcrm-remote-root="true">
+              {/* Top Shell — full experience navbar */}
+              <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur z-50">
+                <EnhancedNavbar />
+              </div>
 
-      {/* Main Body: Sidebar + Content (true desktop app shell) */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Collapsible Sidebar */}
-        <div className={`${sidebarOpen ? 'w-64' : 'w-16'} flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all duration-200 overflow-y-auto`}>
-          <div className="p-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 mb-3"
-            >
-              {sidebarOpen ? '← Collapse' : '→'}
-            </button>
+              {/* Main Body: Sidebar + Content (true desktop app shell) */}
+              <div className="flex flex-1 overflow-hidden">
+                {/* Collapsible Sidebar */}
+                <div className={`${sidebarOpen ? 'w-64' : 'w-16'} flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all duration-200 overflow-y-auto`}>
+                  <div className="p-3">
+                    <button
+                      onClick={() => setSidebarOpen(!sidebarOpen)}
+                      className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 mb-3"
+                    >
+                      {sidebarOpen ? '← Collapse' : '→'}
+                    </button>
 
-            {/* Reusable Sidebar with enhanced navigation for full app */}
-            <Sidebar
-              onContactsClick={() => navigateTo('contacts')}
-              // Extend the component at runtime for full navigation
-              // (we also provide our own enhanced list below for completeness)
-            />
+                    {/* Reusable Sidebar with enhanced navigation for full app */}
+                    <Sidebar
+                      onContactsClick={() => navigateTo('contacts')}
+                    />
 
-            {/* Enhanced full-app nav (works even if Sidebar is icon-only) */}
-            <div className="mt-4 space-y-1 text-sm">
-              {([
-                ['landing', '✨ Landing / Overview'],
-                ['dashboard', 'Dashboard'],
-                ['contacts', 'Contacts'],
-                ['pipeline', 'Pipeline'],
-                ['products', 'Products'],
-                ['ai-tools', 'AI Studio (29 tools)'],
-                ['user-management', 'Team & Users'],
-                ['gtm-prompts', 'GTM Prompt Hub'],
-              ] as const).map(([key, label]) => (
+                    {/* Enhanced full-app nav (works even if Sidebar is icon-only) */}
+                    <div className="mt-4 space-y-1 text-sm">
+                      {([
+                        ['landing', '✨ Landing / Overview'],
+                        ['dashboard', 'Dashboard'],
+                        ['contacts', 'Contacts'],
+                        ['pipeline', 'Pipeline'],
+                        ['products', 'Products'],
+                        ['ai-tools', 'AI Studio (29 tools)'],
+                        ['user-management', 'Team & Users'],
+                        ['gtm-prompts', 'GTM Prompt Hub'],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          onClick={() => navigateTo(key as AppSection)}
+                          className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center gap-2 ${
+                            currentSection === key
+                              ? 'bg-blue-600 text-white font-medium'
+                              : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Content Area — the complete application for the chosen section */}
+                <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">
+                  <div className="min-h-full">
+                    {/* Mode indicator + Host context banner */}
+                    <div className={`px-4 py-1 text-[10px] flex items-center justify-between border-b ${isStandalone 
+                      ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900' 
+                      : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900'
+                    }`}>
+                      <span>
+                        {isStandalone 
+                          ? 'Running STANDALONE (direct URL access)' 
+                          : `Embedded in SmartCRM Host • ${sharedData?.user?.email || 'authenticated'} • ${sharedData?.tenant?.name || 'default'}`}
+                      </span>
+                      <span className="font-mono">initialRoute: {initialRoute || '/'} {isStandalone && '• full app default'}</span>
+                    </div>
+
+                    {/* The actual full feature content */}
+                    <div className="p-4 md:p-6">
+                      {renderCurrentSection()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom status bar for polish & host event hook */}
+              <div className="flex-shrink-0 h-8 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 text-xs flex items-center px-4 text-gray-500">
+                SmartCRM Remote — Full Application Bootstrap • Section: {SECTION_LABELS[currentSection]}
                 <button
-                  key={key}
-                  onClick={() => navigateTo(key as AppSection)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center gap-2 ${
-                    currentSection === key
-                      ? 'bg-blue-600 text-white font-medium'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
+                  onClick={() => notifyHost('remote-action', { action: 'ping', section: currentSection })}
+                  className="ml-auto text-blue-600 hover:underline"
                 >
-                  {label}
+                  Send heartbeat to host
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Primary Content Area — the complete application for the chosen section */}
-        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">
-          <div className="min-h-full">
-            {/* Mode indicator + Host context banner */}
-            <div className={`px-4 py-1 text-[10px] flex items-center justify-between border-b ${isStandalone 
-              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900' 
-              : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900'
-            }`}>
-              <span>
-                {isStandalone 
-                  ? 'Running STANDALONE (direct URL access)' 
-                  : `Embedded in SmartCRM Host • ${sharedData?.user?.email || 'authenticated'} • ${sharedData?.tenant?.name || 'default'}`}
-              </span>
-              <span className="font-mono">initialRoute: {initialRoute || '/'} {isStandalone && '• full app default'}</span>
-            </div>
-
-            {/* The actual full feature content */}
-            <div className="p-4 md:p-6">
-              {renderCurrentSection()}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom status bar for polish & host event hook */}
-      <div className="flex-shrink-0 h-8 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 text-xs flex items-center px-4 text-gray-500">
-        SmartCRM Remote — Full Application Bootstrap • Section: {SECTION_LABELS[currentSection]}
-        <button
-          onClick={() => notifyHost('remote-action', { action: 'ping', section: currentSection })}
-          className="ml-auto text-blue-600 hover:underline"
-        >
-          Send heartbeat to host
-        </button>
-      </div>
-    </div>
-        </RootErrorBoundary>
-      </ViewProvider>
-    </AIProvider>
+          </RootErrorBoundary>
+        </ViewProvider>
+      </AIProvider>
+    </NetlifyAuthProvider>
   );
 };
 

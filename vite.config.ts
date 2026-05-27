@@ -18,13 +18,25 @@ function fixFederationCssForVite8(): Plugin {
     name: "fix-federation-css-vite8",
     apply: "build",
     closeBundle() {
-      const remoteEntry = path.resolve("dist", "remoteEntry.js");
-      if (!fs.existsSync(remoteEntry)) return;
-      let code = fs.readFileSync(remoteEntry, "utf8");
+      const candidates = [
+        path.resolve("dist", "remoteEntry.js"),
+        path.resolve("dist", "assets", "remoteEntry.js"),
+        path.resolve("dist", "assets", "remoteEntry-remoteEntry.js"),
+      ];
+      // Find the first existing remoteEntry file produced by various build configs
+      const found = candidates.find((p) => fs.existsSync(p));
+      if (!found) {
+        console.warn('[MF] No remoteEntry.js found in dist to patch (tried: ' + candidates.join(', ') + ')');
+        return;
+      }
+      let code = fs.readFileSync(found, "utf8");
       // Replace any `__v__css__...` template literal passed to dynamicLoadingCss with []
       code = code.replace(/`__v__css__[^`]*`/g, "[]");
-      fs.writeFileSync(remoteEntry, code);
-      console.log("[MF] Applied Vite 8 CSS workaround patch to remoteEntry.js");
+
+      // Ensure final artifact is available at dist/remoteEntry.js (hosts expect root path)
+      const target = path.resolve("dist", "remoteEntry.js");
+      fs.writeFileSync(target, code);
+      console.log(`[MF] Patched remoteEntry (${found}) and wrote normalized copy to ${target}`);
     },
   };
 }
@@ -36,23 +48,25 @@ console.log("Name: 'smartcrm', exposes: { './SmartCRMApp': './src/SmartCRMApp.ts
 console.log("=== MF DIAGNOSTIC END ===\n");
 
 export default defineConfig({
+  base: '/',
+  // Enable verbose build logging for MF diagnostics
   plugins: [
     react(),
     federation({
       name: "smartcrm",
       filename: "remoteEntry.js",
-exposes: {
+    exposes: {
          // Primary full-application root (per host bootstrap spec)
          "./SmartCRMApp": "./src/SmartCRMApp.tsx",
-         // Expose the FULL application layout as './App' for host compatibility
-         "./App": "./src/SmartCRMApp.tsx",
+         // Expose the legacy minimal app as './App' for host compatibility
+         "./App": "./src/App.tsx",
          // Mount API for host-controlled mounting/unmounting
          "./mount": "./src/mount.tsx",
        },
       shared: {
-          react: { singleton: true, requiredVersion: '^18.0.0' },
-          'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
-          'react-router-dom': { singleton: true, requiredVersion: '^6.0.0' },
+          react: { singleton: true, requiredVersion: false },
+          'react-dom': { singleton: true, requiredVersion: false },
+          'react-router-dom': { singleton: true, requiredVersion: false },
           zustand: { singleton: true }
         },
     }),
@@ -60,6 +74,9 @@ exposes: {
   ],
   optimizeDeps: {
     include: ["react", "react-dom", "@supabase/supabase-js"],
+  },
+  ssr: {
+    external: ["@google/generative-ai"],
   },
   define: {
     global: "globalThis",

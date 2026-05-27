@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock Supabase client
-vi.mock('../services/supabaseClient', () => {
+vi.mock('../lib/supabase', () => {
   const mockInvoke = vi.fn();
   return {
     supabase: {
@@ -18,7 +18,7 @@ vi.mock('../services/supabaseClient', () => {
 });
 
 import { edgeFunctionService } from '../services/edgeFunctionService';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabase';
 
 describe('Edge Function Service', () => {
   beforeEach(() => {

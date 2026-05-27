@@ -3,7 +3,7 @@
  * Functions to gather and format CRM data for AI processing
  */
 
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabase';
 import type { CrmContext } from './types';
 
 export async function buildContactSnapshot(contactId: string): Promise<CrmContext> {

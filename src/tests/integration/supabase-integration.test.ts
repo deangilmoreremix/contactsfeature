@@ -5,9 +5,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { agentService } from '../../services/agentService';
-import { supabase } from '../../services/supabaseClient';
+import { supabase } from '../../lib/supabase';
 
-vi.mock('../../services/supabaseClient', () => ({
+vi.mock('../../lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn(),
