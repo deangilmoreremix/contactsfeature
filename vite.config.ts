@@ -32,28 +32,27 @@ function fixFederationCssForVite8(): Plugin {
 console.log("\n=== MF DIAGNOSTIC (ACTIVE) ===");
 console.log("MF STATUS: ENABLED with Vite 8 workaround");
 console.log("This remote will emit dist/remoteEntry.js and register as federated module.");
-console.log("Name: 'smartcrm', exposes: { './SmartCRMApp': './src/SmartCRMApp.tsx' (FULL APP), './App' (legacy) }");
+console.log("Name: 'smartcrm', exposes: { './SmartCRMApp': './src/SmartCRMApp.tsx', './App': './src/App.tsx' (modal shell) }");
 console.log("=== MF DIAGNOSTIC END ===\n");
 
 export default defineConfig({
-   base: '/',
-   plugins: [
-     react(),
-federation({
+    plugins: [
+      react(),
+    federation({
         name: "smartcrm",
         filename: "remoteEntry.js",
-exposes: {
-           // Primary full-application root (per host bootstrap spec)
-           "./SmartCRMApp": "./src/SmartCRMApp.tsx",
-           // Expose the FULL application layout as './App' for host compatibility
-           "./App": "./src/SmartCRMApp.tsx",
-           // Mount API for host-controlled mounting/unmounting
-           "./mount": "./src/mount.tsx",
-         },
+        exposes: {
+            // Full application for standalone use
+            "./SmartCRMApp": "./src/SmartCRMApp.tsx",
+            // Legacy modal-based shell (compatible with host federation)
+            "./App": "./src/App.tsx",
+            // Mount API for host-controlled mounting/unmounting
+            "./mount": "./src/mount.tsx",
+          },
         shared: ["react", "react-dom", "zustand"],
       }),
-     fixFederationCssForVite8(),
-   ],
+      fixFederationCssForVite8(),
+    ],
    optimizeDeps: {
      include: ["react", "react-dom", "@supabase/supabase-js"],
    },
