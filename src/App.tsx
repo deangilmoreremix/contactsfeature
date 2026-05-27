@@ -26,7 +26,7 @@ const ContactsModal = lazy(
 );
 const Products = lazy(
   () => import("./pages/Products")
-    .then(m => { console.log('Products chunk loaded'); return m; })
+    .then(m => { console.log('Products chunk loaded'); return { default: m.default || m.Products }; })
     .catch(e => { console.error('Products chunk FAILED:', e); return { default: () => <div>Failed to load Products</div> }; })
 );
 
