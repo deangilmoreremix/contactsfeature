@@ -52,9 +52,13 @@ class LoggerService {
   
   private getSessionId(): string {
     // Generate or retrieve session ID
+    // Safe check for SSR environments where sessionStorage might not exist
+    if (typeof sessionStorage === 'undefined') {
+      return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
     let sessionId = sessionStorage.getItem('smartcrm_session_id');
     if (!sessionId) {
-      sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       sessionStorage.setItem('smartcrm_session_id', sessionId);
     }
     return sessionId;
@@ -83,19 +87,20 @@ class LoggerService {
     this.sendToRemoteLogger(entry);
   }
   
-  private async sendToRemoteLogger(entry: LogEntry): Promise<void> {
+private async sendToRemoteLogger(entry: LogEntry): Promise<void> {
     // Implementation would send logs to external service
     // For now, just store locally
     try {
+      if (typeof localStorage === 'undefined') return;
       const storedLogs = localStorage.getItem('smartcrm_logs');
       const logs = storedLogs ? JSON.parse(storedLogs) : [];
       logs.push(entry);
-      
+
       // Keep only last 100 logs in localStorage
       if (logs.length > 100) {
         logs.splice(0, logs.length - 100);
       }
-      
+
       localStorage.setItem('smartcrm_logs', JSON.stringify(logs));
     } catch (error) {
       console.error('Failed to store log:', error);
@@ -162,7 +167,9 @@ class LoggerService {
   // Clear logs
   clearLogs(): void {
     this.logs = [];
-    localStorage.removeItem('smartcrm_logs');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('smartcrm_logs');
+    }
   }
   
   // Export logs for analysis

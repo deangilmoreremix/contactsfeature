@@ -60,26 +60,30 @@ class HttpClientService {
     this.loadTokens();
   }
   
-  private loadTokens(): void {
+private loadTokens(): void {
+    if (typeof localStorage === 'undefined') return;
     this.authToken = localStorage.getItem(apiConfig.auth.tokenKey);
     this.refreshToken = localStorage.getItem(apiConfig.auth.refreshTokenKey);
   }
-  
+
   private saveTokens(accessToken: string, refreshToken?: string): void {
+    if (typeof localStorage === 'undefined') return;
     this.authToken = accessToken;
     localStorage.setItem(apiConfig.auth.tokenKey, accessToken);
-    
+
     if (refreshToken) {
       this.refreshToken = refreshToken;
       localStorage.setItem(apiConfig.auth.refreshTokenKey, refreshToken);
     }
   }
-  
+
   private clearTokens(): void {
     this.authToken = null;
     this.refreshToken = null;
-    localStorage.removeItem(apiConfig.auth.tokenKey);
-    localStorage.removeItem(apiConfig.auth.refreshTokenKey);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(apiConfig.auth.tokenKey);
+      localStorage.removeItem(apiConfig.auth.refreshTokenKey);
+    }
   }
   
   private async refreshAccessToken(): Promise<string> {

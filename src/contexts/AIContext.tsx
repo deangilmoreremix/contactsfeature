@@ -222,6 +222,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
   // Load user preferences from localStorage
   useEffect(() => {
+    if (typeof localStorage === 'undefined') return;
     const savedPreferences = localStorage.getItem('ai_preferences');
     if (savedPreferences) {
       try {
@@ -235,6 +236,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
   // Save preferences to localStorage when they change
   useEffect(() => {
+    if (typeof localStorage === 'undefined') return;
     localStorage.setItem('ai_preferences', JSON.stringify(state.aiPreferences));
   }, [state.aiPreferences]);
 
