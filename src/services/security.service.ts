@@ -79,6 +79,7 @@ class SecurityService {
    */
   private setupCSRFProtection(): void {
     if (!this.config.enableCSRF) return;
+    if (typeof sessionStorage === 'undefined') return;
 
     // Generate CSRF token
     const token = this.generateSecureToken();
