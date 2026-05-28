@@ -5,6 +5,7 @@ const path = require('path');
   try {
     const buildId = Date.now().toString();
     const distDir = path.resolve(__dirname, '..', 'dist');
+    const publicDir = path.resolve(__dirname, '..', 'public_dist');
 
     // 1) Write force-new-deploy file
     const touchPath = path.join(distDir, `force-new-deploy-${buildId}.txt`);
@@ -18,7 +19,7 @@ const path = require('path');
       // Remove any existing x-build-id meta
       indexHtml = indexHtml.replace(/<meta name="x-build-id" content="[^"]*">/g, '');
       // Insert meta just before </head>
-      indexHtml = indexHtml.replace('</head>', `  <meta name="x-build-id" content="${buildId}">\n</head>`);
+      indexHtml = indexHtml.replace('</head>', `  <meta name="x-build-id" content="${buildId}">\n  </head>`);
       fs.writeFileSync(indexPath, indexHtml, 'utf8');
       console.log('[postbuild] injected x-build-id into index.html', buildId);
     } else {
@@ -30,13 +31,13 @@ const path = require('path');
     if (fs.existsSync(swPath)) {
       let sw = fs.readFileSync(swPath, 'utf8');
       // Replace CACHE_NAME, STATIC_CACHE, DYNAMIC_CACHE occurrences
-      sw = sw.replace(/const CACHE_NAME = 'contacts-app-[^']*';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
-      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-[^']*';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
-      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-[^']*';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+      sw = sw.replace(/const CACHE_NAME = \'contacts-app-[^\']*\';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = \'contacts-static-[^\']*\';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = \'contacts-dynamic-[^\']*\';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
       // Fallback: if original constants are without -<id>, replace those too
-      sw = sw.replace(/const CACHE_NAME = 'contacts-app-v1';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
-      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-v1';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
-      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-v1';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+      sw = sw.replace(/const CACHE_NAME = \'contacts-app-v1\';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = \'contacts-static-v1\';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = \'contacts-dynamic-v1\';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
 
       fs.writeFileSync(swPath, sw, 'utf8');
       console.log('[postbuild] updated sw.js cache names with buildId', buildId);
@@ -63,7 +64,6 @@ const path = require('path');
 
     // 5) Copy dist -> public_dist so Netlify publish dir has the built files
     try {
-      const publicDir = path.resolve(__dirname, '..', 'public_dist');
       if (fs.existsSync(publicDir)) {
         fs.rmSync(publicDir, { recursive: true, force: true });
       }
@@ -87,6 +87,35 @@ const path = require('path');
       console.log('[postbuild] copied dist to public_dist');
     } catch (e) {
       console.warn('[postbuild] failed to copy dist to public_dist', e);
+    }
+
+    // 6) Fix index.html script paths for Netlify hosting
+    // Vite's base: '/assets/' puts JS at /assets/main-xxx.js, but Netlify serves from root
+    const publicIndexPath = path.join(publicDir, 'index.html');
+    if (fs.existsSync(publicIndexPath)) {
+      let publicIndexHtml = fs.readFileSync(publicIndexPath, 'utf8');
+      // Change /assets/ to assets/ (relative path) for both src and href
+      publicIndexHtml = publicIndexHtml.replace(/src="\/assets\//g, 'src="assets/');
+      publicIndexHtml = publicIndexHtml.replace(/href="\/assets\//g, 'href="assets/');
+      
+      // Find the CSS file hash from main.js deps array
+      const mainJsPath = path.join(publicDir, 'assets/main-', 'L7O3YPwG.js');
+      const mainJsMatch = fs.readdirSync(path.join(publicDir, 'assets'))
+        .find(f => f.startsWith('main-') && f.endsWith('.js'));
+      
+      if (mainJsMatch) {
+        const mainJs = fs.readFileSync(path.join(publicDir, 'assets', mainJsMatch), 'utf8');
+        const cssMatch = mainJs.match(/assets\/bootstrap-([a-zA-Z0-9-]+)\.css/);
+        if (cssMatch) {
+          publicIndexHtml = publicIndexHtml.replace(
+            /<\/head>/,
+            `  <link rel="stylesheet" crossorigin href="assets/bootstrap-${cssMatch[1]}.css">\n  </head>`
+          );
+        }
+      }
+      
+      fs.writeFileSync(publicIndexPath, publicIndexHtml, 'utf8');
+      console.log('[postbuild] fixed index.html paths for Netlify');
     }
 
     console.log('[postbuild] done');
