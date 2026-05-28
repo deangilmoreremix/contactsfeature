@@ -89,6 +89,17 @@ const path = require('path');
       console.warn('[postbuild] failed to copy dist to public_dist', e);
     }
 
+    // 6) Fix index.html script paths for Netlify hosting
+    // Vite's base: '/assets/' puts JS at /assets/main-xxx.js, but Netlify serves from root
+    const publicIndexPath = path.join(publicDir, 'index.html');
+    if (fs.existsSync(publicIndexPath)) {
+      let publicIndexHtml = fs.readFileSync(publicIndexPath, 'utf8');
+      // Change /assets/ to assets/ (relative path)
+      publicIndexHtml = publicIndexHtml.replace(/src="\/assets\//g, 'src="assets/');
+      fs.writeFileSync(publicIndexPath, publicIndexHtml, 'utf8');
+      console.log('[postbuild] fixed index.html paths for Netlify');
+    }
+
     console.log('[postbuild] done');
   } catch (err) {
     console.error('[postbuild] error', err);

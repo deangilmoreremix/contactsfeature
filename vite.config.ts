@@ -1,77 +1,14 @@
-import { defineConfig, Plugin } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import federation from "@originjs/vite-plugin-federation";
 import path from "path";
-import fs from "fs";
 
-// === MODULE FEDERATION CONFIG (Vite 8 + Rolldown compatible) ===
-// Re-enabled + patched to support loading inside SmartCRM host (app.smartcrm.vip)
-// Workaround for https://github.com/originjs/vite-plugin-federation/issues/740
-
-/**
- * Post-process remoteEntry.js after build to replace broken __v__css__ virtual module
- * references (from Rolldown in Vite 8) with empty arrays so dynamicLoadingCss doesn't crash.
- * This allows the remote to successfully bootstrap when imported by the host MF container.
- */
-function fixFederationCssForVite8(): Plugin {
-  return {
-    name: "fix-federation-css-vite8",
-    apply: "build",
-    closeBundle() {
-      const candidates = [
-        path.resolve("dist", "remoteEntry.js"),
-        path.resolve("dist", "assets", "remoteEntry.js"),
-        path.resolve("dist", "assets", "remoteEntry-remoteEntry.js"),
-      ];
-      // Find the first existing remoteEntry file produced by various build configs
-      const found = candidates.find((p) => fs.existsSync(p));
-      if (!found) {
-        console.warn('[MF] No remoteEntry.js found in dist to patch (tried: ' + candidates.join(', ') + ')');
-        return;
-      }
-      let code = fs.readFileSync(found, "utf8");
-      // Replace any `__v__css__...` template literal passed to dynamicLoadingCss with []
-      code = code.replace(/`__v__css__[^`]*`/g, "[]");
-
-      // Ensure final artifact is available at dist/remoteEntry.js (hosts expect root path)
-      const target = path.resolve("dist", "remoteEntry.js");
-      fs.writeFileSync(target, code);
-      console.log(`[MF] Patched remoteEntry (${found}) and wrote normalized copy to ${target}`);
-    },
-  };
-}
-
-console.log("\n=== MF DIAGNOSTIC (ACTIVE) ===");
-console.log("MF STATUS: ENABLED with Vite 8 workaround");
-console.log("This remote will emit dist/remoteEntry.js and register as federated module.");
-console.log("Name: 'smartcrm', exposes: { './SmartCRMApp': './src/SmartCRMApp.tsx' (FULL APP), './App' (legacy) }");
-console.log("=== MF DIAGNOSTIC END ===\n");
+console.log("\n=== BUILD (STANDALONE MODE - NO FEDERATION) ===");
+console.log("Publishing as standalone SPA for Netlify");
+console.log("=== BUILD END ===\n");
 
 export default defineConfig({
   base: '/',
-  // Enable verbose build logging for MF diagnostics
-  plugins: [
-    react(),
-    federation({
-      name: "smartcrm",
-      filename: "remoteEntry.js",
-    exposes: {
-         // Primary full-application root (per host bootstrap spec)
-         "./SmartCRMApp": "./src/SmartCRMApp.tsx",
-         // Expose the legacy minimal app as './App' for host compatibility
-         "./App": "./src/App.tsx",
-         // Mount API for host-controlled mounting/unmounting
-         "./mount": "./src/mount.tsx",
-       },
-      shared: {
-          react: { singleton: true, requiredVersion: false },
-          'react-dom': { singleton: true, requiredVersion: false },
-          'react-router-dom': { singleton: true, requiredVersion: false },
-          zustand: { singleton: true }
-        },
-    }),
-    fixFederationCssForVite8(),
-  ],
+  plugins: [react()],
   optimizeDeps: {
     include: ["react", "react-dom", "@supabase/supabase-js"],
   },
@@ -93,14 +30,11 @@ export default defineConfig({
     host: 'localhost',
     port: 5175,
     hmr: { overlay: false },
-    watch: { usePolling: true, interval: 1000 },
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     target: "esnext",
-    modulePreload: false,
-    cssCodeSplit: true,
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
@@ -120,11 +54,5 @@ export default defineConfig({
       }
     },
     minify: 'esbuild',
-    chunkSizeWarningLimit: 1000,
-    sourcemap: false,
-  },
-  esbuild: {
-    // Temporarily disabled for debugging blank page issue (no console output on Netlify)
-    // drop: ['console', 'debugger'],
   },
 });
