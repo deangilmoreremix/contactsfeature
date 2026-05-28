@@ -5,10 +5,14 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  NPM_FLAGS = "--legacy-peer-deps"
 
 [functions]
   directory = "netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 [[redirects]]
   from = "/api/*"
@@ -32,14 +36,6 @@
   to = "/.netlify/functions/auth-callback"
   status = 200
   force = true
-
-[template.environment]
-  SUPABASE_URL = "Your Supabase project URL"
-  SUPABASE_ANON_KEY = "Your Supabase anon key"
-
-[dev]
-  targetPort = 5175
-  framework = "#custom"
 
 [[headers]]
   for = "/*"
