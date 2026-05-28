@@ -36,7 +36,10 @@ if (rootElement) {
   const root = createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <SmartCRMApp sharedData={window.__SMARTCRM_SHARED_DATA__} initialRoute={window.__SMARTCRM_INITIAL_ROUTE__} />
+      <SmartCRMApp 
+        sharedData={(window as any).__SMARTCRM_SHARED_DATA__} 
+        initialRoute={(window as any).__SMARTCRM_INITIAL_ROUTE__} 
+      />
     </React.StrictMode>
   );
 } else {

@@ -19,7 +19,7 @@ const path = require('path');
       // Remove any existing x-build-id meta
       indexHtml = indexHtml.replace(/<meta name="x-build-id" content="[^"]*">/g, '');
       // Insert meta just before </head>
-      indexHtml = indexHtml.replace('</head>', `  <meta name="x-build-id" content="${buildId}">\n</head>`);
+      indexHtml = indexHtml.replace('</head>', `  <meta name="x-build-id" content="${buildId}">\n  </head>`);
       fs.writeFileSync(indexPath, indexHtml, 'utf8');
       console.log('[postbuild] injected x-build-id into index.html', buildId);
     } else {
@@ -97,6 +97,23 @@ const path = require('path');
       // Change /assets/ to assets/ (relative path) for both src and href
       publicIndexHtml = publicIndexHtml.replace(/src="\/assets\//g, 'src="assets/');
       publicIndexHtml = publicIndexHtml.replace(/href="\/assets\//g, 'href="assets/');
+      
+      // Find the CSS file hash from main.js deps array
+      const mainJsPath = path.join(publicDir, 'assets/main-', 'L7O3YPwG.js');
+      const mainJsMatch = fs.readdirSync(path.join(publicDir, 'assets'))
+        .find(f => f.startsWith('main-') && f.endsWith('.js'));
+      
+      if (mainJsMatch) {
+        const mainJs = fs.readFileSync(path.join(publicDir, 'assets', mainJsMatch), 'utf8');
+        const cssMatch = mainJs.match(/assets\/bootstrap-([a-zA-Z0-9-]+)\.css/);
+        if (cssMatch) {
+          publicIndexHtml = publicIndexHtml.replace(
+            /<\/head>/,
+            `  <link rel="stylesheet" crossorigin href="assets/bootstrap-${cssMatch[1]}.css">\n  </head>`
+          );
+        }
+      }
+      
       fs.writeFileSync(publicIndexPath, publicIndexHtml, 'utf8');
       console.log('[postbuild] fixed index.html paths for Netlify');
     }

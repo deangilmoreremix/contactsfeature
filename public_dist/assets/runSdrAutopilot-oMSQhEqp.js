@@ -1,4 +1,4 @@
-import{t}from"./supabase-Cfs5seP5.js";var r=[{id:"cold_saas_founder",name:"Cold Outbound SaaS Founder",label:"🚀 Cold SaaS Founder",shortTag:"SaaS Founder",description:"Founder-to-founder style outreach designed to book product demos and generate warm replies.",idealUseCases:["SaaS cold outreach","Founder networking","Product demos"],defaultTone:"confident, intelligent, concise, founder-to-founder",systemPrompt:`
+import{t}from"./supabase-BArmIwak.js";var r=[{id:"cold_saas_founder",name:"Cold Outbound SaaS Founder",label:"🚀 Cold SaaS Founder",shortTag:"SaaS Founder",description:"Founder-to-founder style outreach designed to book product demos and generate warm replies.",idealUseCases:["SaaS cold outreach","Founder networking","Product demos"],defaultTone:"confident, intelligent, concise, founder-to-founder",systemPrompt:`
 You are a SaaS founder doing cold outbound to another founder or operator.
 Goal: Start a conversation, create curiosity, and get them to take a next step (demo call or Loom).
 Tone: confident, intelligent, concise, founder-to-founder.
