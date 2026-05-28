@@ -5,6 +5,7 @@ const path = require('path');
   try {
     const buildId = Date.now().toString();
     const distDir = path.resolve(__dirname, '..', 'dist');
+    const publicDir = path.resolve(__dirname, '..', 'public_dist');
 
     // 1) Write force-new-deploy file
     const touchPath = path.join(distDir, `force-new-deploy-${buildId}.txt`);
@@ -30,13 +31,13 @@ const path = require('path');
     if (fs.existsSync(swPath)) {
       let sw = fs.readFileSync(swPath, 'utf8');
       // Replace CACHE_NAME, STATIC_CACHE, DYNAMIC_CACHE occurrences
-      sw = sw.replace(/const CACHE_NAME = 'contacts-app-[^']*';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
-      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-[^']*';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
-      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-[^']*';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+      sw = sw.replace(/const CACHE_NAME = \'contacts-app-[^\']*\';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = \'contacts-static-[^\']*\';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = \'contacts-dynamic-[^\']*\';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
       // Fallback: if original constants are without -<id>, replace those too
-      sw = sw.replace(/const CACHE_NAME = 'contacts-app-v1';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
-      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-v1';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
-      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-v1';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+      sw = sw.replace(/const CACHE_NAME = \'contacts-app-v1\';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = \'contacts-static-v1\';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = \'contacts-dynamic-v1\';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
 
       fs.writeFileSync(swPath, sw, 'utf8');
       console.log('[postbuild] updated sw.js cache names with buildId', buildId);
@@ -63,7 +64,6 @@ const path = require('path');
 
     // 5) Copy dist -> public_dist so Netlify publish dir has the built files
     try {
-      const publicDir = path.resolve(__dirname, '..', 'public_dist');
       if (fs.existsSync(publicDir)) {
         fs.rmSync(publicDir, { recursive: true, force: true });
       }
@@ -94,8 +94,9 @@ const path = require('path');
     const publicIndexPath = path.join(publicDir, 'index.html');
     if (fs.existsSync(publicIndexPath)) {
       let publicIndexHtml = fs.readFileSync(publicIndexPath, 'utf8');
-      // Change /assets/ to assets/ (relative path)
+      // Change /assets/ to assets/ (relative path) for both src and href
       publicIndexHtml = publicIndexHtml.replace(/src="\/assets\//g, 'src="assets/');
+      publicIndexHtml = publicIndexHtml.replace(/href="\/assets\//g, 'href="assets/');
       fs.writeFileSync(publicIndexPath, publicIndexHtml, 'utf8');
       console.log('[postbuild] fixed index.html paths for Netlify');
     }
