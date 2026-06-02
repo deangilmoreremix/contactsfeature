@@ -15,6 +15,7 @@ interface NetlifyUser {
   };
   created_at?: string;
   updated_at?: string;
+  jwt?: () => Promise<string>;
 }
 
 interface NetlifyIdentity {
@@ -28,7 +29,7 @@ interface NetlifyIdentity {
 
 declare global {
   interface Window {
-    netlifyIdentity: NetlifyIdentity;
+    netlifyIdentity?: NetlifyIdentity;
   }
 }
 

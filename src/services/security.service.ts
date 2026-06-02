@@ -55,16 +55,16 @@ class SecurityService {
 
     const csp = `
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://www.googletagmanager.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://www.googletagmanager.com https://identity.netlify.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
-      connect-src 'self' https://api.supabase.co https://*.supabase.co wss://*.supabase.co;
+      connect-src 'self' https://api.supabase.co https://*.supabase.co wss://*.supabase.co https://api.netlify.com;
       frame-src 'self' https://js.stripe.com https://www.youtube.com https://player.vimeo.com;
       object-src 'none';
       base-uri 'self';
       form-action 'self';
-      frame-ancestors 'none';
+      frame-ancestors 'self' https://*.smartcrm.vip https://app.smartcrm.vip;
     `.replace(/\s+/g, ' ').trim();
 
     // Add CSP meta tag
