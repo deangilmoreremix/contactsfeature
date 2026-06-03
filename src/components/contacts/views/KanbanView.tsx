@@ -150,7 +150,7 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
         </ModernButton>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+      <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4 flex-1 sm:overflow-x-hidden sm:overflow-y-auto lg:grid lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {sortedColumns.map((column, index) => {
           const columnContacts = getContactsForColumn(column.id);
           const isDraggedOver = draggedOverColumn === column.id;

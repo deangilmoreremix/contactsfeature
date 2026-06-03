@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { viewPreferencesService } from '../../../services/viewPreferences.service';
 import { GlassCard } from '../../ui/GlassCard';
-import { ModernButton } from '../../ui/ModernButton';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -11,9 +10,17 @@ import {
   Star,
   CheckSquare,
   Square,
-  Download
+  Download,
+  Trash2,
+  ChevronDown,
+  Tag,
+  MoreHorizontal,
+  Flame,
+  Snowflake,
+  RefreshCw
 } from 'lucide-react';
-import { logger } from '../../../services/logger.service';
+import { useContactStore } from '../../../hooks/useContactStore';
+import { useUpdateOneRecord } from '../../../hooks/useRecords';
 
 interface TableViewProps {
   contacts: Contact[];
@@ -37,18 +44,18 @@ const allColumns: ColumnDefinition[] = [
     sortable: true,
     width: 200,
     render: (value, contact) => (
-       <div className="flex items-center gap-3">
-         <img
-           src={contact.avatarSrc}
-           alt={contact.name}
-           className="w-8 h-8 rounded-full object-cover"
-           onError={(e) => {
-             e.target.onerror = null;
-             e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-             e.target.style.opacity = '0.7';
-           }}
-           loading="lazy"
-         />
+      <div className="flex items-center gap-3">
+        <img
+          src={contact.avatarSrc}
+          alt={contact.name}
+          className="w-8 h-8 rounded-full object-cover"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+            e.target.style.opacity = '0.7';
+          }}
+          loading="lazy"
+        />
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 dark:text-white">{value}</span>
@@ -187,6 +194,8 @@ const allColumns: ColumnDefinition[] = [
   }
 ];
 
+type SortDirection = 'asc' | 'desc';
+
 export function TableView({ contacts, onContactClick }: TableViewProps) {
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
     'name', 'email', 'company', 'title', 'status', 'interestLevel', 'aiScore'
@@ -196,13 +205,29 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   ]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [sortField, setSortField] = useState<string>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const updateContact = useContactStore((s) => s.updateContact);
+  const { updateRecord } = useUpdateOneRecord<Contact>({ tableName: 'contacts' });
 
-  useEffect(() => {
-    loadTablePreferences();
-  }, []);
+  const bulkStatusOptions = ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'];
+  const bulkInterestOptions = ['hot', 'medium', 'low', 'cold'];
+
+  const handleSort = (columnId: string) => {
+    setSortField(columnId);
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  const sortedContacts = [...contacts].sort((a, b) => {
+    const column = allColumns.find(col => col.id === sortField);
+    if (!column) return 0;
+    const aValue = column.accessor(a);
+    const bValue = column.accessor(b);
+    if (aValue === bValue) return 0;
+    const comparison = aValue < bValue ? -1 : 1;
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
 
   const loadTablePreferences = async () => {
     try {
@@ -213,7 +238,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
         setColumnWidths(prefs.column_widths);
       }
     } catch (error) {
-      logger.error('Failed to load table preferences', error as Error);
+      console.error('Failed to load table preferences', error);
     }
   };
 
@@ -225,30 +250,9 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
         columnWidths
       );
     } catch (error) {
-      logger.error('Failed to save table preferences', error as Error);
+      console.error('Failed to save table preferences', error);
     }
   };
-
-  const handleSort = (columnId: string) => {
-    if (sortField === columnId) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(columnId);
-      setSortDirection('asc');
-    }
-  };
-
-  const sortedContacts = [...contacts].sort((a, b) => {
-    const column = allColumns.find(col => col.id === sortField);
-    if (!column) return 0;
-
-    const aValue = column.accessor(a);
-    const bValue = column.accessor(b);
-
-    if (aValue === bValue) return 0;
-    const comparison = aValue < bValue ? -1 : 1;
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
 
   const toggleColumnVisibility = (columnId: string) => {
     setVisibleColumns(prev =>
@@ -260,22 +264,64 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   };
 
   const toggleSelectAll = () => {
-    if (selectedContacts.size === contacts.length) {
-      setSelectedContacts(new Set());
-    } else {
-      setSelectedContacts(new Set(contacts.map(c => c.id)));
-    }
+    setSelectedContacts(selectedContacts.size === contacts.length ? new Set() : new Set(contacts.map(c => c.id)));
   };
 
   const toggleSelectContact = (contactId: string) => {
-    const newSelected = new Set(selectedContacts);
-    if (newSelected.has(contactId)) {
-      newSelected.delete(contactId);
-    } else {
-      newSelected.add(contactId);
-    }
-    setSelectedContacts(newSelected);
+    setSelectedContacts(prev => {
+      const next = new Set(prev);
+      next.has(contactId) ? next.delete(contactId) : next.add(contactId);
+      return next;
+    });
   };
+
+  const updateContactField = async (contactId: string, field: string, rawValue: any) => {
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return;
+    const normalized = ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(String(rawValue).toLowerCase())
+      ? String(rawValue).toLowerCase()
+      : rawValue;
+    const updates: Partial<Contact> = { [field]: normalized as any, updatedAt: new Date().toISOString() };
+    updateContact(contactId, updates);
+    updateRecord(contactId, updates);
+  };
+
+  const bulkUpdateField = async (field: string, value: any) => {
+    const ids = Array.from(selectedContacts);
+    if (!ids.length) return;
+    updateContact(field, value as any);
+    await updateRecord(ids[0], { [field]: value, updatedAt: new Date().toISOString() });
+    setSelectedContacts(new Set());
+    setShowColumnConfig(false);
+  };
+
+  const bulkDeleteContacts = async () => {
+    const ids = Array.from(selectedContacts);
+    if (!ids.length || !confirm(`Delete ${ids.length} contacts?`)) return;
+    for (const id of ids) updateContact(id, { status: 'churned' as Contact['status'] });
+    setSelectedContacts(new Set());
+    setShowColumnConfig(false);
+  };
+
+  const bulkExportSelected = () => {
+    const selected = contacts.filter(c => selectedContacts.has(c.id));
+    const header = Object.keys(selected[0]).join(',');
+    const rows = selected.map(c => Object.values(c).map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','));
+    const blob = new Blob([header, ...rows].join('\n'), { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contacts-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSelectedContacts(new Set());
+    setShowColumnConfig(false);
+  };
+
+  const bulkChangeStatus = async (status: string) => bulkUpdateField('status', status);
+  const bulkChangeInterest = async (level: string) => bulkUpdateField('interestLevel', level);
+
+  useState(() => { loadTablePreferences(); });
 
   const orderedColumns = columnOrder
     .map(id => allColumns.find(col => col.id === id))
@@ -285,56 +331,64 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Contact Table
-          </h3>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            ({contacts.length} contacts)
-          </span>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Table</h3>
+          <span className="text-sm text-gray-500 dark:text-gray-400">({contacts.length} contacts)</span>
           {selectedContacts.size > 0 && (
-            <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-              {selectedContacts.size} selected
-            </span>
+            <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">{selectedContacts.size} selected</span>
           )}
         </div>
-
         <div className="flex items-center gap-2">
           {selectedContacts.size > 0 && (
-            <ModernButton variant="secondary" icon={Download} className="text-sm">
-              Export Selected
-            </ModernButton>
+            <div className="relative">
+              <GlassCard className="absolute right-0 top-full mt-2 w-64 z-50 shadow-xl border border-gray-200 dark:border-gray-700">
+                <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{selectedContacts.size} selected</p>
+                </div>
+                <div className="p-2">
+                  <button onClick={bulkExportSelected} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Export Selected</button>
+                  <div className="relative group">
+                    <button className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                      <span>Change Status</span><ChevronDown className="w-3 h-3" />
+                    </button>
+                    <div className="hidden group-hover:block absolute left-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 rounded-md z-50">
+                      {bulkStatusOptions.map(status => (
+                        <button key={status} onClick={() => bulkChangeStatus(status)} className="w-full text-left px-3 py-1.5 text-sm capitalize hover:bg-gray-100 dark:hover:bg-gray-700">{status}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="relative group">
+                    <button className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                      <span>Change Interest</span><ChevronDown className="w-3 h-3" />
+                    </button>
+                    <div className="hidden group-hover:block absolute left-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 rounded-md z-50">
+                      {bulkInterestOptions.map(level => (
+                        <button key={level} onClick={() => bulkChangeInterest(level)} className="w-full text-left px-3 py-1.5 text-sm capitalize hover:bg-gray-100 dark:hover:bg-gray-700">{level}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <hr className="my-2 border-gray-200 dark:border-gray-700" />
+                  <button onClick={bulkDeleteContacts} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md">Delete Selected</button>
+                </div>
+              </GlassCard>
+              <ModernButton variant="primary" onClick={() => setShowColumnConfig(!showColumnConfig)} icon={MoreHorizontal} className="text-sm">Bulk Actions</ModernButton>
+            </div>
           )}
-          <ModernButton
-            variant="secondary"
-            onClick={() => setShowColumnConfig(!showColumnConfig)}
-            icon={Settings}
-            className="text-sm"
-          >
-            Columns
-          </ModernButton>
+          <ModernButton variant="secondary" onClick={() => setShowColumnConfig(!showColumnConfig)} icon={Settings} className="text-sm">Columns</ModernButton>
         </div>
       </div>
 
       {showColumnConfig && (
         <GlassCard className="mb-4 p-4">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-            Configure Columns
-          </h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {allColumns.map(column => (
-              <label
-                key={column.id}
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-              >
+              <label key={column.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={visibleColumns.includes(column.id)}
                   onChange={() => toggleColumnVisibility(column.id)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {column.label}
-                </span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{column.label}</span>
               </label>
             ))}
           </div>
@@ -347,42 +401,22 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
             <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left w-12">
-                  <button
-                    onClick={toggleSelectAll}
-                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                  >
-                    {selectedContacts.size === contacts.length ? (
-                      <CheckSquare className="w-4 h-4" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
+                  <button onClick={toggleSelectAll} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    {selectedContacts.size === contacts.length && contacts.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   </button>
                 </th>
                 {orderedColumns.map(column => (
-                  <th
-                    key={column.id}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                    style={{ width: columnWidths[column.id] || column.width }}
-                  >
+                  <th key={column.id} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" style={{ width: columnWidths[column.id] || column.width }}>
                     {column.sortable ? (
-                      <button
-                        onClick={() => handleSort(column.id)}
-                        className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors group"
-                      >
+                      <button onClick={() => handleSort(column.id)} className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors group">
                         <span>{column.label}</span>
                         {sortField === column.id ? (
-                          sortDirection === 'asc' ? (
-                            <ArrowUp className="w-4 h-4" />
-                          ) : (
-                            <ArrowDown className="w-4 h-4" />
-                          )
+                          sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
                         ) : (
                           <ArrowUpDown className="w-4 h-4 opacity-0 group-hover:opacity-50" />
                         )}
                       </button>
-                    ) : (
-                      <span>{column.label}</span>
-                    )}
+                    ) : <span>{column.label}</span>}
                   </th>
                 ))}
               </tr>
@@ -391,52 +425,63 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
               {sortedContacts.map(contact => (
                 <tr
                   key={contact.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', contact.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.stopPropagation();
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    if (draggedId && draggedId !== contact.id) {
+                      window.dispatchEvent(new CustomEvent('reorder-contacts', { detail: { draggedId, targetId: contact.id } }));
+                    }
+                  }}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
                   onClick={() => onContactClick(contact)}
                 >
                   <td className="px-4 py-3">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSelectContact(contact.id);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}
                       className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                     >
-                      {selectedContacts.has(contact.id) ? (
-                        <CheckSquare className="w-4 h-4 text-blue-600" />
-                      ) : (
-                        <Square className="w-4 h-4" />
-                      )}
+                      {selectedContacts.has(contact.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
                     </button>
                   </td>
-                  {orderedColumns.map(column => (
-                    <td
-                      key={column.id}
-                      className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300"
-                    >
-                      {column.render
-                        ? column.render(column.accessor(contact), contact)
-                        : column.accessor(contact)}
-                    </td>
-                  ))}
+                  {orderedColumns.map(column => {
+                    const value = column.render
+                      ? column.render(column.accessor(contact), contact)
+                      : column.accessor(contact);
+                    return (
+                      <td key={column.id} className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px]">
+                        {value}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
+              {sortedContacts.length === 0 && (
+                <tr>
+                  <td colSpan={orderedColumns.length + 1} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                        <Settings className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No contacts found</h3>
+                      <p className="text-gray-500 dark:text-gray-400 max-w-sm">Try adjusting your filters or add new contacts to get started.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-
-          {contacts.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                <Settings className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                No contacts found
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 max-w-sm">
-                Try adjusting your filters or add new contacts to get started.
-              </p>
-            </div>
-          )}
         </div>
       </GlassCard>
     </div>
