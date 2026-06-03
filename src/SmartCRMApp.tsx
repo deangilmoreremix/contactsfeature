@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { AIProvider } from './contexts/AIContext';
 import { ViewProvider } from './contexts/ViewContext';
-import { NetlifyAuthProvider } from './contexts/NetlifyAuthContext';
 
 // Simple root ErrorBoundary for safe embedding inside the host shell
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
@@ -29,18 +28,8 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
   }
 }
 
-// Layout
-import { EnhancedNavbar } from './components/layout/EnhancedNavbar';
-import { Sidebar } from './components/layout/Sidebar';
-
-// Full page components (the real application content)
-import Dashboard from './pages/Dashboard';
+// Full page components
 import Contacts from './pages/Contacts';
-import Pipeline from './pages/Pipeline';
-import Products from './pages/Products';
-import UserManagement from './pages/UserManagement';
-import GTMPromptHub from './pages/GTMPromptHub';
-import { LandingPage } from './components/landing/LandingPage';
 
 // SmartCRM Remote Props Contract (host bootstrap spec)
 export interface SmartCRMRemoteProps {
