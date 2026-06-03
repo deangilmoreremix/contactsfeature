@@ -1,7 +1,7 @@
 [build]
   publish = "public_dist"
   functions = "netlify/functions"
-  command = "pnpm install && pnpm run build && node ./scripts/postbuild.cjs"
+  command = "pnpm install --ignore-scripts && pnpm run build && node ./scripts/postbuild.cjs"
 
 [build.environment]
   NODE_VERSION = "22"

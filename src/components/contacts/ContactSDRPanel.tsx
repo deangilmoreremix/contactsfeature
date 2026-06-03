@@ -246,8 +246,8 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
           <Target className="w-6 h-6 text-blue-600" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">SDR Agents</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">SDR Agents</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             AI-powered Sales Development Representatives for {contact.firstName || contact.name}
           </p>
         </div>
@@ -255,7 +255,7 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
 
       {/* Core SDR Agents Section */}
       <div>
-        <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
+        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Mail className="w-4 h-4 mr-2" />
           Core SDR Agents
         </h4>
@@ -264,14 +264,14 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
             const AgentComponent = agent.component;
             const Icon = agent.icon;
             return (
-              <div key={agent.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div key={agent.id} className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start space-x-3 mb-3">
                   <div className="p-2 bg-gray-100 rounded-lg">
-                    <Icon className="w-4 h-4 text-gray-600" />
+                    <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <h5 className="font-medium text-gray-900 text-sm">{agent.title}</h5>
-                    <p className="text-xs text-gray-600 mt-0.5">{agent.description}</p>
+                    <h5 className="font-medium text-gray-900 dark:text-white text-sm">{agent.title}</h5>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{agent.description}</p>
                   </div>
                 </div>
                 <AgentComponent contact={contact} />
@@ -283,7 +283,7 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
 
       {/* Enhanced Intelligence Agents Section */}
       <div>
-        <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
+        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Brain className="w-4 h-4 mr-2" />
           Intelligence &amp; Automation Agents
         </h4>
@@ -291,12 +291,12 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
           {enhancedAgents.map((agent) => {
             const Icon = agent.icon;
             return (
-              <div key={agent.id} className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+              <div key={agent.id} className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-2 mb-2">
                   <Icon className="w-4 h-4 text-purple-600" />
-                  <span className="font-medium text-gray-900 text-sm">{agent.name}</span>
+                  <span className="font-medium text-gray-900 dark:text-white text-sm">{agent.name}</span>
                 </div>
-                <p className="text-xs text-gray-600 mb-3">{agent.description}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">{agent.description}</p>
                 <AgentButton
                   agentId={agent.id}
                   functionName={agent.functionName}
@@ -314,15 +314,15 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
       </div>
 
       {/* Autopilot Section */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-green-100 rounded-lg">
               <Bot className="w-5 h-6 text-green-600" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900">Autopilot</h4>
-              <p className="text-sm text-gray-600">
+              <h4 className="font-semibold text-gray-900 dark:text-white">Autopilot</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Automate email conversations with {contact.firstName || contact.name}
               </p>
             </div>
@@ -341,7 +341,7 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
               </div>
             )}
             {!isAutopilotRunning && !isAutopilotPaused && (
-              <div className="flex items-center space-x-2 px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+              <div className="flex items-center space-x-2 px-3 py-1 bg-gray-100 text-gray-600 dark:text-gray-400 rounded-full text-sm">
                 <div className="w-2 h-2 bg-gray-400 rounded-full" />
                 <span>Inactive</span>
               </div>
@@ -356,7 +356,7 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
           </div>
         )}
 
-        <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 rounded-lg mb-4">
+        <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
           {!isAutopilotRunning && !isAutopilotPaused && (
             <ModernButton variant="primary" size="sm" onClick={handleStartAutopilot} disabled={isLoading} className="flex items-center space-x-2">
               <Play className="w-4 h-4" /><span>Start Autopilot</span>
@@ -389,17 +389,17 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">AI Persona</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">AI Persona</label>
             <div className="relative">
               <button onClick={() => setShowPersonaDropdown(!showPersonaDropdown)} className="w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                <span className="font-medium text-gray-900">{selectedPersona?.label}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{selectedPersona?.label}</span>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
               {showPersonaDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
                   {OUTBOUND_PERSONAS.slice(0, 10).map((persona) => (
                     <button key={persona.id} onClick={() => { handleSettingChange('personaId', persona.id); setShowPersonaDropdown(false); }} className={`w-full flex items-center px-3 py-2 text-left hover:bg-gray-50 text-sm ${settings.personaId === persona.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}>
-                      <span className="font-medium text-gray-900">{persona.label}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{persona.label}</span>
                       {settings.personaId === persona.id && <Check className="w-4 h-4 text-blue-600 ml-auto" />}
                     </button>
                   ))}
@@ -408,17 +408,17 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
             </div>
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Automation Mode</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Automation Mode</label>
             <div className="relative">
               <button onClick={() => setShowModeDropdown(!showModeDropdown)} className="w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                <span className="font-medium text-gray-900">{currentMode?.label}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{currentMode?.label}</span>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
               {showModeDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-10">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-10">
                   {followupModeOptions.map((mode) => (
                     <button key={mode.value} onClick={() => { handleSettingChange('followupMode', mode.value); setShowModeDropdown(false); }} className={`w-full flex items-start px-3 py-2 text-left hover:bg-gray-50 text-sm ${settings.followupMode === mode.value ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}>
-                      <span className="font-medium text-gray-900">{mode.label}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{mode.label}</span>
                       {settings.followupMode === mode.value && <Check className="w-4 h-4 text-blue-600 ml-auto" />}
                     </button>
                   ))}
@@ -430,24 +430,24 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
 
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">Sequence Length</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Sequence Length</label>
             <input type="number" min={1} max={10} value={settings.sequenceLength} onChange={(e) => handleSettingChange('sequenceLength', parseInt(e.target.value) || 5)} className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">Max Emails / Day</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Max Emails / Day</label>
             <input type="number" min={1} max={10} value={settings.maxEmailsPerDay} onChange={(e) => handleSettingChange('maxEmailsPerDay', parseInt(e.target.value) || 3)} className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">Business Hours</label>
-            <button onClick={() => handleSettingChange('respectBusinessHours', !settings.respectBusinessHours)} className={`w-full px-2 py-1.5 border rounded-lg text-xs font-medium transition-colors ${settings.respectBusinessHours ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Business Hours</label>
+            <button onClick={() => handleSettingChange('respectBusinessHours', !settings.respectBusinessHours)} className={`w-full px-2 py-1.5 border rounded-lg text-xs font-medium transition-colors ${settings.respectBusinessHours ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600 dark:text-gray-400'}`}>
               {settings.respectBusinessHours ? 'Enabled' : 'Disabled'}
             </button>
           </div>
         </div>
 
         <div className="space-y-2 mb-4">
-          <label className="block text-sm font-medium text-gray-700">Custom Instructions</label>
-          <textarea value={settings.customNotes} onChange={(e) => handleSettingChange('customNotes', e.target.value)} placeholder="Add specific instructions..." rows={2} className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Custom Instructions</label>
+          <textarea value={settings.customNotes} onChange={(e) => handleSettingChange('customNotes', e.target.value)} placeholder="Add specific instructions..." rows={2} className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
 
         {selectedPersona && (
@@ -462,10 +462,10 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
         )}
 
         {showLogs && logs.length > 0 && (
-          <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
-            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-900">Activity Log</span>
-              <button onClick={() => setShowLogs(false)} className="text-xs text-gray-500 hover:text-gray-700">Close</button>
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-4">
+            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Activity Log</span>
+              <button onClick={() => setShowLogs(false)} className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-300">Close</button>
             </div>
             <div className="max-h-32 overflow-y-auto divide-y divide-gray-100">
               {logs.map((log) => (
@@ -481,15 +481,15 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
         )}
 
         {lastActivity && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
+          <div className="bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-4">
+            <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
               <Clock className="w-4 h-4" />
               <span>Last Activity: {lastActivity}</span>
             </div>
           </div>
         )}
 
-        <div className="flex items-center justify-end pt-3 border-t border-gray-200 space-x-2">
+        <div className="flex items-center justify-end pt-3 border-t border-gray-200 dark:border-gray-700 space-x-2">
           <ModernButton variant="outline" size="sm" onClick={() => setSettings({ personaId: 'cold_saas_founder', isEnabled: false, autopilotEnabled: false, followupMode: 'manual', customNotes: '', sequenceLength: 5, maxEmailsPerDay: 3, respectBusinessHours: true })} className="flex items-center space-x-1">
             <RefreshCw className="w-3 h-3" /><span>Reset</span>
           </ModernButton>
