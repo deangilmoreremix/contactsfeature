@@ -172,10 +172,10 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
   };
 
   return (
-    <div className="w-80 bg-gradient-to-b from-gray-50 via-white to-gray-50 border-r border-gray-200 flex flex-col h-full">
+    <div className="w-80 bg-gradient-to-b from-gray-50 via-white to-gray-50 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
       {/* Fixed Header with AI Features */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center">
+      <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
           Customer Profile
           <Sparkles className="w-4 h-4 ml-2 text-purple-500" />
         </h2>
@@ -251,7 +251,7 @@ try {
 
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -261,7 +261,7 @@ try {
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto">
         {/* Avatar and Basic Info */}
-        <div className="p-5 text-center border-b border-gray-100 bg-white">
+        <div className="p-5 text-center border-b border-gray-100 dark:border-gray-700 dark:bg-gray-800">
           <div className="relative inline-block mb-4">
             <AvatarUpload
               currentAvatar={editedContact.avatarSrc}
@@ -299,9 +299,9 @@ try {
           </div>
 
           {/* Name and Title */}
-          <h3 className="text-xl font-bold text-gray-900 mb-2 leading-tight">{editedContact.name}</h3>
-          <p className="text-gray-600 font-medium mb-1">{editedContact.title}</p>
-          <p className="text-gray-500 text-sm">{editedContact.company}</p>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 leading-tight">{editedContact.name}</h3>
+          <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">{editedContact.title}</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">{editedContact.company}</p>
           {editedContact.industry && (
             <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
               {editedContact.industry}
@@ -310,7 +310,7 @@ try {
 
           {/* AI Enhancement Badge */}
           {lastEnrichment && (
-            <div className="mt-3 p-2 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+            <div className="mt-3 p-2 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900 dark:to-blue-900 border border-purple-200 dark:border-purple-700 rounded-lg">
               <div className="flex items-center justify-center space-x-2">
                 <Sparkles className="w-3 h-3 text-purple-600" />
                 <span className="text-xs font-medium text-purple-900">
@@ -322,7 +322,7 @@ try {
         </div>
 
         {/* AI Tools Section */}
-        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-blue-50">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900 dark:to-blue-900">
           <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
             <Brain className="w-4 h-4 mr-2 text-purple-600" />
             AI Assistant Tools
@@ -343,7 +343,7 @@ try {
           <div className="grid grid-cols-2 gap-2 mb-3">
             <button
               onClick={handleSendEmail}
-              className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 dark:from-gray-700 dark:to-gray-600 dark:text-gray-200 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               <Mail className="w-4 h-4 mb-1" />
               <span className="text-xs leading-tight text-center">Email AI</span>
@@ -365,7 +365,7 @@ try {
                   confidence: 75
                 });
               }}
-              className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 dark:from-gray-700 dark:to-gray-600 dark:text-gray-200 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               <Search className="w-4 h-4 mb-1" />
               <span className="text-xs leading-tight text-center">Enrich</span>
@@ -430,8 +430,8 @@ try {
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="p-4 border-b border-gray-100 bg-white">
-          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700 dark:bg-gray-800">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
             <Zap className="w-4 h-4 mr-2 text-blue-500" />
             Quick Actions
           </h4>
@@ -441,7 +441,7 @@ try {
               className="p-3 flex flex-col items-center hover:bg-blue-50 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <Edit className="w-4 h-4 mb-1 text-blue-600" />
-              <span className="text-xs font-medium text-gray-900">Edit</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">Edit</span>
             </button>
             <button
               onClick={handleSendEmail}
@@ -449,7 +449,7 @@ try {
               title="Send Email (Ctrl+E)"
             >
               <Mail className="w-4 h-4 mb-1 text-green-600" />
-              <span className="text-xs font-medium text-gray-900">Email</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">Email</span>
               <span className="absolute -top-1 -right-1 text-xs bg-green-500 text-white rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 ⌘E
               </span>
@@ -460,7 +460,7 @@ try {
               title="Send SMS (Ctrl+S)"
             >
               <MessageSquare className="w-4 h-4 mb-1 text-teal-600" />
-              <span className="text-xs font-medium text-gray-900">SMS</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">SMS</span>
               <span className="absolute -top-1 -right-1 text-xs bg-teal-500 text-white rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 ⌘S
               </span>
@@ -471,7 +471,7 @@ try {
               title="Make Call (Ctrl+P)"
             >
               <Phone className="w-4 h-4 mb-1 text-yellow-600" />
-              <span className="text-xs font-medium text-gray-900">Call</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">Call</span>
               <span className="absolute -top-1 -right-1 text-xs bg-yellow-500 text-white rounded px-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 ⌘P
               </span>
@@ -481,20 +481,20 @@ try {
               className="p-3 flex flex-col items-center hover:bg-purple-50 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <Plus className="w-4 h-4 mb-1 text-purple-600" />
-              <span className="text-xs font-medium text-gray-900">Add Field</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">Add Field</span>
             </button>
             <button
               onClick={() => {/* Navigate to journey tab */}}
               className="p-3 flex flex-col items-center hover:bg-orange-50 rounded-lg transition-all text-center focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <FileText className="w-4 h-4 mb-1 text-orange-600" />
-              <span className="text-xs font-medium text-gray-900">Files</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">Files</span>
             </button>
           </div>
         </div>
 
         {/* Contact Information */}
-        <div className="p-4 border-b border-gray-100 bg-white">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-900 flex items-center">
               <User className="w-4 h-4 mr-2 text-blue-500" />
@@ -726,7 +726,7 @@ try {
 
         {/* Interest Level & Sources */}
         <div className="p-4 bg-white">
-          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
             <Target className="w-4 h-4 mr-2 text-orange-500" />
             Lead Information
           </h4>
