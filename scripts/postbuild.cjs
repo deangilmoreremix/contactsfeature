@@ -15,7 +15,7 @@ const path = require('path');
     // 2) Inject build-id meta and CSS link into index.html
     const indexPath = path.join(distDir, 'index.html');
     
-    // Find the CSS file in the assets directory
+    // Find the CSS file in the assets directory (Vite outputs bootstrap-*.css for the main entry)
     const assetsDir = path.join(distDir, 'assets');
     const cssFiles = fs.readdirSync(assetsDir).filter(f => f.startsWith('bootstrap-') && f.endsWith('.css'));
     const cssFileName = cssFiles.length > 0 ? cssFiles[0] : null;
