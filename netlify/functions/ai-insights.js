@@ -1,232 +1,285 @@
-const { createClient } = require('@supabase/supabase-js');
+const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { createStreamingResponse, parseJsonResponse, MODEL_CONFIG, getModelForTask } = require('./_streamingUtils');
+const { createLogger, generateCorrelationId } = require('./_logger');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+const log = createLogger('ai-insights');
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+// AI Insights system prompt
+const INSIGHTS_SYSTEM_PROMPT = `You are SmartCRM's expert sales intelligence analyst, powered by GPT-5.2.
+
+Your role: Generate actionable, data-driven insights for contact management and sales optimization.
+
+Your expertise includes:
+- Lead scoring and qualification analysis
+- Engagement pattern recognition
+- Opportunity identification
+- Risk assessment and churn prediction
+- Communication optimization
+- Sales pipeline intelligence
+
+Guidelines:
+- Focus on actionable insights with clear next steps
+- Provide confidence levels based on available data
+- Identify patterns others might miss
+- Suggest specific actions, not generic advice
+- Consider industry context and role
+
+Insight Types You Generate:
+1. Opportunity - Potential deals, expansions, referrals
+2. Risk - Churn indicators, engagement drops, competitive threats
+3. Recommendation - Next best actions, timing suggestions
+4. Prediction - Future outcomes based on patterns
+5. Pattern - Trends, behaviors, anomalies`;
+
+exports.handler = withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
+
+  // Check if streaming is requested
+  const isStreaming = event.headers?.accept?.includes('text/event-stream') || 
+                      event.queryStringParameters?.stream === 'true';
+
+  // Parse body
+  let body = {};
+  if (event.body) {
+    if (typeof event.body === 'string') {
+      try {
+        body = JSON.parse(event.body);
+      } catch {
+        return errorResponse(400, 'Invalid JSON body');
+      }
+    } else {
+      body = event.body;
+    }
   }
 
+  const {
+    contact,
+    insightTypes = ['opportunity', 'recommendation'],
+    context,
+    aiProvider = 'openai',
+    includeActivities = true,
+  } = body;
+
+  if (!contact || !contact.id) {
+    return errorResponse(400, 'Contact object with id is required');
+  }
+
+  const model = MODEL_CONFIG.thinking; // Use thinking model for insights
+
   try {
-    const {
-      contact,
-      insightTypes = ['opportunity', 'recommendation'],
-      context,
-      aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    // Fetch contact with activities for context
+    const { data: contactData, error: contactError } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('id', contact.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    console.log('AI insights request:', {
-      contactId: contact.id,
-      insightTypes,
-      aiProvider
-    });
+    if (contactError) throw new Error(`Database error: ${contactError.message}`);
+    if (!contactData) return errorResponse(404, 'Contact not found');
 
-    let result;
-
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await generateWithOpenAI(contact, insightTypes, context);
-        break;
-      case 'gemini':
-        result = await generateWithGemini(contact, insightTypes, context);
-        break;
-      default:
-        result = await generateWithOpenAI(contact, insightTypes, context);
+    // Fetch recent activities if requested
+    let activities = [];
+    if (includeActivities) {
+      const { data: activitiesData } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      activities = activitiesData || [];
     }
 
-    // Store insights in database
-    const insightsToStore = result.insights.map((insight, index) => ({
-      contact_id: contact.id,
-      insight_type: insight.type,
-      title: insight.title,
-      description: insight.description,
-      confidence: insight.confidence,
-      impact: insight.impact,
-      actionable: insight.actionable,
-      suggested_actions: insight.suggestedActions,
-      data_points: insight.dataPoints,
-      ai_provider: aiProvider,
-      created_at: new Date().toISOString()
-    }));
+    // Fetch related deals
+    const { data: deals } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('contact_id', contact.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    const dealList = deals || [];
 
-    await supabase
-      .from('contact_insights')
-      .insert(insightsToStore);
+    // Build context string
+    const contactName = contactData.firstname || contactData.name || 'Unknown';
+    const company = contactData.company || 'Unknown Company';
+
+    const contextBlock = `
+Contact Profile:
+- Name: ${contactName}
+- Title: ${contactData.title || 'Not specified'}
+- Company: ${company}
+- Industry: ${contactData.industry || 'Not specified'}
+- Email: ${contactData.email || 'N/A'}
+- Status: ${contactData.status || 'new'}
+- Interest Level: ${contactData.interestLevel || 'Not specified'}
+${contactData.aiScore ? `- AI Score: ${contactData.aiScore}/100` : ''}
+
+Recent Activities (${activities.length}): ${activities.length > 0 ? activities.slice(0, 5).map(a => `${a.type} on ${new Date(a.created_at).toLocaleDateString()}`).join(', ') : 'No recent activities'}
+
+Active Deals (${dealList.length}): ${dealList.length > 0 ? dealList.map(d => `${d.name} (${d.stage || d.status})`).join(', ') : 'No active deals'}
+
+${context ? `Additional Context: ${context}` : ''}`;
+
+    // Build user input for Responses API
+    const userInput = `Generate ${insightTypes.length > 1 ? insightTypes.join(', ') : insightTypes[0]} insights for this contact.
+
+Focus on generating insights related to: ${insightTypes.join(', ')}
+
+${contextBlock}
+
+For each insight, provide:
+- type: The insight category (opportunity, risk, recommendation, prediction, pattern)
+- title: Short, descriptive title
+- description: Detailed explanation
+- confidence: Confidence level 0-100
+- impact: high/medium/low
+- actionable: Whether this requires action
+- suggestedActions: Array of 1-3 specific next steps
+- dataPoints: Evidence supporting this insight
+
+Return ONLY valid JSON with an "insights" array. Example: {"insights": [{"type": "opportunity", "title": "...", ...}]}`;
+
+    // If streaming requested, return streaming response
+    if (isStreaming) {
+      const responseStream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          
+          try {
+            let fullContent = '';
+
+            for await (const chunk of createStreamingResponse({
+              instructions: INSIGHTS_SYSTEM_PROMPT,
+              input: userInput,
+              model,
+              temperature: 0.3,
+              maxTokens: 2000,
+            })) {
+              if (chunk.type === 'token') {
+                fullContent += chunk.token;
+                const data = JSON.stringify({ 
+                  type: 'token', 
+                  token: chunk.token,
+                  partial: fullContent 
+                });
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              } else if (chunk.type === 'error') {
+                const errorData = JSON.stringify({ type: 'error', error: chunk.error });
+                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+                controller.close();
+                return;
+              }
+            }
+
+            const parsed = parseJsonResponse(fullContent, { insights: [] });
+
+            // Store insights in database
+            if (parsed.insights && parsed.insights.length > 0) {
+              const insightsToStore = parsed.insights.map(insight => ({
+                contact_id: contact.id,
+                user_id: user.id,
+                insight_type: insight.type,
+                title: insight.title,
+                description: insight.description,
+                confidence: insight.confidence,
+                impact: insight.impact,
+                actionable: insight.actionable,
+                suggested_actions: insight.suggestedActions,
+                data_points: insight.dataPoints,
+                ai_provider: 'openai',
+                created_at: new Date().toISOString()
+              }));
+
+              await supabase.from('contact_insights').insert(insightsToStore);
+            }
+
+            log.info('AI insights generated (streaming)', { contactId: contact.id, insightTypes, model });
+
+            const completeData = JSON.stringify({ type: 'complete', data: parsed });
+            controller.enqueue(encoder.encode(`data: ${completeData}\n\n`));
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          } catch (error) {
+            log.error('Streaming insights failed', { contactId: contact.id, error: error.message });
+            const errorData = JSON.stringify({ type: 'error', error: error.message });
+            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+            controller.close();
+          }
+        }
+      });
+
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+        body: responseStream,
+        isBase64Encoded: false,
+      };
+    }
+
+    // Non-streaming response
+    let fullContent = '';
+    for await (const chunk of createStreamingResponse({
+      instructions: INSIGHTS_SYSTEM_PROMPT,
+      input: userInput,
+      model,
+      temperature: 0.3,
+      maxTokens: 2000,
+    })) {
+      if (chunk.type === 'token') {
+        fullContent += chunk.token;
+      } else if (chunk.type === 'complete') {
+        fullContent = chunk.content;
+      }
+    }
+
+    const parsed = parseJsonResponse(fullContent, { insights: [] });
+
+    // Store insights in database
+    if (parsed.insights && parsed.insights.length > 0) {
+      const insightsToStore = parsed.insights.map(insight => ({
+        contact_id: contact.id,
+        user_id: user.id,
+        insight_type: insight.type,
+        title: insight.title,
+        description: insight.description,
+        confidence: insight.confidence,
+        impact: insight.impact,
+        actionable: insight.actionable,
+        suggested_actions: insight.suggestedActions,
+        data_points: insight.dataPoints,
+        ai_provider: 'openai',
+        created_at: new Date().toISOString()
+      }));
+
+      await supabase.from('contact_insights').insert(insightsToStore);
+    }
+
+    log.info('AI insights generated', { contactId: contact.id, insightTypes, model });
 
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         success: true,
-        data: result,
+        data: {
+          insights: parsed.insights || [],
+          insightTypes,
+          generated: new Date().toISOString(),
+        },
         provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
+        model,
+        timestamp: new Date().toISOString(),
+      }),
     };
   } catch (error) {
-    console.error('AI insights generation failed:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: 'AI insights generation failed',
-        details: error.message
-      })
-    };
+    log.error('AI insights generation failed', { contactId: contact?.id, error: error.message });
+    return errorResponse(500, 'AI insights generation failed');
   }
-};
-
-async function generateWithOpenAI(contact, insightTypes, context) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
-    const systemPrompt = `You are an expert sales intelligence analyst. Generate actionable insights for contact management based on the provided information. Focus on opportunities, recommendations, risks, and predictions.`;
-
-    const userPrompt = `Generate ${insightTypes.join(', ')} insights for this contact:
-
-Contact: ${contact.name} (${contact.title} at ${contact.company})
-Email: ${contact.email}
-Industry: ${contact.industry || 'Not specified'}
-Interest Level: ${contact.interestLevel || 'Not specified'}
-
-${context ? `Additional Context: ${context}` : ''}
-
-Generate 2-3 insights per type requested. Each insight should include:
-- Title and description
-- Confidence level (0-100)
-- Impact level (high/medium/low)
-- Whether it's actionable
-- Suggested actions if applicable
-- Supporting data points
-
-Return as JSON with "insights" array.`;
-
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.3,
-        text: {
-          format: {
-            type: "json_object"
-          }
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    // Handle Responses API format
-    let content;
-    if (data.output && data.output.length > 0) {
-      const messageItem = data.output.find(item => item.type === 'message');
-      if (messageItem && messageItem.content && messageItem.content.length > 0) {
-        content = JSON.parse(messageItem.content[0].text);
-      } else {
-        throw new Error('No message content found in response output');
-      }
-    } else if (data.output_text) {
-      content = JSON.parse(data.output_text);
-    } else {
-      throw new Error('No response content found');
-    }
-
-    return {
-      insights: content.insights || [],
-      insightTypes,
-      generated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('OpenAI insights generation failed:', error);
-    throw error;
-  }
-}
-
-async function generateWithGemini(contact, insightTypes, context) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Generate ${insightTypes.join(', ')} insights for this contact:
-
-Contact: ${contact.name} (${contact.title} at ${contact.company})
-Context: ${context || 'Standard analysis'}
-
-Return JSON with insights array containing title, description, confidence, impact, actionable, and suggestedActions.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 1000
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const insightsData = JSON.parse(jsonMatch[0]);
-
-    return {
-      insights: insightsData.insights || [],
-      insightTypes,
-      generated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini insights generation failed:', error);
-    throw error;
-  }
-}
+});

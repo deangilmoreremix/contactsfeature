@@ -583,55 +583,63 @@ class AIOrchestrator {
       throw new Error('OpenAI API key not configured');
     }
 
-    const model = import.meta.env['VITE_OPENAI_MODEL'] || 'gpt-4o-mini';
+    // Use GPT-5.2 by default from environment config
+    const model = import.meta.env['VITE_OPENAI_MODEL'] || 
+                  (request.type.includes('scoring') || request.type.includes('analytics') 
+                    ? 'gpt-5.2-thinking' 
+                    : 'gpt-5.2');
 
     // Create prompt based on request type
-    const prompt = this.createPromptForRequest(request);
+    const { instructions, input } = this.createPromptForRequest(request);
 
-    const response = await httpClient.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an AI assistant specialized in contact management and sales intelligence. Provide accurate, actionable insights.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+    try {
+      const response = await httpClient.post(
+        'https://api.openai.com/v1/responses',
+        {
+          model: model,
+          instructions: instructions,
+          input: input,
+          temperature: 0.7,
+          max_tokens: 2000
         },
-        timeout: request.options?.timeout || 30000
-      }
-    );
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: request.options?.timeout || 30000
+        }
+      );
 
-    return this.parseOpenAIResponse(request.type, response.data);
+      return this.parseOpenAIResponse(request.type, response.data);
+    } catch (error) {
+      logger.error('OpenAI Responses API call failed', error as Error, undefined, {
+        requestType: request.type,
+        model
+      });
+      throw error;
+    }
   }
 
 
-  private createPromptForRequest(request: AIRequest): string {
+  private createPromptForRequest(request: AIRequest): { instructions: string; input: string } {
     const { type, data } = request;
+
+    const systemInstructions = `You are SmartCRM's AI assistant, specialized in contact management and sales intelligence. You provide accurate, actionable insights with clear reasoning. Always respond with well-structured JSON when requested.`;
 
     switch (type) {
       case 'contact_scoring':
-        return `Analyze this contact and provide a lead scoring assessment:
+        return {
+          instructions: systemInstructions,
+          input: `Analyze this contact and provide a lead scoring assessment:
 
 Contact Information:
-- Name: ${data.contact.name}
-- Title: ${data.contact.title}
-- Company: ${data.contact.company}
-- Email: ${data.contact.email}
-- Industry: ${data.contact.industry}
-- Interest Level: ${data.contact.interestLevel}
+- Name: ${data.contact?.name || 'Unknown'}
+- Title: ${data.contact?.title || 'Not specified'}
+- Company: ${data.contact?.company || 'Not specified'}
+- Email: ${data.contact?.email || 'Not specified'}
+- Industry: ${data.contact?.industry || 'Not specified'}
+- Interest Level: ${data.contact?.interestLevel || 'Not specified'}
 
 Please provide:
 1. Overall score (0-100)
@@ -640,28 +648,36 @@ Please provide:
 4. Action recommendations
 5. Next best actions
 
-Format as JSON with keys: score, breakdown, reasoning, recommendations, nextBestActions`;
+Format as JSON with keys: score, breakdown, reasoning, recommendations, nextBestActions`
+        };
 
       case 'insights_generation':
-        return `Generate insights for this contact:
+        return {
+          instructions: systemInstructions,
+          input: `Generate insights for this contact:
 
-Contact: ${data.contact.name} at ${data.contact.company}
-Title: ${data.contact.title}
-Industry: ${data.contact.industry}
-Interest Level: ${data.contact.interestLevel}
+Contact: ${data.contact?.name || 'Unknown'} at ${data.contact?.company || 'Unknown Company'}
+Title: ${data.contact?.title || 'Not specified'}
+Industry: ${data.contact?.industry || 'Not specified'}
+Interest Level: ${data.contact?.interestLevel || 'Not specified'}
 
 Focus on: ${data.insightTypes?.join(', ') || 'opportunities and recommendations'}
 
-Provide 2-3 actionable insights with confidence levels and suggested actions.`;
+Provide 2-3 actionable insights with confidence levels and suggested actions.
+
+Return JSON with "insights" array containing objects with: type, title, description, confidence, impact, actionable, suggestedActions, dataPoints.`
+        };
 
       case 'contact_enrichment':
-        return `Enrich this contact profile with additional information:
+        return {
+          instructions: systemInstructions,
+          input: `Enrich this contact profile with additional information:
 
 Current data:
-- Name: ${data.contact.name}
-- Title: ${data.contact.title}
-- Company: ${data.contact.company}
-- Email: ${data.contact.email}
+- Name: ${data.contact?.name || 'Unknown'}
+- Title: ${data.contact?.title || 'Not specified'}
+- Company: ${data.contact?.company || 'Not specified'}
+- Email: ${data.contact?.email || 'Not specified'}
 
 Find and suggest:
 1. Additional contact information (phone, social profiles)
@@ -669,17 +685,41 @@ Find and suggest:
 3. Professional background and expertise
 4. Potential interests and pain points
 
-Provide realistic enrichment data based on the contact's role and company.`;
+Provide realistic enrichment data based on the contact's role and company.
+
+Return JSON with: phone, socialProfiles, industry, location, bio, notes.`
+        };
 
       default:
-        return `Process this ${type} request for contact ${data.contact?.name || 'Unknown'}. Provide relevant analysis and insights.`;
+        return {
+          instructions: systemInstructions,
+          input: `Process this ${type} request for contact ${data.contact?.name || 'Unknown'}. Provide relevant analysis and insights in JSON format.`
+        };
     }
   }
 
   private parseOpenAIResponse(requestType: string, response: any): any {
-    const content = response.choices?.[0]?.message?.content;
+    // Handle Responses API format
+    let content;
+    
+    if (response.output && response.output.length > 0) {
+      const messageItem = response.output.find((item: any) => item.type === 'message');
+      if (messageItem && messageItem.content && messageItem.content.length > 0) {
+        content = messageItem.content[0].text;
+      } else if (response.output_text) {
+        content = response.output_text;
+      }
+    } else if (response.output_text) {
+      content = response.output_text;
+    }
+
     if (!content) {
-      throw new Error('Invalid OpenAI response');
+      // Fallback to chat completions format for backward compatibility
+      content = response.choices?.[0]?.message?.content;
+    }
+
+    if (!content) {
+      throw new Error('Invalid OpenAI response - no content found');
     }
 
     try {
@@ -687,14 +727,14 @@ Provide realistic enrichment data based on the contact's role and company.`;
       const parsed = JSON.parse(content);
       return {
         result: parsed,
-        model: response.model,
+        model: response.model || 'gpt-5.2',
         confidence: 85
       };
     } catch {
       // If not JSON, create structured response
       return {
         result: this.parseTextResponse(requestType, content),
-        model: response.model,
+        model: response.model || 'gpt-5.2',
         confidence: 75
       };
     }
