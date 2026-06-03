@@ -524,14 +524,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   return (
     <>
       <div 
-        className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+        className="fixed inset-0 bg-gray-50 dark:bg-gray-900 z-50 animate-fade-in"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onClose();
           }
         }}
       >
-        <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col animate-slide-in shadow-2xl text-gray-900 dark:text-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-none w-full h-screen overflow-hidden flex flex-col text-gray-900 dark:text-gray-100">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
             <div className="flex items-center space-x-4">
