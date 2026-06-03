@@ -1,11 +1,9 @@
 import { useContext, useMemo, useState } from 'react';
-import { Contact } from '../../../../types/contact';
 
-import { FieldContext } from '../../record-field/ui/contexts/FieldContext';
-import { useRecordInlineCellContext } from './RecordInlineCellContext';
+import { useRecordInlineCellContext } from '../components/RecordInlineCellContext';
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/ui/Tooltip';
-import { cn } from '../../../../utils/cn';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/Tooltip';
+import { cn } from '../../utils/cn';
 
 const StyledIconContainer = ({ children }: { children: React.ReactNode }) => (
   <div className="flex items-center justify-center w-4 h-4 text-gray-400">{children}</div>
