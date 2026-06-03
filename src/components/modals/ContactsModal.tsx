@@ -533,17 +533,17 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
       >
         <div className="bg-white dark:bg-gray-800 rounded-none w-full h-screen overflow-hidden flex flex-col text-gray-900 dark:text-gray-100">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-gray-800 dark:to-gray-700">
             <div className="flex items-center space-x-4">
               <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-white">
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
                   Contacts
                   <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-700 dark:text-gray-300">
                   {filteredContacts.length} contacts found
                   {selectedContacts.length > 0 && ` • ${selectedContacts.length} selected`}
                   {contactsWithoutScores > 0 && ` • ${contactsWithoutScores} need AI scoring`}
@@ -749,7 +749,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
           {/* AI Analysis Progress */}
           {(isAnalyzing || analysisProgress || aiResults) && (
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-b border-purple-200 dark:border-purple-800">
+            <div className="p-4 bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-800 dark:to-blue-800 border-b border-purple-300 dark:border-purple-600">
               {analysisProgress && (
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
@@ -796,7 +796,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               {/* Search Input */}
               <SmartTooltip featureId="contacts_search_input">
                 <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
                   <input
                     type="text"
                     placeholder="Search contacts..."
@@ -872,7 +872,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               <SmartTooltip featureId="contacts_select_all">
                 <button
                   onClick={handleSelectAll}
-                  className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                  className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                 >
                   <CheckCheck className="w-4 h-4" />
                   <span>{selectedContacts.length === filteredContacts.length ? 'Deselect All' : 'Select All'}</span>
@@ -929,9 +929,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               </div>
             ) : filteredContacts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                <Users className="w-16 h-16 text-gray-400 mb-4" />
-                <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No contacts found</h3>
-                <p className="text-gray-500 dark:text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
+                <Users className="w-16 h-16 text-gray-500 dark:text-gray-400 mb-4" />
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">No contacts found</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">Try adjusting your search or filter criteria</p>
                 <ModernButton
                   variant="primary"
                   onClick={handleNewContactClick}
@@ -1036,7 +1036,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               </h3>
             </div>
 
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
               This action will permanently delete all contacts from your database. This cannot be undone.
             </p>
 
