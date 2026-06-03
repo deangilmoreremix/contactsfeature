@@ -1,14 +1,30 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import federation from "@originjs/vite-plugin-federation";
 import path from "path";
 
-console.log("\n=== BUILD (STANDALONE MODE - NO FEDERATION) ===");
-console.log("Publishing as standalone SPA for Netlify");
+console.log("\n=== BUILD (MODULE FEDERATION REMOTE) ===");
+console.log("Publishing as SmartCRM remote for host integration");
 console.log("=== BUILD END ===\n");
 
 export default defineConfig({
   base: '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    federation({
+      name: "smartcrm",
+      filename: "remoteEntry.js",
+      exposes: {
+        "./SmartCRMApp": "./src/main.tsx",
+        "./App": "./src/main.tsx",
+        "./mount": "./src/bootstrap.tsx",
+      },
+      shared: {
+        react: { singleton: true, requiredVersion: "^18.0.0" },
+        "react-dom": { singleton: true, requiredVersion: "^18.0.0" },
+      },
+    }),
+  ],
   optimizeDeps: {
     include: ["react", "react-dom", "@supabase/supabase-js"],
   },
