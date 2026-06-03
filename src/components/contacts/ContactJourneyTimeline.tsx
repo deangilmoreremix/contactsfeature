@@ -83,7 +83,7 @@ const statusColors = {
 
 const sentimentColors = {
   positive: 'text-green-600',
-  neutral: 'text-gray-600',
+  neutral: 'text-gray-600 dark:text-gray-400',
   negative: 'text-red-600'
 };
 
@@ -497,7 +497,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center space-y-3">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-sm text-gray-600">Loading journey data...</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Loading journey data...</p>
           </div>
         </div>
       )}
@@ -505,8 +505,8 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       {/* Header with File Upload */}
       {!isLoading && <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Contact Journey & Files</h3>
-          <p className="text-sm text-gray-600">Timeline of interactions, milestones, and uploaded files for {contact.name}</p>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Journey & Files</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Timeline of interactions, milestones, and uploaded files for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
           <select
@@ -553,12 +553,12 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
             <Sparkles className="w-3 h-3 text-yellow-300" />
           </button>
 
-          <div className="flex items-center space-x-2 text-sm text-gray-600">
+          <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
             <User className="w-4 h-4" />
             <span>{contact.name}</span>
           </div>
           {contact.company && (
-            <div className="flex items-center space-x-1 text-sm text-gray-600">
+            <div className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400">
               <Building className="w-4 h-4" />
               <span>{contact.company}</span>
             </div>
@@ -572,10 +572,10 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         <GlassCard className="p-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-md font-semibold text-gray-900">Upload Files</h4>
+              <h4 className="text-md font-semibold text-gray-900 dark:text-white">Upload Files</h4>
               <button
                 onClick={() => setShowFileUpload(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -583,7 +583,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Drag and drop files here, or click to select files
               </p>
               <input
@@ -614,7 +614,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         <GlassCard className="p-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-md font-semibold text-gray-900">
+              <h4 className="text-md font-semibold text-gray-900 dark:text-white">
                 Uploaded Files ({uploadedFiles.length})
               </h4>
               <button
@@ -640,7 +640,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                       <div className="flex items-center space-x-3">
                         <FileIcon className="w-8 h-8 text-blue-600" />
                         <div>
-                          <p className="font-medium text-gray-900">{file.name}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{file.name}</p>
                           <p className="text-sm text-gray-500">
                             {formatFileSize(file.size)} • Uploaded {formatTimestamp(file.uploadedAt)} by {file.uploadedBy}
                           </p>
@@ -700,10 +700,10 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
 
                     {/* AI Summary Section */}
                     {summary && isExpanded && (
-                      <div className="border-t border-gray-200 bg-white p-4">
+                      <div className="border-t border-gray-200 dark:border-gray-700 bg-white p-4">
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <h5 className="font-medium text-gray-900 flex items-center">
+                            <h5 className="font-medium text-gray-900 dark:text-white flex items-center">
                               <Brain className="w-4 h-4 mr-2 text-purple-600" />
                               AI Summary (GPT-4o-mini)
                             </h5>
@@ -722,10 +722,10 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
 
                           {summary.keyPoints.length > 0 && (
                             <div>
-                              <h6 className="text-sm font-medium text-gray-900 mb-2">Key Points:</h6>
+                              <h6 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Key Points:</h6>
                               <ul className="space-y-1">
                                 {summary.keyPoints.map((point, index) => (
-                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700">
+                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300">
                                     <span className="text-purple-600 mt-1">•</span>
                                     <span>{point}</span>
                                   </li>
@@ -738,7 +738,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                             <span>Sentiment: <span className={`font-medium ${
                               summary.sentiment === 'positive' ? 'text-green-600' :
                               summary.sentiment === 'negative' ? 'text-red-600' :
-                              'text-gray-600'
+                              'text-gray-600 dark:text-gray-400'
                             }`}>{summary.sentiment}</span></span>
                             <span>Model: {summary.model}</span>
                           </div>
@@ -769,8 +769,8 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         {filteredEvents.length === 0 && (
           <div className="text-center py-12">
             <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h4 className="text-lg font-medium text-gray-900 mb-2">No Journey Events Yet</h4>
-            <p className="text-sm text-gray-600 mb-4">
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Journey Events Yet</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Start tracking interactions, milestones, and insights for this contact.
             </p>
             <button
@@ -803,7 +803,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                   <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
                     event.status === 'completed' ? 'bg-green-100 text-green-600' :
                     event.status === 'in_progress' ? 'bg-blue-100 text-blue-600' :
-                    'bg-gray-100 text-gray-600'
+                    'bg-gray-100 text-gray-600 dark:text-gray-400'
                   }`}>
                     <Icon className="w-5 h-5" />
                   </div>
@@ -813,14 +813,14 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <h4 className="text-sm font-semibold text-gray-900">{event.title}</h4>
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{event.title}</h4>
                           {event.status && (
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[event.status]}`}>
                               {event.status.replace('_', ' ')}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 mb-2">{event.description}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{event.description}</p>
 
                         {/* Metadata */}
                         {event.metadata && (
@@ -861,23 +861,23 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         </div>}
 
         {/* Journey Summary */}
-        {filteredEvents.length > 0 && <div className="mt-8 pt-6 border-t border-gray-200">
+        {filteredEvents.length > 0 && <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">{filteredEvents.length}</div>
-              <div className="text-sm text-gray-600">Filtered Events</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Filtered Events</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
                 {filteredEvents.filter(e => e.status === 'completed').length}
               </div>
-              <div className="text-sm text-gray-600">Completed</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
                 {filteredEvents.filter(e => e.type === 'interaction').length}
               </div>
-              <div className="text-sm text-gray-600">Interactions</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Interactions</div>
             </div>
           </div>
         </div>}

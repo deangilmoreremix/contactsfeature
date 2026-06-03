@@ -23,14 +23,14 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
   return (
     <div className="p-6 space-y-6">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 rounded-xl p-6 border border-blue-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-2xl font-bold text-gray-900 flex items-center">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
               <Brain className="w-6 h-6 mr-3 text-blue-600" />
               AI Sales Intelligence Tools
             </h3>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 dark:text-gray-400 dark:text-gray-300 mt-2">
               Advanced AI-powered tools for sales qualification, communication optimization, and deal analysis
             </p>
           </div>
@@ -40,17 +40,17 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
             </span>
             <button
               onClick={() => setShowAPIConfig(true)}
-              className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
+              className="p-2 bg-white/50 dark:bg-gray-700/50 hover:bg-white/70 dark:bg-gray-600/70 rounded-lg transition-colors"
               title="API Configuration"
             >
-              <Settings className="w-4 h-4 text-gray-600" />
+              <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             </button>
             <button
               onClick={() => setShowAISettings(true)}
-              className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
+              className="p-2 bg-white/50 dark:bg-gray-700/50 hover:bg-white/70 dark:bg-gray-600/70 rounded-lg transition-colors"
               title="AI Settings"
             >
-              <Brain className="w-4 h-4 text-gray-600" />
+              <Brain className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             </button>
           </div>
         </div>
@@ -60,7 +60,7 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
       {/* AI Tools Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Communication Optimizer Card */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
           <CommunicationOptimizer
             content={`Hello ${contact.firstName || contact.name.split(' ')[0]},\n\nI wanted to follow up on our previous conversation about opportunities at ${contact.company}.`}
             context={{
@@ -88,7 +88,7 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
         </div>
 
         {/* Discovery Questions Generator Card */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
           <DiscoveryQuestionsGenerator
             contact={{
               id: contact.id,
@@ -117,7 +117,7 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
         </div>
 
         {/* Deal Health Panel Card */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
           <DealHealthPanel
             deal={{
               id: contact.id,
