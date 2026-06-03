@@ -227,11 +227,11 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-2xl font-bold text-gray-900 flex items-center">
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Mail className="w-6 h-6 mr-3 text-blue-500" />
             Email Tools
           </h3>
-          <p className="text-gray-600">Advanced AI-powered email tools for {contact.name}</p>
+          <p className="text-gray-600 dark:text-gray-400">Advanced AI-powered email tools for {contact.name}</p>
         </div>
         
         {/* Quick AI Actions */}
@@ -311,7 +311,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       </div>
       
       {/* Tabs */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-gray-200 dark:border-gray-700">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -321,7 +321,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
               className={`flex-1 flex items-center justify-center space-x-1 py-3 px-4 font-medium transition-colors ${
                 activeTab === tab.id
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300'
               }`}
               aria-label={`Switch to ${tab.label} tab`}
               role="tab"
@@ -338,7 +338,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       {isDrafting && (
         <GlassCard className="p-6 bg-gradient-to-r from-blue-50 to-green-50">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="font-semibold text-gray-900">Current Draft</h4>
+            <h4 className="font-semibold text-gray-900 dark:text-white">Current Draft</h4>
             <ModernButton
               variant="outline"
               size="sm"
@@ -353,13 +353,13 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
           
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-1">Subject:</p>
-              <p className="text-gray-900">{emailSubject}</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subject:</p>
+              <p className="text-gray-900 dark:text-white">{emailSubject}</p>
             </div>
             
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-1">Preview:</p>
-              <p className="text-gray-700 line-clamp-3 whitespace-pre-line">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preview:</p>
+              <p className="text-gray-700 dark:text-gray-300 line-clamp-3 whitespace-pre-line">
                 {emailBody.substring(0, 150)}
                 {emailBody.length > 150 && '...'}
               </p>
@@ -433,8 +433,8 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       
       {/* External Email Tools Shortcuts */}
       {contact.email && (
-        <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+        <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
             <ExternalLink className="w-4 h-4 mr-1 text-blue-500" />
             External Email Tools
           </h4>
@@ -444,7 +444,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
               href={`https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${encodeURIComponent(contact.email)}&su=`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center p-2 bg-white border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               aria-label="Open Gmail compose"
             >
               <MailIcon className="w-5 h-5 mr-2 text-red-500" />
@@ -455,7 +455,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
               href={`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(contact.email)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center p-2 bg-white border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               aria-label="Open Outlook compose"
             >
               <MailIcon className="w-5 h-5 mr-2 text-blue-600" />
@@ -474,7 +474,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
                 }
                 window.open(`mailto:${contact.email}`, '_blank');
               }}
-              className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center p-2 bg-white border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               aria-label="Open default mail application"
             >
               <Mail className="w-5 h-5 mr-2 text-blue-500" />
@@ -498,10 +498,10 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
                   });
                 }
               }}
-              className="flex items-center justify-center p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center p-2 bg-white border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               aria-label="Copy email address"
             >
-              <Copy className="w-5 h-5 mr-2 text-gray-600" />
+              <Copy className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
               <span className="text-sm">Copy Email</span>
             </button>
           </div>

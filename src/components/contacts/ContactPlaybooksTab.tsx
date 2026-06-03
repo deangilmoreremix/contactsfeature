@@ -66,11 +66,11 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
                     <Brain className="w-6 h-6 mr-3 text-purple-600" />
                     Adaptive Sales Playbooks
                   </h3>
-                  <p className="text-gray-600 mt-2">
+                  <p className="text-gray-600 dark:text-gray-400 mt-2">
                     AI-powered sales strategies customized for {contact.firstName || contact.name}
                   </p>
                 </div>
@@ -83,14 +83,14 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
                     className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
                     title="API Configuration"
                   >
-                    <Target className="w-4 h-4 text-gray-600" />
+                    <Target className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   </button>
                   <button
                     onClick={() => setShowAISettings(true)}
                     className="p-2 bg-white/50 hover:bg-white/70 rounded-lg transition-colors"
                     title="AI Settings"
                   >
-                    <Brain className="w-4 h-4 text-gray-600" />
+                    <Brain className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   </button>
                 </div>
               </div>
@@ -99,7 +99,7 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
             {/* Adaptive Tools Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Adaptive Playbook Generator Card */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
                 <AdaptivePlaybookGenerator
                   deal={{
                     id: contact.id,
@@ -119,7 +119,7 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
               </div>
 
               {/* Communication Optimizer Card */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
                 <CommunicationOptimizer
                   content={`Hello ${contact.firstName || contact.name.split(' ')[0]},\n\nI wanted to follow up on our previous conversation about opportunities at ${contact.company}.`}
                   context={{
@@ -141,7 +141,7 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
               </div>
 
               {/* Discovery Questions Generator Card */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
                 <DiscoveryQuestionsGenerator
                   contact={{
                     id: contact.id,
@@ -170,7 +170,7 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
               </div>
 
               {/* Deal Health Panel Card */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
                 <DealHealthPanel
                   deal={{
                     id: contact.id,
@@ -208,8 +208,8 @@ Next Steps: Schedule follow-up meeting
         return (
           <div className="space-y-6">
             {/* Playbook Type Selection */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Choose Your Playbook Type</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Choose Your Playbook Type</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SmartTooltip featureId="recurring-revenue-playbooks">
                   <button
@@ -221,11 +221,11 @@ Next Steps: Schedule follow-up meeting
                         <TrendingUp className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900">Recurring Revenue Playbooks</h4>
-                        <p className="text-sm text-gray-600">60-day processes for scalable local businesses</p>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">Recurring Revenue Playbooks</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">60-day processes for scalable local businesses</p>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
                       Specialized strategies for converting local businesses into long-term recurring revenue clients with proven 60-day execution frameworks.
                     </p>
                   </button>
@@ -241,11 +241,11 @@ Next Steps: Schedule follow-up meeting
                         <Brain className="w-6 h-6 text-purple-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900">Adaptive Sales Playbooks</h4>
-                        <p className="text-sm text-gray-600">AI-generated strategies for any deal</p>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">Adaptive Sales Playbooks</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">AI-generated strategies for any deal</p>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
                       Dynamic, AI-powered sales strategies that adapt to your specific contact's situation and industry requirements.
                     </p>
                   </button>
@@ -255,7 +255,7 @@ Next Steps: Schedule follow-up meeting
 
             {/* Quick Actions */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <Sparkles className="w-5 h-5 mr-2 text-green-600" />
                 Quick Actions
               </h3>
@@ -297,7 +297,7 @@ Next Steps: Schedule follow-up meeting
     <div className="space-y-6">
       {/* Navigation Breadcrumb */}
       {currentView !== 'selector' && (
-        <div className="flex items-center space-x-2 text-sm text-gray-600">
+        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
           <button
             onClick={() => setCurrentView('selector')}
             className="hover:text-blue-600 transition-colors"
@@ -305,13 +305,13 @@ Next Steps: Schedule follow-up meeting
             Playbooks
           </button>
           <span>/</span>
-          <span className="text-gray-900 font-medium">
+          <span className="text-gray-900 dark:text-white font-medium">
             {currentView === 'executor' ? 'Execute Playbook' : 'Adaptive Strategies'}
           </span>
           {selectedPlaybook && (
             <>
               <span>/</span>
-              <span className="text-gray-900 font-medium">{selectedPlaybook.name}</span>
+              <span className="text-gray-900 dark:text-white font-medium">{selectedPlaybook.name}</span>
             </>
           )}
         </div>

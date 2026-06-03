@@ -277,8 +277,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-2xl font-bold text-gray-900">Contact Analytics</h3>
-          <p className="text-gray-600">Detailed performance metrics for {contact.name}</p>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Contact Analytics</h3>
+          <p className="text-gray-600 dark:text-gray-400">Detailed performance metrics for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
           <select
@@ -318,7 +318,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
           {/* Predictions Overview */}
           {analyticsData.predictions && analyticsData.predictions.length > 0 && (
             <GlassCard className="p-6 bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 border-blue-200">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <Brain className="w-5 h-5 mr-2 text-purple-600" />
                 Predictive Intelligence
                 <Sparkles className="w-4 h-4 ml-2 text-yellow-500" />
@@ -327,7 +327,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                 {analyticsData.predictions.map((prediction: any, index: number) => (
                   <div key={index} className="p-4 bg-white rounded-lg border border-purple-200 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
-                      <h5 className="font-medium text-gray-900 capitalize">
+                      <h5 className="font-medium text-gray-900 dark:text-white capitalize">
                         {prediction.predictionType?.replace('_', ' ') || 'Prediction'}
                       </h5>
                       <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
@@ -340,7 +340,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                          prediction.predictionType === 'response_time' ? `${(prediction.value || 0).toFixed(1)}h` :
                          `${prediction.value || 0}`}
                       </div>
-                      <div className="text-sm text-gray-600">{prediction.timeframe || 'Next period'}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">{prediction.timeframe || 'Next period'}</div>
                     </div>
                     <div className="space-y-1">
                       {(prediction.reasoning || []).slice(0, 2).map((reason: string, idx: number) => (
@@ -359,7 +359,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
           {/* Risk Assessment */}
           {analyticsData.riskAssessment && (
             <GlassCard className="p-6 border-orange-200 bg-gradient-to-r from-orange-50 to-red-50">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
                 Risk Assessment
               </h4>
@@ -376,18 +376,18 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                     </div>
                     <div>
                       <div className="text-lg font-semibold capitalize">{analyticsData.riskAssessment.overallRisk || 'Unknown'} Risk</div>
-                      <div className="text-sm text-gray-600">Overall Risk Level</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Overall Risk Level</div>
                     </div>
                   </div>
 
                   {analyticsData.riskAssessment.riskFactors && analyticsData.riskAssessment.riskFactors.length > 0 && (
                     <div>
-                      <h5 className="font-medium text-gray-900 mb-2">Risk Factors:</h5>
+                      <h5 className="font-medium text-gray-900 dark:text-white mb-2">Risk Factors:</h5>
                       <div className="space-y-2">
                         {analyticsData.riskAssessment.riskFactors.map((factor: any, idx: number) => (
                           <div key={idx} className="p-2 bg-white rounded border-l-4 border-red-400">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900">{factor.factor}</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{factor.factor}</span>
                               <span className={`text-xs px-2 py-1 rounded ${
                                 factor.impact === 'high' ? 'bg-red-100 text-red-800' :
                                 factor.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
@@ -396,7 +396,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                                 {factor.impact}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-600 mt-1">{factor.description}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{factor.description}</p>
                           </div>
                         ))}
                       </div>
@@ -407,7 +407,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                 <div>
                   {analyticsData.riskAssessment.opportunities && analyticsData.riskAssessment.opportunities.length > 0 && (
                     <div>
-                      <h5 className="font-medium text-gray-900 mb-2 flex items-center">
+                      <h5 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                         <Target className="w-4 h-4 mr-1 text-green-600" />
                         Opportunities:
                       </h5>
@@ -415,7 +415,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                         {analyticsData.riskAssessment.opportunities.map((opp: any, idx: number) => (
                           <div key={idx} className="p-2 bg-white rounded border-l-4 border-green-400">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900">{opp.opportunity}</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{opp.opportunity}</span>
                               <span className={`text-xs px-2 py-1 rounded ${
                                 opp.potential === 'high' ? 'bg-green-100 text-green-800' :
                                 opp.potential === 'medium' ? 'bg-blue-100 text-blue-800' :
@@ -424,7 +424,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                                 {opp.potential}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-600 mt-1">{opp.description}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{opp.description}</p>
                           </div>
                         ))}
                       </div>
@@ -433,10 +433,10 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
 
                   {analyticsData.riskAssessment.recommendations && analyticsData.riskAssessment.recommendations.length > 0 && (
                     <div className="mt-4">
-                      <h5 className="font-medium text-gray-900 mb-2">AI Recommendations:</h5>
+                      <h5 className="font-medium text-gray-900 dark:text-white mb-2">AI Recommendations:</h5>
                       <ul className="space-y-1">
                         {analyticsData.riskAssessment.recommendations.map((rec: string, idx: number) => (
-                          <li key={idx} className="text-sm text-gray-600 flex items-start">
+                          <li key={idx} className="text-sm text-gray-600 dark:text-gray-400 flex items-start">
                             <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 mr-2 flex-shrink-0" />
                             <span>{rec}</span>
                           </li>
@@ -452,7 +452,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
           {/* Trend Analysis */}
           {analyticsData.trendAnalysis && (
             <GlassCard className="p-6">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
                 Trend Analysis & Forecast
               </h4>
@@ -460,11 +460,11 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                 {(analyticsData.trendAnalysis.trends || []).map((trend: any, idx: number) => (
                   <div key={idx} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
                     <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-medium text-gray-900 capitalize">{trend.metric?.replace('_', ' ') || 'Metric'}</h5>
+                      <h5 className="font-medium text-gray-900 dark:text-white capitalize">{trend.metric?.replace('_', ' ') || 'Metric'}</h5>
                       <div className={`flex items-center space-x-1 ${
                         trend.direction === 'increasing' ? 'text-green-600' :
                         trend.direction === 'decreasing' ? 'text-red-600' :
-                        'text-gray-600'
+                        'text-gray-600 dark:text-gray-400'
                       }`}>
                         {trend.direction === 'increasing' ? <TrendingUp className="w-4 h-4" /> :
                          trend.direction === 'decreasing' ? <TrendingUp className="w-4 h-4 transform rotate-180" /> :
@@ -472,7 +472,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                         <span className="text-sm font-medium capitalize">{trend.direction || 'stable'}</span>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600 mb-2">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                       Strength: {((trend.strength || 0) * 100).toFixed(1)}%
                     </div>
                     <div className={`text-xs px-2 py-1 rounded ${
@@ -513,8 +513,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">85%</p>
-            <p className="text-sm text-gray-600">Engagement Score</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">85%</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Engagement Score</p>
             <p className="text-xs text-green-600 mt-1">
               {analyticsData?.predictions?.find((p: any) => p.predictionType === 'engagement') ?
                 `AI Predicted: ${analyticsData.predictions.find((p: any) => p.predictionType === 'engagement')?.value}%` :
@@ -532,8 +532,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">78%</p>
-            <p className="text-sm text-gray-600">Response Rate</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">78%</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Response Rate</p>
             <p className="text-xs text-green-600 mt-1">
               {analyticsData?.predictions?.find((p: any) => p.predictionType === 'conversion') ?
                 `AI Predicted: ${analyticsData.predictions.find((p: any) => p.predictionType === 'conversion')?.value}%` :
@@ -551,8 +551,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-red-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">3.2h</p>
-            <p className="text-sm text-gray-600">Avg Response Time</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">3.2h</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Avg Response Time</p>
             <p className="text-xs text-red-600 mt-1">
               {analyticsData?.predictions?.find((p: any) => p.predictionType === 'response_time') ?
                 `AI Predicted: ${analyticsData.predictions.find((p: any) => p.predictionType === 'response_time')?.value.toFixed(1)}h` :
@@ -570,8 +570,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">$85K</p>
-            <p className="text-sm text-gray-600">Pipeline Value</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">$85K</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Pipeline Value</p>
             <p className="text-xs text-green-600 mt-1">
               {analyticsData?.riskAssessment ?
                 `Risk Level: ${analyticsData.riskAssessment.overallRisk}` :
@@ -586,7 +586,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Engagement Trends */}
         <GlassCard className="p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
             <Activity className="w-5 h-5 mr-2 text-blue-500" />
             Engagement Trends
           </h4>
@@ -604,7 +604,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
 
         {/* Channel Performance */}
         <GlassCard className="p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
             <BarChart3 className="w-5 h-5 mr-2 text-green-500" />
             Channel Performance
           </h4>
@@ -629,7 +629,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
 
         {/* Response Time Analysis */}
         <GlassCard className="p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
             <Clock className="w-5 h-5 mr-2 text-purple-500" />
             Response Time by Day
           </h4>
@@ -645,7 +645,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
 
         {/* Deal Progress */}
         <GlassCard className="p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-yellow-500" />
             Deal Progression
           </h4>
@@ -668,16 +668,16 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
 
       {/* Detailed Metrics Table */}
       <GlassCard className="p-6">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">Detailed Metrics</h4>
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Detailed Metrics</h4>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Metric</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">This Period</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Previous Period</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Change</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Trend</th>
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Metric</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">This Period</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Previous Period</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Change</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -689,9 +689,9 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                 { metric: 'Response Speed', current: '3.2 hours', previous: '2.4 hours', change: '+33.3%', trend: 'down' }
               ].map((row, index) => (
                 <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">{row.metric}</td>
-                  <td className="py-3 px-4 text-gray-700">{row.current}</td>
-                  <td className="py-3 px-4 text-gray-700">{row.previous}</td>
+                  <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">{row.metric}</td>
+                  <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{row.current}</td>
+                  <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{row.previous}</td>
                   <td className={`py-3 px-4 font-medium ${
                     row.trend === 'up' ? 'text-green-600' : 'text-red-600'
                   }`}>
