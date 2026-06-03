@@ -12,16 +12,27 @@ const path = require('path');
     fs.writeFileSync(touchPath, new Date().toISOString());
     console.log('[postbuild] wrote', touchPath);
 
-    // 2) Inject build-id meta into index.html
+    // 2) Inject build-id meta and CSS link into index.html
     const indexPath = path.join(distDir, 'index.html');
+    
+    // Find the CSS file in the assets directory
+    const assetsDir = path.join(distDir, 'assets');
+    const cssFiles = fs.readdirSync(assetsDir).filter(f => f.startsWith('bootstrap-') && f.endsWith('.css'));
+    const cssFileName = cssFiles.length > 0 ? cssFiles[0] : null;
+    const cssLink = cssFileName ? `<link rel="stylesheet" crossorigin href="/assets/${cssFileName}">` : '';
+    const buildMeta = `<meta name="x-build-id" content="${buildId}">`;
+    
     if (fs.existsSync(indexPath)) {
       let indexHtml = fs.readFileSync(indexPath, 'utf8');
-      // Remove any existing x-build-id meta
+      // Remove any existing x-build-id meta or CSS links
       indexHtml = indexHtml.replace(/<meta name="x-build-id" content="[^"]*">/g, '');
-      // Insert meta just before </head>
-      indexHtml = indexHtml.replace('</head>', `  <meta name="x-build-id" content="${buildId}">\n  </head>`);
+      indexHtml = indexHtml.replace(/<link rel="stylesheet" crossorigin href="[^"]*bootstrap-[^"]*\.css">/g, '');
+      // Clean up whitespace before </head>
+      indexHtml = indexHtml.replace(/\s*<\/head>/, '\n  </head>');
+      // Insert meta and CSS link just before </head>
+      indexHtml = indexHtml.replace('  </head>', `  ${buildMeta}\n  ${cssLink}\n  </head>`);
       fs.writeFileSync(indexPath, indexHtml, 'utf8');
-      console.log('[postbuild] injected x-build-id into index.html', buildId);
+      console.log('[postbuild] injected x-build-id and CSS into index.html', buildId, cssFileName);
     } else {
       console.warn('[postbuild] index.html not found at', indexPath);
     }
@@ -30,22 +41,19 @@ const path = require('path');
     const swPath = path.join(distDir, 'sw.js');
     if (fs.existsSync(swPath)) {
       let sw = fs.readFileSync(swPath, 'utf8');
-      // Replace CACHE_NAME, STATIC_CACHE, DYNAMIC_CACHE occurrences
-      sw = sw.replace(/const CACHE_NAME = \'contacts-app-[^\']*\';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
-      sw = sw.replace(/const STATIC_CACHE = \'contacts-static-[^\']*\';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
-      sw = sw.replace(/const DYNAMIC_CACHE = \'contacts-dynamic-[^\']*\';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
-      // Fallback: if original constants are without -<id>, replace those too
-      sw = sw.replace(/const CACHE_NAME = \'contacts-app-v1\';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
-      sw = sw.replace(/const STATIC_CACHE = \'contacts-static-v1\';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
-      sw = sw.replace(/const DYNAMIC_CACHE = \'contacts-dynamic-v1\';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
-
+      sw = sw.replace(/const CACHE_NAME = 'contacts-app-[^']*';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-[^']*';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-[^']*';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
+      sw = sw.replace(/const CACHE_NAME = 'contacts-app-v1';/g, `const CACHE_NAME = 'contacts-app-${buildId}';`);
+      sw = sw.replace(/const STATIC_CACHE = 'contacts-static-v1';/g, `const STATIC_CACHE = 'contacts-static-${buildId}';`);
+      sw = sw.replace(/const DYNAMIC_CACHE = 'contacts-dynamic-v1';/g, `const DYNAMIC_CACHE = 'contacts-dynamic-${buildId}';`);
       fs.writeFileSync(swPath, sw, 'utf8');
       console.log('[postbuild] updated sw.js cache names with buildId', buildId);
     } else {
       console.warn('[postbuild] sw.js not found at', swPath);
     }
 
-    // 4) Write build environment diagnostics (presence of VITE/SUPABASE env vars)
+    // 4) Write build environment diagnostics
     try {
       const envReport = {
         VITE_SUPABASE_URL_present: !!process.env.VITE_SUPABASE_URL,
@@ -57,12 +65,12 @@ const path = require('path');
       };
       const envReportPath = path.join(distDir, `build-env-report-${buildId}.json`);
       fs.writeFileSync(envReportPath, JSON.stringify(envReport, null, 2));
-      console.log('[postbuild] wrote env report', envReportPath, envReport);
+      console.log('[postbuild] wrote env report', envReportPath);
     } catch (e) {
       console.warn('[postbuild] failed to write env report', e);
     }
 
-    // 5) Copy dist -> public_dist so Netlify publish dir has the built files
+    // 5) Copy dist -> public_dist
     try {
       if (fs.existsSync(publicDir)) {
         fs.rmSync(publicDir, { recursive: true, force: true });
@@ -90,30 +98,11 @@ const path = require('path');
     }
 
     // 6) Fix index.html script paths for Netlify hosting
-    // Vite's base: '/assets/' puts JS at /assets/main-xxx.js, but Netlify serves from root
     const publicIndexPath = path.join(publicDir, 'index.html');
     if (fs.existsSync(publicIndexPath)) {
       let publicIndexHtml = fs.readFileSync(publicIndexPath, 'utf8');
-      // Change /assets/ to assets/ (relative path) for both src and href
       publicIndexHtml = publicIndexHtml.replace(/src="\/assets\//g, 'src="assets/');
       publicIndexHtml = publicIndexHtml.replace(/href="\/assets\//g, 'href="assets/');
-      
-      // Find the CSS file hash from main.js deps array
-      const mainJsPath = path.join(publicDir, 'assets/main-', 'L7O3YPwG.js');
-      const mainJsMatch = fs.readdirSync(path.join(publicDir, 'assets'))
-        .find(f => f.startsWith('main-') && f.endsWith('.js'));
-      
-      if (mainJsMatch) {
-        const mainJs = fs.readFileSync(path.join(publicDir, 'assets', mainJsMatch), 'utf8');
-        const cssMatch = mainJs.match(/assets\/bootstrap-([a-zA-Z0-9-]+)\.css/);
-        if (cssMatch) {
-          publicIndexHtml = publicIndexHtml.replace(
-            /<\/head>/,
-            `  <link rel="stylesheet" crossorigin href="assets/bootstrap-${cssMatch[1]}.css">\n  </head>`
-          );
-        }
-      }
-      
       fs.writeFileSync(publicIndexPath, publicIndexHtml, 'utf8');
       console.log('[postbuild] fixed index.html paths for Netlify');
     }

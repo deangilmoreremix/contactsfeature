@@ -331,6 +331,7 @@ export default function Contacts() {
       {selectedContact && (
         <ContactDetailView
           contact={selectedContact}
+          isOpen={true}
           onClose={() => setSelectedContact(null)}
         />
       )}
