@@ -1,6 +1,7 @@
 import React, { useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { AIProvider } from './contexts/AIContext';
 import { ViewProvider } from './contexts/ViewContext';
+import { ContactsModal } from './components/modals/ContactsModal';
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
   constructor(props: any) {
@@ -27,8 +28,6 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
   }
 }
 
-import Contacts from './pages/Contacts';
-
 export interface SmartCRMRemoteProps {
   sharedData?: {
     user?: any;
@@ -44,7 +43,6 @@ export interface SmartCRMRemoteProps {
 
 const ContactsApp: React.FC<SmartCRMRemoteProps> = ({
   sharedData,
-  initialRoute,
 }) => {
   const theme = sharedData?.theme || 'light';
 
@@ -60,7 +58,10 @@ const ContactsApp: React.FC<SmartCRMRemoteProps> = ({
     <AIProvider>
       <ViewProvider>
         <RootErrorBoundary>
-          <Contacts />
+          <ContactsModal
+            isOpen={true}
+            onClose={() => {}}
+          />
         </RootErrorBoundary>
       </ViewProvider>
     </AIProvider>
