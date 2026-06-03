@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { logger } from '../services/logger.service';
+import { supabase } from '../../lib/supabase';
+import { logger } from '../../services/logger.service';
 
 export interface ContactAttachment {
   id: string;
@@ -23,10 +22,8 @@ export function useContactAttachments(contactId: string | undefined) {
 
   const loadAttachments = async () => {
     if (!contactId) return;
-
     setLoading(true);
     setError(null);
-
     try {
       const { data, error: fetchError } = await supabase
         .from('contact_attachments')
@@ -61,7 +58,6 @@ export function useContactAttachments(contactId: string | undefined) {
 
   const uploadFile = async (file: File): Promise<ContactAttachment> => {
     if (!contactId) throw new Error('No contact selected');
-
     setUploading(true);
     setUploadProgress(0);
     setError(null);
@@ -122,7 +118,6 @@ export function useContactAttachments(contactId: string | undefined) {
 
   const deleteAttachment = async (attachment: ContactAttachment) => {
     if (!confirm(`Delete ${attachment.fileName}?`)) return;
-
     try {
       const { error: storageError } = await supabase.storage
         .from('contact-attachments')
@@ -136,7 +131,6 @@ export function useContactAttachments(contactId: string | undefined) {
         .eq('id', attachment.id);
 
       if (dbError) throw dbError;
-
       setAttachments(prev => prev.filter(a => a.id !== attachment.id));
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -154,10 +148,6 @@ export function useContactAttachments(contactId: string | undefined) {
     link.click();
   };
 
-  useEffect(() => {
-    loadAttachments();
-  }, [contactId]);
-
   return {
     attachments,
     loading,
@@ -166,7 +156,6 @@ export function useContactAttachments(contactId: string | undefined) {
     error,
     uploadFile,
     deleteAttachment,
-    downloadAttachment,
     refetch: loadAttachments
   };
 }

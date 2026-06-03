@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Fuse from 'fuse.js';
 import { useDebounce } from './useDebounce';
 
@@ -40,7 +40,6 @@ export function useSmartSearch<T>({
 
   const fuse = useMemo(() => {
     if (!items || items.length === 0) return null;
-
     return new Fuse<T>(items, {
       keys: options.keys.map(key => ({
         name: key.name,

@@ -23,23 +23,21 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
   const [activities, setActivities] = useState<TimelineActivity[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [total, setTotal] = useState(0);
 
   const loadActivities = async () => {
     if (!contactId) return;
-
     setLoading(true);
     setError(null);
 
     try {
       let query = supabase
         .from('contact_timeline')
-        .select('*', { count: 'exact' })
+        .select('*')
         .eq('contact_id', contactId)
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (filters.activityTypes && filters.activityTypes.length > 0) {
+      if (filters.activityTypes?.length) {
         query = query.in('activity_type', filters.activityTypes);
       }
       if (filters.dateFrom) {
@@ -49,12 +47,10 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
         query = query.lte('created_at', filters.dateTo);
       }
 
-      const { data, error: fetchError, count } = await query;
-
+      const { data, error: fetchError } = await query;
       if (fetchError) throw fetchError;
 
       setActivities((data || []) as TimelineActivity[]);
-      setTotal(count || 0);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to load timeline', error);
@@ -71,10 +67,8 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
     metadata?: Record<string, any>
   ) => {
     if (!contact?.id) return;
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
-
       const { data, error: insertError } = await supabase
         .from('contact_timeline')
         .insert({
@@ -88,9 +82,7 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
         .single();
 
       if (insertError) throw insertError;
-
-      const newActivity = data as TimelineActivity;
-      setActivities(prev => [newActivity, ...prev]);
+      setActivities(prev => [data as TimelineActivity, ...prev]);
     } catch (err) {
       logger.error('Failed to add timeline activity', err instanceof Error ? err : new Error(String(err)));
     }
@@ -98,16 +90,9 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
 
   useEffect(() => {
     loadActivities();
-  }, [contactId, filters.activityTypes?.join(','), filters.dateFrom, filters.dateTo]);
+  }, [contactId, JSON.stringify(filters)]);
 
-  return {
-    activities,
-    loading,
-    error,
-    total,
-    refetch: loadActivities,
-    addActivity
-  };
+  return { activities, loading, error, refetch: loadActivities, addActivity };
 }
 
 export function useActivityTypeLabels() {
