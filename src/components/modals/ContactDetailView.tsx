@@ -78,9 +78,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         size="md"
       />
 
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-2 animate-fade-in">
+      <div className="fixed inset-0 bg-black/95 dark:bg-gray-900 backdrop-blur-md z-[60] flex items-center justify-center p-2 animate-fade-in">
         <div
-          className="bg-white rounded-xl w-full max-w-[95vw] h-[95vh] overflow-hidden flex animate-scale-in shadow-2xl"
+          className="bg-white dark:bg-gray-800 rounded-none w-full max-w-[95vw] h-[95vh] overflow-hidden flex animate-scale-in shadow-2xl"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               onClose();
@@ -115,7 +115,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
             />
 
             {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 min-h-0">
+            <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 min-h-0">
               <ErrorBoundary>
                 <Suspense fallback={<div className="p-6 text-center">Loading...</div>}>
                   {activeTab === 'overview' && (
