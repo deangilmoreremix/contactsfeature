@@ -22,9 +22,11 @@ import {
   UserCheck,
   UserX,
   Flame,
-  Snowflake
+  Snowflake,
+  Edit3
 } from 'lucide-react';
 import { logger } from '../../../services/logger.service';
+import { supabase } from '../../../lib/supabase';
 
 interface TableViewProps {
   contacts: Contact[];
@@ -610,6 +612,27 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                   key={contact.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
                   onClick={() => onContactClick(contact)}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', contact.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.stopPropagation();
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    if (draggedId && draggedId !== contact.id) {
+                      window.dispatchEvent(new CustomEvent('reorder-contacts', {
+                        detail: { draggedId, targetId: contact.id }
+                      }));
+                    }
+                  }}
                 >
                   <td className="px-4 py-3">
                     <button
@@ -626,16 +649,58 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                       )}
                     </button>
                   </td>
-                  {orderedColumns.map(column => (
-                    <td
-                      key={column.id}
-                      className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300"
-                    >
-                      {column.render
+                  {orderedColumns.map(column => {
+                    const isEditing = editingCell?.contactId === contact.id && editingCell?.field === column.id;
+                    const isEditable = ['name', 'email', 'company', 'title', 'phone', 'industry'].includes(column.id);
+
+                    let cellContent;
+                    if (isEditing) {
+                      const inputId = `edit-${contact.id}-${column.id}`;
+                      cellContent = (
+                        <input
+                          id={inputId}
+                          autoFocus
+                          type={column.id === 'aiScore' ? 'number' : 'text'}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineEditKeyDown}
+                          className="w-full px-2 py-1 text-sm bg-white dark:bg-gray-700 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      );
+                    } else {
+                      const value = column.render
                         ? column.render(column.accessor(contact), contact)
-                        : column.accessor(contact)}
-                    </td>
-                  ))}
+                        : column.accessor(contact);
+
+                      if (isEditable) {
+                        cellContent = (
+                          <div
+                            className="group/cell flex items-center gap-1 cursor-text"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              startInlineEdit(contact.id, column.id, column.accessor(contact));
+                            }}
+                          >
+                            <span className="truncate">{value}</span>
+                            <Edit3 className="w-3 h-3 text-gray-400 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0" />
+                          </div>
+                        );
+                      } else {
+                        cellContent = value;
+                      }
+                    }
+
+                    return (
+                      <td
+                        key={`${contact.id}-${column.id}`}
+                        className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px]"
+                      >
+                        {cellContent}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

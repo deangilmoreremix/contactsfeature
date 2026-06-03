@@ -349,6 +349,8 @@ export function useCreateOneRecord<T>({
   const isMountedRef = useRef(true);
 
   const createRecord = useCallback(async (data: Partial<T>): Promise<T> => {
+    if (loading) return Promise.reject(new Error('Operation in progress'));
+
     setLoading(true);
 
     try {
@@ -361,22 +363,22 @@ export function useCreateOneRecord<T>({
       if (createError) throw createError;
 
       const record = result as T;
-      
+
       if (isMountedRef.current && onSuccess) {
         onSuccess(record);
       }
 
       logger.info(`Created record in ${tableName}`, { id: (record as any).id });
-      
+
       return record;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error(`Failed to create record in ${tableName}`, error);
-      
+
       if (isMountedRef.current && onError) {
         onError(error);
       }
-      
+
       throw error;
     } finally {
       if (isMountedRef.current) {
@@ -423,22 +425,22 @@ export function useUpdateOneRecord<T>({
       if (updateError) throw updateError;
 
       const record = result as T;
-      
+
       if (isMountedRef.current && onSuccess) {
         onSuccess(record);
       }
 
       logger.info(`Updated record in ${tableName}`, { id });
-      
+
       return record;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error(`Failed to update record in ${tableName}`, { id, error });
-      
+
       if (isMountedRef.current && onError) {
         onError(error);
       }
-      
+
       throw error;
     } finally {
       if (isMountedRef.current) {
