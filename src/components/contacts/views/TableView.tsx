@@ -11,7 +11,18 @@ import {
   Star,
   CheckSquare,
   Square,
-  Download
+  Download,
+  Trash2,
+  X,
+  ChevronDown,
+  Tag,
+  MoreHorizontal,
+  Save,
+  RefreshCw,
+  UserCheck,
+  UserX,
+  Flame,
+  Snowflake
 } from 'lucide-react';
 import { logger } from '../../../services/logger.service';
 
@@ -199,6 +210,10 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const [editingCell, setEditingCell] = useState<{contactId: string; field: string} | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showBulkActionMenu, setShowBulkActionMenu] = useState(false);
 
   useEffect(() => {
     loadTablePreferences();
@@ -277,6 +292,122 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     setSelectedContacts(newSelected);
   };
 
+  const startInlineEdit = (contactId: string, field: string, currentValue: any) => {
+    setEditingCell({ contactId, field });
+    setEditValue(currentValue?.toString() || '');
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingCell(null);
+    setEditValue('');
+  };
+
+  const saveInlineEdit = async () => {
+    if (!editingCell) return;
+
+    const { contactId, field } = editingCell;
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return;
+
+    const updateData: any = { [field]: editValue };
+    if (field === 'name') {
+      updateData.firstName = editValue.split(' ')[0] || '';
+      updateData.lastName = editValue.split(' ').slice(1).join(' ') || '';
+    }
+
+    try {
+      await window.dispatchEvent(new CustomEvent('update-contact', { detail: { id: contactId, updates: updateData } }));
+    } catch (error) {
+      logger.error('Failed to save inline edit', error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setEditingCell(null);
+      setEditValue('');
+    }
+  };
+
+  const handleInlineEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveInlineEdit();
+    } else if (e.key === 'Escape') {
+      cancelInlineEdit();
+    }
+  };
+
+  const bulkUpdateField = async (field: string, value: any) => {
+    if (selectedContacts.size === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const ids = Array.from(selectedContacts);
+      const { error } = await supabase
+        .from('contacts')
+        .update({ [field]: value, updatedAt: new Date().toISOString() })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      window.dispatchEvent(new CustomEvent('contacts-updated', { detail: { ids, updates: { [field]: value } } }));
+      setSelectedContacts(new Set());
+      setShowBulkActionMenu(false);
+    } catch (error) {
+      logger.error('Bulk update failed', error instanceof Error ? error : new Error(String(error)));
+      alert('Bulk update failed. Please try again.');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const bulkDeleteContacts = async () => {
+    if (selectedContacts.size === 0) return;
+    if (!confirm(`Delete ${selectedContacts.size} selected contacts? This action cannot be undone.`)) return;
+
+    setBulkActionLoading(true);
+    try {
+      const ids = Array.from(selectedContacts);
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      window.dispatchEvent(new CustomEvent('contacts-deleted', { detail: { ids } }));
+      setSelectedContacts(new Set());
+      setShowBulkActionMenu(false);
+    } catch (error) {
+      logger.error('Bulk delete failed', error instanceof Error ? error : new Error(String(error)));
+      alert('Bulk delete failed. Please try again.');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const bulkExportSelected = () => {
+    const selected = contacts.filter(c => selectedContacts.has(c.id));
+    const csv = [
+      Object.keys(selected[0]).join(','),
+      ...selected.map(c => Object.values(c).map(v => `"${v}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contacts-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSelectedContacts(new Set());
+    setShowBulkActionMenu(false);
+  };
+
+  const bulkChangeStatus = async (status: string) => {
+    await bulkUpdateField('status', status);
+  };
+
+  const bulkChangeInterest = async (level: string) => {
+    await bulkUpdateField('interestLevel', level);
+  };
+
   const orderedColumns = columnOrder
     .map(id => allColumns.find(col => col.id === id))
     .filter((col): col is ColumnDefinition => col !== undefined && visibleColumns.includes(col.id));
@@ -300,9 +431,95 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
 
         <div className="flex items-center gap-2">
           {selectedContacts.size > 0 && (
-            <ModernButton variant="secondary" icon={Download} className="text-sm">
-              Export Selected
-            </ModernButton>
+            <div className="relative">
+              <ModernButton
+                variant="primary"
+                onClick={() => setShowBulkActionMenu(!showBulkActionMenu)}
+                icon={MoreHorizontal}
+                className="text-sm"
+              >
+                Bulk Actions
+              </ModernButton>
+              {showBulkActionMenu && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
+                  <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {selectedContacts.size} selected
+                    </p>
+                  </div>
+                  
+                  <div className="p-2">
+                    <button
+                      onClick={bulkExportSelected}
+                      disabled={bulkActionLoading}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export Selected
+                    </button>
+                    
+                    <div className="relative group">
+                      <button
+                        disabled={bulkActionLoading}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 justify-between"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Tag className="w-4 h-4" />
+                          Change Status
+                        </span>
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                      <div className="hidden group-hover:block absolute left-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                        {['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].map(status => (
+                          <button
+                            key={status}
+                            onClick={() => bulkChangeStatus(status)}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 capitalize"
+                          >
+                            {status}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="relative group">
+                      <button
+                        disabled={bulkActionLoading}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 justify-between"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Flame className="w-4 h-4" />
+                          Change Interest
+                        </span>
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                      <div className="hidden group-hover:block absolute left-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                        {['hot', 'medium', 'low', 'cold'].map(level => (
+                          <button
+                            key={level}
+                            onClick={() => bulkChangeInterest(level)}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 capitalize"
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <hr className="my-2 border-gray-200 dark:border-gray-700" />
+                    
+                    <button
+                      onClick={bulkDeleteContacts}
+                      disabled={bulkActionLoading}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Selected
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           <ModernButton
             variant="secondary"
