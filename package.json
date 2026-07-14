@@ -40,6 +40,7 @@
     "@google/generative-ai": "^0.24.1",
     "@netlify/functions": "^5.1.0",
     "@originjs/vite-plugin-federation": "^1.4.1",
+    "@supabase/functions-js": "^2.110.3",
     "@supabase/supabase-js": "^2.39.3",
     "@tanstack/react-table": "^8.11.0",
     "ai": "^5.0.106",
