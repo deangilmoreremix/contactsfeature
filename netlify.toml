@@ -10,11 +10,6 @@
   directory = "netlify/functions"
 
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
@@ -37,6 +32,24 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, HEAD, OPTIONS"
+
+[[headers]]
+  for = "/assets/remoteEntry.js"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, HEAD, OPTIONS"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 [[headers]]
   for = "/*"
   [headers.values]
@@ -46,4 +59,4 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://identity.netlify.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.pexels.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.openai.com https://generativelanguage.googleapis.com https://api.netlify.com; font-src 'self' data:; frame-ancestors 'none';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://identity.netlify.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.pexels.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.openai.com https://generativelanguage.googleapis.com https://api.netlify.com; font-src 'self' data:; frame-ancestors 'self' https://app.smartcrm.vip https://*.smartcrm.vip;"

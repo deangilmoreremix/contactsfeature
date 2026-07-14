@@ -1,14 +1,32 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import federation from "@originjs/vite-plugin-federation";
 import path from "path";
 
-console.log("\n=== BUILD (STANDALONE MODE - NO FEDERATION) ===");
-console.log("Publishing as standalone SPA for Netlify");
+console.log("\n=== BUILD (MODULE FEDERATION REMOTE: ContactsApp) ===");
+console.log("Publishing as federated remote for host consumption + standalone SPA");
 console.log("=== BUILD END ===\n");
 
 export default defineConfig({
   base: '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    federation({
+      name: "ContactsApp",
+      filename: "remoteEntry.js",
+      exposes: {
+        "./SmartCRMApp": "./src/remote/SmartCRMApp.tsx",
+        "./App": "./src/remote/App.tsx",
+        "./mount": "./src/remote/mount.tsx",
+        "./ContactsApp": "./src/remote/SmartCRMApp.tsx",
+      },
+      shared: {
+        react: { singleton: true, requiredVersion: "^18.0.0" },
+        "react-dom": { singleton: true, requiredVersion: "^18.0.0" },
+        "react-router-dom": { singleton: true, requiredVersion: "^6.0.0" },
+      },
+    }),
+  ],
   optimizeDeps: {
     include: ["react", "react-dom", "@supabase/supabase-js"],
   },
@@ -53,6 +71,6 @@ export default defineConfig({
         assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     },
-    minify: 'esbuild',
+    minify: false,
   },
 });

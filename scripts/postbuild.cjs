@@ -17,7 +17,7 @@ const path = require('path');
     
     // Find the CSS file in the assets directory (Vite outputs bootstrap-*.css for the main entry)
     const assetsDir = path.join(distDir, 'assets');
-    const cssFiles = fs.readdirSync(assetsDir).filter(f => f.startsWith('bootstrap-') && f.endsWith('.css'));
+    const cssFiles = fs.readdirSync(assetsDir).filter(f => (f.startsWith('bootstrap-') || f.startsWith('src-')) && f.endsWith('.css'));
     const cssFileName = cssFiles.length > 0 ? cssFiles[0] : null;
     const cssLink = cssFileName ? `<link rel="stylesheet" crossorigin href="/assets/${cssFileName}">` : '';
     const buildMeta = `<meta name="x-build-id" content="${buildId}">`;
@@ -26,7 +26,7 @@ const path = require('path');
       let indexHtml = fs.readFileSync(indexPath, 'utf8');
       // Remove any existing x-build-id meta or CSS links
       indexHtml = indexHtml.replace(/<meta name="x-build-id" content="[^"]*">/g, '');
-      indexHtml = indexHtml.replace(/<link rel="stylesheet" crossorigin href="[^"]*bootstrap-[^"]*\.css">/g, '');
+      indexHtml = indexHtml.replace(/<link rel="stylesheet" crossorigin href="[^"]*(bootstrap-|src-)[^"]*\.css">/g, '');
       // Clean up whitespace before </head>
       indexHtml = indexHtml.replace(/\s*<\/head>/, '\n  </head>');
       // Insert meta and CSS link just before </head>
