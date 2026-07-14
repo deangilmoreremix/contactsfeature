@@ -55,9 +55,6 @@ importers:
       lucide-react:
         specifier: ^0.344.0
         version: 0.344.0(react@18.3.1)
-      netlify-cli:
-        specifier: ^26.0.2
-        version: 26.0.2(@types/node@24.12.4)(picomatch@4.0.4)(rollup@4.60.4)
       netlify-identity-widget:
         specifier: ^1.9.2
         version: 1.9.2
@@ -161,6 +158,9 @@ importers:
       jsdom:
         specifier: ^27.2.0
         version: 27.4.0
+      netlify-cli:
+        specifier: ^26.0.2
+        version: 26.0.2(@types/node@24.12.4)(picomatch@4.0.4)(rollup@4.60.4)
       postcss:
         specifier: ^8.4.35
         version: 8.5.15
