@@ -4,6 +4,7 @@
  */
 
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
+import { enrichContactWithWebSearch, type EnrichmentOutcome, type EnrichmentProgress } from './contactEnrichment';
 import { logger } from './logger.service';
 import { webSearchService } from './webSearchService';
 import { Contact } from '../types';
@@ -241,25 +242,17 @@ class ContactAIService {
     }
   }
 
+  /**
+   * Enrich a contact with public professional information found via OpenAI web search.
+   * Fills only empty fields; returns cited findings. Errors propagate (no fabricated fallback).
+   */
   async enrichContact(
     contact: Contact,
-    enrichmentType: 'basic' | 'comprehensive' | 'social' = 'basic'
-  ): Promise<any> {
-    const request: Omit<AIRequest, 'id'> = {
-      type: 'contact_enrichment',
-      priority: enrichmentType === 'comprehensive' ? 'high' : 'medium',
-      data: {
-        contact,
-        enrichmentLevel: enrichmentType
-      },
-      context: {
-        contactId: contact.id
-      }
-    };
-
+    _enrichmentType: 'basic' | 'comprehensive' | 'social' = 'basic',
+    onProgress?: EnrichmentProgress
+  ): Promise<EnrichmentOutcome> {
     try {
-      const response = await aiOrchestrator.executeImmediate(request);
-      return response.result;
+      return await enrichContactWithWebSearch(contact, onProgress ? { onProgress } : {});
     } catch (error) {
       logger.error('Contact enrichment failed', error as Error, { contactId: contact.id });
       throw error;
