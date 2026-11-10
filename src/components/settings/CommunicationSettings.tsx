@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { communicationConfigService, SMTPConfig, TwilioConfig, MailtoConfig } from '../../services/communicationConfigService';
 import {
@@ -10,22 +9,15 @@ import {
   MessageSquare,
   Settings,
   Plus,
-  Edit,
   Trash2,
   TestTube,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   Save,
-  RefreshCw,
   Eye,
   EyeOff,
-  Copy,
-  Download,
-  Upload,
   Zap,
-  Shield,
-  Clock,
+  X,
   BarChart3
 } from 'lucide-react';
 

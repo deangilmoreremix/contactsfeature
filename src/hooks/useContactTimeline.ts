@@ -19,6 +19,16 @@ export interface TimelineFilters {
   dateTo?: string;
 }
 
+const toActivity = (row: any): TimelineActivity => ({
+  id: row.id,
+  contactId: row.contact_id,
+  activityType: row.activity_type,
+  description: row.description,
+  ...(row.metadata ? { metadata: row.metadata } : {}),
+  ...(row.user_name ? { userName: row.user_name } : {}),
+  createdAt: row.created_at
+});
+
 export function useContactTimeline(contactId: string | undefined, filters: TimelineFilters = {}) {
   const [activities, setActivities] = useState<TimelineActivity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +60,7 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
       const { data, error: fetchError } = await query;
       if (fetchError) throw fetchError;
 
-      setActivities((data || []) as TimelineActivity[]);
+      setActivities((data || []).map(toActivity));
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to load timeline', error);
@@ -72,6 +82,7 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
       const { data, error: insertError } = await supabase
         .from('contact_timeline')
         .insert({
+          user_id: user?.id,
           contact_id: contact.id,
           activity_type: activityType,
           description,
@@ -82,7 +93,7 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
         .single();
 
       if (insertError) throw insertError;
-      setActivities(prev => [data as TimelineActivity, ...prev]);
+      setActivities(prev => [toActivity(data), ...prev]);
     } catch (err) {
       logger.error('Failed to add timeline activity', err instanceof Error ? err : new Error(String(err)));
     }

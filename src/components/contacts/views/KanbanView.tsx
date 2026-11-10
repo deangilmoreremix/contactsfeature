@@ -8,8 +8,6 @@ import { ModernButton } from '../../ui/ModernButton';
 import {
   GripVertical,
   Settings,
-  Plus,
-  MoreVertical,
   Star,
   Mail,
   Phone,
@@ -107,7 +105,9 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
   const moveColumnUp = (index: number) => {
     if (index === 0) return;
     const newColumns = [...columns];
-    [newColumns[index - 1], newColumns[index]] = [newColumns[index], newColumns[index - 1]];
+    const prev = newColumns[index - 1]; const cur = newColumns[index];
+    if (!prev || !cur) return;
+    newColumns[index - 1] = cur; newColumns[index] = prev;
     newColumns.forEach((col, idx) => col.order = idx);
     saveColumnConfig(newColumns);
   };
@@ -115,7 +115,9 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
   const moveColumnDown = (index: number) => {
     if (index === columns.length - 1) return;
     const newColumns = [...columns];
-    [newColumns[index], newColumns[index + 1]] = [newColumns[index + 1], newColumns[index]];
+    const cur = newColumns[index]; const next = newColumns[index + 1];
+    if (!cur || !next) return;
+    newColumns[index] = next; newColumns[index + 1] = cur;
     newColumns.forEach((col, idx) => col.order = idx);
     saveColumnConfig(newColumns);
   };
@@ -142,7 +144,7 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
           </span>
         </div>
         <ModernButton
-          variant="secondary"
+          variant="outline"
           onClick={() => setShowColumnConfig(!showColumnConfig)}
           icon={Settings}
         >
@@ -217,9 +219,10 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
                              alt={contact.name}
                              className="w-10 h-10 rounded-full object-cover"
                              onError={(e) => {
-                               e.target.onerror = null;
-                               e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-                               e.target.style.opacity = '0.7';
+                               const img = e.currentTarget;
+                               img.onerror = null;
+                               img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                               img.style.opacity = '0.7';
                              }}
                              loading="lazy"
                            />

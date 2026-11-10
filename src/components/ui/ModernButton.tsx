@@ -2,13 +2,17 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface ModernButtonProps {
-  children: React.ReactNode;
-  variant?: 'primary' | 'glass' | 'outline' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
-  loading?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-  className?: string;
+  children?: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'glass' | 'outline' | 'ghost' | undefined;
+  size?: 'sm' | 'md' | 'lg' | undefined;
+  loading?: boolean | undefined;
+  disabled?: boolean | undefined;
+  onClick?: (() => void) | ((e: React.MouseEvent<HTMLButtonElement>) => void) | undefined;
+  className?: string | undefined;
+  type?: 'button' | 'submit' | 'reset' | string | undefined;
+  style?: React.CSSProperties | undefined;
+  icon?: React.ComponentType<{ className?: string }> | undefined;
+  title?: string | undefined;
 }
 
 export const ModernButton: React.FC<ModernButtonProps> = ({
@@ -18,12 +22,18 @@ export const ModernButton: React.FC<ModernButtonProps> = ({
   loading = false,
   disabled = false,
   onClick,
-  className = ''
+  className = '',
+  type = 'button',
+  style,
+  icon: Icon,
+  title
 }) => {
   const getVariantClass = () => {
     switch (variant) {
       case 'glass':
         return 'bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 dark:bg-gray-800/40 dark:border-gray-600/50 dark:hover:bg-gray-700/50';
+      case 'secondary':
+        return 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600';
       case 'outline':
         return 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600';
       case 'ghost':
@@ -48,7 +58,10 @@ export const ModernButton: React.FC<ModernButtonProps> = ({
 
   return (
     <button
-      onClick={onClick}
+      type={type as 'button' | 'submit' | 'reset'}
+      style={style}
+      title={title}
+      onClick={onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
       disabled={disabled || loading}
       className={`
         ${getVariantClass()}
@@ -60,6 +73,7 @@ export const ModernButton: React.FC<ModernButtonProps> = ({
       `}
     >
       {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+      {!loading && Icon && <Icon className="w-4 h-4" />}
       {children}
     </button>
   );

@@ -16,6 +16,32 @@ export interface SavedViewPreset {
   updatedAt: string;
 }
 
+const fromRow = (row: any): SavedViewPreset => ({
+  id: row.id,
+  name: row.name,
+  objectType: row.object_type,
+  filters: row.filters ?? [],
+  sorts: row.sorts ?? [],
+  ...(row.group_by ? { groupBy: row.group_by } : {}),
+  ...(row.column_order ? { columnOrder: row.column_order } : {}),
+  ...(row.visible_columns ? { visibleColumns: row.visible_columns } : {}),
+  isDefault: !!row.is_default,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at
+});
+
+const toRow = (preset: Omit<SavedViewPreset, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => ({
+  ...(preset.id ? { id: preset.id } : {}),
+  name: preset.name,
+  object_type: preset.objectType,
+  filters: preset.filters,
+  sorts: preset.sorts,
+  group_by: preset.groupBy ?? null,
+  column_order: preset.columnOrder ?? null,
+  visible_columns: preset.visibleColumns ?? null,
+  is_default: preset.isDefault ?? false
+});
+
 export function useSavedViewPresets(objectType: string = 'contacts') {
   const [presets, setPresets] = useState<SavedViewPreset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,7 +62,7 @@ export function useSavedViewPresets(objectType: string = 'contacts') {
         .order('updated_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setPresets((data || []) as SavedViewPreset[]);
+      setPresets((data || []).map(fromRow));
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to load view presets', error);
@@ -46,7 +72,7 @@ export function useSavedViewPresets(objectType: string = 'contacts') {
     }
   };
 
-  const savePreset = async (preset: Omit<SavedViewPreset, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const savePreset = async (preset: Omit<SavedViewPreset, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -54,7 +80,7 @@ export function useSavedViewPresets(objectType: string = 'contacts') {
       const { data, error: upsertError } = await supabase
         .from('view_presets')
         .upsert({
-          ...preset,
+          ...toRow(preset),
           user_id: user.id,
           updated_at: new Date().toISOString()
         }, {
@@ -65,15 +91,12 @@ export function useSavedViewPresets(objectType: string = 'contacts') {
 
       if (upsertError) throw upsertError;
 
-      setPresets(prev => {
-        const exists = prev.find(p => p.id === data.id);
-        if (exists) {
-          return prev.map(p => p.id === data.id ? data as SavedViewPreset : p);
-        }
-        return [data as SavedViewPreset, ...prev];
-      });
+      const saved = fromRow(data);
+      setPresets(prev => prev.some(p => p.id === saved.id)
+        ? prev.map(p => p.id === saved.id ? saved : p)
+        : [saved, ...prev]);
 
-      return data as SavedViewPreset;
+      return saved;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to save view preset', error);

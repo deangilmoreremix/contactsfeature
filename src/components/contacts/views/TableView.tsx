@@ -103,7 +103,7 @@ const allColumns: ColumnDefinition[] = [
         inactive: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
       };
       return (
-        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColors[value] || statusColors.inactive}`}>
+        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColors[value] || statusColors['inactive']}`}>
           {value}
         </span>
       );
@@ -249,7 +249,9 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     const from = ids.indexOf(draggedId);
     const to = ids.indexOf(targetId);
     if (from === -1 || to === -1) return;
-    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    const [moved] = ids.splice(from, 1);
+    if (moved === undefined) return;
+    ids.splice(to, 0, moved);
     setManualOrder(ids);
   };
 
@@ -338,7 +340,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     const rows = selected.map(c =>
       keys.map(k => `"${String((c as any)[k] ?? '').replace(/"/g, '""')}"`).join(',')
     );
-    const blob = new Blob([header, ...rows].join('\n'), { type: 'text/csv' });
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -519,7 +521,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                           <InlineEditCell
                             value={column.accessor(contact)}
                             type={column.id === 'status' || column.id === 'interestLevel' ? 'select' : 'text'}
-                            options={column.id === 'status' ? bulkStatusOptions : column.id === 'interestLevel' ? bulkInterestOptions : undefined}
+                            {...(column.id === 'status' ? { options: bulkStatusOptions } : column.id === 'interestLevel' ? { options: bulkInterestOptions } : {})}
                             onSave={(v) => updateContactField(contact.id, column.id, v)}
                             onCancel={() => setEditingCell(null)}
                           />
