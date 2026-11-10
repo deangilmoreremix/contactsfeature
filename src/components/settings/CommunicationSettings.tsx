@@ -327,7 +327,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
                         <span className="font-medium">Host:</span> {config.host}:{config.port}
                       </div>
                       <div>
-                        <span className="font-medium">From:</span> {config.fromName} <{config.fromEmail}>
+                        <span className="font-medium">From:</span> {config.fromName} &lt;{config.fromEmail}&gt;
                       </div>
                       <div>
                         <span className="font-medium">Security:</span> {config.secure ? 'SSL/TLS' : 'None'}
@@ -1091,4 +1091,23 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
                   onClick={() => setShowAddModal(false)}
                 >
                   Cancel
-                </
+                </ModernButton>
+                <ModernButton
+                  variant="primary"
+                  onClick={() => {
+                    if (activeTab === 'smtp') handleAddSMTP();
+                    else if (activeTab === 'twilio') handleAddTwilio();
+                    else handleAddMailto();
+                  }}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Configuration
+                </ModernButton>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};

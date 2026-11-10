@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { viewPreferencesService } from '../../../services/viewPreferences.service';
 import { GlassCard } from '../../ui/GlassCard';
@@ -10,17 +10,11 @@ import {
   Star,
   CheckSquare,
   Square,
-  Download,
-  Trash2,
   ChevronDown,
-  Tag,
-  MoreHorizontal,
-  Flame,
-  Snowflake,
-  RefreshCw
+  MoreHorizontal
 } from 'lucide-react';
 import { useContactStore } from '../../../hooks/useContactStore';
-import { useUpdateOneRecord } from '../../../hooks/useRecords';
+import { InlineEditCell } from '../InlineEditCell';
 
 interface TableViewProps {
   contacts: Contact[];
@@ -34,6 +28,7 @@ interface ColumnDefinition {
   sortable: boolean;
   width?: number;
   render?: (value: any, contact: Contact) => React.ReactNode;
+  editable?: boolean;
 }
 
 const allColumns: ColumnDefinition[] = [
@@ -50,9 +45,10 @@ const allColumns: ColumnDefinition[] = [
           alt={contact.name}
           className="w-8 h-8 rounded-full object-cover"
           onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-            e.target.style.opacity = '0.7';
+            const img = e.currentTarget;
+            img.onerror = null;
+            img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+            img.style.opacity = '0.7';
           }}
           loading="lazy"
         />
@@ -67,6 +63,7 @@ const allColumns: ColumnDefinition[] = [
   },
   {
     id: 'email',
+    editable: true,
     label: 'Email',
     accessor: (c) => c.email,
     sortable: true,
@@ -74,6 +71,7 @@ const allColumns: ColumnDefinition[] = [
   },
   {
     id: 'company',
+    editable: true,
     label: 'Company',
     accessor: (c) => c.company,
     sortable: true,
@@ -81,6 +79,7 @@ const allColumns: ColumnDefinition[] = [
   },
   {
     id: 'title',
+    editable: true,
     label: 'Title',
     accessor: (c) => c.title,
     sortable: true,
@@ -88,6 +87,7 @@ const allColumns: ColumnDefinition[] = [
   },
   {
     id: 'status',
+    editable: true,
     label: 'Status',
     accessor: (c) => c.status,
     sortable: true,
@@ -111,6 +111,7 @@ const allColumns: ColumnDefinition[] = [
   },
   {
     id: 'interestLevel',
+    editable: true,
     label: 'Interest',
     accessor: (c) => c.interestLevel,
     sortable: true,
@@ -208,13 +209,18 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const [showBulkMenu, setShowBulkMenu] = useState(false);
+  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+  const [manualOrder, setManualOrder] = useState<string[]>([]);
+  const prefsLoaded = useRef(false);
   const updateContact = useContactStore((s) => s.updateContact);
-  const { updateRecord } = useUpdateOneRecord<Contact>({ tableName: 'contacts' });
+  const deleteContact = useContactStore((s) => s.deleteContact);
 
   const bulkStatusOptions = ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'];
   const bulkInterestOptions = ['hot', 'medium', 'low', 'cold'];
 
   const handleSort = (columnId: string) => {
+    setManualOrder([]);
     setSortField(columnId);
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   };
@@ -229,6 +235,24 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
+  // Manual drag-and-drop ordering overrides column sort until the user sorts again.
+  const displayContacts = manualOrder.length
+    ? [...sortedContacts].sort((a, b) => {
+        const ai = manualOrder.indexOf(a.id);
+        const bi = manualOrder.indexOf(b.id);
+        return (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi);
+      })
+    : sortedContacts;
+
+  const reorderContacts = (draggedId: string, targetId: string) => {
+    const ids = displayContacts.map(c => c.id);
+    const from = ids.indexOf(draggedId);
+    const to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setManualOrder(ids);
+  };
+
   const loadTablePreferences = async () => {
     try {
       const prefs = await viewPreferencesService.getTableColumnPreferences();
@@ -242,25 +266,24 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     }
   };
 
-  const saveTablePreferences = async () => {
+  const saveTablePreferences = async (
+    nextVisible: string[] = visibleColumns,
+    nextOrder: string[] = columnOrder,
+    nextWidths: Record<string, number> = columnWidths
+  ) => {
     try {
-      await viewPreferencesService.saveTableColumnPreferences(
-        visibleColumns,
-        columnOrder,
-        columnWidths
-      );
+      await viewPreferencesService.saveTableColumnPreferences(nextVisible, nextOrder, nextWidths);
     } catch (error) {
       console.error('Failed to save table preferences', error);
     }
   };
 
   const toggleColumnVisibility = (columnId: string) => {
-    setVisibleColumns(prev =>
-      prev.includes(columnId)
-        ? prev.filter(id => id !== columnId)
-        : [...prev, columnId]
-    );
-    saveTablePreferences();
+    const next = visibleColumns.includes(columnId)
+      ? visibleColumns.filter(id => id !== columnId)
+      : [...visibleColumns, columnId];
+    setVisibleColumns(next);
+    void saveTablePreferences(next);
   };
 
   const toggleSelectAll = () => {
@@ -278,35 +301,43 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const updateContactField = async (contactId: string, field: string, rawValue: any) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
-    const normalized = ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(String(rawValue).toLowerCase())
-      ? String(rawValue).toLowerCase()
-      : rawValue;
-    const updates: Partial<Contact> = { [field]: normalized as any, updatedAt: new Date().toISOString() };
-    updateContact(contactId, updates);
-    updateRecord(contactId, updates);
+    setEditingCell(null);
+    if (contact[field as keyof Contact] === rawValue) return;
+    try {
+      await updateContact(contactId, { [field]: rawValue } as Partial<Contact>);
+    } catch (error) {
+      console.error('Failed to update contact', error);
+    }
   };
 
   const bulkUpdateField = async (field: string, value: any) => {
     const ids = Array.from(selectedContacts);
     if (!ids.length) return;
-    updateContact(field, value as any);
-    await updateRecord(ids[0], { [field]: value, updatedAt: new Date().toISOString() });
+    const results = await Promise.allSettled(
+      ids.map(id => updateContact(id, { [field]: value } as Partial<Contact>))
+    );
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed) console.error(`Bulk update failed for ${failed} of ${ids.length} contacts`);
     setSelectedContacts(new Set());
-    setShowColumnConfig(false);
+    setShowBulkMenu(false);
   };
 
   const bulkDeleteContacts = async () => {
     const ids = Array.from(selectedContacts);
     if (!ids.length || !confirm(`Delete ${ids.length} contacts?`)) return;
-    for (const id of ids) updateContact(id, { status: 'churned' as Contact['status'] });
+    await Promise.allSettled(ids.map(id => deleteContact(id)));
     setSelectedContacts(new Set());
-    setShowColumnConfig(false);
+    setShowBulkMenu(false);
   };
 
   const bulkExportSelected = () => {
     const selected = contacts.filter(c => selectedContacts.has(c.id));
-    const header = Object.keys(selected[0]).join(',');
-    const rows = selected.map(c => Object.values(c).map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','));
+    if (!selected.length) return;
+    const keys = Array.from(new Set(selected.flatMap(c => Object.keys(c))));
+    const header = keys.join(',');
+    const rows = selected.map(c =>
+      keys.map(k => `"${String((c as any)[k] ?? '').replace(/"/g, '""')}"`).join(',')
+    );
     const blob = new Blob([header, ...rows].join('\n'), { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -315,13 +346,17 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     a.click();
     URL.revokeObjectURL(url);
     setSelectedContacts(new Set());
-    setShowColumnConfig(false);
+    setShowBulkMenu(false);
   };
 
   const bulkChangeStatus = async (status: string) => bulkUpdateField('status', status);
   const bulkChangeInterest = async (level: string) => bulkUpdateField('interestLevel', level);
 
-  useState(() => { loadTablePreferences(); });
+  useEffect(() => {
+    if (prefsLoaded.current) return;
+    prefsLoaded.current = true;
+    void loadTablePreferences();
+  }, []);
 
   const orderedColumns = columnOrder
     .map(id => allColumns.find(col => col.id === id))
@@ -340,6 +375,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
         <div className="flex items-center gap-2">
           {selectedContacts.size > 0 && (
             <div className="relative">
+              {showBulkMenu && (
               <GlassCard className="absolute right-0 top-full mt-2 w-64 z-50 shadow-xl border border-gray-200 dark:border-gray-700">
                 <div className="p-2 border-b border-gray-200 dark:border-gray-700">
                   <p className="text-sm text-gray-600 dark:text-gray-400">{selectedContacts.size} selected</p>
@@ -370,10 +406,21 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                   <button onClick={bulkDeleteContacts} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md">Delete Selected</button>
                 </div>
               </GlassCard>
-              <ModernButton variant="primary" onClick={() => setShowColumnConfig(!showColumnConfig)} icon={MoreHorizontal} className="text-sm">Bulk Actions</ModernButton>
+              )}
+              <button
+                onClick={() => setShowBulkMenu(v => !v)}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                <MoreHorizontal className="w-4 h-4" /> Bulk Actions
+              </button>
             </div>
           )}
-          <ModernButton variant="secondary" onClick={() => setShowColumnConfig(!showColumnConfig)} icon={Settings} className="text-sm">Columns</ModernButton>
+          <button
+            onClick={() => setShowColumnConfig(v => !v)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
+          >
+            <Settings className="w-4 h-4" /> Columns
+          </button>
         </div>
       </div>
 
@@ -422,7 +469,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-              {sortedContacts.map(contact => (
+              {displayContacts.map(contact => (
                 <tr
                   key={contact.id}
                   draggable
@@ -441,7 +488,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                     e.stopPropagation();
                     const draggedId = e.dataTransfer.getData('text/plain');
                     if (draggedId && draggedId !== contact.id) {
-                      window.dispatchEvent(new CustomEvent('reorder-contacts', { detail: { draggedId, targetId: contact.id } }));
+                      reorderContacts(draggedId, contact.id);
                     }
                   }}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
@@ -456,18 +503,33 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                     </button>
                   </td>
                   {orderedColumns.map(column => {
+                    const editable = column.editable;
+                    const isEditing = editable && editingCell?.id === contact.id && editingCell.field === column.id;
                     const value = column.render
                       ? column.render(column.accessor(contact), contact)
                       : column.accessor(contact);
                     return (
-                      <td key={column.id} className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px]">
-                        {value}
+                      <td
+                        key={column.id}
+                        className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px]"
+                        onDoubleClick={editable ? (e) => { e.stopPropagation(); setEditingCell({ id: contact.id, field: column.id }); } : undefined}
+                        onClick={isEditing ? (e) => e.stopPropagation() : undefined}
+                      >
+                        {isEditing ? (
+                          <InlineEditCell
+                            value={column.accessor(contact)}
+                            type={column.id === 'status' || column.id === 'interestLevel' ? 'select' : 'text'}
+                            options={column.id === 'status' ? bulkStatusOptions : column.id === 'interestLevel' ? bulkInterestOptions : undefined}
+                            onSave={(v) => updateContactField(contact.id, column.id, v)}
+                            onCancel={() => setEditingCell(null)}
+                          />
+                        ) : value}
                       </td>
                     );
                   })}
                 </tr>
               ))}
-              {sortedContacts.length === 0 && (
+              {displayContacts.length === 0 && (
                 <tr>
                   <td colSpan={orderedColumns.length + 1} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center py-12 text-center">
