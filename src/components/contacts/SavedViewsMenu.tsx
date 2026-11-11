@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { TOOLBAR_BTN } from './toolbarStyles';
 import { useContactViews } from '../../hooks/useContactViews';
 import { useContactViewStore } from '../../store/contactViewStore';
 import { ContactViewSnapshot, snapshotKey } from '../../lib/views/contactViewSnapshot';
@@ -52,7 +53,7 @@ export function SavedViewsMenu({ snapshot, onApply }: SavedViewsMenuProps) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        className={`${TOOLBAR_BTN} bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
         title="Saved views"
       >
         <Bookmark className="w-4 h-4" />

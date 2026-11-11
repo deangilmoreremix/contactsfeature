@@ -23,7 +23,7 @@ export function ViewSwitcher() {
   const { currentView, setCurrentView } = useView();
 
   return (
-    <div className="flex items-center gap-1 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+    <div className="flex items-center gap-1 h-10 shrink-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg p-1 border border-gray-200 dark:border-gray-700">
       {viewConfig.map((view) => {
         const Icon = view.icon;
         const isActive = currentView === view.type;
@@ -33,7 +33,7 @@ export function ViewSwitcher() {
             key={view.type}
             onClick={() => setCurrentView(view.type)}
             className={`
-              group relative flex items-center gap-2 px-4 py-2 rounded-md transition-all duration-200
+              group relative flex items-center gap-2 px-4 h-full whitespace-nowrap rounded-md transition-all duration-200
               ${isActive
                 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100'

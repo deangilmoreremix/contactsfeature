@@ -9,7 +9,6 @@ import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
 import { SettingsModal } from './SettingsModal';
 import { ProductIntelligenceModal } from '../product-intelligence/ProductIntelligenceModal';
-import { EmailAgentsModal } from './EmailAgentsModal';
 import { SDRModal } from './SDRModal';
 import { PlaybookModal } from '../playbooks/PlaybookModal';
 import { useContactStore } from '../../hooks/useContactStore';
@@ -22,6 +21,7 @@ import { ViewSwitcher } from '../contacts/ViewSwitcher';
 import { AdvancedFilterPanel } from '../contacts/AdvancedFilterPanel';
 import { SavedViewsMenu } from '../contacts/SavedViewsMenu';
 import { MergeContactsModal } from '../contacts/MergeContactsModal';
+import { TOOLBAR_BTN, TOOLBAR_ICON_BTN, TOOLBAR_SELECT } from '../contacts/toolbarStyles';
 import { DuplicateReviewModal, duplicateGroupKey, readDismissedDuplicateGroups } from '../contacts/DuplicateReviewModal';
 import { findDuplicateGroups, type DuplicateGroup } from '../../lib/merge/findDuplicates';
 import { MAX_MERGE_RECORDS } from '../../lib/merge/mergeContacts';
@@ -123,7 +123,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isProductIntelligenceOpen, setIsProductIntelligenceOpen] = useState(false);
-  const [isEmailAgentsModalOpen, setIsEmailAgentsModalOpen] = useState(false);
   const [isClearDataModalOpen, setIsClearDataModalOpen] = useState(false);
   const [clearDataConfirmation, setClearDataConfirmation] = useState('');
   const [isClearingData, setIsClearingData] = useState(false);
@@ -480,14 +479,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     setIsProductIntelligenceOpen(false);
   };
 
-  const handleEmailAgentsClick = () => {
-    setIsEmailAgentsModalOpen(true);
-  };
-
-  const handleEmailAgentsModalClose = () => {
-    setIsEmailAgentsModalOpen(false);
-  };
-
   const handleOpenSDRModal = (contact: Contact) => {
     setSdrModalContact(contact);
   };
@@ -627,8 +618,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
       >
         <div className="bg-white dark:bg-gray-800 rounded-none w-full h-screen overflow-hidden flex flex-col text-gray-900 dark:text-gray-100">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-gray-800 dark:to-gray-700">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-gray-800 dark:to-gray-700">
+            <div className="flex items-center space-x-4 shrink-0">
               <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-white">
                 <Users className="w-6 h-6" />
               </div>
@@ -645,9 +636,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               </div>
             </div>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {/* AI Analysis Buttons */}
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
                 {/* Analyze All Button */}
                 <SmartTooltip featureId="ai_score_all_button">
                   <ModernButton
@@ -655,7 +646,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                     size="sm"
                     onClick={handleAnalyzeAll}
                     disabled={isAnalyzing || contactsWithoutScores === 0}
-                    className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 dark:from-purple-500 dark:to-blue-500 dark:hover:from-purple-600 dark:hover:to-blue-600"
+                    className={`${TOOLBAR_BTN} bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 dark:from-purple-500 dark:to-blue-500 dark:hover:from-purple-600 dark:hover:to-blue-600`}
                   >
                     <Brain className="w-4 h-4" />
                     <span>
@@ -673,7 +664,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       size="sm"
                       onClick={handleAnalyzeSelected}
                       disabled={isAnalyzing}
-                      className="flex items-center space-x-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-800/40"
+                      className={`${TOOLBAR_BTN} bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-800/40`}
                     >
                       <Target className="w-4 h-4" />
                       <span>{isAnalyzing ? 'Processing...' : `Analyze Selected (${selectedContacts.length})`}</span>
@@ -689,7 +680,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                     variant="outline"
                     size="sm"
                     onClick={() => setBulkActionDropdown(!bulkActionDropdown)}
-                    className="flex items-center space-x-2"
+                    className={TOOLBAR_BTN}
                   >
                     <Zap className="w-4 h-4" />
                     <span>Actions</span>
@@ -804,7 +795,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   variant="outline"
                   size="sm"
                   onClick={handleImportClick}
-                  className="flex items-center space-x-2 bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-800/40"
+                  className={`${TOOLBAR_BTN} bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-800/40`}
                 >
                   <Upload className="w-4 h-4" />
                   <span>Import</span>
@@ -815,7 +806,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                 <ModernButton
                   variant="outline"
                   size="sm"
-                  className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-800/40"
+                  className={`${TOOLBAR_BTN} bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-800/40`}
                   onClick={handleExportContacts}
                 >
                   <Download className="w-4 h-4" />
@@ -828,7 +819,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   variant="primary"
                   size="sm"
                   onClick={handleNewContactClick}
-                  className="flex items-center space-x-2"
+                  className={TOOLBAR_BTN}
                 >
                   <Plus className="w-4 h-4" />
                   <span>New Contact</span>
@@ -840,7 +831,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   variant="outline"
                   size="sm"
                   onClick={handleSettingsClick}
-                  className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700 dark:hover:bg-purple-800/40"
+                  className={`${TOOLBAR_BTN} bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700 dark:hover:bg-purple-800/40`}
                 >
                   <Settings className="w-4 h-4" />
                   <span>Settings</span>
@@ -853,7 +844,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   variant="primary"
                   size="sm"
                   onClick={handleProductIntelligenceClick}
-                  className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  className={`${TOOLBAR_BTN} bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700`}
                 >
                   <Brain className="w-4 h-4" />
                   <span>AI Product Intelligence</span>
@@ -867,33 +858,19 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   variant="primary"
                   size="sm"
                   onClick={() => onNavigate('products')}
-                  className="flex items-center space-x-2 bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700"
+                  className={`${TOOLBAR_BTN} bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700`}
                 >
                   <Package className="w-4 h-4" />
                   <span>My Products</span>
                 </ModernButton>
               )}
 
-              {/* Email Agents Button */}
-              <SmartTooltip featureId="email_agents_button">
-                <ModernButton
-                  variant="primary"
-                  size="sm"
-                  onClick={handleEmailAgentsClick}
-                  className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>Email Agents</span>
-                  <Bot className="w-3 h-3 text-green-300" />
-                </ModernButton>
-              </SmartTooltip>
-
               <SmartTooltip featureId="learn_more_button">
                 <ModernButton
                   variant="outline"
                   size="sm"
                   onClick={onClose}
-                  className="flex items-center space-x-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                  className={`${TOOLBAR_BTN} bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600`}
                 >
                   <Info className="w-4 h-4" />
                   <span>Learn More</span>
@@ -902,12 +879,12 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
               {/* Dark Mode Toggle */}
               <SmartTooltip featureId="dark_mode_toggle">
-                <DarkModeToggle size="sm" />
+                <DarkModeToggle size="md" />
               </SmartTooltip>
               
               <button
                 onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className={`${TOOLBAR_ICON_BTN} text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors`}
               >
                 <X className="w-6 h-6" />
               </button>
@@ -958,18 +935,18 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
           )}
 
           {/* Search and Filter Bar */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-            <div className="flex items-center space-x-4 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+            <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[min(100%,48rem)]">
               {/* Search Input */}
               <SmartTooltip featureId="contacts_search_input">
-                <div className="relative flex-1 max-w-md">
+                <div className="relative flex-1 min-w-[14rem] max-w-md">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
                   <input
                     type="text"
                     placeholder="Search contacts..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="h-10 pl-10 pr-4 text-sm w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                 </div>
               </SmartTooltip>
@@ -979,7 +956,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                 <SmartTooltip featureId="contacts_interest_filter">
                   <button
                     onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className={`${TOOLBAR_BTN} bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
                   >
                     <Filter className="w-4 h-4" />
                     <span>{activeFilterLabel}</span>
@@ -1010,7 +987,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                 <SmartTooltip featureId="contacts_status_filter">
                   <button
                     onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className={`${TOOLBAR_BTN} bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
                   >
                     <span>{activeStatusLabel}</span>
                     <ChevronDown className={`w-4 h-4 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1038,7 +1015,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               {/* Advanced (AND/OR) Filters */}
               <button
                 onClick={() => setShowAdvancedFilters(v => !v)}
-                className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors ${
+                className={`${TOOLBAR_BTN} border transition-colors ${
                   showAdvancedFilters || advancedFilterCount > 0
                     ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
                     : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -1053,7 +1030,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               <SmartTooltip featureId="contacts_select_all">
                 <button
                   onClick={handleSelectAll}
-                  className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                  className={`${TOOLBAR_BTN} text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors`}
                 >
                   <CheckCheck className="w-4 h-4" />
                   <span>{selectedContacts.length === filteredContacts.length ? 'Deselect All' : 'Select All'}</span>
@@ -1062,14 +1039,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Clear Data Button */}
               <SmartTooltip featureId="clear_data_button">
                 <ModernButton
                   variant="outline"
                   size="sm"
                   onClick={() => setIsClearDataModalOpen(true)}
-                  className="flex items-center space-x-2 bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-800/40"
+                  className={`${TOOLBAR_BTN} bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-800/40`}
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Clear Data</span>
@@ -1085,7 +1062,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                     setSortBy(field as typeof sortBy);
                     setSortOrder(order as typeof sortOrder);
                   }}
-                  className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`${TOOLBAR_SELECT} bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 >
                   <option value="name-asc">Name A-Z</option>
                   <option value="name-desc">Name Z-A</option>
@@ -1205,12 +1182,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
       <ProductIntelligenceModal
         isOpen={isProductIntelligenceOpen}
         onClose={handleProductIntelligenceClose}
-      />
-
-      {/* Email Agents Modal */}
-      <EmailAgentsModal
-        isOpen={isEmailAgentsModalOpen}
-        onClose={handleEmailAgentsModalClose}
       />
 
       {/* SDR Modal */}

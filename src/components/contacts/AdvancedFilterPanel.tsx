@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, X, Trash2, Layers, Copy } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
+import { TOOLBAR_BTN } from './toolbarStyles';
 import { useContactFilterStore } from '../../store/contactFilterStore';
 import { useContactViewStore } from '../../store/contactViewStore';
 import { getGroupableFields } from '../../lib/groups/groupContacts';
@@ -309,7 +310,7 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
             <button
               type="button"
               onClick={duplicates.onOpen}
-              className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className={`${TOOLBAR_BTN} bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
               title="Find and merge duplicate contacts"
             >
               <Copy className="w-4 h-4" />
