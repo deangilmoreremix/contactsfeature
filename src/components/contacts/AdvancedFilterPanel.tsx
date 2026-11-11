@@ -1,3 +1,4 @@
+import React from 'react';
 import { Plus, X, Trash2, Layers } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
 import { useContactFilterStore } from '../../store/contactFilterStore';
@@ -261,9 +262,11 @@ interface AdvancedFilterPanelProps {
   matchCount: number;
   totalCount: number;
   onClose?: () => void;
+  /** Optional slot for the saved-views menu (keeps the toolbar row unchanged). */
+  savedViews?: React.ReactNode;
 }
 
-export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose }: AdvancedFilterPanelProps) {
+export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, savedViews }: AdvancedFilterPanelProps) {
   const groups = useContactFilterStore((s) => s.recordFilterGroups);
   const filterCount = useContactFilterStore((s) => s.recordFilters.length);
   const clear = useContactFilterStore((s) => s.clear);
@@ -272,7 +275,7 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose }:
   const firstField = fields[0];
 
   return (
-    <GlassCard className="mx-6 mt-4 p-4">
+    <GlassCard className="relative z-20 mx-6 mt-4 p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
           <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Advanced filters</h4>
@@ -281,6 +284,7 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose }:
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {savedViews}
           {filterCount > 0 && (
             <button
               type="button"

@@ -20,6 +20,10 @@ import { ContactErrorBoundary } from '../error/ContactErrorBoundary';
 import { ContactDetailSkeleton } from '../loading/ContactDetailSkeleton';
 import { ViewSwitcher } from '../contacts/ViewSwitcher';
 import { AdvancedFilterPanel } from '../contacts/AdvancedFilterPanel';
+import { SavedViewsMenu } from '../contacts/SavedViewsMenu';
+import { useContactFilterStore } from '../../store/contactFilterStore';
+import { useContactViewStore } from '../../store/contactViewStore';
+import type { ContactViewSnapshot } from '../../lib/views/contactViewSnapshot';
 import { useAdvancedContactFilter } from '../../hooks/useAdvancedContactFilter';
 import { ListView } from '../contacts/views/ListView';
 import { TableView } from '../contacts/views/TableView';
@@ -208,6 +212,35 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     activeCount: advancedFilterCount
   } = useAdvancedContactFilter(searchedAndSortedContacts);
   const filteredContacts = advancedFilteredContacts;
+
+  // ---- Saved views: capture / restore the whole screen configuration ----
+  const { setCurrentView } = useView();
+  const recordFilters = useContactFilterStore((s) => s.recordFilters);
+  const recordFilterGroups = useContactFilterStore((s) => s.recordFilterGroups);
+  const replaceAdvancedFilters = useContactFilterStore((s) => s.replace);
+  const groupBy = useContactViewStore((s) => s.groupBy);
+  const setGroupBy = useContactViewStore((s) => s.setGroupBy);
+  const viewSnapshot: ContactViewSnapshot = useMemo(
+    () => ({
+      viewType: currentView,
+      quickFilters: { interest: activeFilter, status: statusFilter },
+      sort: { by: sortBy, order: sortOrder },
+      recordFilters,
+      recordFilterGroups,
+      groupBy,
+    }),
+    [currentView, activeFilter, statusFilter, sortBy, sortOrder, recordFilters, recordFilterGroups, groupBy]
+  );
+  const applyViewSnapshot = (snap: ContactViewSnapshot) => {
+    void setCurrentView(snap.viewType);
+    setActiveFilter(snap.quickFilters.interest);
+    setStatusFilter(snap.quickFilters.status);
+    setSortBy(snap.sort.by as typeof sortBy);
+    setSortOrder(snap.sort.order);
+    replaceAdvancedFilters({ recordFilters: snap.recordFilters, recordFilterGroups: snap.recordFilterGroups });
+    setGroupBy(snap.groupBy);
+    if (snap.recordFilters.length > 0) setShowAdvancedFilters(true);
+  };
 
   const renderView = () => {
     const viewProps = {
@@ -951,6 +984,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               fields={advancedFilterFields}
               matchCount={filteredContacts.length}
               totalCount={contacts.length}
+              savedViews={<SavedViewsMenu snapshot={viewSnapshot} onApply={applyViewSnapshot} />}
               onClose={() => setShowAdvancedFilters(false)}
             />
           )}
