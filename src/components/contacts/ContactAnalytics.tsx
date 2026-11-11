@@ -617,7 +617,9 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                 innerRadius={60}
                 outerRadius={100}
                 dataKey="value"
-                label={({ name, value }) => `${name}: ${value}%`}
+                label={({ x, y, textAnchor, name, value }: any) => (
+                  <text x={x} y={y} textAnchor={textAnchor} fontSize={12} fill="currentColor" className="text-gray-700 dark:text-gray-200">{`${name}: ${value}%`}</text>
+                )}
               >
                 {channelPerformance.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />

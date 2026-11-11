@@ -1227,7 +1227,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Type <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded text-red-600 dark:text-red-400">DELETE</span> to confirm:
+                Type <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded text-red-700 dark:text-red-300">DELETE</span> to confirm:
               </label>
               <input
                 type="text"

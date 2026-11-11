@@ -100,7 +100,7 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
     switch (level) {
       case 'very-high': return 'text-green-600 bg-green-100';
       case 'high': return 'text-blue-600 bg-blue-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
+      case 'medium': return 'text-yellow-700 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -109,7 +109,7 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
     switch (strength) {
       case 'excellent': return 'text-purple-600 bg-purple-100';
       case 'strong': return 'text-blue-600 bg-blue-100';
-      case 'moderate': return 'text-yellow-600 bg-yellow-100';
+      case 'moderate': return 'text-yellow-700 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };

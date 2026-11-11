@@ -216,7 +216,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
 
             {/* AI Score Badge */}
             {editedContact.aiScore && (
-              <div className={`absolute -top-1 -right-1 h-7 w-7 rounded-full ${editedContact.aiScore >= 80 ? 'bg-green-500' : editedContact.aiScore >= 60 ? 'bg-blue-500' : editedContact.aiScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'} text-white flex items-center justify-center text-xs font-bold shadow-lg ring-2 ring-white`}>
+              <div className={`absolute -top-1 -right-1 h-7 w-7 rounded-full ${editedContact.aiScore >= 80 ? 'bg-green-500' : editedContact.aiScore >= 60 ? 'bg-blue-500' : editedContact.aiScore >= 40 ? 'bg-yellow-500' : 'bg-red-600'} text-white flex items-center justify-center text-xs font-bold shadow-lg ring-2 ring-white`}>
                 {editedContact.aiScore}
               </div>
             )}

@@ -913,9 +913,9 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
   const getStatusColor = (isActive: boolean, successRate: number) => {
     if (!isActive) return 'text-gray-500 bg-gray-100';
-    if (successRate >= 80) return 'text-green-600 bg-green-100';
-    if (successRate >= 60) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+    if (successRate >= 80) return 'text-green-700 bg-green-100';
+    if (successRate >= 60) return 'text-yellow-700 bg-yellow-100';
+    return 'text-red-700 bg-red-100';
   };
 
   const handleActionDragStart = (automationId: string, actionIndex: number) => {
@@ -1830,7 +1830,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                                 {action.description}
                               </span>
                               {action.delay && (
-                                <span className="text-xs text-gray-400">{action.delay}</span>
+                                <span className="text-xs text-gray-500">{action.delay}</span>
                               )}
                               <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button

@@ -238,7 +238,7 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {event.contact.company}
                         </span>
-                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">•</span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {event.contact.title}
                         </span>

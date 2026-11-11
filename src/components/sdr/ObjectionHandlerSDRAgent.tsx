@@ -73,8 +73,8 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
       style={{
         borderRadius: 12,
         padding: 16,
-        border: "1px solid #e2e8f0",
-        background: "#ffffff",
+        border: "1px solid var(--sdr-e2e8f0)",
+        background: "var(--sdr-surface)",
         maxWidth: 520,
         flex: "1 1 340px"
       }}
@@ -90,27 +90,27 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
             gap: '4px',
             padding: '4px 8px',
             borderRadius: '6px',
-            border: '1px solid #d1d5db',
-            background: 'white',
-            color: '#6b7280',
+            border: '1px solid var(--sdr-d1d5db)',
+            background: 'var(--sdr-surface)',
+            color: 'var(--sdr-6b7280)',
             fontSize: '12px',
             cursor: 'pointer',
             transition: 'all 0.2s'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#f9fafb';
+            e.currentTarget.style.background = 'var(--sdr-f9fafb)';
             e.currentTarget.style.borderColor = '#9ca3af';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'white';
-            e.currentTarget.style.borderColor = '#d1d5db';
+            e.currentTarget.style.background = 'var(--sdr-surface)';
+            e.currentTarget.style.borderColor = 'var(--sdr-d1d5db)';
           }}
         >
           <Settings size={12} />
           Settings
         </button>
       </div>
-      <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: "#4a5568" }}>
+      <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: "var(--sdr-4a5568)" }}>
         Respond to objections like "too expensive", "not now", or "we're good with what we have."
       </p>
 
@@ -120,8 +120,8 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
             marginBottom: 10,
             padding: "6px 8px",
             borderRadius: 8,
-            background: "#fff5f5",
-            color: "#c53030",
+            background: "var(--sdr-fff5f5)",
+            color: "var(--sdr-c53030)",
             fontSize: 12
           }}
         >
@@ -130,11 +130,11 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
       )}
 
       {contact ? (
-        <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-          <div style={{ fontSize: 12, color: "#166534", fontWeight: 500 }}>
+        <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "var(--sdr-f0fdf4)", border: "1px solid var(--sdr-bbf7d0)" }}>
+          <div style={{ fontSize: 12, color: "var(--sdr-166534)", fontWeight: 500 }}>
             Target: {contact.firstName || contact.name} {contact.lastName || ''}
           </div>
-          <div style={{ fontSize: 11, color: contact.email ? "#15803d" : "#dc2626" }}>
+          <div style={{ fontSize: 11, color: contact.email ? "var(--sdr-15803d)" : "var(--sdr-dc2626)" }}>
             {contact.email || "No email on file"}
           </div>
         </div>
@@ -158,7 +158,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
               width: "100%",
               padding: "8px 10px",
               borderRadius: 8,
-              border: "1px solid #cbd5e0",
+              border: "1px solid var(--sdr-cbd5e0)",
               fontSize: 13
             }}
           />
@@ -185,10 +185,10 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
             width: "100%",
             padding: 8,
             borderRadius: 8,
-            border: "1px solid #cbd5e0",
+            border: "1px solid var(--sdr-cbd5e0)",
             fontFamily: "system-ui",
             fontSize: 13,
-            background: "#f7fafc"
+            background: "var(--sdr-f7fafc)"
           }}
         />
       </div>
@@ -217,8 +217,8 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
         <div
           style={{
             borderRadius: 8,
-            border: "1px solid #e2e8f0",
-            background: "#f7fafc",
+            border: "1px solid var(--sdr-e2e8f0)",
+            background: "var(--sdr-f7fafc)",
             padding: 8
           }}
         >
@@ -227,7 +227,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
               fontSize: 11,
               textTransform: "uppercase",
               letterSpacing: 0.5,
-              color: "#718096",
+              color: "var(--sdr-718096)",
               marginBottom: 4
             }}
           >
@@ -253,7 +253,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
                 whiteSpace: "pre-wrap",
                 fontSize: 12,
                 marginTop: 4,
-                background: "#edf2f7",
+                background: "var(--sdr-edf2f7)",
                 padding: 8,
                 borderRadius: 6
               }}

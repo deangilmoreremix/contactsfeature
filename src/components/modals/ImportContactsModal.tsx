@@ -280,7 +280,7 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950">
           <div className="flex items-center space-x-3">
             <div className="p-3 bg-gradient-to-r from-green-500 to-blue-600 rounded-xl text-white">
               <Upload className="w-6 h-6" />
@@ -331,8 +331,8 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
                 <div className="flex items-start space-x-3">
                   <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                   <div>
-                    <h3 className="text-lg font-semibold text-blue-900 mb-2">CSV Format Requirements</h3>
-                    <p className="text-blue-800">Follow this guide to ensure your CSV file imports correctly.</p>
+                    <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">CSV Format Requirements</h3>
+                    <p className="text-blue-800 dark:text-blue-200">Follow this guide to ensure your CSV file imports correctly.</p>
                   </div>
                 </div>
               </div>
@@ -571,7 +571,7 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                             <div key={i} className="flex items-center gap-3">
                               <span className="w-40 min-w-0 text-sm text-gray-700">
                                 <span className="block truncate font-medium" title={header}>{header || `Column ${i + 1}`}</span>
-                                <span className="block truncate text-xs text-gray-400" title={sample}>{sample}</span>
+                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400" title={sample}>{sample}</span>
                               </span>
                               <select
                                 aria-label={`Map column ${header || i + 1}`}
@@ -670,16 +670,16 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                                 <td className="py-3 px-4 text-gray-700">{contact.title}</td>
                                 <td className="py-3 px-4">
                                   <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                                    contact.interestLevel === 'hot' ? 'bg-red-100 text-red-800' :
-                                    contact.interestLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                    contact.interestLevel === 'low' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-800'
+                                    contact.interestLevel === 'hot' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' :
+                                    contact.interestLevel === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' :
+                                    contact.interestLevel === 'low' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' :
+                                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
                                   }`}>
                                     {contact.interestLevel}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                                  <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200 rounded-md text-xs font-medium">
                                     {contact.status}
                                   </span>
                                 </td>

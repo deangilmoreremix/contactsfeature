@@ -166,9 +166,6 @@ body {
   color: var(--text-tertiary) !important;
 }
 
-.text-gray-400 {
-  color: var(--border-secondary) !important;
-}
 
 .border-gray-200 {
   border-color: var(--border-primary) !important;
@@ -625,3 +622,110 @@ th, td {
     will-change: auto;
   }
 }
+/* SDR agent cards: inline-style colors routed through theme variables */
+:root{
+  --sdr-surface:#ffffff;
+  --sdr-e2e8f0:#e2e8f0;
+  --sdr-d1d5db:#d1d5db;
+  --sdr-cbd5e0:#cbd5e0;
+  --sdr-e5e7eb:#e5e7eb;
+  --sdr-f7fafc:#f7fafc;
+  --sdr-f9fafb:#f9fafb;
+  --sdr-edf2f7:#edf2f7;
+  --sdr-fff5f5:#fff5f5;
+  --sdr-fed7d7:#fed7d7;
+  --sdr-c6f6d5:#c6f6d5;
+  --sdr-f0fdf4:#f0fdf4;
+  --sdr-dcfce7:#dcfce7;
+  --sdr-bbf7d0:#bbf7d0;
+  --sdr-eff6ff:#eff6ff;
+  --sdr-bfdbfe:#bfdbfe;
+  --sdr-fef3c7:#fef3c7;
+  --sdr-fffbeb:#fffbeb;
+  --sdr-fef5e7:#fef5e7;
+  --sdr-166534:#166534;
+  --sdr-15803d:#15803d;
+  --sdr-22543d:#22543d;
+  --sdr-dc2626:#dc2626;
+  --sdr-c53030:#c53030;
+  --sdr-742a2a:#742a2a;
+  --sdr-6b7280:#6b7280;
+  --sdr-718096:#718096;
+  --sdr-4a5568:#4a5568;
+  --sdr-374151:#374151;
+  --sdr-1e40af:#1e40af;
+  --sdr-3730a3:#3730a3;
+  --sdr-92400e:#92400e;
+  --sdr-78350f:#78350f;
+  --sdr-744210:#744210;
+}
+body.dark-mode{
+  --sdr-surface:#1e293b;
+  --sdr-e2e8f0:#334155;
+  --sdr-d1d5db:#475569;
+  --sdr-cbd5e0:#475569;
+  --sdr-e5e7eb:#334155;
+  --sdr-f7fafc:#0f172a;
+  --sdr-f9fafb:#0f172a;
+  --sdr-edf2f7:#334155;
+  --sdr-fff5f5:#3d1a1a;
+  --sdr-fed7d7:#5b2020;
+  --sdr-c6f6d5:#14532d;
+  --sdr-f0fdf4:#12301f;
+  --sdr-dcfce7:#14532d;
+  --sdr-bbf7d0:#166534;
+  --sdr-eff6ff:#1e3a5f;
+  --sdr-bfdbfe:#2b4f86;
+  --sdr-fef3c7:#4a3a12;
+  --sdr-fffbeb:#3a2e10;
+  --sdr-fef5e7:#3a2b14;
+  --sdr-166534:#86efac;
+  --sdr-15803d:#86efac;
+  --sdr-22543d:#86efac;
+  --sdr-dc2626:#fca5a5;
+  --sdr-c53030:#fca5a5;
+  --sdr-742a2a:#fca5a5;
+  --sdr-6b7280:#9ca3af;
+  --sdr-718096:#94a3b8;
+  --sdr-4a5568:#cbd5e1;
+  --sdr-374151:#e2e8f0;
+  --sdr-1e40af:#93c5fd;
+  --sdr-3730a3:#a5b4fc;
+  --sdr-92400e:#fcd34d;
+  --sdr-78350f:#fcd34d;
+  --sdr-744210:#fcd34d;
+}
+
+/* Dark mode: -900 text shades are used on -50 tinted panels (remapped to dark tints above). */
+:where(.dark) .text-blue-900 { color: #bfdbfe; }
+:where(.dark) .text-purple-900 { color: #e9d5ff; }
+:where(.dark) .text-green-900 { color: #bbf7d0; }
+:where(.dark) .text-red-900 { color: #fecaca; }
+:where(.dark) .text-yellow-900 { color: #fef08a; }
+:where(.dark) .text-orange-900 { color: #fed7aa; }
+:where(.dark) .text-indigo-900 { color: #c7d2fe; }
+:where(.dark) .text-amber-900 { color: #fde68a; }
+
+/* Dark mode: tinted chips/panels. Light -100 chips become translucent tints; their -700/-800 text lightens to match. */
+html.dark .bg-blue-100 { background-color: rgba(59,130,246, 0.22); }
+html.dark .text-blue-700, html.dark .text-blue-800 { color: #bfdbfe !important; }
+html.dark .bg-green-100 { background-color: rgba(34,197,94, 0.22); }
+html.dark .text-green-700, html.dark .text-green-800 { color: #bbf7d0 !important; }
+html.dark .bg-red-100 { background-color: rgba(239,68,68, 0.22); }
+html.dark .text-red-700, html.dark .text-red-800 { color: #fecaca !important; }
+html.dark .bg-yellow-100 { background-color: rgba(234,179,8, 0.22); }
+html.dark .text-yellow-700, html.dark .text-yellow-800 { color: #fef08a !important; }
+html.dark .bg-purple-100 { background-color: rgba(168,85,247, 0.22); }
+html.dark .text-purple-700, html.dark .text-purple-800 { color: #e9d5ff !important; }
+html.dark .bg-orange-100 { background-color: rgba(249,115,22, 0.22); }
+html.dark .text-orange-700, html.dark .text-orange-800 { color: #fed7aa !important; }
+html.dark .bg-indigo-100 { background-color: rgba(99,102,241, 0.22); }
+html.dark .text-indigo-700, html.dark .text-indigo-800 { color: #c7d2fe !important; }
+html.dark .bg-pink-100 { background-color: rgba(236,72,153, 0.22); }
+html.dark .text-pink-700, html.dark .text-pink-800 { color: #fbcfe8 !important; }
+html.dark .bg-amber-100 { background-color: rgba(245,158,11, 0.22); }
+html.dark .text-amber-700, html.dark .text-amber-800 { color: #fde68a !important; }
+
+/* Dark mode: hover surfaces that Tailwind leaves light */
+html.dark .hover\:bg-gray-50:hover { background-color: var(--bg-secondary); }
+html.dark .hover\:bg-gray-100:hover { background-color: var(--bg-tertiary); }

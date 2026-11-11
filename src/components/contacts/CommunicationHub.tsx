@@ -651,7 +651,7 @@ Sales Representative`
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {communicationTypes.slice(1).map((type, index) => {
           const count = communications.filter(c => c.type === type.value).length;
-          const colors = ['bg-blue-100 text-blue-600', 'bg-green-100 text-green-600', 'bg-purple-100 text-purple-600', 'bg-orange-100 text-orange-600', 'bg-pink-100 text-pink-600'];
+          const colors = ['bg-blue-100 text-blue-700', 'bg-green-100 text-green-700', 'bg-purple-100 text-purple-700', 'bg-orange-100 text-orange-700', 'bg-pink-100 text-pink-700'];
           
           return (
             <GlassCard key={type.value} className="p-4">
