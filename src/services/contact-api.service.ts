@@ -99,6 +99,11 @@ class ContactAPIService {
   }
   
   // Check if we should use fallback mode
+  /** True when contacts are stored in the database (not the browser-only demo fallback). */
+  usesDatabase(): boolean {
+    return !this.shouldUseFallback();
+  }
+
   private shouldUseFallback(): boolean {
     const fallback = !this.supabaseKey || this.isMockMode; // Use Supabase if key is available
     console.log('ContactAPI shouldUseFallback:', fallback, 'supabaseKey:', !!this.supabaseKey, 'isMockMode:', this.isMockMode);

@@ -13,12 +13,14 @@ import {
   CheckSquare,
   Square,
   ChevronDown,
+  ChevronUp,
   MoreHorizontal
 } from 'lucide-react';
 import { useContactStore } from '../../../hooks/useContactStore';
 import { InlineEditCell } from '../InlineEditCell';
 import { useContactSelectionStore } from '../../../store/contactSelectionStore';
 import { useContactGroups } from '../../../hooks/useContactGroups';
+import { orderColumnContacts, planColumnDrop } from '../../../lib/kanban/columnOrder';
 import { useContactFilterFields } from '../../../hooks/useContactFilterFields';
 import { getContactFieldValue } from '../../../lib/filters/filterContacts';
 import { formatFieldValue, isEmptyFieldValue, type CustomFieldType } from '../../../lib/fields/fieldTypeRegistry';
@@ -244,7 +246,10 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
-  const [manualOrder, setManualOrder] = useState<string[]>([]);
+  // Manual order is saved on each contact (`position`). It is active whenever any contact already has one,
+  // and stays active until the user sorts by a column header.
+  const [manualMode, setManualMode] = useState(() => contacts.some(c => typeof c.position === 'number'));
+  const reorderStore = useContactStore((s) => s.reorderContacts);
   const prefsLoaded = useRef(false);
   const updateContact = useContactStore((s) => s.updateContact);
   const deleteContact = useContactStore((s) => s.deleteContact);
@@ -253,7 +258,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const bulkInterestOptions = ['hot', 'medium', 'low', 'cold'];
 
   const handleSort = (columnId: string) => {
-    setManualOrder([]);
+    setManualMode(false);
     setSortField(columnId);
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   };
@@ -268,24 +273,52 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
-  // Manual drag-and-drop ordering overrides column sort until the user sorts again.
-  const displayContacts = manualOrder.length
-    ? [...sortedContacts].sort((a, b) => {
-        const ai = manualOrder.indexOf(a.id);
-        const bi = manualOrder.indexOf(b.id);
-        return (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi);
-      })
-    : sortedContacts;
+  // Saved manual order overrides the column sort until the user sorts by a column again.
+  const displayContacts = manualMode ? orderColumnContacts(sortedContacts) : sortedContacts;
 
+  const contactGroups = useContactGroups(displayContacts);
+  const { groups, isCollapsed } = contactGroups;
+  const toggleGroup = contactGroups.toggle;
+
+  /** Save a move: `movedId` goes before `beforeId` (null = to the end of the list it belongs to). */
+  const persistMove = async (list: Contact[], movedId: string, beforeId: string | null) => {
+    const patches = planColumnDrop(list, movedId, beforeId);
+    if (patches.length === 0) return;
+    setManualMode(true);
+    try {
+      await reorderStore(patches.map(p => ({ id: p.id, updates: { position: p.position } })));
+    } catch (error) {
+      console.error('Failed to save contact order', error);
+    }
+  };
+
+  /** Contacts that share the moved contact's list (its group when grouped, otherwise everything). */
+  const siblingsOf = (contactId: string): Contact[] => {
+    if (!groups) return displayContacts;
+    return groups.find(g => g.contacts.some(c => c.id === contactId))?.contacts ?? displayContacts;
+  };
+
+  const moveContact = (contactId: string, direction: 'up' | 'down') => {
+    const list = siblingsOf(contactId);
+    const i = list.findIndex(c => c.id === contactId);
+    if (i === -1) return;
+    if (direction === 'up') {
+      const above = list[i - 1];
+      if (above) void persistMove(list, contactId, above.id);
+    } else {
+      const below = list[i + 1];
+      if (below) void persistMove(list, contactId, list[i + 2]?.id ?? null);
+    }
+  };
+
+  // Drag a row onto another: it takes that row's place (dragging down lands after it).
   const reorderContacts = (draggedId: string, targetId: string) => {
-    const ids = displayContacts.map(c => c.id);
-    const from = ids.indexOf(draggedId);
-    const to = ids.indexOf(targetId);
-    if (from === -1 || to === -1) return;
-    const [moved] = ids.splice(from, 1);
-    if (moved === undefined) return;
-    ids.splice(to, 0, moved);
-    setManualOrder(ids);
+    const list = siblingsOf(targetId);
+    const from = list.findIndex(c => c.id === draggedId);
+    const to = list.findIndex(c => c.id === targetId);
+    if (to === -1) return;
+    const beforeId = from !== -1 && from < to ? (list[to + 1]?.id ?? null) : targetId;
+    void persistMove(list, draggedId, beforeId);
   };
 
   const loadTablePreferences = async () => {
@@ -396,9 +429,6 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     .filter((col): col is ColumnDefinition => col !== undefined && visibleColumns.includes(col.id));
 
   // ---- Group sections ----
-  const contactGroups = useContactGroups(displayContacts);
-  const { groups, isCollapsed } = contactGroups;
-  const toggleGroup = contactGroups.toggle;
   const navRows = groups ? groups.flatMap(g => (isCollapsed(g.key) ? [] : g.contacts)) : displayContacts;
 
   // ---- Column drag-reorder and resize ----
@@ -459,6 +489,19 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     if (rowCount === 0 || colCount === 0) return;
     const cur = focusCell ?? { row: 0, col: 0 };
     const clamp = (n: number, max: number) => Math.max(0, Math.min(max, n));
+    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && focusCell) {
+      const contact = navRows[focusCell.row];
+      if (!contact) return;
+      e.preventDefault();
+      const delta = e.key === 'ArrowUp' ? -1 : 1;
+      const neighbour = navRows[focusCell.row + delta];
+      // keep the focus ring on the moved contact when it swaps with a visible neighbour
+      moveContact(contact.id, e.key === 'ArrowUp' ? 'up' : 'down');
+      if (neighbour && siblingsOf(contact.id).some(c => c.id === neighbour.id)) {
+        setFocusCell({ row: focusCell.row + delta, col: focusCell.col });
+      }
+      return;
+    }
     const go = (row: number, col: number) => { e.preventDefault(); setFocusCell({ row: clamp(row, rowCount - 1), col: clamp(col, colCount - 1) }); };
 
     switch (e.key) {
@@ -538,16 +581,40 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
             reorderContacts(draggedId, contact.id);
           }
         }}
-        className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+        className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
         onClick={() => onContactClick(contact)}
       >
         <td className="px-4 py-3">
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id, e.shiftKey); }}
-            className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            {selectedContacts.has(contact.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id, e.shiftKey); }}
+              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              {selectedContacts.has(contact.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
+            </button>
+            <span className="flex flex-col opacity-50 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <button
+                type="button"
+                aria-label={`Move ${contact.name} up`}
+                title="Move up (Alt+↑)"
+                disabled={siblingsOf(contact.id)[0]?.id === contact.id}
+                onClick={(e) => { e.stopPropagation(); moveContact(contact.id, 'up'); }}
+                className="text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-25 disabled:cursor-not-allowed"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${contact.name} down`}
+                title="Move down (Alt+↓)"
+                disabled={siblingsOf(contact.id)[siblingsOf(contact.id).length - 1]?.id === contact.id}
+                onClick={(e) => { e.stopPropagation(); moveContact(contact.id, 'down'); }}
+                className="text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-25 disabled:cursor-not-allowed"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </span>
+          </div>
         </td>
         {orderedColumns.map((column, colIndex) => {
           const editable = column.editable;
@@ -673,7 +740,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left w-12">
+                <th className="px-4 py-3 text-left w-20">
                   <button onClick={toggleSelectAll} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     {selectedContacts.size === contacts.length && contacts.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   </button>

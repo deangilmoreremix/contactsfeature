@@ -33,6 +33,8 @@ interface ContactActions {
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
   deleteContact: (id: string) => Promise<void>;
   /** Apply several contact patches optimistically (rolls back if saving fails outside demo mode). */
+  /** Load saved contacts (database) or re-apply the saved row order (demo mode). Safe to call repeatedly. */
+  hydrateContacts: () => Promise<void>;
   reorderContacts: (patches: Array<{ id: string; updates: Partial<Contact> }>) => Promise<void>;
   clearContacts: () => Promise<void>;
   selectContact: (contact: Contact | null) => void;
@@ -42,6 +44,28 @@ interface ContactActions {
 }
 
 interface ContactStore extends ContactState, ContactActions {}
+
+const POSITIONS_KEY = 'smartcrm.contact_positions';
+
+function readSavedPositions(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(POSITIONS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function savePositionsLocally(patches: Array<{ id: string; updates: Partial<Contact> }>) {
+  try {
+    const saved = readSavedPositions();
+    patches.forEach((p) => {
+      if (typeof p.updates.position === 'number') saved[p.id] = p.updates.position;
+    });
+    localStorage.setItem(POSITIONS_KEY, JSON.stringify(saved));
+  } catch {
+    /* storage unavailable: order lasts for this session only */
+  }
+}
 
 export const useContactStore = create<ContactStore>((set, get) => ({
   contacts: sampleContacts, 
@@ -183,6 +207,19 @@ export const useContactStore = create<ContactStore>((set, get) => ({
     });
   },
 
+  hydrateContacts: async () => {
+    if (contactAPI.usesDatabase()) {
+      await get().fetchContacts();
+      return;
+    }
+    // Demo mode: keep the built-in sample contacts but restore the order the user arranged.
+    const saved = readSavedPositions();
+    if (Object.keys(saved).length === 0) return;
+    set((state) => ({
+      contacts: state.contacts.map((c) => (saved[c.id] !== undefined ? { ...c, position: saved[c.id] } : c))
+    }));
+  },
+
   reorderContacts: async (patches) => {
     if (patches.length === 0) return;
     const previous = get().contacts;
@@ -193,6 +230,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         ? { ...state.selectedContact, ...byId.get(state.selectedContact.id)! }
         : state.selectedContact
     }));
+    savePositionsLocally(patches);
     try {
       await Promise.all(patches.map((p) => contactAPI.updateContact(p.id, p.updates)));
     } catch (error) {

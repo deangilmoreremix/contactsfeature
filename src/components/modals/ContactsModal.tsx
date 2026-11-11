@@ -137,6 +137,12 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     });
   }, [contacts]);
 
+  // Load saved contacts / row order once when the screen opens
+  const hydrateContacts = useContactStore((s) => s.hydrateContacts);
+  useEffect(() => {
+    if (isOpen) void hydrateContacts();
+  }, [isOpen, hydrateContacts]);
+
   // Handle ESC key to close modal
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
