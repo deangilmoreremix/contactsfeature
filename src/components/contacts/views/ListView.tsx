@@ -3,6 +3,7 @@ import { Contact } from '../../../types/contact';
 import { ViewDensity } from '../../../types/view';
 import { SmartContactCard } from '../SmartContactCard';
 import { ModernButton } from '../../ui/ModernButton';
+import { useContactSelectionStore } from '../../../store/contactSelectionStore';
 import {
   LayoutList,
   Grid3x3,
@@ -28,6 +29,9 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
   const [showDensityMenu, setShowDensityMenu] = useState(false);
 
   const currentDensity = DENSITY_CONFIG[density];
+  const selected = useContactSelectionStore((s) => s.selected);
+  const toggleSelect = useContactSelectionStore((s) => s.toggle);
+  const orderedIds = contacts.map((c) => c.id);
 
   return (
     <div className="flex flex-col h-full">
@@ -138,8 +142,8 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
           >
             <SmartContactCard
               contact={contact}
-              isSelected={false}
-              onSelect={() => {}}
+              isSelected={selected.has(contact.id)}
+              onSelect={(opts) => toggleSelect(contact.id, orderedIds, { shift: opts?.shift === true })}
               onClick={() => onContactClick(contact)}
               variant="standard"
               showMetrics={true}

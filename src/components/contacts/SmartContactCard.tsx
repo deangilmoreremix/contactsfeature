@@ -24,7 +24,7 @@ import clsx from 'clsx';
 interface SmartContactCardProps {
   contact: Contact;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (opts?: { shift: boolean }) => void;
   onClick: () => void;
   onEdit?: (contact: Contact) => void;
   onAnalyze?: (contact: Contact) => Promise<boolean>;
@@ -151,9 +151,10 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
         <input
           type="checkbox"
           checked={isSelected}
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
             e.stopPropagation();
-            onSelect();
+            onSelect({ shift: (e.nativeEvent as MouseEvent).shiftKey === true });
           }}
           className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500 bg-white border-gray-300"
           aria-label={`Select contact ${contact.name}`}

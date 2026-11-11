@@ -22,6 +22,8 @@ import { ViewSwitcher } from '../contacts/ViewSwitcher';
 import { AdvancedFilterPanel } from '../contacts/AdvancedFilterPanel';
 import { SavedViewsMenu } from '../contacts/SavedViewsMenu';
 import { useContactFilterStore } from '../../store/contactFilterStore';
+import { useContactSelectionStore } from '../../store/contactSelectionStore';
+import { bulkAddTags, bulkDeleteContacts, bulkUpdateContacts } from '../../services/bulkContactActions';
 import { useContactViewStore } from '../../store/contactViewStore';
 import type { ContactViewSnapshot } from '../../lib/views/contactViewSnapshot';
 import { useAdvancedContactFilter } from '../../hooks/useAdvancedContactFilter';
@@ -93,7 +95,13 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const selectedSet = useContactSelectionStore((s) => s.selected);
+  const selectedContacts = useMemo(() => Array.from(selectedSet), [selectedSet]);
+  const setSelectedContacts = useContactSelectionStore((s) => s.setMany);
+  const toggleContactSelection = useContactSelectionStore((s) => s.toggle);
+  const clearContactSelection = useContactSelectionStore((s) => s.clear);
+  const [bulkMode, setBulkMode] = useState<null | 'status' | 'interest' | 'tags'>(null);
+  const [bulkTagInput, setBulkTagInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [bulkActionDropdown, setBulkActionDropdown] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'company' | 'score' | 'updated'>('name');
@@ -135,6 +143,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
           setIsNewContactModalOpen(false);
         } else if (isSettingsModalOpen) {
           setIsSettingsModalOpen(false);
+        } else if (useContactSelectionStore.getState().selected.size > 0) {
+          // First Esc clears the selection (like Twenty); a second one closes the modal.
+          useContactSelectionStore.getState().clear();
         } else {
           onClose();
         }
@@ -242,6 +253,33 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     if (snap.recordFilters.length > 0) setShowAdvancedFilters(true);
   };
 
+  // Ctrl/Cmd+A selects every visible contact (ignored while typing in a field or inside sub-modals)
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.key === 'a' || event.key === 'A') || !(event.ctrlKey || event.metaKey)) return;
+      const el = event.target as HTMLElement | null;
+      const tag = el?.tagName;
+      const nonText = ['checkbox', 'radio', 'button', 'submit'];
+      const isTextInput = tag === 'INPUT' && !nonText.includes((el as HTMLInputElement).type);
+      if (isTextInput || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      if (selectedContact || isImportModalOpen || isNewContactModalOpen || isSettingsModalOpen) return;
+      event.preventDefault();
+      useContactSelectionStore.getState().selectAll(filteredContacts.map((c) => c.id));
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, filteredContacts, selectedContact, isImportModalOpen, isNewContactModalOpen, isSettingsModalOpen]);
+
+  const runBulk = async (fn: () => Promise<{ ok: number; failed: number }>) => {
+    const result = await fn();
+    if (result.failed > 0) alert(`${result.failed} of ${result.ok + result.failed} contacts could not be updated.`);
+    clearContactSelection();
+    setBulkMode(null);
+    setBulkTagInput('');
+    setBulkActionDropdown(false);
+  };
+
   const renderView = () => {
     const viewProps = {
       contacts: filteredContacts,
@@ -270,7 +308,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   <SmartContactCard
                     contact={contact}
                     isSelected={selectedContacts.includes(contact.id)}
-                    onSelect={() => handleContactSelect(contact.id)}
+                    onSelect={(opts) => handleContactSelect(contact.id, opts?.shift === true)}
                     onClick={() => handleContactClick(contact)}
                     onEdit={handleEditContact}
                     onAnalyze={handleAnalyzeContact}
@@ -357,12 +395,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   };
 
   // Contact Selection Functions
-  const handleContactSelect = (contactId: string) => {
-    setSelectedContacts(prev => 
-      prev.includes(contactId) 
-        ? prev.filter(id => id !== contactId)
-        : [...prev, contactId]
-    );
+  const handleContactSelect = (contactId: string, shift = false) => {
+    toggleContactSelection(contactId, filteredContacts.map(c => c.id), { shift });
   };
 
   const handleSelectAll = () => {
@@ -661,11 +695,73 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       >
                         Export Selected
                       </button>
-                      <button className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <button
+                        onClick={() => setBulkMode(bulkMode === 'tags' ? null : 'tags')}
+                        className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
                         Add Tags
                       </button>
+                      {bulkMode === 'tags' && (
+                        <form
+                          className="flex items-center gap-2 px-3 pb-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const tags = bulkTagInput.split(',');
+                            void runBulk(() => bulkAddTags(contacts.filter(c => selectedContacts.includes(c.id)), tags));
+                          }}
+                        >
+                          <input
+                            autoFocus
+                            value={bulkTagInput}
+                            onChange={(e) => setBulkTagInput(e.target.value)}
+                            placeholder="tag1, tag2"
+                            className="flex-1 min-w-0 px-2 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button type="submit" className="px-2 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add</button>
+                        </form>
+                      )}
                       <button
-                        onClick={() => setSelectedContacts([])}
+                        onClick={() => setBulkMode(bulkMode === 'status' ? null : 'status')}
+                        className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Change Status
+                      </button>
+                      {bulkMode === 'status' && ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].map((st) => (
+                        <button
+                          key={st}
+                          onClick={() => void runBulk(() => bulkUpdateContacts(selectedContacts, { status: st as any }))}
+                          className="w-full text-left pl-8 pr-4 py-1.5 text-sm capitalize text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          {st}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setBulkMode(bulkMode === 'interest' ? null : 'interest')}
+                        className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Change Interest
+                      </button>
+                      {bulkMode === 'interest' && ['hot', 'medium', 'low', 'cold'].map((lv) => (
+                        <button
+                          key={lv}
+                          onClick={() => void runBulk(() => bulkUpdateContacts(selectedContacts, { interestLevel: lv as any }))}
+                          className="w-full text-left pl-8 pr-4 py-1.5 text-sm capitalize text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          {lv}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete ${selectedContacts.length} selected contacts? This cannot be undone.`)) {
+                            void runBulk(() => bulkDeleteContacts(selectedContacts));
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        Delete Selected
+                      </button>
+                      <button
+                        onClick={() => clearContactSelection()}
                         className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors last:rounded-b-lg"
                       >
                         Clear Selection

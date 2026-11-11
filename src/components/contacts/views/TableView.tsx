@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useContactStore } from '../../../hooks/useContactStore';
 import { InlineEditCell } from '../InlineEditCell';
+import { useContactSelectionStore } from '../../../store/contactSelectionStore';
 
 interface TableViewProps {
   contacts: Contact[];
@@ -208,7 +209,10 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const selectedContacts = useContactSelectionStore((s) => s.selected);
+  const toggleSelection = useContactSelectionStore((s) => s.toggle);
+  const selectAllIds = useContactSelectionStore((s) => s.selectAll);
+  const clearSelection = useContactSelectionStore((s) => s.clear);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
@@ -290,15 +294,12 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   };
 
   const toggleSelectAll = () => {
-    setSelectedContacts(selectedContacts.size === contacts.length ? new Set() : new Set(contacts.map(c => c.id)));
+    if (selectedContacts.size === contacts.length) clearSelection();
+    else selectAllIds(contacts.map(c => c.id));
   };
 
-  const toggleSelectContact = (contactId: string) => {
-    setSelectedContacts(prev => {
-      const next = new Set(prev);
-      next.has(contactId) ? next.delete(contactId) : next.add(contactId);
-      return next;
-    });
+  const toggleSelectContact = (contactId: string, shift = false) => {
+    toggleSelection(contactId, displayContacts.map(c => c.id), { shift });
   };
 
   const updateContactField = async (contactId: string, field: string, rawValue: any) => {
@@ -321,7 +322,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     );
     const failed = results.filter(r => r.status === 'rejected').length;
     if (failed) console.error(`Bulk update failed for ${failed} of ${ids.length} contacts`);
-    setSelectedContacts(new Set());
+    clearSelection();
     setShowBulkMenu(false);
   };
 
@@ -329,7 +330,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     const ids = Array.from(selectedContacts);
     if (!ids.length || !confirm(`Delete ${ids.length} contacts?`)) return;
     await Promise.allSettled(ids.map(id => deleteContact(id)));
-    setSelectedContacts(new Set());
+    clearSelection();
     setShowBulkMenu(false);
   };
 
@@ -343,7 +344,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     a.download = `contacts-export-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    setSelectedContacts(new Set());
+    clearSelection();
     setShowBulkMenu(false);
   };
 
@@ -494,7 +495,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                 >
                   <td className="px-4 py-3">
                     <button
-                      onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}
+                      onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id, e.shiftKey); }}
                       className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                     >
                       {selectedContacts.has(contact.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
