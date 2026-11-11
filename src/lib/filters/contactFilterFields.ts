@@ -65,6 +65,7 @@ const CUSTOM_TYPE_MAP: Record<string, FieldMetadataType> = {
   email: FieldMetadataType.TEXT,
   phone: FieldMetadataType.TEXT,
   number: FieldMetadataType.NUMBER,
+  currency: FieldMetadataType.NUMBER,
   boolean: FieldMetadataType.BOOLEAN,
   date: FieldMetadataType.DATE,
   datetime: FieldMetadataType.DATE_TIME,

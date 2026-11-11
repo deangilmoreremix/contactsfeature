@@ -19,6 +19,9 @@ import { useContactStore } from '../../../hooks/useContactStore';
 import { InlineEditCell } from '../InlineEditCell';
 import { useContactSelectionStore } from '../../../store/contactSelectionStore';
 import { useContactGroups } from '../../../hooks/useContactGroups';
+import { useContactFilterFields } from '../../../hooks/useContactFilterFields';
+import { getContactFieldValue } from '../../../lib/filters/filterContacts';
+import { formatFieldValue, isEmptyFieldValue, type CustomFieldType } from '../../../lib/fields/fieldTypeRegistry';
 import { ContactGroupHeader } from '../ContactGroupHeader';
 
 interface TableViewProps {
@@ -202,7 +205,29 @@ const allColumns: ColumnDefinition[] = [
 
 type SortDirection = 'asc' | 'desc';
 
+/** Display format for a custom column, derived from its filter field type. */
+const customTypeFor = (t: string): CustomFieldType =>
+  t === 'BOOLEAN' ? 'boolean' : t === 'RATING' ? 'rating' : t === 'DATE' ? 'date' : t === 'DATE_TIME' ? 'datetime' : t === 'MULTI_SELECT' ? 'multiselect' : t === 'NUMBER' ? 'number' : 'text';
+
 export function TableView({ contacts, onContactClick }: TableViewProps) {
+  // Custom fields appear as extra (read-only) columns after the built-in ones.
+  const contactFields = useContactFilterFields();
+  const columnDefs: ColumnDefinition[] = [
+    ...allColumns,
+    ...contactFields
+      .filter((f) => f.source === 'custom')
+      .map((f): ColumnDefinition => ({
+        id: f.id,
+        label: f.label,
+        sortable: true,
+        width: 160,
+        accessor: (c) => {
+          const v = getContactFieldValue(c, f);
+          return isEmptyFieldValue(v) ? '' : v;
+        },
+        render: (v) => (isEmptyFieldValue(v) ? '' : formatFieldValue(customTypeFor(f.type), v)),
+      })),
+  ];
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
     'name', 'email', 'company', 'title', 'status', 'interestLevel', 'aiScore'
   ]);
@@ -234,7 +259,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   };
 
   const sortedContacts = [...contacts].sort((a, b) => {
-    const column = allColumns.find(col => col.id === sortField);
+    const column = columnDefs.find(col => col.id === sortField);
     if (!column) return 0;
     const aValue = column.accessor(a);
     const bValue = column.accessor(b);
@@ -361,13 +386,13 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   }, []);
 
   // Columns missing from the saved order (e.g. Industry, Phone, Tags) are appended so they can be shown.
-  const allColumnIds = allColumns.map(col => col.id);
+  const allColumnIds = columnDefs.map(col => col.id);
   const fullColumnOrder = [
     ...columnOrder.filter(id => allColumnIds.includes(id)),
     ...allColumnIds.filter(id => !columnOrder.includes(id))
   ];
   const orderedColumns = fullColumnOrder
-    .map(id => allColumns.find(col => col.id === id))
+    .map(id => columnDefs.find(col => col.id === id))
     .filter((col): col is ColumnDefinition => col !== undefined && visibleColumns.includes(col.id));
 
   // ---- Group sections ----
@@ -623,7 +648,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
       {showColumnConfig && (
         <GlassCard className="mb-4 p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {allColumns.map(column => (
+            {columnDefs.map(column => (
               <label key={column.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                 <input
                   type="checkbox"
