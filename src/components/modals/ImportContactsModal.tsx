@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { useContactStore } from '../../hooks/useContactStore';
 import { Contact } from '../../types';
@@ -15,6 +15,16 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useContactFilterFields } from '../../hooks/useContactFilterFields';
+import {
+  autoMatchColumns,
+  BASE_IMPORT_TARGETS,
+  flagImportDuplicates,
+  IGNORE,
+  parseCsvText,
+  rowsToContacts,
+  type ImportTarget
+} from '../../lib/import/columnMapping';
 
 interface ImportContactsModalProps {
   isOpen: boolean;
@@ -40,62 +50,6 @@ const SAMPLE_CSV_DATA = [
   ]
 ];
 
-const parseCSV = (text: string): string[][] => {
-  const lines = text.split('\n').filter(line => line.trim());
-  return lines.map(line => {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      
-      if (char === '"' && (i === 0 || line[i-1] === ',')) {
-        inQuotes = true;
-      } else if (char === '"' && inQuotes && (i === line.length - 1 || line[i+1] === ',')) {
-        inQuotes = false;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    
-    result.push(current.trim());
-    return result;
-  });
-};
-
-const validateContact = (data: Record<string, string>): string[] => {
-  const errors = [];
-
-  if (!data['firstName']) {
-    errors.push('First name is required');
-  }
-
-  if (!data['lastName']) {
-    errors.push('Last name is required');
-  }
-
-  if (!data['email']) {
-    errors.push('Email is required');
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data['email'])) {
-    errors.push('Invalid email format');
-  }
-
-  // Optional field validations - only validate if present
-  if (data['interestLevel'] && data['interestLevel'] !== '' && !['hot', 'medium', 'low', 'cold'].includes(data['interestLevel'])) {
-    errors.push('Interest level must be: hot, medium, low, or cold');
-  }
-
-  if (data['status'] && data['status'] !== '' && !['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].includes(data['status'])) {
-    errors.push('Status must be: lead, prospect, customer, churned, active, pending, or inactive');
-  }
-
-  return errors;
-};
-
 export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen, onClose }) => {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -107,7 +61,56 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
   const [activeTab, setActiveTab] = useState<'guide' | 'upload' | 'preview'>('guide');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { importContacts } = useContactStore();
+  const { importContacts, contacts: existingContacts } = useContactStore();
+
+  // Column mapping state
+  const [hasHeader, setHasHeader] = useState(true);
+  const [mapping, setMapping] = useState<Record<number, string>>({});
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [activeSheet, setActiveSheet] = useState('');
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const workbookRef = useRef<XLSX.WorkBook | null>(null);
+  const allFields = useContactFilterFields();
+
+  const importTargets: ImportTarget[] = useMemo(
+    () => [
+      ...BASE_IMPORT_TARGETS,
+      ...allFields
+        .filter((f) => f.source === 'custom')
+        .map((f) => ({ key: `custom:${f.label}`, label: `${f.label} (custom)`, aliases: [f.label] }))
+    ],
+    [allFields]
+  );
+
+  const headers = useMemo(
+    () => (csvData[0] ? (hasHeader ? csvData[0].map((h) => String(h ?? '')) : csvData[0].map((_, i) => `Column ${i + 1}`)) : []),
+    [csvData, hasHeader]
+  );
+  const dataRows = useMemo(() => (hasHeader ? csvData.slice(1) : csvData), [csvData, hasHeader]);
+  const processedRows = useMemo(
+    () => rowsToContacts(dataRows, mapping, hasHeader ? 2 : 1),
+    [dataRows, mapping, hasHeader]
+  );
+  const duplicateFlags = useMemo(
+    () => flagImportDuplicates(processedRows.filter((r) => r.errors.length === 0), existingContacts ?? []),
+    [processedRows, existingContacts]
+  );
+  const missingRequired = BASE_IMPORT_TARGETS.filter(
+    (t) => t.required && t.key !== 'firstName' && t.key !== 'lastName' && !Object.values(mapping).includes(t.key)
+  );
+  const hasName =
+    (Object.values(mapping).includes('firstName') && Object.values(mapping).includes('lastName')) ||
+    Object.values(mapping).includes('name');
+
+  // Recompute valid rows / errors whenever the mapping or options change
+  useEffect(() => {
+    if (csvData.length === 0) return;
+    const skipRows = new Set(skipDuplicates ? duplicateFlags.map((f) => f.rowNumber) : []);
+    setErrors(
+      processedRows.filter((r) => r.errors.length > 0).map((r) => `Row ${r.rowNumber}: ${r.errors.join(', ')}`)
+    );
+    setParsedContacts(processedRows.filter((r) => r.errors.length === 0 && !skipRows.has(r.rowNumber)).map((r) => r.contact));
+  }, [processedRows, duplicateFlags, skipDuplicates, csvData.length]);
 
   const downloadTemplate = () => {
     const csvContent = [
@@ -145,9 +148,49 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
     }
   };
 
+  const loadRows = (rows: string[][], header = true) => {
+    if (rows.length < 2 || !rows[0]) {
+      setErrors(['File must contain at least a header row and one data row']);
+      return;
+    }
+    setCsvData(rows);
+    setHasHeader(header);
+    const heads = header ? rows[0].map((h) => String(h ?? '')) : rows[0].map((_, i) => `Column ${i + 1}`);
+    setMapping(autoMatchColumns(heads, importTargets));
+  };
+
+  const readSheet = (workbook: XLSX.WorkBook, sheetName: string): string[][] | null => {
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) return null;
+    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '' }) as unknown[][];
+    return json
+      .map((r) => r.map((c) => String(c ?? '').trim()))
+      .filter((r) => r.some((c) => c !== ''));
+  };
+
+  const handleSheetChange = (name: string) => {
+    if (!workbookRef.current) return;
+    const rows = readSheet(workbookRef.current, name);
+    if (!rows) {
+      setErrors(['Excel worksheet could not be read']);
+      return;
+    }
+    setActiveSheet(name);
+    loadRows(rows, hasHeader);
+  };
+
+  const handleHeaderToggle = (checked: boolean) => {
+    setHasHeader(checked);
+    if (csvData[0]) {
+      const heads = checked ? csvData[0].map((h) => String(h ?? '')) : csvData[0].map((_, i) => `Column ${i + 1}`);
+      setMapping(autoMatchColumns(heads, importTargets));
+    }
+  };
+
   const handleFileSelect = (selectedFile: File) => {
-    const isCSV = selectedFile.name.endsWith('.csv');
-    const isXLSX = selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
+    const lower = selectedFile.name.toLowerCase();
+    const isCSV = lower.endsWith('.csv');
+    const isXLSX = lower.endsWith('.xlsx') || lower.endsWith('.xls');
 
     if (!isCSV && !isXLSX) {
       setErrors(['Please select a CSV or Excel file (.csv, .xlsx, .xls)']);
@@ -156,31 +199,33 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
 
     setFile(selectedFile);
     setErrors([]);
+    setImportResults(null);
+    workbookRef.current = null;
+    setSheetNames([]);
+    setActiveSheet('');
 
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         if (isCSV) {
-          const text = e.target?.result as string;
-          const parsed = parseCSV(text);
-          setCsvData(parsed);
-          processCSVData(parsed);
-        } else if (isXLSX) {
+          loadRows(parseCsvText(e.target?.result as string));
+        } else {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          if (!sheetName) {
+          const first = workbook.SheetNames[0];
+          if (!first) {
             setErrors(['Excel file must contain at least one worksheet']);
             return;
           }
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) {
+          workbookRef.current = workbook;
+          setSheetNames(workbook.SheetNames);
+          setActiveSheet(first);
+          const rows = readSheet(workbook, first);
+          if (!rows) {
             setErrors(['Excel worksheet could not be read']);
             return;
           }
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
-          setCsvData(jsonData);
-          processCSVData(jsonData);
+          loadRows(rows);
         }
         setActiveTab('preview');
       } catch (error) {
@@ -193,54 +238,6 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
     } else {
       reader.readAsArrayBuffer(selectedFile);
     }
-  };
-
-  const processCSVData = (data: string[][]) => {
-    if (data.length < 2 || !data[0]) {
-      setErrors(['File must contain at least a header row and one data row']);
-      return;
-    }
-
-    const headers = data[0].map(h => h.toLowerCase().trim());
-    const rows = data.slice(1);
-    const newErrors: string[] = [];
-    const contacts: any[] = [];
-    
-    rows.forEach((row, index) => {
-      const contact: any = {};
-      
-      headers.forEach((header, colIndex) => {
-        if (row[colIndex]) {
-          contact[header] = row[colIndex].trim();
-        }
-      });
-      
-      // Generate full name if not provided
-      if (!contact.name && contact.firstname && contact.lastname) {
-        contact.name = `${contact.firstname} ${contact.lastname}`;
-      } else if (!contact.name && contact.firstName && contact.lastName) {
-        contact.name = `${contact.firstName} ${contact.lastName}`;
-      }
-      
-      // Default values
-      contact.sources = contact.sources ? contact.sources.split(',').map((s: string) => s.trim()) : ['Manual Import'];
-      contact.interestLevel = contact.interestlevel || 'medium';
-      contact.status = contact.status || 'lead';
-      contact.company = contact.company || 'Unknown Company';
-      contact.title = contact.title || 'Professional';
-      contact.avatarSrc = `https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2`;
-      contact.tags = contact.tags ? contact.tags.split(',').map((t: string) => t.trim()) : [];
-      
-      const validationErrors = validateContact(contact);
-      if (validationErrors.length > 0) {
-        newErrors.push(`Row ${index + 2}: ${validationErrors.join(', ')}`);
-      } else {
-        contacts.push(contact);
-      }
-    });
-    
-    setErrors(newErrors);
-    setParsedContacts(contacts);
   };
 
   const handleImport = async () => {
@@ -264,6 +261,11 @@ export const ImportContactsModal: React.FC<ImportContactsModalProps> = ({ isOpen
     setParsedContacts([]);
     setErrors([]);
     setImportResults(null);
+    setMapping({});
+    setHasHeader(true);
+    setSheetNames([]);
+    setActiveSheet('');
+    workbookRef.current = null;
     setActiveTab('guide');
   };
 
@@ -532,6 +534,103 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                 </div>
               ) : (
                 <>
+                  {csvData.length > 0 && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <h4 className="text-lg font-semibold text-gray-900">Column mapping</h4>
+                        <div className="flex items-center gap-4 text-sm text-gray-700">
+                          {sheetNames.length > 1 && (
+                            <label className="flex items-center gap-2">
+                              Sheet
+                              <select
+                                value={activeSheet}
+                                onChange={(e) => handleSheetChange(e.target.value)}
+                                className="px-2 py-1 border border-gray-300 rounded-lg bg-white"
+                              >
+                                {sheetNames.map((n) => (
+                                  <option key={n} value={n}>{n}</option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={hasHeader}
+                              onChange={(e) => handleHeaderToggle(e.target.checked)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            First row is a header
+                          </label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {headers.map((header, i) => {
+                          const sample = dataRows.slice(0, 3).map((r) => r[i]).filter(Boolean).join(' · ');
+                          return (
+                            <div key={i} className="flex items-center gap-3">
+                              <span className="w-40 min-w-0 text-sm text-gray-700">
+                                <span className="block truncate font-medium" title={header}>{header || `Column ${i + 1}`}</span>
+                                <span className="block truncate text-xs text-gray-400" title={sample}>{sample}</span>
+                              </span>
+                              <select
+                                aria-label={`Map column ${header || i + 1}`}
+                                value={mapping[i] ?? IGNORE}
+                                onChange={(e) => setMapping((m) => ({ ...m, [i]: e.target.value }))}
+                                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value={IGNORE}>Don't import</option>
+                                {importTargets.map((t) => (
+                                  <option
+                                    key={t.key}
+                                    value={t.key}
+                                    disabled={mapping[i] !== t.key && Object.values(mapping).includes(t.key)}
+                                  >
+                                    {t.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {(missingRequired.length > 0 || !hasName) && (
+                        <p className="mt-3 text-sm text-red-600">
+                          Map {[...(hasName ? [] : ['First name + Last name (or Full name)']), ...missingRequired.map((t) => t.label)].join(', ')} to import.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {duplicateFlags.length > 0 && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+                      <div className="flex items-start space-x-3">
+                        <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-yellow-900 dark:text-yellow-100">
+                            {duplicateFlags.length} possible duplicate{duplicateFlags.length === 1 ? '' : 's'}
+                          </h4>
+                          <ul className="mt-1 text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5 max-h-24 overflow-y-auto">
+                            {duplicateFlags.slice(0, 20).map((f) => (
+                              <li key={f.rowNumber}>
+                                Row {f.rowNumber} matches {f.kind === 'existing' ? 'existing contact' : 'earlier row'} “{f.matchName}”
+                              </li>
+                            ))}
+                          </ul>
+                          <label className="mt-2 flex items-center gap-2 text-sm text-yellow-900 dark:text-yellow-100">
+                            <input
+                              type="checkbox"
+                              checked={skipDuplicates}
+                              onChange={(e) => setSkipDuplicates(e.target.checked)}
+                              className="rounded border-yellow-400 text-blue-600 focus:ring-blue-500"
+                            />
+                            Skip duplicates (recommended)
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">
                       Preview Contacts ({parsedContacts.length})
