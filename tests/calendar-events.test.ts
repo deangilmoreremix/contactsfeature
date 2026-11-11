@@ -42,3 +42,19 @@ describe('calendar events', () => {
     expect([moved.getDate(), moved.getHours(), moved.getMinutes()]).toEqual([25, 9, 30]);
   });
 });
+
+import { buildTaskEvents } from '../src/lib/calendar/contactEvents';
+describe('task events', () => {
+  it('shows open tasks with due dates by type and hides done/undated tasks', () => {
+    const contacts = [c({ id: 'a' })];
+    const base = { contactId: 'a', status: 'open' as const };
+    const events = buildTaskEvents([
+      { id: '1', title: 'Call Ada', taskType: 'call', dueAt: '2026-11-12T10:00:00Z', ...base },
+      { id: '2', title: 'Demo', taskType: 'meeting', dueAt: '2026-11-13T10:00:00Z', ...base },
+      { id: '3', title: 'Old', taskType: 'todo', dueAt: '2026-11-13T10:00:00Z', contactId: 'a', status: 'done' },
+      { id: '4', title: 'No date', taskType: 'todo', dueAt: null, ...base },
+      { id: '5', title: 'Orphan', taskType: 'call', dueAt: '2026-11-13T10:00:00Z', contactId: 'zzz', status: 'open' },
+    ], contacts);
+    expect(events.map((e) => [e.id, e.type, e.editable])).toEqual([['task:1', 'call', true], ['task:2', 'meeting', true]]);
+  });
+});

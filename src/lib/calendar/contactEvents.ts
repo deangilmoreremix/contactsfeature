@@ -22,6 +22,40 @@ export interface ContactCalendarEvent {
   editable: boolean;
 }
 
+export interface TaskLike {
+  id: string;
+  contactId: string;
+  title: string;
+  taskType: 'todo' | 'call' | 'email' | 'meeting' | 'note';
+  status: 'open' | 'done';
+  dueAt: string | null;
+}
+
+const TASK_EVENT_TYPE: Record<TaskLike['taskType'], CalendarEventType> = {
+  call: 'call', meeting: 'meeting', email: 'email', note: 'note', todo: 'note',
+};
+
+/** Open tasks with a due date become calendar events (done tasks are hidden). */
+export function buildTaskEvents(tasks: TaskLike[], contacts: Contact[]): ContactCalendarEvent[] {
+  const byId = new Map(contacts.map((c) => [c.id, c]));
+  const events: ContactCalendarEvent[] = [];
+  for (const task of tasks) {
+    const contact = byId.get(task.contactId);
+    const date = task.dueAt ? new Date(task.dueAt) : null;
+    if (!contact || !date || Number.isNaN(date.getTime()) || task.status === 'done') continue;
+    events.push({
+      id: `task:${task.id}`,
+      contact,
+      type: TASK_EVENT_TYPE[task.taskType],
+      date,
+      title: `${task.title} — ${contact.name}`,
+      field: `task:${task.id}`,
+      editable: true,
+    });
+  }
+  return events;
+}
+
 export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 
 const parse = (value: unknown): Date | null => {

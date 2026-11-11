@@ -11,6 +11,7 @@
 import { create } from 'zustand';
 import { Contact } from '../types';
 import { contactAPI } from '../services/contact-api.service';
+import { recordContactDiff } from '../services/contactTimelineService';
 import { automationService } from '../services/automation.service';
 import { logger } from '../services/logger.service';
 import { sampleContacts } from './sampleContacts';
@@ -134,7 +135,9 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   updateContact: async (id, updates) => {
     console.log('useContactStore updateContact called with id:', id, 'updates:', updates);
     return withErrorHandling(async () => {
+      const contactBefore = get().contacts.find(c => c.id === id);
       const contact = await contactAPI.updateContact(id, updates);
+      void recordContactDiff(contactBefore, contact);
 
       set(state => ({
         contacts: state.contacts.map(c => c.id === id ? contact : c),

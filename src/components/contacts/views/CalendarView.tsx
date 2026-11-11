@@ -4,8 +4,11 @@ import { GlassCard } from '../../ui/GlassCard';
 import { ModernButton } from '../../ui/ModernButton';
 import { useContactStore } from '../../../hooks/useContactStore';
 import { useContactFilterFields } from '../../../hooks/useContactFilterFields';
+import { useAllContactTasks } from '../../../hooks/useContactActivity';
+import { contactTasks } from '../../../services/contactTasksService';
 import {
   buildContactEvents,
+  buildTaskEvents,
   customDateFields,
   dayKey,
   getMonthGrid,
@@ -49,14 +52,24 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
 
   const updateContact = useContactStore((st) => st.updateContact);
   const allFields = useContactFilterFields();
-  const events = useMemo(() => buildContactEvents(contacts, customDateFields(allFields)), [contacts, allFields]);
+  const { tasks, setTasks } = useAllContactTasks();
+  const events = useMemo(
+    () => [...buildContactEvents(contacts, customDateFields(allFields)), ...buildTaskEvents(tasks, contacts)],
+    [contacts, allFields, tasks]
+  );
   const eventsByDay = useMemo(() => groupEventsByDay(events), [events]);
   const [draggedEvent, setDraggedEvent] = useState<ContactCalendarEvent | null>(null);
 
   const reschedule = async (event: ContactCalendarEvent, day: Date) => {
     const iso = moveToDay(event.date, day);
     try {
-      if (event.field === 'nextSendDate') {
+      if (event.field.startsWith('task:')) {
+        const task = tasks.find((t) => `task:${t.id}` === event.field);
+        if (task) {
+          const updated = await contactTasks.update(task, { dueAt: iso });
+          setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+        }
+      } else if (event.field === 'nextSendDate') {
         await updateContact(event.contact.id, { nextSendDate: iso });
       } else if (event.field.startsWith('custom:')) {
         const field = allFields.find((f) => f.id === event.field);

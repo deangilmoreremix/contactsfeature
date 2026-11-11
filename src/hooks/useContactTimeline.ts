@@ -6,7 +6,7 @@ import { Contact } from '../types/contact';
 export interface TimelineActivity {
   id: string;
   contactId: string;
-  activityType: 'created' | 'updated' | 'status_changed' | 'score_calculated' | 'email_sent' | 'note_added' | 'imported' | 'exported' | 'ai_analysis' | 'attachment_added' | 'custom_field_updated';
+  activityType: 'created' | 'updated' | 'status_changed' | 'score_calculated' | 'email_sent' | 'note_added' | 'imported' | 'exported' | 'ai_analysis' | 'attachment_added' | 'custom_field_updated' | 'merged' | 'enriched' | 'task_added';
   description: string;
   metadata?: Record<string, any>;
   userName?: string;
@@ -36,6 +36,12 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
 
   const loadActivities = async () => {
     if (!contactId) return;
+    // Demo / offline contacts have no database history.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -118,6 +124,9 @@ export function useActivityTypeLabels() {
     exported: { label: 'Exported', color: 'bg-pink-100 text-pink-700', icon: '📤' },
     ai_analysis: { label: 'AI Analysis', color: 'bg-cyan-100 text-cyan-700', icon: '🧠' },
     attachment_added: { label: 'Attachment', color: 'bg-orange-100 text-orange-700', icon: '📎' },
-    custom_field_updated: { label: 'Field Updated', color: 'bg-teal-100 text-teal-700', icon: '🏷️' }
+    custom_field_updated: { label: 'Field Updated', color: 'bg-teal-100 text-teal-700', icon: '🏷️' },
+    merged: { label: 'Merged', color: 'bg-violet-100 text-violet-700', icon: '🔀' },
+    enriched: { label: 'Enriched', color: 'bg-cyan-100 text-cyan-700', icon: '🌐' },
+    task_added: { label: 'Task', color: 'bg-lime-100 text-lime-700', icon: '✅' }
   };
 }
