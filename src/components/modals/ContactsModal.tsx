@@ -21,6 +21,10 @@ import { ContactDetailSkeleton } from '../loading/ContactDetailSkeleton';
 import { ViewSwitcher } from '../contacts/ViewSwitcher';
 import { AdvancedFilterPanel } from '../contacts/AdvancedFilterPanel';
 import { SavedViewsMenu } from '../contacts/SavedViewsMenu';
+import { MergeContactsModal } from '../contacts/MergeContactsModal';
+import { DuplicateReviewModal, duplicateGroupKey, readDismissedDuplicateGroups } from '../contacts/DuplicateReviewModal';
+import { findDuplicateGroups, type DuplicateGroup } from '../../lib/merge/findDuplicates';
+import { MAX_MERGE_RECORDS } from '../../lib/merge/mergeContacts';
 import { useContactFilterStore } from '../../store/contactFilterStore';
 import { useContactSelectionStore } from '../../store/contactSelectionStore';
 import { bulkAddTags, bulkDeleteContacts, bulkUpdateContacts } from '../../services/bulkContactActions';
@@ -101,6 +105,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const toggleContactSelection = useContactSelectionStore((s) => s.toggle);
   const clearContactSelection = useContactSelectionStore((s) => s.clear);
   const [bulkMode, setBulkMode] = useState<null | 'status' | 'interest' | 'tags'>(null);
+  const [mergeCandidates, setMergeCandidates] = useState<Contact[] | null>(null);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(() => readDismissedDuplicateGroups());
   const [bulkTagInput, setBulkTagInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [bulkActionDropdown, setBulkActionDropdown] = useState(false);
@@ -223,6 +230,15 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     activeCount: advancedFilterCount
   } = useAdvancedContactFilter(searchedAndSortedContacts);
   const filteredContacts = advancedFilteredContacts;
+  const duplicateGroups = useMemo(
+    () => findDuplicateGroups(contacts).filter((g) => !dismissedDuplicates.has(duplicateGroupKey(g))),
+    [contacts, dismissedDuplicates]
+  );
+  const dismissDuplicateGroup = (group: DuplicateGroup) => {
+    const next = new Set(dismissedDuplicates).add(duplicateGroupKey(group));
+    setDismissedDuplicates(next);
+    try { localStorage.setItem('smartcrm.dismissedDuplicateGroups', JSON.stringify([...next])); } catch { /* storage unavailable */ }
+  };
 
   // ---- Saved views: capture / restore the whole screen configuration ----
   const { setCurrentView } = useView();
@@ -750,6 +766,17 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                           {lv}
                         </button>
                       ))}
+                      {selectedContacts.length >= 2 && selectedContacts.length <= MAX_MERGE_RECORDS && (
+                        <button
+                          onClick={() => {
+                            setMergeCandidates(contacts.filter(c => selectedContacts.includes(c.id)));
+                            setBulkActionDropdown(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Merge Selected ({selectedContacts.length})
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           if (confirm(`Delete ${selectedContacts.length} selected contacts? This cannot be undone.`)) {
@@ -1081,7 +1108,24 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               matchCount={filteredContacts.length}
               totalCount={contacts.length}
               savedViews={<SavedViewsMenu snapshot={viewSnapshot} onApply={applyViewSnapshot} />}
+              duplicates={{ count: duplicateGroups.length, onOpen: () => setShowDuplicates(true) }}
               onClose={() => setShowAdvancedFilters(false)}
+            />
+          )}
+
+          {showDuplicates && (
+            <DuplicateReviewModal
+              groups={duplicateGroups}
+              onClose={() => setShowDuplicates(false)}
+              onDismiss={dismissDuplicateGroup}
+              onMerge={(group) => { setShowDuplicates(false); setMergeCandidates(group); }}
+            />
+          )}
+          {mergeCandidates && (
+            <MergeContactsModal
+              contacts={mergeCandidates}
+              onClose={() => setMergeCandidates(null)}
+              onMerged={() => { setMergeCandidates(null); clearContactSelection(); }}
             />
           )}
 

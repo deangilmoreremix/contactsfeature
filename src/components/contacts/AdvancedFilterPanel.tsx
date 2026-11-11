@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Trash2, Layers } from 'lucide-react';
+import { Plus, X, Trash2, Layers, Copy } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
 import { useContactFilterStore } from '../../store/contactFilterStore';
 import { useContactViewStore } from '../../store/contactViewStore';
@@ -266,9 +266,11 @@ interface AdvancedFilterPanelProps {
   onClose?: () => void;
   /** Optional slot for the saved-views menu (keeps the toolbar row unchanged). */
   savedViews?: React.ReactNode;
+  /** Likely-duplicate groups; renders a button that opens the review dialog. */
+  duplicates?: { count: number; onOpen: () => void };
 }
 
-export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, savedViews }: AdvancedFilterPanelProps) {
+export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, savedViews, duplicates }: AdvancedFilterPanelProps) {
   const groups = useContactFilterStore((s) => s.recordFilterGroups);
   const filterCount = useContactFilterStore((s) => s.recordFilters.length);
   const clear = useContactFilterStore((s) => s.clear);
@@ -303,6 +305,17 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
               ))}
             </select>
           </label>
+          {duplicates && (
+            <button
+              type="button"
+              onClick={duplicates.onOpen}
+              className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title="Find and merge duplicate contacts"
+            >
+              <Copy className="w-4 h-4" />
+              <span>Duplicates{duplicates.count > 0 ? ` (${duplicates.count})` : ''}</span>
+            </button>
+          )}
           {savedViews}
           {filterCount > 0 && (
             <button
