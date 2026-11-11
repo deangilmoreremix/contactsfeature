@@ -79,7 +79,7 @@ export function columnFieldPatch(
   columnValue: string
 ): Partial<Contact> {
   if (field.source === 'custom') {
-    return { customFields: { ...(contact.customFields ?? {}), [field.label]: columnValue } as Contact['customFields'] };
+    return { customFields: { ...(contact.customFields ?? {}), [field.label]: columnValue } } as Partial<Contact>;
   }
   return { [field.name]: columnValue } as Partial<Contact>;
 }

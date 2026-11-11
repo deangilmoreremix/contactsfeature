@@ -1,7 +1,18 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { GlassCard } from '../../ui/GlassCard';
 import { ModernButton } from '../../ui/ModernButton';
+import { useContactStore } from '../../../hooks/useContactStore';
+import { useContactFilterFields } from '../../../hooks/useContactFilterFields';
+import {
+  buildContactEvents,
+  customDateFields,
+  dayKey,
+  getMonthGrid,
+  groupEventsByDay,
+  moveToDay,
+  type ContactCalendarEvent
+} from '../../../lib/calendar/contactEvents';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,15 +27,6 @@ import {
 interface CalendarViewProps {
   contacts: Contact[];
   onContactClick: (contact: Contact) => void;
-}
-
-interface CalendarEvent {
-  id: string;
-  contactId: string;
-  contact: Contact;
-  type: 'email' | 'call' | 'meeting' | 'note';
-  date: Date;
-  title: string;
 }
 
 const eventTypeIcons = {
@@ -45,54 +47,28 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
 
-  const generateMockEvents = (): CalendarEvent[] => {
-    const events: CalendarEvent[] = [];
-    contacts.forEach((contact, index) => {
-      if (contact.lastConnected) {
-        const date = new Date();
-        date.setDate(date.getDate() - (index % 30));
+  const updateContact = useContactStore((st) => st.updateContact);
+  const allFields = useContactFilterFields();
+  const events = useMemo(() => buildContactEvents(contacts, customDateFields(allFields)), [contacts, allFields]);
+  const eventsByDay = useMemo(() => groupEventsByDay(events), [events]);
+  const [draggedEvent, setDraggedEvent] = useState<ContactCalendarEvent | null>(null);
 
-        events.push({
-          id: `${contact.id}-last`,
-          contactId: contact.id,
-          contact,
-          type: ['email', 'call', 'meeting', 'note'][index % 4] as any,
-          date,
-          title: `Last contact with ${contact.name}`
-        });
+  const reschedule = async (event: ContactCalendarEvent, day: Date) => {
+    const iso = moveToDay(event.date, day);
+    try {
+      if (event.field === 'nextSendDate') {
+        await updateContact(event.contact.id, { nextSendDate: iso });
+      } else if (event.field.startsWith('custom:')) {
+        const field = allFields.find((f) => f.id === event.field);
+        if (field) {
+          await updateContact(event.contact.id, {
+            customFields: { ...(event.contact.customFields ?? {}), [field.label]: iso }
+          } as never);
+        }
       }
-
-      const followUpDate = new Date();
-      followUpDate.setDate(followUpDate.getDate() + (index % 14));
-      events.push({
-        id: `${contact.id}-followup`,
-        contactId: contact.id,
-        contact,
-        type: 'meeting',
-        date: followUpDate,
-        title: `Follow-up with ${contact.name}`
-      });
-    });
-    return events;
-  };
-
-  const events = generateMockEvents();
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    return { daysInMonth, startingDayOfWeek, firstDay, lastDay };
-  };
-
-  const getEventsForDate = (date: Date): CalendarEvent[] => {
-    return events.filter(event =>
-      event.date.toDateString() === date.toDateString()
-    );
+    } catch (error) {
+      console.error('Failed to reschedule', error);
+    }
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -109,23 +85,27 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
     setCurrentDate(new Date());
   };
 
-  const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentDate);
   const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   const renderMonthView = () => {
-    const days = [];
-    const totalCells = Math.ceil((daysInMonth + startingDayOfWeek) / 7) * 7;
+    const cells = getMonthGrid(currentDate.getFullYear(), currentDate.getMonth());
 
-    for (let i = 0; i < totalCells; i++) {
-      const dayNumber = i - startingDayOfWeek + 1;
-      const isValidDay = dayNumber > 0 && dayNumber <= daysInMonth;
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNumber);
-      const dayEvents = isValidDay ? getEventsForDate(date) : [];
+    return cells.map(({ date, inMonth }, i) => {
+      const isValidDay = inMonth;
+      const dayNumber = date.getDate();
+      const dayEvents = isValidDay ? eventsByDay.get(dayKey(date)) ?? [] : [];
       const isToday = isValidDay && date.toDateString() === new Date().toDateString();
 
-      days.push(
+      return (
         <div
           key={i}
+          onDragOver={isValidDay && draggedEvent ? (e) => e.preventDefault() : undefined}
+          onDrop={isValidDay && draggedEvent ? (e) => {
+            e.preventDefault();
+            const moved = draggedEvent;
+            setDraggedEvent(null);
+            void reschedule(moved, date);
+          } : undefined}
           className={`min-h-[120px] p-2 border border-gray-200 dark:border-gray-700 ${
             isValidDay ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'
           } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
@@ -143,6 +123,10 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
                   return (
                     <button
                       key={event.id}
+                      title={event.editable ? `${event.title} (drag to reschedule)` : event.title}
+                      draggable={event.editable}
+                      onDragStart={event.editable ? () => setDraggedEvent(event) : undefined}
+                      onDragEnd={() => setDraggedEvent(null)}
                       onClick={() => onContactClick(event.contact)}
                       className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${eventTypeColors[event.type]} hover:shadow-md transition-shadow`}
                     >
@@ -161,9 +145,7 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
           )}
         </div>
       );
-    }
-
-    return days;
+    });
   };
 
   return (
