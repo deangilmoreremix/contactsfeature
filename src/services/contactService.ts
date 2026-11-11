@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { contactsToCsv } from '../utils/contactCsv'
 import { Contact } from '../types/contact'
 
 export class ContactService {
@@ -289,17 +290,9 @@ export class ContactService {
       return JSON.stringify(contacts, null, 2)
     }
 
-    // Convert to CSV
+    // Convert to CSV (escaped + formula-injection safe)
     if (contacts.length === 0) return ''
-
-    const headers = Object.keys(contacts[0]).join(',')
-    const rows = contacts.map(contact =>
-      Object.values(contact).map(value =>
-        typeof value === 'object' ? JSON.stringify(value) : String(value || '')
-      ).join(',')
-    )
-
-    return [headers, ...rows].join('\n')
+    return contactsToCsv(contacts as any)
   }
 
   // Import contacts

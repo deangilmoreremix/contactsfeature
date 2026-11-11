@@ -9,6 +9,7 @@
  * @example
  * ```typescript
  * import { contactAPI } from './services/contact-api.service';
+import { contactsToCsvBlob } from '../utils/contactCsv';
  *
  * // Create a contact
  * const contact = await contactAPI.createContact({
@@ -834,25 +835,8 @@ class ContactAPIService {
         const jsonString = JSON.stringify(result.contacts, null, 2);
         return new Blob([jsonString], { type: 'application/json' });
       } else {
-        // CSV export
-        const headers = [
-          'id', 'firstName', 'lastName', 'email', 'phone', 'title',
-          'company', 'industry', 'interestLevel', 'status', 'aiScore'
-        ];
-
-        const rows = result.contacts.map(contact => {
-          return headers.map(header => {
-            const value = (contact as any)[header];
-            // Handle values that might contain commas or quotes
-            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value !== undefined && value !== null ? value : '';
-          }).join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv' });
+        // CSV export (escaped + formula-injection safe)
+        return contactsToCsvBlob(result.contacts);
       }
     }
 
@@ -870,25 +854,8 @@ class ContactAPIService {
         const jsonString = JSON.stringify(result.contacts, null, 2);
         return new Blob([jsonString], { type: 'application/json' });
       } else {
-        // CSV export
-        const headers = [
-          'id', 'firstName', 'lastName', 'email', 'phone', 'title',
-          'company', 'industry', 'interestLevel', 'status', 'aiScore'
-        ];
-
-        const rows = result.contacts.map(contact => {
-          return headers.map(header => {
-            const value = (contact as any)[header];
-            // Handle values that might contain commas or quotes
-            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value !== undefined && value !== null ? value : '';
-          }).join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv' });
+        // CSV export (escaped + formula-injection safe)
+        return contactsToCsvBlob(result.contacts);
       }
     } catch (error) {
       logger.error('Contact export failed', error as Error);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { contactsToCsvBlob } from '../../../utils/contactCsv';
 import { Contact } from '../../../types/contact';
 import { viewPreferencesService } from '../../../services/viewPreferences.service';
 import { GlassCard } from '../../ui/GlassCard';
@@ -335,12 +336,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const bulkExportSelected = () => {
     const selected = contacts.filter(c => selectedContacts.has(c.id));
     if (!selected.length) return;
-    const keys = Array.from(new Set(selected.flatMap(c => Object.keys(c))));
-    const header = keys.join(',');
-    const rows = selected.map(c =>
-      keys.map(k => `"${String((c as any)[k] ?? '').replace(/"/g, '""')}"`).join(',')
-    );
-    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+    const blob = contactsToCsvBlob(selected, visibleColumns.length ? ['name', ...visibleColumns.filter(c => c !== 'name').map(c => c)] : undefined);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
