@@ -57,8 +57,8 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
   }, [onClose]);
   return (
     <div className="border-b border-gray-200 bg-white flex-shrink-0">
-      <div className="flex items-center justify-between p-5">
-        <div className="flex space-x-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
+      <div className="flex flex-col-reverse gap-3 p-5">
+        <div className="flex flex-wrap gap-1 min-w-0">
           {contactTabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -67,7 +67,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
                 data-testid={`${tab.id}-tab`}
                 onClick={() => handleTabChange(tab.id)}
                 className={`
-                  flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200
+                  h-10 flex items-center space-x-2 px-4 whitespace-nowrap shrink-0 rounded-lg font-medium transition-all duration-200
                   ${activeTab === tab.id
                     ? 'bg-blue-100 text-blue-700 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -81,7 +81,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
           })}
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-end space-x-3 shrink-0">
           <ModernButton
             variant={contact.isFavorite ? "primary" : "outline"}
             size="toolbar"
