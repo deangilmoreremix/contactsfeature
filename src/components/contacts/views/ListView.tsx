@@ -4,6 +4,8 @@ import { ViewDensity } from '../../../types/view';
 import { SmartContactCard } from '../SmartContactCard';
 import { ModernButton } from '../../ui/ModernButton';
 import { useContactSelectionStore } from '../../../store/contactSelectionStore';
+import { useContactGroups } from '../../../hooks/useContactGroups';
+import { ContactGroupHeader } from '../ContactGroupHeader';
 import {
   LayoutList,
   Grid3x3,
@@ -32,6 +34,28 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
   const selected = useContactSelectionStore((s) => s.selected);
   const toggleSelect = useContactSelectionStore((s) => s.toggle);
   const orderedIds = contacts.map((c) => c.id);
+  const { groups, isCollapsed, toggle } = useContactGroups(contacts);
+
+  const renderCard = (contact: Contact) => (
+          <div
+            key={contact.id}
+            onClick={() => onContactClick(contact)}
+            className="cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
+            style={{
+              minHeight: viewMode === 'list' ? `${currentDensity.cardHeight}px` : undefined
+            }}
+          >
+            <SmartContactCard
+              contact={contact}
+              isSelected={selected.has(contact.id)}
+              onSelect={(opts) => toggleSelect(contact.id, orderedIds, { shift: opts?.shift === true })}
+              onClick={() => onContactClick(contact)}
+              variant="standard"
+              showMetrics={true}
+              enableQuickActions={true}
+            />
+          </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -131,24 +155,18 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
           }, 1fr))`
         } : undefined}
       >
-        {contacts.map((contact) => (
-          <div
-            key={contact.id}
-            onClick={() => onContactClick(contact)}
-            className="cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
-            style={{
-              minHeight: viewMode === 'list' ? `${currentDensity.cardHeight}px` : undefined
-            }}
-          >
-            <SmartContactCard
-              contact={contact}
-              isSelected={selected.has(contact.id)}
-              onSelect={(opts) => toggleSelect(contact.id, orderedIds, { shift: opts?.shift === true })}
-              onClick={() => onContactClick(contact)}
-              variant="standard"
-              showMetrics={true}
-              enableQuickActions={true}
-            />
+        {groups ? null : contacts.map(renderCard)}
+        {groups && groups.map((group) => (
+          <div key={group.key || '__none__'} className="col-span-full">
+            <ContactGroupHeader label={group.label} count={group.contacts.length} collapsed={isCollapsed(group.key)} onToggle={() => toggle(group.key)} />
+            {!isCollapsed(group.key) && (
+              <div
+                className={viewMode === 'grid' ? 'grid gap-3 sm:gap-4 md:gap-6 auto-rows-max' : 'flex flex-col gap-2 sm:gap-3'}
+                style={viewMode === 'grid' ? { gridTemplateColumns: `repeat(auto-fill, minmax(${density === 'compact' ? '280px' : density === 'comfortable' ? '320px' : '360px'}, 1fr))` } : undefined}
+              >
+                {group.contacts.map(renderCard)}
+              </div>
+            )}
           </div>
         ))}
 

@@ -2,6 +2,8 @@ import React from 'react';
 import { Plus, X, Trash2, Layers } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
 import { useContactFilterStore } from '../../store/contactFilterStore';
+import { useContactViewStore } from '../../store/contactViewStore';
+import { getGroupableFields } from '../../lib/groups/groupContacts';
 import type { ContactFilterField } from '../../lib/filters/contactFilterFields';
 import type { RecordFilter, RecordFilterGroup } from '../../lib/filters/filterContacts';
 import { RecordFilterGroupLogicalOperator } from '../../vendor/twenty-shared/types/RecordFilterGroupLogicalOperator';
@@ -273,6 +275,9 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
   const addFilter = useContactFilterStore((s) => s.addFilter);
   const root = groups.find((g) => !g.parentRecordFilterGroupId);
   const firstField = fields[0];
+  const groupBy = useContactViewStore((s) => s.groupBy);
+  const setGroupBy = useContactViewStore((s) => s.setGroupBy);
+  const groupable = getGroupableFields(fields);
 
   return (
     <GlassCard className="relative z-20 mx-6 mt-4 p-4">
@@ -284,6 +289,20 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+            Group by
+            <select
+              className={controlClass}
+              value={groupBy ?? ''}
+              onChange={(e) => setGroupBy(e.target.value || null)}
+              aria-label="Group contacts by"
+            >
+              <option value="">None</option>
+              {groupable.map((f) => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
+            </select>
+          </label>
           {savedViews}
           {filterCount > 0 && (
             <button
