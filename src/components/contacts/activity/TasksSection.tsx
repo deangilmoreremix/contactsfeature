@@ -111,7 +111,7 @@ export function TasksSection({ contactId }: { contactId: string }) {
         <button
           type="submit"
           disabled={busy || !title.trim()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           <Plus className="w-4 h-4" /> Add
         </button>

@@ -110,7 +110,7 @@ export const PlaybookPhases: React.FC<PlaybookPhasesProps> = ({
                   </span>
                   <ModernButton
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     onClick={() => onExecutePhase?.(phase.id)}
                     aria-label={`Execute phase ${phase.name}`}
                   >

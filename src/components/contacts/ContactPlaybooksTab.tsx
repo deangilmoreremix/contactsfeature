@@ -260,7 +260,7 @@ Next Steps: Schedule follow-up meeting
                 Quick Actions
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <ModernButton
+                <ModernButton size="toolbar"
                   onClick={() => setCurrentView('selector')}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="outline"
@@ -269,7 +269,7 @@ Next Steps: Schedule follow-up meeting
                   <span>Browse Recurring Revenue Playbooks</span>
                 </ModernButton>
 
-                <ModernButton
+                <ModernButton size="toolbar"
                   onClick={() => setCurrentView('adaptive')}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="outline"
@@ -278,7 +278,7 @@ Next Steps: Schedule follow-up meeting
                   <span>Generate AI Playbook</span>
                 </ModernButton>
 
-                <ModernButton
+                <ModernButton size="toolbar"
                   onClick={() => {/* Open SDR Modal */}}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="primary"

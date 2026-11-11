@@ -69,7 +69,7 @@ export const AIEmailGenerator: React.FC<AIEmailGeneratorProps> = ({
         </h3>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           onClick={() => setShowOptions(!showOptions)}
           className="flex items-center space-x-1"
         >
@@ -181,7 +181,7 @@ export const AIEmailGenerator: React.FC<AIEmailGeneratorProps> = ({
         )}
 
         {/* Generate Button */}
-        <ModernButton
+        <ModernButton size="toolbar"
           variant="primary"
           onClick={handleGenerateEmail}
           loading={isGenerating}
@@ -280,7 +280,7 @@ export const AIEmailGenerator: React.FC<AIEmailGeneratorProps> = ({
               <div className="flex space-x-2">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => handleCopy('both')}
                   className="flex items-center space-x-1"
                 >
@@ -299,7 +299,7 @@ export const AIEmailGenerator: React.FC<AIEmailGeneratorProps> = ({
                 {onSave && (
                   <ModernButton
                     variant="primary"
-                    size="sm"
+                    size="toolbar"
                     onClick={handleSave}
                     className="flex items-center space-x-1"
                   >

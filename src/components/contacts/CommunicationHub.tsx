@@ -585,13 +585,13 @@ Sales Representative`
             </div>
 
             <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => setShowContentModal(false)}
               >
                 Close
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={() => {
                   // Copy to clipboard
@@ -606,7 +606,7 @@ Sales Representative`
                 Copy to Clipboard
               </ModernButton>
               {generatedContent.type === 'meeting' || generatedContent.type === 'proposal' ? (
-                <ModernButton
+                <ModernButton size="toolbar"
                   variant="primary"
                   onClick={() => {
                     // Open email client with content
@@ -632,15 +632,15 @@ Sales Representative`
           <p className="text-gray-600">Unified communication center for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Search className="w-4 h-4" />
             <span>Search</span>
           </ModernButton>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Filter className="w-4 h-4" />
             <span>Filter</span>
           </ModernButton>
-          <ModernButton variant="primary" size="sm" onClick={() => setIsComposing(true)} className="flex items-center space-x-2">
+          <ModernButton variant="primary" size="toolbar" onClick={() => setIsComposing(true)} className="flex items-center space-x-2">
             <Send className="w-4 h-4" />
             <span>New Message</span>
           </ModernButton>
@@ -738,7 +738,7 @@ Sales Representative`
           <GlassCard className="p-6">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h4>
             <div className="space-y-3">
-              <ModernButton 
+              <ModernButton size="toolbar" 
                 variant="primary" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('email')}
@@ -747,7 +747,7 @@ Sales Representative`
                 <Mail className="w-4 h-4" />
                 <span>AI Email</span>
               </ModernButton>
-              <ModernButton 
+              <ModernButton size="toolbar" 
                 variant="outline" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('call')}
@@ -755,7 +755,7 @@ Sales Representative`
                 <Phone className="w-4 h-4" />
                 <span>Start Call</span>
               </ModernButton>
-              <ModernButton 
+              <ModernButton size="toolbar" 
                 variant="outline" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('sms')}
@@ -763,11 +763,11 @@ Sales Representative`
                 <MessageSquare className="w-4 h-4" />
                 <span>AI SMS</span>
               </ModernButton>
-              <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton size="toolbar" variant="outline" className="w-full flex items-center justify-center space-x-2">
                 <Video className="w-4 h-4" />
                 <span>Video Call</span>
               </ModernButton>
-              <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton size="toolbar" variant="outline" className="w-full flex items-center justify-center space-x-2">
                 <Calendar className="w-4 h-4" />
                 <span>Schedule Meeting</span>
               </ModernButton>
@@ -834,7 +834,7 @@ Sales Representative`
               <div className="pt-3 border-t border-gray-200">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleGetCommunicationStrategy}
                   className="w-full"
                   loading={loading}

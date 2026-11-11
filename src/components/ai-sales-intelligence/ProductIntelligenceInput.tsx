@@ -279,10 +279,10 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
 
       {/* Submit Button */}
       <div className="flex justify-center pt-4">
-        <ModernButton
+        <ModernButton size="toolbar"
           onClick={handleSubmit}
           disabled={!input.url && !input.documents?.length}
-          className="px-8 py-3 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+          className="px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
         >
           🚀 Start AI Analysis
         </ModernButton>

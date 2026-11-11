@@ -334,7 +334,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={resetSettings}
                 className="flex items-center space-x-2"
@@ -343,13 +343,13 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
                 <span>Reset</span>
               </ModernButton>
               <div className="flex-1" />
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={onClose}
               >
                 Cancel
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={saveSettings}
                 loading={saving}

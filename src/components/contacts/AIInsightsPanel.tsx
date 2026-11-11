@@ -42,7 +42,7 @@ const InsightsView = ({ insights, filteredInsights, selectedCategory, feedbackGi
         <div className="text-center">
           <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400 mb-4">No AI insights available yet</p>
-          <ModernButton variant="primary" className="flex items-center space-x-2">
+          <ModernButton size="toolbar" variant="primary" className="flex items-center space-x-2">
             <Sparkles className="w-4 h-4" />
             <span>Generate AI Insights</span>
           </ModernButton>
@@ -109,11 +109,11 @@ const InsightsView = ({ insights, filteredInsights, selectedCategory, feedbackGi
                 )}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <ModernButton variant="primary" size="sm" className="flex items-center space-x-2">
+                    <ModernButton variant="primary" size="toolbar" className="flex items-center space-x-2">
                       <Target className="w-4 h-4" />
                       <span>Take Action</span>
                     </ModernButton>
-                    <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+                    <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
                       <Eye className="w-4 h-4" />
                       <span>View Details</span>
                     </ModernButton>
@@ -166,7 +166,7 @@ const IntelligenceView = ({ intelligence, isIntelligenceAnalyzing, handleGenerat
         <div className="text-center">
           <Layers className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400 mb-4">No intelligence correlations available</p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={handleGenerateIntelligence}
             className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600"
@@ -228,7 +228,7 @@ const RecommendationsView = ({ recommendations, handleFeedback }: any) => (
         <div className="text-center">
           <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400 mb-4">No smart recommendations available</p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-blue-600"
           >
@@ -295,7 +295,7 @@ const RecommendationsView = ({ recommendations, handleFeedback }: any) => (
                 <div className="flex space-x-2">
                   <ModernButton
                     variant="primary"
-                    size="sm"
+                    size="toolbar"
                     className="flex items-center space-x-1"
                   >
                     <CheckCircle className="w-4 h-4" />
@@ -638,7 +638,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           </select>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => {
               // Export insights as JSON
               const dataStr = JSON.stringify(insights, null, 2);
@@ -656,7 +656,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           </ModernButton>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => {
               console.log('AIInsightsPanel: Refresh/Generate button clicked, activeView:', activeView, 'contact:', contact.id);
               if (activeView === 'insights') {
@@ -751,7 +751,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
               <div className="text-center">
                 <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 dark:text-gray-400 mb-4">No AI insights available yet</p>
-                <ModernButton
+                <ModernButton size="toolbar"
                   variant="primary"
                   onClick={() => {
                     console.log('AIInsightsPanel: Generate AI Insights button clicked for contact:', contact.id);
@@ -838,7 +838,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                         <div className="flex items-center space-x-2">
                           <ModernButton
                             variant="primary"
-                            size="sm"
+                            size="toolbar"
                             className="flex items-center space-x-2"
                             onClick={() => console.log('Take action for insight:', insight.id)}
                           >
@@ -847,7 +847,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                           </ModernButton>
                           <ModernButton
                             variant="outline"
-                            size="sm"
+                            size="toolbar"
                             className="flex items-center space-x-2"
                             onClick={() => console.log('View details for insight:', insight.id)}
                           >
@@ -911,7 +911,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                 <div className="text-center">
                   <Layers className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 dark:text-gray-400 mb-4">No intelligence correlations available</p>
-                  <ModernButton
+                  <ModernButton size="toolbar"
                     variant="primary"
                     onClick={handleGenerateIntelligence}
                     className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600"
@@ -971,7 +971,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                 <div className="text-center">
                   <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 dark:text-gray-400 mb-4">No smart recommendations available</p>
-                  <ModernButton
+                  <ModernButton size="toolbar"
                     variant="primary"
                     onClick={() => generateRecommendations(contact)}
                     className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-blue-600"
@@ -1040,7 +1040,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                       <div className="flex space-x-2">
                         <ModernButton
                           variant="primary"
-                          size="sm"
+                          size="toolbar"
                           className="flex items-center space-x-1"
                         >
                           <CheckCircle className="w-4 h-4" />

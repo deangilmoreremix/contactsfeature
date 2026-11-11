@@ -151,8 +151,8 @@ export function MergeContactsModal({ contacts, onClose, onMerged }: MergeContact
         </div>
 
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <ModernButton variant="outline" onClick={onClose} disabled={busy}>Cancel</ModernButton>
-          <ModernButton variant="primary" onClick={run} loading={busy} disabled={busy}>
+          <ModernButton size="toolbar" variant="outline" onClick={onClose} disabled={busy}>Cancel</ModernButton>
+          <ModernButton size="toolbar" variant="primary" onClick={run} loading={busy} disabled={busy}>
             <Check className="w-4 h-4" />
             Merge {contacts.length} contacts
           </ModernButton>

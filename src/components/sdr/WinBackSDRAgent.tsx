@@ -102,15 +102,16 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
           onClick={() => setShowSettings(true)}
           title="Configure Win-Back SDR Settings"
           style={{
-            display: 'flex',
+            display: "flex",
+            justifyContent: "center",
             alignItems: 'center',
-            gap: '4px',
-            padding: '4px 8px',
-            borderRadius: '6px',
+            gap: 8,
+            padding: "0 16px", height: 40, whiteSpace: "nowrap",
+            borderRadius: 8,
             border: '1px solid var(--sdr-d1d5db)',
             background: 'var(--sdr-surface)',
             color: 'var(--sdr-6b7280)',
-            fontSize: '12px',
+            fontSize: 14,
             cursor: 'pointer',
             transition: 'all 0.2s'
           }}
@@ -123,7 +124,7 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
             e.currentTarget.style.borderColor = 'var(--sdr-d1d5db)';
           }}
         >
-          <Settings size={12} />
+          <Settings size={14} />
           Settings
         </button>
       </div>
@@ -237,13 +238,13 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
         disabled={loading}
         style={{
           width: "100%",
-          padding: "8px 10px",
+          padding: "0 16px", height: 40, whiteSpace: "nowrap",
           borderRadius: 8,
           border: "none",
           background: loading ? "#a0aec0" : "#38a169",
           color: "#ffffff",
           fontWeight: 600,
-          fontSize: 13,
+          fontSize: 14,
           cursor: loading ? "default" : "pointer",
           marginBottom: 10
         }}
@@ -305,8 +306,8 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
               onClick={handleCopy}
               style={{
                 flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--sdr-d1d5db)",
-                background: copied ? "var(--sdr-f0fdf4)" : "var(--sdr-surface)", fontSize: 12, cursor: "pointer",
+                gap: 8, padding: "0 16px", height: 40, whiteSpace: "nowrap", borderRadius: 8, border: "1px solid var(--sdr-d1d5db)",
+                background: copied ? "var(--sdr-f0fdf4)" : "var(--sdr-surface)", fontSize: 14, cursor: "pointer",
                 color: copied ? "var(--sdr-166534)" : "var(--sdr-374151)"
               }}
             >
@@ -318,9 +319,9 @@ export const WinBackSDRAgent: React.FC<WinBackSDRAgentProps> = ({ contact }) => 
               disabled={draftSaved}
               style={{
                 flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                gap: 4, padding: "6px 10px", borderRadius: 6, border: "none",
+                gap: 8, padding: "0 16px", height: 40, whiteSpace: "nowrap", borderRadius: 8, border: "none",
                 background: draftSaved ? "var(--sdr-dcfce7)" : "#2563eb", color: draftSaved ? "var(--sdr-166534)" : "white",
-                fontSize: 12, fontWeight: 500, cursor: draftSaved ? "default" : "pointer"
+                fontSize: 14, fontWeight: 500, cursor: draftSaved ? "default" : "pointer"
               }}
             >
               {draftSaved ? <Check size={12} /> : <Mail size={12} />}

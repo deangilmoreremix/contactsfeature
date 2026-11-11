@@ -225,7 +225,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
         </h3>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           className="flex items-center space-x-1"
           onClick={() => setIsCreateModalOpen(true)}
         >
@@ -311,7 +311,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
               <div className="flex flex-wrap gap-2">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => loadTemplates()}
                   className="text-red-700 border-red-300 hover:bg-red-100"
                 >
@@ -392,7 +392,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between">
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={handleCopyTemplate}
                 className="flex items-center space-x-1"
               >
@@ -403,14 +403,14 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
               <div className="flex space-x-2">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => setIsPreviewOpen(false)}
                 >
                   Cancel
                 </ModernButton>
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleSelectTemplate}
                   className="flex items-center space-x-1"
                 >
@@ -534,7 +534,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between">
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={() => setIsCreateModalOpen(false)}
               >
                 Cancel
@@ -542,7 +542,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
               <ModernButton
                 variant="primary"
-                size="sm"
+                size="toolbar"
                 onClick={handleCreateTemplate}
                 disabled={isCreating || !newTemplate.name || !newTemplate.subject || !newTemplate.body}
                 className="flex items-center space-x-1"

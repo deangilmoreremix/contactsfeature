@@ -129,7 +129,7 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
         {hasAnalyzed && !isAnalyzing && (
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => {
               setHasAnalyzed(false);
               setEmailSubject('');
@@ -203,7 +203,7 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
           </div>
 
           {/* Analyze Button */}
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={handleAnalyzeEmail}
             loading={isAnalyzing}

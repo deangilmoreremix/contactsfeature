@@ -318,7 +318,7 @@ export const QuickCallHandler: React.FC<QuickCallHandlerProps> = ({
         <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-3">
             {callState === 'idle' && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => window.open(`tel:${contact.phone}`, '_blank')}
                 className="flex items-center space-x-2"
@@ -329,7 +329,7 @@ export const QuickCallHandler: React.FC<QuickCallHandlerProps> = ({
             )}
 
             {callState === 'completed' && followUpRequired && followUpDate && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={scheduleFollowUp}
                 className="flex items-center space-x-2"
@@ -342,7 +342,7 @@ export const QuickCallHandler: React.FC<QuickCallHandlerProps> = ({
 
           <div className="flex items-center space-x-3">
             {callState === 'idle' && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 onClick={initiateCall}
                 disabled={!contact.phone}
                 className="bg-green-600 hover:bg-green-700 flex items-center space-x-2"
@@ -353,7 +353,7 @@ export const QuickCallHandler: React.FC<QuickCallHandlerProps> = ({
             )}
 
             {callState === 'connected' && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 onClick={endCall}
                 className="bg-red-600 hover:bg-red-700 flex items-center space-x-2"
               >
@@ -363,7 +363,7 @@ export const QuickCallHandler: React.FC<QuickCallHandlerProps> = ({
             )}
 
             {callState === 'completed' && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 onClick={onClose}
                 className="bg-blue-600 hover:bg-blue-700"
               >

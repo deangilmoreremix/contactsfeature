@@ -137,7 +137,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
         >
           <ModernButton
             variant="primary"
-            size={size}
+            size="toolbar"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             disabled={!hasMinimumData}
             className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
@@ -152,7 +152,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
         {/* Settings Button */}
         <ModernButton
           variant="outline"
-          size={size}
+          size="toolbar"
           onClick={() => {
             // Toggle auto-fill mode
             const modes: Array<typeof autoFillMode> = ['smart', 'conservative', 'aggressive'];
@@ -217,7 +217,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
                     searchQuery={getSearchQuery()}
                     onDataFound={handleAutoFill}
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     className="w-full justify-start p-3 hover:bg-gray-50 border-0 hover:border-gray-200"
                     showConfidence={false}
                     disabled={!hasMinimumData}

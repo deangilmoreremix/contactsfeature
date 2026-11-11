@@ -260,7 +260,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
               <div className="flex space-x-3">
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleAddSocialProfile}
                   disabled={!selectedSocialPlatform || !socialFieldValue}
                 >
@@ -268,7 +268,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
                 </ModernButton>
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => setShowAddSocial(false)}
                 >
                   Cancel
@@ -360,7 +360,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
               <div className="flex space-x-3">
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleAddCustomField}
                   disabled={!newFieldName || !newFieldValue}
                 >
@@ -368,7 +368,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
                 </ModernButton>
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => setShowAddField(false)}
                 >
                   Cancel

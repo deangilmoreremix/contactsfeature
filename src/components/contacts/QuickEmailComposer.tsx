@@ -311,7 +311,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
         {/* Footer Actions */}
         <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={handleCopyToClipboard}
               className="flex items-center space-x-2"
@@ -320,7 +320,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
               <span>Copy</span>
             </ModernButton>
 
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={() => {/* Save as draft */}}
               className="flex items-center space-x-2"
@@ -331,14 +331,14 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
           </div>
 
           <div className="flex items-center space-x-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
             >
               Cancel
             </ModernButton>
 
-            <ModernButton
+            <ModernButton size="toolbar"
               onClick={handleSendNow}
               loading={isSending}
               className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-2"

@@ -142,7 +142,7 @@ export function CustomFieldsSection({ contact: contactProp }: { contact: Contact
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" /> Add field
         </button>
@@ -172,7 +172,7 @@ export function CustomFieldsSection({ contact: contactProp }: { contact: Contact
             {FIELD_TYPES.map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
           </select>
           {hasOptions && <input className={controlClass} placeholder="Options, comma separated" value={newOptions} onChange={(e) => setNewOptions(e.target.value)} aria-label="Field options" />}
-          <button type="submit" disabled={!newLabel.trim()} className="px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Create</button>
+          <button type="submit" disabled={!newLabel.trim()} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Create</button>
         </form>
       )}
 
@@ -197,8 +197,8 @@ export function CustomFieldsSection({ contact: contactProp }: { contact: Contact
                       onSubmit={(e) => { e.preventDefault(); void save(def, draft); }}
                     >
                       <FieldInput def={def} value={draft} onChange={setDraft} />
-                      <button type="submit" className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
-                      <button type="button" onClick={() => { setEditing(null); setError(null); }} className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
+                      <button type="submit" className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+                      <button type="button" onClick={() => { setEditing(null); setError(null); }} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
                     </form>
                   ) : (
                     <p className="text-sm text-gray-900 dark:text-gray-100 pt-2 break-words">

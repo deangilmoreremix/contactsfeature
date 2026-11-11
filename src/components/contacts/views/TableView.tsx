@@ -705,7 +705,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
           )}
           <button
             onClick={() => setShowColumnConfig(v => !v)}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
           >
             <Settings className="w-4 h-4" /> Columns
           </button>

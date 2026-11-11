@@ -327,15 +327,15 @@ Best regards,
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             title="Configure Communication Optimizer Settings"
           >
-            <Settings className="w-3 h-3" />
+            <Settings className="w-4 h-4" />
             Settings
           </button>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={optimizeCommunication}
             loading={loading}
           >
@@ -439,7 +439,7 @@ Best regards,
                     {!appliedOptimizations.has(`suggestion-${index}`) && (
                       <ModernButton
                         variant="outline"
-                        size="sm"
+                        size="toolbar"
                         onClick={() => applyOptimization(`suggestion-${index}`)}
                       >
                         Apply
@@ -508,14 +508,14 @@ Best regards,
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onApplyOptimization || (() => {})}
               className="flex-1"
             >
               ✨ Apply Optimizations
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onViewAnalytics || (() => {})}
               className="flex-1"
@@ -533,7 +533,7 @@ Best regards,
           <p className="text-gray-600 mb-6">
             Get AI-powered suggestions to improve your message effectiveness and increase response rates.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={optimizeCommunication}
           >

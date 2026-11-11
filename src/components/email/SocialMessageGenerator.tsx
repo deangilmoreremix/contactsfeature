@@ -106,7 +106,7 @@ export const SocialMessageGenerator: React.FC<SocialMessageGeneratorProps> = ({
         </h3>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           onClick={() => setShowOptions(!showOptions)}
           className="flex items-center space-x-1"
         >
@@ -241,7 +241,7 @@ export const SocialMessageGenerator: React.FC<SocialMessageGeneratorProps> = ({
         )}
 
         {/* Generate Button */}
-        <ModernButton
+        <ModernButton size="toolbar"
           variant="primary"
           onClick={handleGenerateMessage}
           loading={isGenerating}
@@ -308,7 +308,7 @@ export const SocialMessageGenerator: React.FC<SocialMessageGeneratorProps> = ({
               </div>
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={handleCopy}
                 className="flex items-center space-x-1"
               >

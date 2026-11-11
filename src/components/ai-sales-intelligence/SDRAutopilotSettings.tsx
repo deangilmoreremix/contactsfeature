@@ -310,7 +310,7 @@ export const SDRAutopilotSettings: React.FC<SDRAutopilotSettingsProps> = ({
 
           {/* Save Button */}
           <div className="flex justify-end pt-4 border-t border-gray-200">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={saveSDRAutopilotSettings}
               loading={saving}

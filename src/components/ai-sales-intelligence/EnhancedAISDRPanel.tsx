@@ -381,7 +381,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
             <ModernButton
               key={category.id}
               variant={selectedCategory === category.id ? 'primary' : 'outline'}
-              size="sm"
+              size="toolbar"
               onClick={() => setSelectedCategory(category.id as any)}
               className="flex items-center space-x-2"
             >
@@ -517,19 +517,19 @@ export const EnhancedAISDRPanel: React.FC = () => {
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <Target className="w-6 h-6 mb-2" />
             <span className="text-sm">Bulk Outreach</span>
           </ModernButton>
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <TrendingUp className="w-6 h-6 mb-2" />
             <span className="text-sm">Lead Scoring</span>
           </ModernButton>
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <Calendar className="w-6 h-6 mb-2" />
             <span className="text-sm">Meeting Scheduler</span>
           </ModernButton>
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <BarChart3 className="w-6 h-6 mb-2" />
             <span className="text-sm">Revenue Forecast</span>
           </ModernButton>

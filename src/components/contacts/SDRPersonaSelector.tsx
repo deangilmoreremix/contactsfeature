@@ -220,7 +220,7 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
                       <SmartTooltip featureId={`sdr-persona-${persona.id}`}>
                         <ModernButton
                           variant="outline"
-                          size="sm"
+                          size="toolbar"
                           onClick={() => handleRunPersona(persona.id)}
                           disabled={isRunning}
                           className="text-xs px-3 py-1"

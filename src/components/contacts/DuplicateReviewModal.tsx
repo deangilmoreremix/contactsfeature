@@ -89,8 +89,8 @@ export function DuplicateReviewModal({ groups, onClose, onMerge, onDismiss }: Du
                       ))}
                     </div>
                     <div className="flex items-center justify-end gap-2 mt-3">
-                      <ModernButton variant="outline" size="sm" onClick={() => onDismiss(group)}>Not duplicates</ModernButton>
-                      <ModernButton variant="primary" size="sm" disabled={tooMany} onClick={() => onMerge(group.contacts)}>
+                      <ModernButton variant="outline" size="toolbar" onClick={() => onDismiss(group)}>Not duplicates</ModernButton>
+                      <ModernButton variant="primary" size="toolbar" disabled={tooMany} onClick={() => onMerge(group.contacts)}>
                         {tooMany ? `Too many to merge at once (max ${MAX_MERGE_RECORDS})` : 'Review & merge'}
                       </ModernButton>
                     </div>

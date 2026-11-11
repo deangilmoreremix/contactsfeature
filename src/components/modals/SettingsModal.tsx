@@ -364,7 +364,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         {/* Footer */}
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="outline"
             onClick={handleReset}
             className="flex items-center space-x-2"
@@ -372,7 +372,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <RefreshCw className="w-4 h-4" />
             <span>Reset to Default</span>
           </ModernButton>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={handleSave}
             className="flex items-center space-x-2"

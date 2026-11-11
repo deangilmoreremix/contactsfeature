@@ -59,7 +59,7 @@ export function NotesSection({ contactId }: { contactId: string }) {
         <button
           type="submit"
           disabled={busy || !draft.trim()}
-          className="px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           Add note
         </button>
@@ -77,8 +77,8 @@ export function NotesSection({ contactId }: { contactId: string }) {
                 <div className="space-y-2">
                   <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} className={controlClass} aria-label="Edit note" autoFocus />
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => saveEdit(note)} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
-                    <button type="button" onClick={() => setEditingId(null)} className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
+                    <button type="button" onClick={() => saveEdit(note)} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+                    <button type="button" onClick={() => setEditingId(null)} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
                   </div>
                 </div>
               ) : (

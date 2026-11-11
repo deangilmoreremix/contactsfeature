@@ -260,7 +260,7 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
           </AgentButton>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={analyzeDealHealth}
             loading={loading}
           >
@@ -340,14 +340,14 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onGenerateReport || (() => {})}
               className="flex-1"
             >
               📋 Generate Report
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onViewRecommendations || (() => {})}
               className="flex-1"
@@ -365,7 +365,7 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
           <p className="text-gray-600 dark:text-gray-300 mb-6">
             Run an AI-powered analysis to get insights on deal health, risks, and recommendations.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={analyzeDealHealth}
           >

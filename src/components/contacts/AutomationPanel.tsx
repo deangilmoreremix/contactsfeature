@@ -1297,13 +1297,13 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
             </div>
 
             <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => setShowTemplateModal(false)}
               >
                 Cancel
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={handleSaveTemplate}
                 disabled={!templateForm.name?.trim() || !templateForm.description?.trim()}
@@ -1335,7 +1335,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                 {!editingRule && (
                   <ModernButton
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     onClick={() => {
                       // Quick setup with common template
                       setRuleForm({
@@ -1466,7 +1466,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                   <h4 className="text-md font-semibold text-gray-900">Actions</h4>
                   <ModernButton
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     onClick={handleAddAction}
                     className="flex items-center space-x-2"
                   >
@@ -1533,13 +1533,13 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
             </div>
 
             <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => setShowCreateModal(false)}
               >
                 Cancel
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={handleSaveRule}
                 disabled={!ruleForm.name.trim() || !ruleForm.trigger.trim()}
@@ -1562,12 +1562,12 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
           <p className="text-gray-600">Intelligent automation rules for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Filter className="w-4 h-4" />
             <span>Filter</span>
             <ModernButton 
               variant="outline" 
-              size="sm" 
+              size="toolbar" 
               onClick={handleGenerateSuggestions}
               loading={loading}
               className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
@@ -1579,7 +1579,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
           </ModernButton>
           <ModernButton
             variant="primary"
-            size="sm"
+            size="toolbar"
             onClick={handleCreateRule}
             className="flex items-center space-x-2"
           >
@@ -1733,7 +1733,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                   <h5 className="text-sm font-semibold text-gray-700">Action Flow:</h5>
                   <ModernButton
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     onClick={() => {
                       setRuleForm({
                         name: automation.name,
@@ -1883,7 +1883,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                 <div className="text-center">
                   <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">No AI suggestions available</p>
-                  <ModernButton
+                  <ModernButton size="toolbar"
                     variant="primary"
                     onClick={handleGenerateSuggestions}
                     loading={isOptimizing}
@@ -1970,7 +1970,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                       <div className="flex space-x-2">
                         <ModernButton
                           variant="outline"
-                          size="sm"
+                          size="toolbar"
                           className="flex items-center space-x-1"
                           onClick={() => {
                             console.log('Review button clicked for suggestion:', suggestion.id, suggestion.title);
@@ -1982,7 +1982,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                         </ModernButton>
                         <ModernButton
                           variant="primary"
-                          size="sm"
+                          size="toolbar"
                           className="flex items-center space-x-1 bg-gradient-to-r from-purple-600 to-blue-600"
                           onClick={() => handleQuickCreateAutomation(suggestion)}
                         >
@@ -2008,7 +2008,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
              </div>
              <ModernButton
                variant="primary"
-               size="sm"
+               size="toolbar"
                onClick={() => {
                  setTemplateForm({
                    name: '',
@@ -2060,7 +2060,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                      )}
                      <ModernButton
                        variant="primary"
-                       size="sm"
+                       size="toolbar"
                        onClick={() => handleUseTemplate(template)}
                        className="text-xs"
                      >
@@ -2177,7 +2177,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                        </div>
                        <ModernButton
                          variant="outline"
-                         size="sm"
+                         size="toolbar"
                          onClick={async () => {
                            if (!isMockData) {
                              const sessionId = analyticsService.startTracking('automation-optimization', 'optimize-rule', contact.id);

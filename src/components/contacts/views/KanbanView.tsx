@@ -190,7 +190,7 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
             ({contacts.length} contacts)
           </span>
         </div>
-        <ModernButton
+        <ModernButton size="toolbar"
           variant="outline"
           onClick={() => setShowColumnConfig(!showColumnConfig)}
           icon={Settings}

@@ -188,7 +188,7 @@ export const EmailScheduler: React.FC<EmailSchedulerProps> = ({
         <div className="flex items-center space-x-2">
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => setShowFollowUpBuilder(!showFollowUpBuilder)}
             className="flex items-center space-x-1"
           >
@@ -201,7 +201,7 @@ export const EmailScheduler: React.FC<EmailSchedulerProps> = ({
       <div className="space-y-6">
         {/* Quick Actions */}
         <div className="flex items-center space-x-3">
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={handleSendImmediately}
             className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
@@ -212,7 +212,7 @@ export const EmailScheduler: React.FC<EmailSchedulerProps> = ({
 
           <div className="text-gray-400">or</div>
 
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="outline"
             onClick={handleScheduleEmail}
             disabled={!scheduledDate || !scheduledTime}
@@ -372,7 +372,7 @@ export const EmailScheduler: React.FC<EmailSchedulerProps> = ({
               </h4>
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={addFollowUpStep}
                 className="text-purple-700 border-purple-300 hover:bg-purple-100"
               >

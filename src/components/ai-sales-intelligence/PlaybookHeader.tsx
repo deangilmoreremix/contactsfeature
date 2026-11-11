@@ -82,7 +82,7 @@ export const PlaybookHeader: React.FC<PlaybookHeaderProps> = ({
         <div className="flex items-center gap-2">
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={onGenerate}
             loading={loading}
             className="flex items-center space-x-2"
@@ -105,7 +105,7 @@ export const PlaybookHeader: React.FC<PlaybookHeaderProps> = ({
           {loading && activeStreams && activeStreams.size > 0 && onStopStreaming && (
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onStopStreaming}
               className="text-red-600 hover:text-red-700"
             >

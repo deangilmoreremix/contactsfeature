@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, X, Trash2, Layers, Copy } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
-import { TOOLBAR_BTN } from './toolbarStyles';
+import { TOOLBAR_BTN, TOOLBAR_ICON_BTN } from './toolbarStyles';
 import { useContactFilterStore } from '../../store/contactFilterStore';
 import { useContactViewStore } from '../../store/contactViewStore';
 import { getGroupableFields } from '../../lib/groups/groupContacts';
@@ -211,7 +211,7 @@ function GroupView({ group, depth, fields }: GroupProps) {
                   <button
                     type="button"
                     onClick={() => store.removeFilter(item.f.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                     title="Remove filter"
                   >
                     <X className="w-4 h-4" />
@@ -227,7 +227,7 @@ function GroupView({ group, depth, fields }: GroupProps) {
               <button
                 type="button"
                 onClick={() => store.removeGroup(item.g.id)}
-                className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 title="Remove group"
               >
                 <Trash2 className="w-4 h-4" />
@@ -242,7 +242,7 @@ function GroupView({ group, depth, fields }: GroupProps) {
           type="button"
           disabled={!firstField}
           onClick={() => firstField && store.addFilter(firstField.id, operandsFor(firstField)[0] as ViewFilterOperand, group.id)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" /> Add filter
         </button>
@@ -250,7 +250,7 @@ function GroupView({ group, depth, fields }: GroupProps) {
           <button
             type="button"
             onClick={() => store.addGroup(group.id)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
             <Layers className="w-4 h-4" /> Add group
           </button>
@@ -322,7 +322,7 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
             <button
               type="button"
               onClick={clear}
-              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className={`${TOOLBAR_BTN} text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
             >
               Clear all
             </button>
@@ -331,7 +331,7 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg"
+              className={`${TOOLBAR_ICON_BTN} text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200`}
               aria-label="Close advanced filters"
             >
               <X className="w-4 h-4" />
@@ -347,7 +347,7 @@ export function AdvancedFilterPanel({ fields, matchCount, totalCount, onClose, s
           type="button"
           disabled={!firstField}
           onClick={() => firstField && addFilter(firstField.id, operandsFor(firstField)[0] as ViewFilterOperand)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" /> Add filter
         </button>

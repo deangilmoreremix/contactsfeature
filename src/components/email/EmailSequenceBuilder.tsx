@@ -212,7 +212,7 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
         </h3>
         <ModernButton
           variant="primary"
-          size="sm"
+          size="toolbar"
           onClick={() => setShowSequenceBuilder(!showSequenceBuilder)}
           className="flex items-center space-x-1"
         >
@@ -253,7 +253,7 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
             <div className="flex justify-end space-x-2">
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={() => {
                   setShowSequenceBuilder(false);
                   setNewSequenceName('');
@@ -264,7 +264,7 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
               </ModernButton>
               <ModernButton
                 variant="primary"
-                size="sm"
+                size="toolbar"
                 onClick={createNewSequence}
                 disabled={!newSequenceName.trim()}
               >
@@ -304,7 +304,7 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
                   </span>
                   <ModernButton
                     variant={sequence.isActive ? "outline" : "primary"}
-                    size="sm"
+                    size="toolbar"
                     onClick={() => toggleSequenceActive(sequence.id)}
                     className="flex items-center space-x-1"
                   >
@@ -322,7 +322,7 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
                   </ModernButton>
                   <ModernButton
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     onClick={() => setActiveSequence(sequence)}
                     className="flex items-center space-x-1"
                   >
@@ -383,7 +383,7 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
                 </div>
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={addSequenceStep}
                   className="flex items-center space-x-1"
                 >
@@ -524,13 +524,13 @@ export const EmailSequenceBuilder: React.FC<EmailSequenceBuilderProps> = ({
             </div>
 
             <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => setActiveSequence(null)}
               >
                 Close
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={() => setActiveSequence(null)}
                 disabled={activeSequence.steps.length === 0}

@@ -243,7 +243,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
           </div>
           <div className="flex gap-2">
             {onPreview && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => onPreview(sequence)}
                 className="flex items-center gap-2"
@@ -252,7 +252,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                 Preview
               </ModernButton>
             )}
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
             >
@@ -371,7 +371,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
               </div>
 
               {/* Add Step Button */}
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={addStep}
                 className="w-full mt-4 flex items-center justify-center gap-2"
@@ -425,7 +425,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                 </label>
               </div>
 
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={handleSaveTemplate}
                 loading={saving}

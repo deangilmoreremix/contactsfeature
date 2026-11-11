@@ -145,7 +145,7 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({
           </div>
           <ModernButton
             variant="ghost"
-            size="sm"
+            size="toolbar"
             onClick={updateForecast}
             loading={loading}
           >
@@ -193,7 +193,7 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({
           )}
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={updateForecast}
             loading={loading}
           >
@@ -274,14 +274,14 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onViewDetails || (() => {})}
               className="flex-1"
             >
               📊 View Details
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onRefresh || updateForecast}
               className="flex-1"
@@ -299,7 +299,7 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({
           <p className="text-gray-600 mb-6">
             Generate your first AI-powered sales forecast to get insights on pipeline performance and predictions.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={updateForecast}
           >

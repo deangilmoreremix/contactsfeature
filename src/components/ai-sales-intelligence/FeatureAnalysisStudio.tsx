@@ -137,7 +137,7 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
         </div>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           onClick={analyzeProduct}
           loading={loading}
           disabled={!productUrl.trim()}
@@ -419,14 +419,14 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
 
           {/* Action Buttons */}
           <div className="flex gap-3 mt-6">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onGenerateReport || (() => {})}
               className="flex-1"
             >
               📊 Generate Report
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onCompareFeatures || (() => {})}
               className="flex-1"

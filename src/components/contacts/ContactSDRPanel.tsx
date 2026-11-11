@@ -358,31 +358,31 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
 
         <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
           {!isAutopilotRunning && !isAutopilotPaused && (
-            <ModernButton variant="primary" size="sm" onClick={handleStartAutopilot} disabled={isLoading} className="flex items-center space-x-2">
+            <ModernButton variant="primary" size="toolbar" onClick={handleStartAutopilot} disabled={isLoading} className="flex items-center space-x-2">
               <Play className="w-4 h-4" /><span>Start Autopilot</span>
             </ModernButton>
           )}
           {isAutopilotRunning && (
             <>
-              <ModernButton variant="outline" size="sm" onClick={handlePauseAutopilot} disabled={isLoading} className="flex items-center space-x-2">
+              <ModernButton variant="outline" size="toolbar" onClick={handlePauseAutopilot} disabled={isLoading} className="flex items-center space-x-2">
                 <Pause className="w-4 h-4" /><span>Pause</span>
               </ModernButton>
-              <ModernButton variant="outline" size="sm" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
+              <ModernButton variant="outline" size="toolbar" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
                 <Square className="w-4 h-4" /><span>Stop</span>
               </ModernButton>
             </>
           )}
           {isAutopilotPaused && (
             <>
-              <ModernButton variant="primary" size="sm" onClick={handleResumeAutopilot} disabled={isLoading} className="flex items-center space-x-2">
+              <ModernButton variant="primary" size="toolbar" onClick={handleResumeAutopilot} disabled={isLoading} className="flex items-center space-x-2">
                 <Play className="w-4 h-4" /><span>Resume</span>
               </ModernButton>
-              <ModernButton variant="outline" size="sm" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
+              <ModernButton variant="outline" size="toolbar" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
                 <Square className="w-4 h-4" /><span>Stop</span>
               </ModernButton>
             </>
           )}
-          <ModernButton variant="outline" size="sm" onClick={handleLoadLogs} disabled={isLoading} className="flex items-center space-x-2 ml-auto">
+          <ModernButton variant="outline" size="toolbar" onClick={handleLoadLogs} disabled={isLoading} className="flex items-center space-x-2 ml-auto">
             <Clock className="w-4 h-4" /><span>View Logs</span>
           </ModernButton>
         </div>
@@ -490,10 +490,10 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
         )}
 
         <div className="flex items-center justify-end pt-3 border-t border-gray-200 dark:border-gray-700 space-x-2">
-          <ModernButton variant="outline" size="sm" onClick={() => setSettings({ personaId: 'cold_saas_founder', isEnabled: false, autopilotEnabled: false, followupMode: 'manual', customNotes: '', sequenceLength: 5, maxEmailsPerDay: 3, respectBusinessHours: true })} className="flex items-center space-x-1">
+          <ModernButton variant="outline" size="toolbar" onClick={() => setSettings({ personaId: 'cold_saas_founder', isEnabled: false, autopilotEnabled: false, followupMode: 'manual', customNotes: '', sequenceLength: 5, maxEmailsPerDay: 3, respectBusinessHours: true })} className="flex items-center space-x-1">
             <RefreshCw className="w-3 h-3" /><span>Reset</span>
           </ModernButton>
-          <ModernButton variant="primary" size="sm" onClick={handleSave} disabled={isLoading} className="flex items-center space-x-1">
+          <ModernButton variant="primary" size="toolbar" onClick={handleSave} disabled={isLoading} className="flex items-center space-x-1">
             <Save className="w-3 h-3" /><span>{isLoading ? 'Saving...' : 'Save Settings'}</span>
           </ModernButton>
         </div>

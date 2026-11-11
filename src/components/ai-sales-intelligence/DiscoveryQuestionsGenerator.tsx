@@ -307,15 +307,15 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             title="Configure Discovery Questions Settings"
           >
-            <Settings className="w-3 h-3" />
+            <Settings className="w-4 h-4" />
             Settings
           </button>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={generateQuestions}
             loading={loading}
           >
@@ -418,7 +418,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
                   </div>
                   <ModernButton
                     variant="ghost"
-                    size="sm"
+                    size="toolbar"
                     onClick={() => copyQuestion(q.question, q.id)}
                   >
                     {copiedQuestions.has(q.id) ? (
@@ -437,14 +437,14 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={copyAllQuestions}
               className="flex-1"
             >
               📋 Copy All Questions
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onRegenerate || (() => {})}
               className="flex-1"
@@ -452,7 +452,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
               <RefreshCw className="w-4 h-4 mr-2" />
               Regenerate
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onSaveTemplate || (() => {})}
             >
@@ -469,7 +469,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
           <p className="text-gray-600 mb-6">
             Create personalized discovery questions tailored to {contact.name}'s role and your meeting objectives.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={generateQuestions}
           >

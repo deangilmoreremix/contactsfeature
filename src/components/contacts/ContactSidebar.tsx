@@ -181,7 +181,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
           <button
             onClick={handleWebEnrichment}
             disabled={researchStatus.status.isActive}
-            className="p-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
+            className="h-10 w-10 inline-flex items-center justify-center bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
             title="AI Web Research"
           >
             <Search className="w-4 h-4" />
@@ -330,7 +330,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
           <div className="mb-3">
             <button
               onClick={() => window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank')}
-              className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full flex items-center justify-center h-10 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <Target className="w-4 h-4 mr-2" />
               AI Goals
@@ -361,7 +361,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
           <button
             onClick={handleWebEnrichment}
             disabled={researchStatus.status.isActive}
-            className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full flex items-center justify-center h-10 px-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
             {researchStatus.status.isActive ? (
               <>

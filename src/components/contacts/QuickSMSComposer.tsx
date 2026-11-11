@@ -212,7 +212,7 @@ export const QuickSMSComposer: React.FC<QuickSMSComposerProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="outline"
             onClick={handleClose}
             disabled={isSending}
@@ -221,7 +221,7 @@ export const QuickSMSComposer: React.FC<QuickSMSComposerProps> = ({
             Cancel
           </ModernButton>
 
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={handleSendSMS}
             disabled={!message.trim() || isSending || !contact.phone}

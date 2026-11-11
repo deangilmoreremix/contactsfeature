@@ -242,7 +242,7 @@ Sales Playbook: 1
             )}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="h-10 w-10 inline-flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>

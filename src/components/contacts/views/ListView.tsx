@@ -72,7 +72,7 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
         <div className="flex items-center gap-2">
           {/* Density Controls */}
           <div className="relative">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={() => setShowDensityMenu(!showDensityMenu)}
               className="text-sm"

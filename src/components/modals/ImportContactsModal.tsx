@@ -415,7 +415,7 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
 
               {/* Download Template */}
               <div className="flex justify-center">
-                <ModernButton
+                <ModernButton size="toolbar"
                   variant="primary"
                   onClick={downloadTemplate}
                   className="flex items-center space-x-2"
@@ -453,7 +453,7 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                     </p>
                     <ModernButton
                       variant="outline"
-                      size="sm"
+                      size="toolbar"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       Choose Different File
@@ -464,7 +464,7 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                     <p className="text-gray-600">
                       Drag and drop your CSV file here, or click to browse
                     </p>
-                    <ModernButton
+                    <ModernButton size="toolbar"
                       variant="primary"
                       onClick={() => fileInputRef.current?.click()}
                     >
@@ -528,7 +528,7 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                       {importResults.failed > 0 && ` (${importResults.failed} failed)`}
                     </p>
                   </div>
-                  <ModernButton variant="primary" onClick={handleClose}>
+                  <ModernButton size="toolbar" variant="primary" onClick={handleClose}>
                     Close
                   </ModernButton>
                 </div>
@@ -635,7 +635,7 @@ Sarah,Johnson,sarah.j@startup.io,Startup Inc,CEO,+1-555-0456`}
                     <h3 className="text-lg font-semibold text-gray-900">
                       Preview Contacts ({parsedContacts.length})
                     </h3>
-                    <ModernButton
+                    <ModernButton size="toolbar"
                       variant="primary"
                       onClick={handleImport}
                       loading={isProcessing}

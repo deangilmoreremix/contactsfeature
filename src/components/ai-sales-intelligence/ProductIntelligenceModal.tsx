@@ -348,7 +348,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
+            className="h-10 w-10 inline-flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
           >
             <X className="w-5 h-5" />
           </button>
@@ -388,10 +388,10 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Analysis Failed</h3>
                 <p className="text-gray-600 mb-6">{error.message}</p>
                 <div className="flex justify-center space-x-3">
-                  <ModernButton onClick={handleRetry} className="bg-red-600 hover:bg-red-700">
+                  <ModernButton size="toolbar" onClick={handleRetry} className="bg-red-600 hover:bg-red-700">
                     Try Again
                   </ModernButton>
-                  <ModernButton variant="outline" onClick={onClose}>
+                  <ModernButton size="toolbar" variant="outline" onClick={onClose}>
                     Cancel
                   </ModernButton>
                 </div>

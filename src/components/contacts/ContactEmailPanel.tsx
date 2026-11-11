@@ -238,7 +238,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
         <div className="flex items-center space-x-2">
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => handleQuickGenerate('introduction')}
             loading={isProcessing}
             className="flex items-center space-x-1 bg-blue-50 text-blue-700"
@@ -249,7 +249,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
           
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => handleQuickGenerate('follow-up')}
             loading={isProcessing}
             className="flex items-center space-x-1 bg-green-50 text-green-700"
@@ -262,7 +262,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
           <div className="flex items-center space-x-3">
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={handleDiscardDraft}
               className="flex items-center space-x-1 text-red-600 border-red-200 hover:bg-red-50"
             >
@@ -272,7 +272,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
             
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={async () => {
                 const success = await safeClipboardWrite(`Subject: ${emailSubject}\n\n${emailBody}`);
                 if (success) {
@@ -297,7 +297,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
             
             <ModernButton
               variant="primary"
-              size="sm"
+              size="toolbar"
               onClick={handleSendEmail}
               loading={isPreparingEmail}
               className="flex items-center space-x-1 bg-green-600 hover:bg-green-700"
@@ -341,7 +341,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
             <h4 className="font-semibold text-gray-900 dark:text-white">Current Draft</h4>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={() => setActiveTab('analyzer')}
               className="flex items-center space-x-1"
             >

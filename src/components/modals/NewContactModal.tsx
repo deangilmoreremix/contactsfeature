@@ -375,7 +375,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               ✨ Enhanced with AI research data
             </p>
           )}
-          <ModernButton variant="primary" onClick={handleClose}>
+          <ModernButton size="toolbar" variant="primary" onClick={handleClose}>
             Close
           </ModernButton>
         </div>
@@ -946,7 +946,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     <ModernButton 
                       type="button"
                       variant="primary" 
-                      size="sm" 
+                      size="toolbar" 
                       onClick={handleAddCustomField}
                       disabled={!newCustomField.name || !newCustomField.value}
                     >
@@ -955,7 +955,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     <ModernButton 
                       type="button"
                       variant="outline" 
-                      size="sm" 
+                      size="toolbar" 
                       onClick={() => setShowCustomFields(false)}
                     >
                       Cancel
@@ -1020,7 +1020,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               </div>
               
               <div className="flex items-center space-x-4">
-                <ModernButton
+                <ModernButton size="toolbar"
                   type="button"
                   variant="outline"
                   onClick={handleClose}
@@ -1028,7 +1028,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 >
                   Cancel
                 </ModernButton>
-                <ModernButton
+                <ModernButton size="toolbar"
                   type="submit"
                   variant="primary"
                   loading={isSubmitting}

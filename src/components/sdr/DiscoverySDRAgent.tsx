@@ -85,15 +85,16 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
           onClick={() => setShowSettings(true)}
           title="Configure Discovery SDR Settings"
           style={{
-            display: 'flex',
+            display: "flex",
+            justifyContent: "center",
             alignItems: 'center',
-            gap: '4px',
-            padding: '4px 8px',
-            borderRadius: '6px',
+            gap: 8,
+            padding: "0 16px", height: 40, whiteSpace: "nowrap",
+            borderRadius: 8,
             border: '1px solid var(--sdr-d1d5db)',
             background: 'var(--sdr-surface)',
             color: 'var(--sdr-6b7280)',
-            fontSize: '12px',
+            fontSize: 14,
             cursor: 'pointer',
             transition: 'all 0.2s'
           }}
@@ -171,13 +172,13 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
         disabled={loading}
         style={{
           width: "100%",
-          padding: "8px 10px",
+          padding: "0 16px", height: 40, whiteSpace: "nowrap",
           borderRadius: 8,
           border: "none",
           background: loading ? "#a0aec0" : "#2b6cb0",
           color: "#ffffff",
           fontWeight: 600,
-          fontSize: 13,
+          fontSize: 14,
           cursor: loading ? "default" : "pointer",
           marginBottom: 10
         }}

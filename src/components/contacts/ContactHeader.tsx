@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { ModernButton } from '../ui/ModernButton';
+import { TOOLBAR_ICON_BTN } from './toolbarStyles';
 import { Contact } from '../../types/contact';
 import { contactTabs } from '../../constants/contactConstants';
 import {
@@ -83,7 +84,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
         <div className="flex items-center space-x-3">
           <ModernButton
             variant={contact.isFavorite ? "primary" : "outline"}
-            size="sm"
+            size="toolbar"
             onClick={handleToggleFavorite}
             className="flex items-center space-x-2"
           >
@@ -95,7 +96,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
             <div className="flex items-center space-x-2">
               <ModernButton
                 variant="primary"
-                size="sm"
+                size="toolbar"
                 onClick={handleSave}
                 loading={isSaving}
                 className="flex items-center space-x-2"
@@ -105,7 +106,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
               </ModernButton>
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={handleCancel}
                 className="flex items-center space-x-2"
               >
@@ -117,7 +118,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
             <ModernButton
               data-testid="modal-edit-contact-button"
               variant="primary"
-              size="sm"
+              size="toolbar"
               onClick={handleEdit}
               className="flex items-center space-x-2"
             >
@@ -128,7 +129,7 @@ export const ContactHeader: React.FC<ContactHeaderProps> = memo(({
 
           <button
             onClick={handleClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className={`${TOOLBAR_ICON_BTN} text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors`}
           >
             <X className="w-5 h-5" />
           </button>

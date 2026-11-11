@@ -142,7 +142,7 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
           </span>
         </div>
 
-        <ModernButton
+        <ModernButton size="toolbar"
           variant="secondary"
           onClick={() => setShowFilters(!showFilters)}
           icon={Filter}

@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 interface ModernButtonProps {
   children?: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'glass' | 'outline' | 'ghost' | undefined;
-  size?: 'sm' | 'md' | 'lg' | undefined;
+  size?: 'sm' | 'md' | 'lg' | 'toolbar' | undefined;
   loading?: boolean | undefined;
   disabled?: boolean | undefined;
   onClick?: (() => void) | ((e: React.MouseEvent<HTMLButtonElement>) => void) | undefined;
@@ -33,19 +33,22 @@ export const ModernButton: React.FC<ModernButtonProps> = ({
       case 'glass':
         return 'bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 dark:bg-gray-800/40 dark:border-gray-600/50 dark:hover:bg-gray-700/50';
       case 'secondary':
-        return 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600';
+        return 'border border-transparent bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600';
       case 'outline':
         return 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600';
       case 'ghost':
-        return 'bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700';
+        return 'border border-transparent bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700';
       case 'primary':
       default:
-        return 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600';
+        return 'border border-transparent bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600';
     }
   };
 
   const getSizeClass = () => {
     switch (size) {
+      case 'toolbar':
+        // Fixed-height control used across Contacts / Advanced Contacts so every button matches.
+        return 'h-10 px-4 text-sm whitespace-nowrap shrink-0';
       case 'sm':
         return 'px-3 py-1.5 text-sm';
       case 'lg':

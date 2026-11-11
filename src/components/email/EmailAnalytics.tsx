@@ -251,7 +251,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
           </select>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={handleRefresh}
             loading={isRefreshing}
             className="flex items-center space-x-1"
@@ -261,7 +261,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
           </ModernButton>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={handleExport}
             className="flex items-center space-x-1"
           >

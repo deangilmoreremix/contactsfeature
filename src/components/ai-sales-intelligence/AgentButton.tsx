@@ -143,7 +143,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
     return (
       <ModernButton
         variant={variant}
-        size={size}
+        size="toolbar"
         className={className}
         disabled
       >
@@ -157,7 +157,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
     <>
       <ModernButton
         variant={variant}
-        size={size}
+        size="toolbar"
         className={className}
         onClick={() => setShowModal(true)}
         disabled={loading}

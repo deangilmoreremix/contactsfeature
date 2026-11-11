@@ -290,17 +290,17 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
               <option key={range.value} value={range.value}>{range.label}</option>
             ))}
           </select>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Download className="w-4 h-4" />
             <span>Export</span>
           </ModernButton>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <RefreshCw className="w-4 h-4" />
             <span>Refresh</span>
           </ModernButton>
           <ModernButton
             variant="primary"
-            size="sm"
+            size="toolbar"
             className="flex items-center space-x-2"
             onClick={handleGeneratePredictions}
             loading={loading}

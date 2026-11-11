@@ -122,7 +122,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
         </div>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           onClick={analyzeContact}
           loading={loading}
         >
@@ -187,7 +187,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
           <div className="flex gap-3">
             <ModernButton
               variant="primary"
-              size="sm"
+              size="toolbar"
               onClick={onNurturePlan || (() => {})}
               className="flex-1"
             >
@@ -195,7 +195,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onOptimizeMessage || (() => {})}
               className="flex-1"
             >
@@ -239,7 +239,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             <div className="text-center py-8">
               <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 mb-4">No nurture sequence active</p>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={onNurturePlan || (() => {})}
               >
@@ -251,7 +251,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
           <div className="flex gap-3">
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onGenerateDiscovery || (() => {})}
               className="flex-1"
             >
@@ -259,7 +259,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onAnalyzeHealth || (() => {})}
               className="flex-1"
             >
@@ -295,7 +295,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
           <div className="flex gap-3">
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onOptimizeMessage || (() => {})}
               className="flex-1"
             >
@@ -303,7 +303,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onGenerateDiscovery || (() => {})}
               className="flex-1"
             >

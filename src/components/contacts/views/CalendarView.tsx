@@ -171,16 +171,16 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigateMonth('prev')}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="h-10 w-10 shrink-0 inline-flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <ModernButton variant="secondary" onClick={navigateToToday} className="text-sm">
+            <ModernButton size="toolbar" variant="secondary" onClick={navigateToToday} className="text-sm">
               Today
             </ModernButton>
             <button
               onClick={() => navigateMonth('next')}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="h-10 w-10 shrink-0 inline-flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -188,7 +188,7 @@ export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <ModernButton variant="primary" icon={Plus} className="text-sm">
+          <ModernButton size="toolbar" variant="primary" icon={Plus} className="text-sm">
             Schedule Activity
           </ModernButton>
         </div>

@@ -161,7 +161,7 @@ export const GPT51Controls: React.FC<GPT51ControlsProps> = ({
         </div>
 
         {/* Action Button */}
-        <ModernButton
+        <ModernButton size="toolbar"
           onClick={handleTestGPT51}
           loading={isProcessing}
           disabled={!input.trim()}

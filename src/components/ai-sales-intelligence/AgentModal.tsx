@@ -183,7 +183,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
               className="flex-1"
@@ -191,7 +191,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
             >
               Cancel
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={handleExecute}
               className="flex-1"

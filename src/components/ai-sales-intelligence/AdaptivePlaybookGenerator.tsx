@@ -438,7 +438,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onCustomize || (() => {})}
               className="flex-1"
@@ -446,7 +446,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
             >
               🎨 Customize Strategy
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onGenerate || (() => {})}
               className="flex-1"
@@ -465,7 +465,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           <p className="text-gray-600 mb-6">
             Create a comprehensive, AI-powered strategy tailored to this specific deal and competitive landscape.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={generatePlaybook}
             aria-label="Generate adaptive sales playbook"
