@@ -19,6 +19,8 @@ import { SmartContactCard } from '../contacts/SmartContactCard';
 import { ContactErrorBoundary } from '../error/ContactErrorBoundary';
 import { ContactDetailSkeleton } from '../loading/ContactDetailSkeleton';
 import { ViewSwitcher } from '../contacts/ViewSwitcher';
+import { AdvancedFilterPanel } from '../contacts/AdvancedFilterPanel';
+import { useAdvancedContactFilter } from '../../hooks/useAdvancedContactFilter';
 import { ListView } from '../contacts/views/ListView';
 import { TableView } from '../contacts/views/TableView';
 import { KanbanView } from '../contacts/views/KanbanView';
@@ -82,6 +84,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   // UI State
   const [activeFilter, setActiveFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -146,7 +149,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   }, [isOpen, onClose, selectedContact, isImportModalOpen, isNewContactModalOpen, isSettingsModalOpen]);
 
   // Filter and search contacts
-  const filteredContacts = useMemo(() => {
+  const searchedAndSortedContacts = useMemo(() => {
     let result = contacts;
 
     // Apply search
@@ -197,6 +200,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
     return result;
   }, [contacts, searchTerm, activeFilter, statusFilter, sortBy, sortOrder, fuse]);
+
+  // Advanced nested AND/OR filters (applied on top of the quick filters above)
+  const {
+    filtered: advancedFilteredContacts,
+    fields: advancedFilterFields,
+    activeCount: advancedFilterCount
+  } = useAdvancedContactFilter(searchedAndSortedContacts);
+  const filteredContacts = advancedFilteredContacts;
 
   const renderView = () => {
     const viewProps = {
@@ -868,6 +879,20 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                 )}
               </div>
 
+              {/* Advanced (AND/OR) Filters */}
+              <button
+                onClick={() => setShowAdvancedFilters(v => !v)}
+                className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors ${
+                  showAdvancedFilters || advancedFilterCount > 0
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+                title="Advanced filters with And / Or groups"
+              >
+                <Filter className="w-4 h-4" />
+                <span>Advanced{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</span>
+              </button>
+
               {/* Select All */}
               <SmartTooltip featureId="contacts_select_all">
                 <button
@@ -920,6 +945,15 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
               <ViewSwitcher />
             </div>
           </div>
+
+          {showAdvancedFilters && (
+            <AdvancedFilterPanel
+              fields={advancedFilterFields}
+              matchCount={filteredContacts.length}
+              totalCount={contacts.length}
+              onClose={() => setShowAdvancedFilters(false)}
+            />
+          )}
 
           {/* Contacts Content */}
           <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">

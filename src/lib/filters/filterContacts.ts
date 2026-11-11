@@ -40,7 +40,7 @@ export function toIsoDate(value: unknown): string | null {
 
 export function getContactFieldValue(contact: Contact, field: ContactFilterField): unknown {
   if (field.source === 'custom') {
-    const cf = (contact as Anyish).customFields ?? {};
+    const cf = (contact as Anyish)['customFields'] ?? {};
     const id = field.id.replace(/^custom:/, '');
     return cf[field.label] ?? cf[id] ?? null;
   }
