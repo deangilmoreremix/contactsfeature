@@ -31,6 +31,8 @@ interface ContactActions {
   createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
   deleteContact: (id: string) => Promise<void>;
+  /** Apply several contact patches optimistically (rolls back if saving fails outside demo mode). */
+  reorderContacts: (patches: Array<{ id: string; updates: Partial<Contact> }>) => Promise<void>;
   clearContacts: () => Promise<void>;
   selectContact: (contact: Contact | null) => void;
   importContacts: (contacts: any[]) => Promise<void>;
@@ -176,6 +178,28 @@ export const useContactStore = create<ContactStore>((set, get) => ({
 
       throw appError;
     });
+  },
+
+  reorderContacts: async (patches) => {
+    if (patches.length === 0) return;
+    const previous = get().contacts;
+    const byId = new Map(patches.map((p) => [p.id, p.updates]));
+    set((state) => ({
+      contacts: state.contacts.map((c) => (byId.has(c.id) ? { ...c, ...byId.get(c.id)! } : c)),
+      selectedContact: state.selectedContact && byId.has(state.selectedContact.id)
+        ? { ...state.selectedContact, ...byId.get(state.selectedContact.id)! }
+        : state.selectedContact
+    }));
+    try {
+      await Promise.all(patches.map((p) => contactAPI.updateContact(p.id, p.updates)));
+    } catch (error) {
+      if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
+        logger.warn('Kept reorder locally in development mode', { error });
+        return;
+      }
+      set({ contacts: previous });
+      throw error;
+    }
   },
 
   deleteContact: async (id) => {

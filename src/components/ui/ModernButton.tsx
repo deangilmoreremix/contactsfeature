@@ -11,7 +11,7 @@ interface ModernButtonProps {
   className?: string | undefined;
   type?: 'button' | 'submit' | 'reset' | string | undefined;
   style?: React.CSSProperties | undefined;
-  icon?: React.ComponentType<{ className?: string }> | undefined;
+  icon?: React.ElementType | undefined;
   title?: string | undefined;
 }
 

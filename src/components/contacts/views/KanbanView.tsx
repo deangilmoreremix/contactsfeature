@@ -14,6 +14,12 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { logger } from '../../../services/logger.service';
+import { useContactFilterFields } from '../../../hooks/useContactFilterFields';
+import { getContactFieldValue } from '../../../lib/filters/filterContacts';
+import { FieldMetadataType } from '../../../vendor/twenty-shared/types/FieldMetadataType';
+import { columnFieldPatch, orderColumnContacts, planColumnDrop } from '../../../lib/kanban/columnOrder';
+
+const COLUMN_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#EF4444', '#F59E0B', '#06B6D4', '#EC4899'];
 
 interface KanbanViewProps {
   contacts: Contact[];
@@ -21,7 +27,6 @@ interface KanbanViewProps {
 }
 
 export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
-  const { updateContact } = useContactStore();
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [columnField, setColumnField] = useState<string>('status');
   const [draggedContact, setDraggedContact] = useState<Contact | null>(null);
@@ -29,48 +34,75 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const reorderContacts = useContactStore((s) => s.reorderContacts);
+  const allFields = useContactFilterFields();
+  const boardFields = allFields.filter((f) => f.type === FieldMetadataType.SELECT && f.options?.length);
+  const activeField = allFields.find((f) => f.id === columnField) ?? allFields.find((f) => f.id === 'status')!;
+  const [dropTarget, setDropTarget] = useState<{ columnId: string; beforeId: string | null } | null>(null);
+
   useEffect(() => {
     loadKanbanConfig();
   }, []);
 
+  const DEFAULT_COLUMNS: KanbanColumn[] = [
+    { id: 'lead', title: 'Lead', order: 0, color: '#3B82F6' },
+    { id: 'prospect', title: 'Prospect', order: 1, color: '#8B5CF6' },
+    { id: 'customer', title: 'Customer', order: 2, color: '#10B981' },
+    { id: 'churned', title: 'Churned', order: 3, color: '#EF4444' }
+  ];
+
   const loadKanbanConfig = async () => {
     try {
       setIsLoading(true);
-      const config = await viewPreferencesService.getKanbanConfig();
+      // Don't hang on the spinner if the preferences service is slow/unreachable: use the defaults.
+      const config = await Promise.race([
+        viewPreferencesService.getKanbanConfig(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+      ]);
 
-      if (config) {
+      if (config && config.columns?.length) {
         setColumns(config.columns);
         setColumnField(config.column_field);
       } else {
-        const defaultColumns: KanbanColumn[] = [
-          { id: 'lead', title: 'Lead', order: 0, color: '#3B82F6' },
-          { id: 'prospect', title: 'Prospect', order: 1, color: '#8B5CF6' },
-          { id: 'customer', title: 'Customer', order: 2, color: '#10B981' },
-          { id: 'churned', title: 'Churned', order: 3, color: '#EF4444' }
-        ];
-        setColumns(defaultColumns);
+        setColumns(DEFAULT_COLUMNS);
       }
     } catch (error) {
       logger.error('Failed to load Kanban config', error as Error);
+      setColumns(DEFAULT_COLUMNS);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveColumnConfig = async (newColumns: KanbanColumn[]) => {
+  const saveColumnConfig = async (newColumns: KanbanColumn[], field: string = columnField) => {
     try {
-      await viewPreferencesService.saveKanbanConfig(columnField, newColumns);
       setColumns(newColumns);
+      setColumnField(field);
+      await viewPreferencesService.saveKanbanConfig(field, newColumns);
     } catch (error) {
       logger.error('Failed to save Kanban config', error as Error);
     }
   };
 
   const getContactsForColumn = (columnId: string): Contact[] => {
-    return contacts.filter(contact => {
-      const fieldValue = contact[columnField as keyof Contact];
+    const inColumn = contacts.filter(contact => {
+      const fieldValue = activeField ? getContactFieldValue(contact, activeField) : contact[columnField as keyof Contact];
       return fieldValue === columnId;
     });
+    return orderColumnContacts(inColumn);
+  };
+
+  /** Switch the board to another select field; columns are rebuilt from its options. */
+  const changeBoardField = (fieldId: string) => {
+    const field = allFields.find((f) => f.id === fieldId);
+    if (!field?.options) return;
+    const newColumns: KanbanColumn[] = field.options.map((o, i) => ({
+      id: o.value,
+      title: o.label,
+      order: i,
+      color: COLUMN_COLORS[i % COLUMN_COLORS.length] as string
+    }));
+    void saveColumnConfig(newColumns, fieldId);
   };
 
   const handleDragStart = (contact: Contact) => {
@@ -89,14 +121,29 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
   const handleDrop = async (e: React.DragEvent, columnId: string) => {
     e.preventDefault();
     setDraggedOverColumn(null);
+    const target = dropTarget;
+    setDropTarget(null);
 
     if (!draggedContact) return;
+    const moved = draggedContact;
+    setDraggedContact(null);
+
+    // Position inside the target column (fractional index; may renumber the column once).
+    const beforeId = target && target.columnId === columnId ? target.beforeId : null;
+    const column = getContactsForColumn(columnId);
+    const patches = planColumnDrop(column, moved.id, beforeId);
+    const movedColumnPatch = activeField ? columnFieldPatch(moved, activeField, columnId) : ({ [columnField]: columnId } as Partial<Contact>);
+    const sameColumn = column.some((c) => c.id === moved.id);
+    const unchanged = sameColumn && patches.length === 1 && column.length > 0 && (column[beforeId ? column.findIndex((c) => c.id === beforeId) - 1 : column.length - 1]?.id === moved.id);
+    if (unchanged) return;
 
     try {
-      await updateContact(draggedContact.id, {
-        [columnField]: columnId
-      });
-      setDraggedContact(null);
+      await reorderContacts(
+        patches.map((p) => ({
+          id: p.id,
+          updates: p.id === moved.id && !sameColumn ? { ...movedColumnPatch, position: p.position } : { position: p.position }
+        }))
+      );
     } catch (error) {
       logger.error('Failed to update contact', error as Error);
     }
@@ -152,6 +199,26 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
         </ModernButton>
       </div>
 
+      {showColumnConfig && (
+        <GlassCard className="mb-4 p-4">
+          <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+            Group cards by
+            <select
+              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={activeField?.id ?? 'status'}
+              onChange={(e) => changeBoardField(e.target.value)}
+            >
+              {boardFields.map((f) => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Use the arrows on a column to reorder it. Drag a card between or within columns to change its stage and order.
+          </p>
+        </GlassCard>
+      )}
+
       <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4 flex-1 sm:overflow-x-hidden sm:overflow-y-auto lg:grid lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {sortedColumns.map((column, index) => {
           const columnContacts = getContactsForColumn(column.id);
@@ -161,7 +228,11 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
             <div
               key={column.id}
               className="flex-shrink-0 w-80"
-              onDragOver={(e) => handleDragOver(e, column.id)}
+              onDragOver={(e) => {
+                handleDragOver(e, column.id);
+                // Over empty column space: drop at the end
+                setDropTarget((t) => (t && t.columnId === column.id ? t : { columnId: column.id, beforeId: null }));
+              }}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, column.id)}
             >
@@ -177,7 +248,15 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
                     <h4 className="font-semibold text-gray-900 dark:text-white">
                       {column.title}
                     </h4>
-                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                    <span
+                      className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full"
+                      title={(() => {
+                        const scored = columnContacts.filter((c) => typeof c.aiScore === 'number' && c.aiScore > 0);
+                        return scored.length
+                          ? `${columnContacts.length} contacts · avg AI score ${Math.round(scored.reduce((n, c) => n + (c.aiScore ?? 0), 0) / scored.length)}`
+                          : `${columnContacts.length} contacts`;
+                      })()}
+                    >
                       {columnContacts.length}
                     </span>
                   </div>
@@ -203,12 +282,21 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-3">
-                  {columnContacts.map((contact) => (
+                  {columnContacts.map((contact, cardIndex) => (
+                    <React.Fragment key={contact.id}>
+                    {draggedContact && draggedContact.id !== contact.id && dropTarget?.columnId === column.id && dropTarget.beforeId === contact.id && (
+                      <div className="h-0.5 -my-1.5 bg-blue-500 rounded-full" aria-hidden="true" />
+                    )}
                     <div
-                      key={contact.id}
                       draggable
                       onDragStart={() => handleDragStart(contact)}
-                      onDragEnd={() => setDraggedContact(null)}
+                      onDragEnd={() => { setDraggedContact(null); setDropTarget(null); }}
+                      onDragOver={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const upperHalf = e.clientY < rect.top + rect.height / 2;
+                        const nextCard = columnContacts[cardIndex + 1];
+                        setDropTarget({ columnId: column.id, beforeId: upperHalf ? contact.id : (nextCard?.id ?? null) });
+                      }}
                       onClick={() => onContactClick(contact)}
                       className="group bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200 cursor-move hover:border-blue-400"
                     >
@@ -302,7 +390,11 @@ export function KanbanView({ contacts, onContactClick }: KanbanViewProps) {
                         )}
                       </div>
                     </div>
+                    </React.Fragment>
                   ))}
+                  {draggedContact && dropTarget?.columnId === column.id && dropTarget.beforeId === null && columnContacts.some((c) => c.id !== draggedContact.id) && (
+                    <div className="h-0.5 bg-blue-500 rounded-full" aria-hidden="true" />
+                  )}
 
                   {columnContacts.length === 0 && (
                     <div className="text-center py-12 text-gray-400 dark:text-gray-600">

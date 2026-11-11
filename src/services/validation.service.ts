@@ -259,6 +259,20 @@ class ValidationService {
     return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
   }
   
+  /**
+   * Sanitize only the keys present in a partial update. (sanitizeContact fills every text field,
+   * which would blank firstName/email/company/... on any single-field update.)
+   */
+  sanitizePartialContact(updates: any): any {
+    const out: any = { ...updates };
+    for (const key of ['firstName', 'lastName', 'title', 'company', 'industry', 'notes']) {
+      if (key in updates) out[key] = this.sanitizeString(updates[key]);
+    }
+    if ('email' in updates) out.email = this.sanitizeEmail(updates.email);
+    if ('phone' in updates) out.phone = updates.phone ? this.sanitizePhone(updates.phone) : undefined;
+    return out;
+  }
+
   sanitizeContact(contact: any): any {
     return {
       ...contact,

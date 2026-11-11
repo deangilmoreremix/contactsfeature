@@ -385,7 +385,7 @@ class ContactAPIService {
       throw new Error('No updates provided');
     }
 
-    const sanitized = validationService.sanitizeContact(updates);
+    const sanitized = validationService.sanitizePartialContact(updates);
 
     // Check if using fallback mode
     const usingFallback = this.shouldUseFallback();

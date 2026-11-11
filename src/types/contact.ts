@@ -55,6 +55,8 @@ export interface Contact {
   aiScore?: number;
   tags?: string[];
   isFavorite?: boolean;
+  /** Card order inside a Kanban column (fractional index). */
+  position?: number;
   socialProfiles?: {
     linkedin?: string;
     twitter?: string;
