@@ -36,11 +36,13 @@ function bullet(text: string, start: number, end: number): TextEdit {
   const lines = text.slice(lineStart, lineEnd).split('\n');
   const allBullets = lines.every((l) => /^- /.test(l));
   const next = lines.map((l) => (allBullets ? l.replace(/^- /, '') : /^- /.test(l) ? l : `- ${l}`)).join('\n');
-  return {
-    text: text.slice(0, lineStart) + next + text.slice(lineEnd),
-    selectionStart: lineStart,
-    selectionEnd: lineStart + next.length,
-  };
+  const edited = text.slice(0, lineStart) + next + text.slice(lineEnd);
+  // A caret (no selection) stays a caret at the end of the line so typing continues after the "- ".
+  if (start === end) {
+    const caret = lineStart + next.length;
+    return { text: edited, selectionStart: caret, selectionEnd: caret };
+  }
+  return { text: edited, selectionStart: lineStart, selectionEnd: lineStart + next.length };
 }
 
 function link(text: string, start: number, end: number): TextEdit {

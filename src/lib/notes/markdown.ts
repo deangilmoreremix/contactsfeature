@@ -37,7 +37,7 @@ export function safeHref(raw: string): string | null {
 
 // Order matters: bold before italic so "**x**" is not read as two italics.
 const INLINE =
-  /\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|\[([^\][\n]+)\]\(([^)\s]+)\)/;
+  /\*\*([^\s*](?:(?:[^*]|\*(?!\*))*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|\[([^\][\n]+)\]\(([^)\s]+)\)/;
 
 const MAX_DEPTH = 4;
 

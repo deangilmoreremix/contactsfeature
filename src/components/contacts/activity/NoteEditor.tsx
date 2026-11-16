@@ -20,8 +20,9 @@ interface NoteEditorProps {
 }
 
 /**
- * Plain textarea storing Markdown, with a tiny formatting toolbar that only shows while the editor
- * has focus (so the resting look of the notes form is unchanged).
+ * Plain textarea storing Markdown, with a tiny formatting toolbar that only shows while the surrounding
+ * form (a `group/note` ancestor) has focus or is hovered, so the resting look of the notes form is unchanged.
+ * The ancestor is the whole form, so the toolbar does not vanish (and shift the buttons) mid-click.
  */
 export function NoteEditor({ value, onChange, rows = 3, placeholder, ariaLabel, className, autoFocus }: NoteEditorProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -38,8 +39,8 @@ export function NoteEditor({ value, onChange, rows = 3, placeholder, ariaLabel, 
   };
 
   return (
-    <div className="group space-y-1">
-      <div className="hidden group-focus-within:flex items-center gap-1" role="toolbar" aria-label="Note formatting">
+    <div className="space-y-1">
+      <div className="hidden group-focus-within/note:flex group-hover/note:flex items-center gap-1" role="toolbar" aria-label="Note formatting">
         {TOOLS.map(({ format, label, Icon }) => (
           <button
             key={format}

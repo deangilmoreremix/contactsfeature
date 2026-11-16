@@ -33,3 +33,30 @@ describe('contact view snapshot', () => {
     expect(snapshotKey(a)).not.toBe(snapshotKey({ ...a, groupBy: null }));
   });
 });
+
+describe('contact view snapshot: multi-sort and table options', () => {
+  it('stores "then by" sorts in the sorts array and reads old single-sort rows', () => {
+    const snap = { ...EMPTY_SNAPSHOT, sort: { by: 'company', order: 'asc' as const }, thenBy: [{ field: 'score', direction: 'desc' as const }] };
+    const row = snapshotToRow('x', snap);
+    expect(row.sorts).toEqual([{ field: 'company', direction: 'asc' }, { field: 'score', direction: 'desc' }]);
+    expect(rowToSnapshot(row)).toEqual(snap);
+    const old = rowToSnapshot({ sorts: [{ field: 'score', direction: 'desc' }] });
+    expect(old.sort).toEqual({ by: 'score', order: 'desc' });
+    expect(old.thenBy).toBeUndefined();
+  });
+  it('round-trips table options inside quick_filters without leaking into quickFilters', () => {
+    const table = { density: 'compact' as const, freezeFirstColumn: true, showTotals: true, aggregates: { aiScore: 'avg' as const } };
+    const row = snapshotToRow('x', { ...EMPTY_SNAPSHOT, table });
+    expect((row.quick_filters as any)._table).toEqual(table);
+    const back = rowToSnapshot(row);
+    expect(back.table).toEqual(table);
+    expect(back.quickFilters).toEqual({ interest: 'all', status: 'all' });
+  });
+  it('default table options add nothing to the row and do not make a view look changed', () => {
+    const row = snapshotToRow('x', { ...EMPTY_SNAPSHOT, table: { density: 'comfortable', aggregates: { aiScore: 'none' } } });
+    expect(row.quick_filters).toEqual({ interest: 'all', status: 'all' });
+    expect(snapshotKey({ ...EMPTY_SNAPSHOT, table: { showTotals: false } })).toBe(snapshotKey(EMPTY_SNAPSHOT));
+    expect(snapshotKey({ ...EMPTY_SNAPSHOT, table: { showTotals: true } })).not.toBe(snapshotKey(EMPTY_SNAPSHOT));
+    expect(snapshotKey({ ...EMPTY_SNAPSHOT, thenBy: [] })).toBe(snapshotKey(EMPTY_SNAPSHOT));
+  });
+});

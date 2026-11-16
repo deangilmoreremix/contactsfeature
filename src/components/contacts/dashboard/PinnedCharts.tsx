@@ -67,7 +67,7 @@ export function PinChartMenu({ pinned, onToggle, dealsAvailable, onOpen }: PinCh
   const items = PINNABLE_CHARTS.filter((c) => !c.needsDeals || dealsAvailable || pinned.includes(c.id));
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative -my-1.5" ref={ref}>
       <ModernButton
         size="toolbar"
         variant="outline"
@@ -163,9 +163,8 @@ export function PinnedCharts({ ids, contacts, deals, onUnpin }: PinnedChartsProp
                     <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
                     <YAxis stroke="#6b7280" fontSize={12} allowDecimals={false} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="value">
-                      {data.map((d, i) => <Cell key={i} fill={d.color} />)}
-                    </Bar>
+                    {/* One colour (like the Top Industries card): bar height carries the value, not hue. */}
+                    <Bar dataKey="value" fill="#8B5CF6" />
                   </BarChart>
                 )}
               </ResponsiveContainer>

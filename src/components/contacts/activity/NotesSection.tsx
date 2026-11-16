@@ -40,7 +40,7 @@ export function NotesSection({ contactId }: { contactId: string }) {
       <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Notes</h4>
 
       <form
-        className="space-y-2 mb-3"
+        className="group/note space-y-2 mb-3"
         onSubmit={(e) => {
           e.preventDefault();
           if (!draft.trim()) return;
@@ -76,7 +76,7 @@ export function NotesSection({ contactId }: { contactId: string }) {
           {notes.map((note) => (
             <li key={note.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
               {editingId === note.id ? (
-                <div className="space-y-2">
+                <div className="group/note space-y-2">
                   <NoteEditor value={editText} onChange={setEditText} rows={3} className={controlClass} ariaLabel="Edit note" autoFocus />
                   <div className="flex gap-2">
                     <button type="button" onClick={() => saveEdit(note)} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
