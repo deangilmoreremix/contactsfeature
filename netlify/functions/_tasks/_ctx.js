@@ -39,7 +39,7 @@ async function recentEmails(user, contactId, limit = 8) {
 
 async function recentTimeline(user, contactId, limit = 8) {
   if (!isValidUUID(contactId)) return [];
-  const { data } = await supabase.from('contact_timeline').select('event_type,title,created_at').eq('contact_id', contactId).eq('user_id', user.id).order('created_at', { ascending: false }).limit(limit);
+  const { data } = await supabase.from('contact_timeline').select('event_type:activity_type,title:description,created_at').eq('contact_id', contactId).eq('user_id', user.id).order('created_at', { ascending: false }).limit(limit);
   return data || [];
 }
 

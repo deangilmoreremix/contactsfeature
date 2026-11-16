@@ -104,7 +104,8 @@ module.exports = {
     const timeZone = validTz(tzRaw) ? tzRaw : 'UTC';
     const from = new Date();
     const to = new Date(from.getTime() + 14 * DAY);
-    const events = await userCalendarEvents(user, { from, to });
+    // start a day early so a long event that began before the window still blocks its overlap
+    const events = await userCalendarEvents(user, { from: new Date(from.getTime() - DAY), to });
     const free = computeFreeSlots(events, {
       from, to, timeZone, durationMinutes: duration, slotMinutes: 30, bufferMinutes: 10, minNoticeMinutes: 60,
       workStartHour: Number.isFinite(Number(m.workStartHour)) ? Number(m.workStartHour) : 9,
