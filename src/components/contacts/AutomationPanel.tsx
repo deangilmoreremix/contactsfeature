@@ -9,6 +9,7 @@ import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { analyticsService } from '../../services/analyticsService';
 import { SDRPersonaSelector } from './SDRPersonaSelector';
+import { automationPanelService, generateAutomationSuggestions, reviewRule, PanelRule, PanelAction } from '../../services/automationPanelService';
 import {
   Zap,
   Play,
@@ -37,31 +38,8 @@ import {
   X
 } from 'lucide-react';
 
-interface AutomationRule {
-    id: string;
-    name: string;
-    description: string;
-    trigger: string;
-    actions: AutomationAction[];
-    isActive: boolean;
-    lastTriggered?: string | undefined;
-    triggerCount: number;
-    successRate: number;
-    category?: string;
-    tags?: string[];
-    createdAt?: string;
-    updatedAt?: string;
-}
-
-interface AutomationAction {
-   id: string;
-   type: 'email' | 'sms' | 'call' | 'task' | 'wait' | 'tag' | 'webhook' | 'notification';
-   description: string;
-   delay?: string;
-   template?: string;
-   config?: any;
-   isActive?: boolean;
-}
+type AutomationRule = PanelRule;
+type AutomationAction = PanelAction;
 
 interface AutomationPanelProps {
   contact: Contact;
@@ -88,140 +66,6 @@ const actionColors = {
    webhook: 'bg-indigo-500',
    notification: 'bg-yellow-500'
 };
-
-// Sample automation rules
-const sampleAutomations: AutomationRule[] = [
-   {
-     id: '1',
-     name: 'New Lead Welcome Sequence',
-     description: 'Automated welcome series for new leads with educational content',
-     trigger: 'Contact created with status "lead"',
-     isActive: true,
-     lastTriggered: '2024-01-20T10:30:00Z',
-     triggerCount: 15,
-     successRate: 78,
-     category: 'Lead Nurturing',
-     tags: ['welcome', 'onboarding'],
-     createdAt: '2024-01-15T09:00:00Z',
-     updatedAt: '2024-01-20T10:30:00Z',
-     actions: [
-       { id: 'action-1-1', type: 'email', description: 'Send welcome email', template: 'Welcome Template', isActive: true },
-       { id: 'action-1-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
-       { id: 'action-1-3', type: 'email', description: 'Send educational content', template: 'Education Template', isActive: true },
-       { id: 'action-1-4', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
-       { id: 'action-1-5', type: 'task', description: 'Schedule follow-up call', isActive: true }
-     ]
-   },
-   {
-     id: '2',
-     name: 'High-Value Prospect Nurturing',
-     description: 'Intensive follow-up sequence for high-value prospects',
-     trigger: 'AI score > 80 and interest level = "hot"',
-     isActive: true,
-     lastTriggered: '2024-01-25T14:15:00Z',
-     triggerCount: 8,
-     successRate: 92,
-     category: 'Sales Acceleration',
-     tags: ['priority', 'high-value'],
-     createdAt: '2024-01-10T11:00:00Z',
-     updatedAt: '2024-01-25T14:15:00Z',
-     actions: [
-       { id: 'action-2-1', type: 'task', description: 'Schedule immediate call', isActive: true },
-       { id: 'action-2-2', type: 'email', description: 'Send personalized proposal', template: 'Proposal Template', isActive: true },
-       { id: 'action-2-3', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
-       { id: 'action-2-4', type: 'call', description: 'Follow-up call reminder', isActive: true },
-       { id: 'action-2-5', type: 'tag', description: 'Add "Priority" tag', isActive: true }
-     ]
-   },
-   {
-     id: '3',
-     name: 'Engagement Recovery',
-     description: 'Re-engage contacts who haven\'t responded in 14 days',
-     trigger: 'No response in 14 days',
-     isActive: false,
-     lastTriggered: '2024-01-18T09:00:00Z',
-     triggerCount: 12,
-     successRate: 45,
-     category: 'Re-engagement',
-     tags: ['recovery', 'inactive'],
-     createdAt: '2024-01-05T14:00:00Z',
-     updatedAt: '2024-01-18T09:00:00Z',
-     actions: [
-       { id: 'action-3-1', type: 'email', description: 'Send re-engagement email', template: 'Re-engagement Template', isActive: true },
-       { id: 'action-3-2', type: 'wait', description: 'Wait 5 days', delay: '5 days', isActive: true },
-       { id: 'action-3-3', type: 'sms', description: 'Send follow-up SMS', isActive: true },
-       { id: 'action-3-4', type: 'wait', description: 'Wait 7 days', delay: '7 days', isActive: true },
-       { id: 'action-3-5', type: 'tag', description: 'Add "Unresponsive" tag', isActive: true }
-     ]
-   },
-   {
-     id: '4',
-     name: 'Customer Onboarding Flow',
-     description: 'Comprehensive onboarding sequence for new customers',
-     trigger: 'Deal closed and contract signed',
-     isActive: true,
-     lastTriggered: '2024-01-28T16:45:00Z',
-     triggerCount: 6,
-     successRate: 85,
-     category: 'Customer Success',
-     tags: ['onboarding', 'customer'],
-     createdAt: '2024-01-08T10:30:00Z',
-     updatedAt: '2024-01-28T16:45:00Z',
-     actions: [
-       { id: 'action-4-1', type: 'email', description: 'Send welcome package', template: 'Customer Welcome', isActive: true },
-       { id: 'action-4-2', type: 'task', description: 'Schedule onboarding call', isActive: true },
-       { id: 'action-4-3', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
-       { id: 'action-4-4', type: 'email', description: 'Send setup instructions', template: 'Setup Guide', isActive: true },
-       { id: 'action-4-5', type: 'wait', description: 'Wait 3 days', delay: '3 days', isActive: true },
-       { id: 'action-4-6', type: 'task', description: 'Check setup completion', isActive: true },
-       { id: 'action-4-7', type: 'notification', description: 'Notify team of new customer', isActive: true }
-     ]
-   },
-   {
-     id: '5',
-     name: 'Contract Renewal Reminder',
-     description: 'Automated reminders for upcoming contract renewals',
-     trigger: 'Contract expires in 60 days',
-     isActive: true,
-     lastTriggered: '2024-01-22T12:00:00Z',
-     triggerCount: 9,
-     successRate: 76,
-     category: 'Retention',
-     tags: ['renewal', 'contract'],
-     createdAt: '2024-01-12T08:15:00Z',
-     updatedAt: '2024-01-22T12:00:00Z',
-     actions: [
-       { id: 'action-5-1', type: 'email', description: 'Send renewal reminder', template: 'Renewal Notice', isActive: true },
-       { id: 'action-5-2', type: 'wait', description: 'Wait 30 days', delay: '30 days', isActive: true },
-       { id: 'action-5-3', type: 'task', description: 'Schedule renewal discussion', isActive: true },
-       { id: 'action-5-4', type: 'wait', description: 'Wait 15 days', delay: '15 days', isActive: true },
-       { id: 'action-5-5', type: 'email', description: 'Send final renewal notice', template: 'Final Renewal', isActive: true },
-       { id: 'action-5-6', type: 'tag', description: 'Add "Renewal Due" tag', isActive: true }
-     ]
-   },
-   {
-     id: '6',
-     name: 'Lead Qualification Sequence',
-     description: 'Progressive qualification steps for inbound leads',
-     trigger: 'Lead submitted contact form',
-     isActive: true,
-     lastTriggered: '2024-01-27T11:30:00Z',
-     triggerCount: 23,
-     successRate: 68,
-     category: 'Lead Qualification',
-     tags: ['qualification', 'scoring'],
-     createdAt: '2024-01-14T13:45:00Z',
-     updatedAt: '2024-01-27T11:30:00Z',
-     actions: [
-       { id: 'action-6-1', type: 'email', description: 'Send qualification questionnaire', template: 'Lead Qualifier', isActive: true },
-       { id: 'action-6-2', type: 'wait', description: 'Wait 2 days', delay: '2 days', isActive: true },
-       { id: 'action-6-3', type: 'task', description: 'Review qualification responses', isActive: true },
-       { id: 'action-6-4', type: 'tag', description: 'Apply qualification score', isActive: true },
-       { id: 'action-6-5', type: 'wait', description: 'Wait 1 day', delay: '1 day', isActive: true },
-       { id: 'action-6-6', type: 'email', description: 'Send personalized follow-up', template: 'Qualified Lead', isActive: true }
-     ]
-   }
-];
 
 interface AutomationTemplate {
    id: string;
@@ -594,7 +438,7 @@ const automationTemplates: AutomationTemplate[] = [
 
 export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => {
     const [activeTab, setActiveTab] = useState('active');
-    const [automations, setAutomations] = useState<AutomationRule[]>(sampleAutomations);
+    const [automations, setAutomations] = useState<AutomationRule[]>([]);
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -627,6 +471,39 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
    const researchStatus = useResearchStatus();
    const [researchSources, setResearchSources] = useState<any[]>([]);
 
+   // Rules are persisted in automation_rules; edits are flushed (debounced) for the rules marked dirty.
+   const dirtyRules = React.useRef<Set<string>>(new Set());
+   const automationsRef = React.useRef<AutomationRule[]>([]);
+   automationsRef.current = automations;
+   const markDirty = (id: string) => { dirtyRules.current.add(id); };
+
+   useEffect(() => {
+     let cancelled = false;
+     automationPanelService.list()
+       .then((rows) => { if (!cancelled) setAutomations(rows); })
+       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load automation rules'); });
+     return () => { cancelled = true; };
+   }, []);
+
+   useEffect(() => {
+     if (dirtyRules.current.size === 0) return;
+     const timer = setTimeout(async () => {
+       const ids = Array.from(dirtyRules.current);
+       dirtyRules.current.clear();
+       for (const id of ids) {
+         const rule = automationsRef.current.find((r) => r.id === id);
+         if (!rule) continue;
+         try {
+           const savedId = await automationPanelService.save(rule);
+           if (savedId !== id) setAutomations((prev) => prev.map((r) => (r.id === id ? { ...r, id: savedId } : r)));
+         } catch (e) {
+           setError(e instanceof Error ? `Could not save "${rule.name}": ${e.message}` : 'Could not save rule');
+         }
+       }
+     }, 400);
+     return () => clearTimeout(timer);
+   }, [automations]);
+
   const tabs = [
     { id: 'active', label: 'Active Rules', icon: Play },
     { id: 'suggestions', label: 'AI Suggestions', icon: Brain },
@@ -635,22 +512,23 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   ];
 
   const toggleAutomation = (id: string) => {
+    markDirty(id);
     setAutomations(prev => prev.map(auto => 
       auto.id === id ? { ...auto, isActive: !auto.isActive } : auto
     ));
   };
 
-  const optimizeRule = async (ruleId: string, suggestions: any[]) => {
+  // AI review of a rule; shows notes only. It never edits the rule or its (run-derived) stats.
+  const optimizeRule = async (ruleId: string, _suggestions: any[]) => {
     setIsOptimizing(true);
     try {
-      console.log('Optimizing rule:', ruleId, suggestions);
-      // Update the automation with optimizations
-      setAutomations(prev => prev.map(auto =>
-        auto.id === ruleId ? { ...auto, successRate: Math.min(100, auto.successRate + 10) } : auto
-      ));
-      // In real implementation, call API to optimize
+      const rule = automations.find(r => r.id === ruleId);
+      if (!rule) return;
+      const review = await reviewRule(rule);
+      alert(`${review.summary}\n\n${review.improvements.map((i, n) => `${n + 1}. ${i}`).join('\n')}`);
     } catch (error) {
-      console.error('Failed to optimize rule:', error);
+      console.error('Failed to review rule:', error);
+      alert(error instanceof Error ? `AI review failed: ${error.message}` : 'AI review failed');
     } finally {
       setIsOptimizing(false);
     }
@@ -702,191 +580,16 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
        setResearchSources(sources);
 
-       // Generate mock suggestions for demo or real suggestions for actual contacts
-       let suggestionsData: any[] = [];
-
-       if (isMockData) {
-         // Mock suggestions for demo contacts
-         suggestionsData = [
-           {
-             id: 'suggestion-1',
-             title: 'Company News Monitoring',
-             type: 'new_rule',
-             priority: 'high',
-             confidence: 92,
-             description: `Monitor ${contact.company} for news and automatically send personalized updates to ${contact.firstName}`,
-             estimatedImpact: { efficiency: 35, coverage: 1, timesSaved: 2.5 },
-             reasoning: [
-               `Based on ${contact.company}'s industry position, news monitoring would be valuable`,
-               'Contact has high engagement potential based on profile analysis',
-               'Automated news alerts would demonstrate thought leadership'
-             ],
-             createdAt: new Date().toISOString()
-           },
-           {
-             id: 'suggestion-2',
-             title: 'Industry Trend Alerts',
-             type: 'optimize_existing',
-             priority: 'medium',
-             confidence: 78,
-             description: `Enhance existing nurturing sequence with ${contact.industry} trend updates`,
-             estimatedImpact: { efficiency: 25, coverage: 15, timesSaved: 1.8 },
-             reasoning: [
-               'Contact works in dynamic industry requiring trend awareness',
-               'Current sequence could benefit from industry context',
-               'Would increase engagement rates significantly'
-             ],
-             createdAt: new Date().toISOString()
-           },
-           {
-             id: 'suggestion-3',
-             title: 'Personalized Content Series',
-             type: 'merge_rules',
-             priority: 'medium',
-             confidence: 85,
-             description: 'Combine multiple sequences into personalized content journey based on contact interests',
-             estimatedImpact: { efficiency: 40, coverage: 8, timesSaved: 3.2 },
-             reasoning: [
-               'Contact has multiple touchpoints that could be streamlined',
-               'Personalization would improve conversion rates',
-               'Reduces redundant communications'
-             ],
-             createdAt: new Date().toISOString()
-           }
-         ];
-       } else {
-         // Generate automation suggestions with enhanced context
-         // Generate AI suggestions based on web research and contact data
-         const suggestions = (() => {
-           // Generate AI suggestions based on contact data and web research
-           const suggestions = [];
-
-           // Analyze contact data for automation opportunities
-           const hasHighScore = contact.aiScore && contact.aiScore > 80;
-           const isHotLead = contact.interestLevel === 'hot';
-           const hasCompany = contact.company && contact.company.trim() !== '';
-           const hasIndustry = contact.industry && contact.industry.trim() !== '';
-           const isInactive = contact.lastConnected && new Date(contact.lastConnected) < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-           // Suggestion 1: Company news monitoring for high-value contacts
-           if (hasHighScore && hasCompany) {
-             suggestions.push({
-               id: 'suggestion-company-news',
-               title: 'Company News Monitoring',
-               type: 'new_rule',
-               priority: 'high',
-               confidence: 92,
-               description: `Monitor ${contact.company} for news and automatically send personalized updates to ${contact.firstName || contact.name.split(' ')[0]}`,
-               estimatedImpact: { efficiency: 35, coverage: 1, timesSaved: 2.5 },
-               reasoning: [
-                 `Based on ${contact.company}'s industry position, news monitoring would be valuable`,
-                 'Contact has high engagement potential based on profile analysis',
-                 'Automated news alerts would demonstrate thought leadership'
-               ],
-               createdAt: new Date().toISOString()
-             });
-           }
-
-           // Suggestion 2: Industry trend alerts
-           if (hasIndustry && (searchResults?.sources?.length > 0 || contact.industry)) {
-             suggestions.push({
-               id: 'suggestion-industry-trends',
-               title: 'Industry Trend Alerts',
-               type: 'optimize_existing',
-               priority: 'medium',
-               confidence: 78,
-               description: `Enhance existing nurturing sequence with ${contact.industry} trend updates`,
-               estimatedImpact: { efficiency: 25, coverage: 15, timesSaved: 1.8 },
-               reasoning: [
-                 'Contact works in dynamic industry requiring trend awareness',
-                 'Current sequence could benefit from industry context',
-                 'Would increase engagement rates significantly'
-               ],
-               createdAt: new Date().toISOString()
-             });
-           }
-
-           // Suggestion 3: Personalized content series
-           if (isHotLead) {
-             suggestions.push({
-               id: 'suggestion-personalized-content',
-               title: 'Personalized Content Series',
-               type: 'merge_rules',
-               priority: 'medium',
-               confidence: 85,
-               description: 'Combine multiple sequences into personalized content journey based on contact interests',
-               estimatedImpact: { efficiency: 40, coverage: 8, timesSaved: 3.2 },
-               reasoning: [
-                 'Contact has multiple touchpoints that could be streamlined',
-                 'Personalization would improve conversion rates',
-                 'Reduces redundant communications'
-               ],
-               createdAt: new Date().toISOString()
-             });
-           }
-
-           // Suggestion 4: Re-engagement sequence for inactive contacts
-           if (isInactive) {
-             suggestions.push({
-               id: 'suggestion-re-engagement',
-               title: 'Re-engagement Sequence',
-               type: 'new_rule',
-               priority: 'high',
-               confidence: 88,
-               description: `Create automated re-engagement sequence for ${contact.firstName || contact.name.split(' ')[0]} who hasn't been active recently`,
-               estimatedImpact: { efficiency: 50, coverage: 1, timesSaved: 4.0 },
-               reasoning: [
-                 'Contact has been inactive for an extended period',
-                 'Re-engagement sequences have high conversion potential',
-                 'Automated approach ensures consistent follow-up'
-               ],
-               createdAt: new Date().toISOString()
-             });
-           }
-
-           // Suggestion 5: Lead scoring automation
-           if (!hasHighScore && contact.status === 'lead') {
-             suggestions.push({
-               id: 'suggestion-lead-scoring',
-               title: 'Automated Lead Scoring',
-               type: 'new_rule',
-               priority: 'medium',
-               confidence: 82,
-               description: `Implement automated lead scoring based on ${contact.firstName || contact.name.split(' ')[0]}'s engagement and profile data`,
-               estimatedImpact: { efficiency: 30, coverage: 1, timesSaved: 1.5 },
-               reasoning: [
-                 'Lead scoring would help prioritize this contact appropriately',
-                 'Automated scoring ensures consistent evaluation criteria',
-                 'Would improve sales team efficiency'
-               ],
-               createdAt: new Date().toISOString()
-             });
-           }
-
-           // Suggestion 6: Follow-up reminder sequence
-           if (contact.status === 'prospect' || contact.status === 'customer') {
-             suggestions.push({
-               id: 'suggestion-follow-up-reminder',
-               title: 'Follow-up Reminder Sequence',
-               type: 'new_rule',
-               priority: 'high',
-               confidence: 90,
-               description: `Set up automated follow-up reminders for ${contact.firstName || contact.name.split(' ')[0]} in ${contact.status} stage`,
-               estimatedImpact: { efficiency: 45, coverage: 1, timesSaved: 3.0 },
-               reasoning: [
-                 `Contact is in ${contact.status} stage and needs consistent follow-up`,
-                 'Automated reminders ensure no opportunities are missed',
-                 'Improves conversion rates in critical sales stages'
-               ],
-               createdAt: new Date().toISOString()
-             });
-           }
-
-           return suggestions;
-         })();
-
-         suggestionsData = suggestions || [];
-       }
+       const suggestionsData = await generateAutomationSuggestions({
+         contactSummary: [
+           `Name: ${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+           `Company: ${contact.company || 'unknown'}`, `Industry: ${contact.industry || 'unknown'}`,
+           `Status: ${contact.status || 'unknown'}`, `Interest level: ${contact.interestLevel || 'unknown'}`,
+           `Last connected: ${contact.lastConnected || 'never'}`
+         ].join('\n'),
+         ...(searchResults.content ? { webContext: String(searchResults.content) } : {}),
+         existingRules: automations.map(a => a.name)
+       });
 
        setSuggestions(suggestionsData);
 
@@ -901,7 +604,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
          contactId: contact.id
        });
        researchThinking.complete('❌ Failed to generate suggestions');
-       setError('Failed to generate automation suggestions');
+       setError(error instanceof Error ? `Failed to generate automation suggestions: ${error.message}` : 'Failed to generate automation suggestions');
      } finally {
        setLoading(false);
      }
@@ -911,8 +614,9 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const getStatusColor = (isActive: boolean, successRate: number) => {
+  const getStatusColor = (isActive: boolean, successRate: number | null) => {
     if (!isActive) return 'text-gray-500 bg-gray-100';
+    if (successRate === null) return 'text-blue-700 bg-blue-100';
     if (successRate >= 80) return 'text-green-700 bg-green-100';
     if (successRate >= 60) return 'text-yellow-700 bg-yellow-100';
     return 'text-red-700 bg-red-100';
@@ -929,6 +633,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   const handleActionDrop = (e: React.DragEvent, automationId: string, targetIndex: number) => {
     e.preventDefault();
     if (!draggedAction || draggedAction.automationId !== automationId) return;
+    markDirty(automationId);
 
     setAutomations(prev => prev.map(auto => {
       if (auto.id === automationId) {
@@ -986,13 +691,14 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
        actions: ruleForm.actions,
        lastTriggered: editingRule?.lastTriggered || undefined,
        triggerCount: editingRule?.triggerCount || 0,
-       successRate: editingRule?.successRate || 0,
+       successRate: editingRule?.successRate ?? null,
        category: editingRule?.category || 'Custom',
        tags: editingRule?.tags || [],
        createdAt: editingRule?.createdAt || new Date().toISOString(),
        updatedAt: new Date().toISOString()
      };
 
+     markDirty(newRule.id);
      if (editingRule) {
        // Update existing rule
        setAutomations(prev => prev.map(rule =>
@@ -1046,13 +752,14 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         }
       ],
       triggerCount: 0,
-      successRate: 0,
+      successRate: null,
       category: 'AI Generated',
       tags: ['ai-suggested'],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
+    markDirty(newAutomation.id);
     setAutomations(prev => [...prev, newAutomation]);
     alert(`AI-suggested automation "${suggestion.title}" has been created! Review and customize it before activating.`);
   };
@@ -1070,6 +777,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     if (!editingAction || !actionEditForm.description?.trim()) {
       return;
     }
+    markDirty(editingAction.ruleId);
 
     setAutomations(prev => prev.map(rule => {
       if (rule.id === editingAction.ruleId) {
@@ -1096,6 +804,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   };
 
   const handleToggleAction = (ruleId: string, actionId: string) => {
+    markDirty(ruleId);
     setAutomations(prev => prev.map(rule => {
       if (rule.id === ruleId) {
         return {
@@ -1113,6 +822,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
   };
 
   const handleDeleteAction = (ruleId: string, actionId: string) => {
+    markDirty(ruleId);
     setAutomations(prev => prev.map(rule => {
       if (rule.id === ruleId) {
         return {
@@ -1134,13 +844,14 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
       isActive: false,
       actions: template.actions.map(action => ({ ...action, id: `action-${Date.now()}-${Math.random()}` })),
       triggerCount: 0,
-      successRate: 0,
+      successRate: null,
       category: template.category,
       tags: [...template.tags],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
+    markDirty(newRule.id);
     setAutomations(prev => [...prev, newRule]);
     alert(`Template "${template.name}" has been added to your automations. Edit it to customize the trigger and actions.`);
   };
@@ -1173,6 +884,8 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
   const handleDeleteRule = (ruleId: string) => {
     if (window.confirm('Are you sure you want to delete this automation rule?')) {
+      dirtyRules.current.delete(ruleId);
+      automationPanelService.remove(ruleId).catch((e) => setError(e instanceof Error ? e.message : 'Could not delete rule'));
       setAutomations(prev => prev.filter(rule => rule.id !== ruleId));
     }
   };
@@ -1610,7 +1323,10 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {Math.round(automations.reduce((sum, a) => sum + a.successRate, 0) / automations.length)}%
+                {(() => {
+                  const rated = automations.filter(a => a.successRate !== null);
+                  return rated.length ? `${Math.round(rated.reduce((sum, a) => sum + (a.successRate ?? 0), 0) / rated.length)}%` : 'No runs yet';
+                })()}
               </p>
               <p className="text-sm text-gray-600">Avg Success Rate</p>
             </div>
@@ -1685,7 +1401,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                       {automation.isActive ? 'Active' : 'Inactive'}
                     </span>
                     <span className="text-xs text-gray-500">
-                      {automation.successRate}% success rate
+                      {automation.successRate === null ? 'No runs yet' : `${automation.successRate}% success rate`}
                     </span>
                   </div>
                   <p className="text-gray-600 mb-3">{automation.description}</p>
@@ -1922,14 +1638,17 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                           </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-purple-600">{suggestion.confidence}%</div>
-                        <p className="text-xs text-gray-500">Confidence</p>
-                      </div>
+                      {suggestion.confidence != null && (
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-purple-600">{suggestion.confidence}%</div>
+                          <p className="text-xs text-gray-500">Confidence</p>
+                        </div>
+                      )}
                     </div>
                     
                     <p className="text-gray-700 mb-4">{suggestion.description}</p>
                     
+                    {suggestion.estimatedImpact && (
                     <div className="bg-white p-3 rounded-lg mb-4">
                       <h5 className="font-medium text-gray-900 mb-2">Expected Impact:</h5>
                       <div className="grid grid-cols-3 gap-4 text-sm">
@@ -1947,7 +1666,8 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                         </div>
                       </div>
                     </div>
-                    
+                    )}
+
                     <div className="bg-blue-50 p-3 rounded-lg mb-4">
                       <h5 className="font-medium text-blue-900 mb-2">AI Reasoning:</h5>
                       <ul className="space-y-1">
@@ -2160,7 +1880,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                      <div className="flex items-center space-x-4">
                        <div className="text-right">
                          <p className="text-sm font-medium text-gray-900">
-                           {analyticsData ? Math.round(analyticsData.successRate) : automation.successRate}%
+                           {analyticsData ? `${Math.round(analyticsData.successRate)}%` : automation.successRate === null ? 'No runs yet' : `${automation.successRate}%`}
                          </p>
                          <p className="text-xs text-gray-500">Success Rate</p>
                          {analyticsData && analyticsData.errorRate > 0 && (
@@ -2172,7 +1892,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                          <div
                            className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500"
-                           style={{ width: `${analyticsData ? analyticsData.successRate : automation.successRate}%` }}
+                           style={{ width: `${analyticsData ? analyticsData.successRate : automation.successRate ?? 0}%` }}
                          />
                        </div>
                        <ModernButton
