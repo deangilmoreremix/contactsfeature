@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface PresenceViewer {
   key: string;
@@ -16,7 +16,7 @@ export function useContactPresence(contactId: string | null | undefined, enabled
 
   useEffect(() => {
     setOthers([]);
-    if (!enabled || !contactId) return;
+    if (!enabled || !contactId || !isSupabaseConfigured) return;
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useContactStore } from './useContactStore';
 import { useDealStore, type DealRow } from '../store/useDealStore';
 import { applyRowChange, type RealtimeEventType } from '../lib/realtimeApply';
@@ -13,7 +13,7 @@ import type { Contact } from '../types';
  */
 export function useRealtimeSync(enabled: boolean): void {
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isSupabaseConfigured) return;
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
 

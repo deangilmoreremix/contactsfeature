@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { isSupabaseConfigured } from '../lib/supabase';
 import {
   CommunicationContextType,
   CommunicationState,
@@ -222,6 +223,8 @@ export const CommunicationProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     void loadConversations();
     void loadDrafts();
+
+    if (!isSupabaseConfigured) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase

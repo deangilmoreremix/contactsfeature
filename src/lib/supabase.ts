@@ -11,15 +11,22 @@ const supabaseAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 
 // Track if client has been initialized
 let supabaseInstance: ReturnType<typeof createClient> | null = null;
+let placeholderInstance: ReturnType<typeof createClient> | null = null;
+
+/** False when VITE_SUPABASE_* are missing (demo mode): realtime/presence must not try to connect. */
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 // Create Supabase client with optimized settings - lazy initialization
 function getSupabaseClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase environment variables not configured. Using mock client for development.');
     // Return a mock client that won't crash the app
-    return createClient('https://placeholder.supabase.co', 'placeholder-key', {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
+    // One shared instance: creating a client per property access opened a new realtime socket each time.
+    if (!placeholderInstance) {
+      placeholderInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+    }
+    return placeholderInstance;
   }
   
   if (!supabaseInstance) {
