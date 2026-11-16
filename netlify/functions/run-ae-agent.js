@@ -1,3 +1,4 @@
+const { callOpenAI } = require('./_fetchWithRetry');
 const { supabase } = require('./_supabaseClient');
 
 exports.handler = async (event, context) => {
@@ -122,42 +123,16 @@ exports.handler = async (event, context) => {
       }
     ];
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'OpenAI API key not configured' })
-      };
-    }
-
-    const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
-    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Provide a clear action plan with next steps.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.5,
-        max_tokens: 2000
-      })
-    });
-
-    if (!aiResponse.ok) {
-      throw new Error(`OpenAI API error: ${aiResponse.status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const response = aiData.choices[0]?.message?.content || 'No response generated';
+    const response = (await callOpenAI(
+      [
+        {
+          role: 'system',
+          content: 'You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Provide a clear action plan with next steps.'
+        },
+        { role: 'user', content: prompt }
+      ],
+      { role: 'thinking', maxTokens: 2000 }
+    )) || 'No response generated';
 
     try {
       await supabase.from('agent_runs').insert({

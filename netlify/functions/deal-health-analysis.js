@@ -1,3 +1,4 @@
+const { responsesFetch } = require('./_responses');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -34,9 +35,6 @@ exports.handler = async (event) => {
     switch (aiProvider) {
       case 'openai':
         result = await analyzeWithOpenAI(deal, healthMetrics, analysisDepth, riskFactors);
-        break;
-      case 'gemini':
-        result = await analyzeWithGemini(deal, healthMetrics, analysisDepth, riskFactors);
         break;
       default:
         result = await analyzeWithOpenAI(deal, healthMetrics, analysisDepth, riskFactors);
@@ -135,13 +133,7 @@ Generate comprehensive health analysis with:
   "healthTrends": ["trend1", "trend2"]
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const response = await responsesFetch({
         model: 'gpt-4o',
         instructions: systemPrompt,
         input: userPrompt,
@@ -202,8 +194,7 @@ Generate comprehensive health analysis with:
             }
           }
         }
-      })
-    });
+      });
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.statusText}`);
@@ -211,18 +202,7 @@ Generate comprehensive health analysis with:
 
     const data = await response.json();
 
-    // Handle Responses API format
-    let content;
-    if (data.output && data.output.length > 0) {
-      const textOutput = data.output.find(item => item.type === 'text');
-      if (textOutput && textOutput.text) {
-        content = JSON.parse(textOutput.text);
-      } else {
-        throw new Error('No text output found in response');
-      }
-    } else {
-      throw new Error('No response output found');
-    }
+    const content = JSON.parse(data.output_text);
 
     return {
       healthScore: content.healthScore || 75,
@@ -237,79 +217,6 @@ Generate comprehensive health analysis with:
     };
   } catch (error) {
     console.error('OpenAI deal health analysis failed:', error);
-    throw error;
-  }
-}
-
-async function analyzeWithGemini(deal, healthMetrics, analysisDepth, riskFactors) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Analyze the health of this deal:
-
-Deal: ${deal.name} at ${deal.company}
-Value: $${deal.value || 'TBD'}
-Stage: ${deal.stage}
-Metrics: ${JSON.stringify(healthMetrics)}
-
-Return JSON with healthScore, riskLevel, healthIndicators, riskFactors, recommendations, nextActions, and healthTrends.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 1000
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const healthData = JSON.parse(jsonMatch[0]);
-
-    return {
-      healthScore: healthData.healthScore || 75,
-      riskLevel: healthData.riskLevel || 'medium',
-      healthIndicators: healthData.healthIndicators || [],
-      riskFactors: healthData.riskFactors || [],
-      recommendations: healthData.recommendations || [],
-      nextActions: healthData.nextActions || [],
-      healthTrends: healthData.healthTrends || [],
-      analysisDepth,
-      analyzed: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini deal health analysis failed:', error);
     throw error;
   }
 }

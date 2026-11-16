@@ -1,8 +1,4 @@
-const OpenAI = require("openai");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/** Prompt builders for SDR / AE agents. Model calls go through _responses.js. */
 
 function buildSdrAgent({ agentId, personaId, sequenceLength, step, contact }) {
   const instructions = `You are an AI SDR for SmartCRM called "${agentId}".
@@ -56,7 +52,6 @@ Rules:
 }
 
 module.exports = {
-  openai,
   buildSdrAgent,
   buildAeAgent,
 };

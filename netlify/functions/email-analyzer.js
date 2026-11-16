@@ -1,3 +1,4 @@
+const { responsesFetch } = require('./_responses');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -33,9 +34,6 @@ exports.handler = async (event) => {
     switch (aiProvider) {
       case 'openai':
         result = await analyzeWithOpenAI(content, recipient, analysisType);
-        break;
-      case 'gemini':
-        result = await analyzeWithGemini(content, recipient, analysisType);
         break;
       default:
         result = await analyzeWithOpenAI(content, recipient, analysisType);
@@ -110,13 +108,7 @@ Provide analysis in JSON format with:
   "response_strategy": {"approach": "string", "timing": "string", "tone": "string"}
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const response = await responsesFetch({
         model: 'gpt-4o',
         instructions: systemPrompt,
         input: userPrompt,
@@ -126,8 +118,7 @@ Provide analysis in JSON format with:
             type: "json_object"
           }
         }
-      })
-    });
+      });
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.statusText}`);
@@ -135,20 +126,7 @@ Provide analysis in JSON format with:
 
     const data = await response.json();
 
-    // Handle Responses API format
-    let content;
-    if (data.output && data.output.length > 0) {
-      const messageItem = data.output.find(item => item.type === 'message');
-      if (messageItem && messageItem.content && messageItem.content.length > 0) {
-        content = JSON.parse(messageItem.content[0].text);
-      } else {
-        throw new Error('No message content found in response output');
-      }
-    } else if (data.output_text) {
-      content = JSON.parse(data.output_text);
-    } else {
-      throw new Error('No response content found');
-    }
+    const content = JSON.parse(data.output_text);
 
     return {
       sentiment: content.sentiment || { score: 0, label: 'neutral', confidence: 50 },
@@ -161,76 +139,6 @@ Provide analysis in JSON format with:
     };
   } catch (error) {
     console.error('OpenAI email analysis failed:', error);
-    throw error;
-  }
-}
-
-async function analyzeWithGemini(content, recipient, analysisType) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Analyze this email for ${analysisType} insights:
-
-Subject: ${content.subject}
-Body: ${content.body}
-Recipient: ${recipient ? `${recipient.name} at ${recipient.company}` : 'Unknown'}
-
-Return JSON with sentiment, engagement, improvements, recommendations, and response_strategy.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 800
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const analysis = JSON.parse(jsonMatch[0]);
-
-    return {
-      sentiment: analysis.sentiment || { score: 0, label: 'neutral', confidence: 50 },
-      engagement: analysis.engagement || { score: 50, potential: 'medium', factors: [] },
-      improvements: analysis.improvements || [],
-      recommendations: analysis.recommendations || [],
-      response_strategy: analysis.response_strategy || { approach: 'professional', timing: '24h', tone: 'friendly' },
-      analysisType,
-      analyzed: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini email analysis failed:', error);
     throw error;
   }
 }

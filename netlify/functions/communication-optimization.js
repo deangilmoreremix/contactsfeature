@@ -1,3 +1,4 @@
+const { responsesFetch } = require('./_responses');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -35,9 +36,6 @@ exports.handler = async (event) => {
     switch (aiProvider) {
       case 'openai':
         result = await optimizeWithOpenAI(contact, interactionHistory, timeframe, optimizationType);
-        break;
-      case 'gemini':
-        result = await optimizeWithGemini(contact, interactionHistory, timeframe, optimizationType);
         break;
       default:
         result = await optimizeWithOpenAI(contact, interactionHistory, timeframe, optimizationType);
@@ -109,13 +107,7 @@ Provide optimization analysis with:
   "nextSteps": ["immediate", "short_term", "long_term"]
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const response = await responsesFetch({
         model: 'gpt-4o',
         instructions: systemPrompt,
         input: userPrompt,
@@ -171,8 +163,7 @@ Provide optimization analysis with:
             }
           }
         }
-      })
-    });
+      });
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.statusText}`);
@@ -180,18 +171,7 @@ Provide optimization analysis with:
 
     const data = await response.json();
 
-    // Handle Responses API format
-    let content;
-    if (data.output && data.output.length > 0) {
-      const textOutput = data.output.find(item => item.type === 'text');
-      if (textOutput && textOutput.text) {
-        content = JSON.parse(textOutput.text);
-      } else {
-        throw new Error('No text output found in response');
-      }
-    } else {
-      throw new Error('No response output found');
-    }
+    const content = JSON.parse(data.output_text);
 
     return {
       optimalTiming: content.optimalTiming || { bestDay: 'Tuesday', bestTime: '10:00', timezone: 'UTC' },
@@ -205,77 +185,6 @@ Provide optimization analysis with:
     };
   } catch (error) {
     console.error('OpenAI communication optimization failed:', error);
-    throw error;
-  }
-}
-
-async function optimizeWithGemini(contact, interactionHistory, timeframe, optimizationType) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Optimize communication strategy for this contact:
-
-Contact: ${contact.name} at ${contact.company}
-Timeframe: ${timeframe}
-Interactions: ${JSON.stringify(interactionHistory)}
-
-Return JSON with optimalTiming, communicationStyle, channelPreferences, engagementPatterns, recommendations, and nextSteps.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 800
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const optimization = JSON.parse(jsonMatch[0]);
-
-    return {
-      optimalTiming: optimization.optimalTiming || { bestDay: 'Tuesday', bestTime: '10:00', timezone: 'UTC' },
-      communicationStyle: optimization.communicationStyle || { tone: 'professional', frequency: 'weekly', approach: 'consultative' },
-      channelPreferences: optimization.channelPreferences || { primary: 'email', secondary: 'phone', avoid: [] },
-      engagementPatterns: optimization.engagementPatterns || { peakHours: ['9-11', '14-16'], responseTime: '24h', preferences: [] },
-      recommendations: optimization.recommendations || [],
-      nextSteps: optimization.nextSteps || [],
-      optimizationType,
-      analyzed: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini communication optimization failed:', error);
     throw error;
   }
 }

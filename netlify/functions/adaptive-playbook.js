@@ -1,3 +1,4 @@
+const { responsesFetch } = require('./_responses');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -62,7 +63,7 @@ function validateInput(contact, currentStage, businessGoals, automationType, pla
   }
 
   // Validate aiProvider
-  const validProviders = ['openai', 'gemini'];
+  const validProviders = ['openai'];
   if (!validProviders.includes(aiProvider)) {
     throw new Error(`Invalid aiProvider: must be one of ${validProviders.join(', ')}`);
   }
@@ -103,9 +104,6 @@ exports.handler = async (event) => {
     switch (aiProvider) {
       case 'openai':
         result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
-        break;
-      case 'gemini':
-        result = await generateWithGemini(contact, currentStage, businessGoals, automationType, playbookType);
         break;
       default:
         result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
@@ -235,13 +233,7 @@ Generate a detailed sales playbook with the following structure:
   }
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const response = await responsesFetch({
         model: 'gpt-5.2',
         instructions: systemPrompt,
         input: userPrompt,
@@ -251,8 +243,7 @@ Generate a detailed sales playbook with the following structure:
             type: 'json_object'
           }
         }
-      })
-    });
+      });
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -261,22 +252,7 @@ Generate a detailed sales playbook with the following structure:
 
     const data = await response.json();
 
-    let content;
-    if (data.output && Array.isArray(data.output)) {
-      const textOutput = data.output.find(item => item.type === 'message' && item.content);
-      if (textOutput && textOutput.content && textOutput.content[0]) {
-        const textContent = textOutput.content.find(c => c.type === 'output_text');
-        if (textContent && textContent.text) {
-          content = JSON.parse(textContent.text);
-        } else {
-          throw new Error('No text content found in response output');
-        }
-      } else {
-        throw new Error('No message output found in response');
-      }
-    } else {
-      throw new Error('Invalid response format from OpenAI Responses API');
-    }
+    const content = JSON.parse(data.output_text);
 
     return {
       strategy: content.strategy,
@@ -296,86 +272,6 @@ Generate a detailed sales playbook with the following structure:
     };
   } catch (error) {
     console.error('OpenAI adaptive playbook generation failed:', error);
-    throw error;
-  }
-}
-
-async function generateWithGemini(contact, currentStage, businessGoals, automationType, playbookType) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Create a ${playbookType} sales playbook for this contact:
-
-Contact: ${contact.name} at ${contact.company}
-Current Stage: ${currentStage}
-Business Goals: ${businessGoals.join(', ')}
-Playbook Type: ${playbookType}
-
-${getPlaybookTypeInstructions(playbookType)}
-
-Return JSON with strategy, phases, riskMitigation, successIndicators, competitivePositioning, and other playbook components.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 1000
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const playbook = JSON.parse(jsonMatch[0]);
-
-    return {
-      strategy: playbook.strategy,
-      phases: playbook.phases || [],
-      riskMitigation: playbook.riskMitigation || [],
-      successIndicators: playbook.successIndicators || [],
-      competitivePositioning: playbook.competitivePositioning || {},
-      recommendedActions: playbook.recommendedActions || [],
-      automationSequence: playbook.automationSequence || [],
-      triggers: playbook.triggers || [],
-      conditions: playbook.conditions || [],
-      successMetrics: playbook.successMetrics || [],
-      fallbackActions: playbook.fallbackActions || [],
-      currentStage,
-      automationType,
-      generated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini adaptive playbook generation failed:', error);
     throw error;
   }
 }

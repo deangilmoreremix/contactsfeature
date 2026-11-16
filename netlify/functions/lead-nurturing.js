@@ -1,3 +1,4 @@
+const { responsesFetch } = require('./_responses');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -34,9 +35,6 @@ exports.handler = async (event) => {
     switch (aiProvider) {
       case 'openai':
         result = await generateWithOpenAI(contact, nurtureStrategy, timeframe, businessGoals);
-        break;
-      case 'gemini':
-        result = await generateWithGemini(contact, nurtureStrategy, timeframe, businessGoals);
         break;
       default:
         result = await generateWithOpenAI(contact, nurtureStrategy, timeframe, businessGoals);
@@ -126,13 +124,7 @@ Generate nurturing strategy with:
   "personalizationStrategy": "string"
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const response = await responsesFetch({
         model: 'gpt-4o',
         instructions: systemPrompt,
         input: userPrompt,
@@ -142,8 +134,7 @@ Generate nurturing strategy with:
             type: "json_object"
           }
         }
-      })
-    });
+      });
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.statusText}`);
@@ -151,20 +142,7 @@ Generate nurturing strategy with:
 
     const data = await response.json();
 
-    // Handle Responses API format
-    let content;
-    if (data.output && data.output.length > 0) {
-      const messageItem = data.output.find(item => item.type === 'message');
-      if (messageItem && messageItem.content && messageItem.content.length > 0) {
-        content = JSON.parse(messageItem.content[0].text);
-      } else {
-        throw new Error('No message content found in response output');
-      }
-    } else if (data.output_text) {
-      content = JSON.parse(data.output_text);
-    } else {
-      throw new Error('No response content found');
-    }
+    const content = JSON.parse(data.output_text);
 
     return {
       nurtureSequence: content.nurtureSequence || [],
@@ -178,76 +156,6 @@ Generate nurturing strategy with:
     };
   } catch (error) {
     console.error('OpenAI lead nurturing generation failed:', error);
-    throw error;
-  }
-}
-
-async function generateWithGemini(contact, nurtureStrategy, timeframe, businessGoals) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Create a ${nurtureStrategy} lead nurturing strategy for this contact:
-
-Contact: ${contact.name} at ${contact.company}
-Business Goals: ${businessGoals.join(', ')}
-
-Return JSON with nurtureSequence, contentCalendar, engagementTriggers, successMetrics, and personalizationStrategy.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 1000
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const nurturingData = JSON.parse(jsonMatch[0]);
-
-    return {
-      nurtureSequence: nurturingData.nurtureSequence || [],
-      contentCalendar: nurturingData.contentCalendar || [],
-      engagementTriggers: nurturingData.engagementTriggers || [],
-      successMetrics: nurturingData.successMetrics || [],
-      personalizationStrategy: nurturingData.personalizationStrategy || '',
-      nurtureStrategy,
-      timeframe,
-      generated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini lead nurturing generation failed:', error);
     throw error;
   }
 }

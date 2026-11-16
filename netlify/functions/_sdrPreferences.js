@@ -1,4 +1,4 @@
-const { sanitizeModel, clampTemperature, clampMaxTokens, sanitizeString } = require('./_validation');
+const { sanitizeModel, normalizeModel, clampTemperature, clampMaxTokens, sanitizeString } = require('./_validation');
 
 function extractPreferences(body) {
   const prefs = body.preferences || {};
@@ -55,8 +55,8 @@ function buildPreferencesPromptBlock(prefs) {
 }
 
 function resolveModel(prefs, envDefault, envKey) {
-  if (prefs.model) return prefs.model;
-  return process.env[envKey] || envDefault;
+  // Returns a model role ('default' | 'thinking' | 'fast' | 'pro') or a configured model id.
+  return normalizeModel(prefs.model) || normalizeModel(process.env[envKey]) || normalizeModel(envDefault) || 'default';
 }
 
 function resolveTemperature(prefs, fallback) {

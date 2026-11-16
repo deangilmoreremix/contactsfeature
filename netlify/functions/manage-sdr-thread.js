@@ -1,5 +1,5 @@
 const { supabase } = require('./_supabaseClient');
-const { openai } = require('./_aiClients');
+const crypto = require('crypto');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +20,9 @@ async function getOrCreateThread(leadId) {
     return existingThread.thread_id;
   }
 
-  const thread = await openai.beta.threads.create();
+  // Conversations are chained with the Responses API (previous_response_id); this id is a local
+  // conversation key. The latest response id is stored in `thread_id` by the caller as it advances.
+  const thread = { id: `conv_${crypto.randomUUID()}` };
 
   const { error: insertError } = await supabase
     .from('agent_threads')
@@ -58,11 +60,7 @@ async function cleanupOldThreads(daysOld) {
   }
 
   for (const thread of oldThreads) {
-    try {
-      await openai.beta.threads.del(thread.thread_id);
-    } catch (_deleteErr) {
-      // threads may auto-expire
-    }
+    // nothing to delete remotely: Responses are retained per the `store` setting
   }
 
   const { error: deleteError } = await supabase

@@ -343,7 +343,41 @@ async function generateImage(opts = {}) {
   return (res.data || []).map((d) => d.b64_json || d.url).filter(Boolean);
 }
 
+/**
+ * Drop-in replacement for `fetch('https://api.openai.com/v1/responses', { body: JSON.stringify(body) })`
+ * used by older functions. Takes the raw Responses request body, normalises the model through the
+ * model map (legacy ids -> roles), applies the reasoning-model rules, calls the SDK, and returns a
+ * fetch-like object whose json() is the Response plus a reliable `output_text`.
+ */
+async function responsesFetch(body, opts = {}) {
+  const { normalizeModel } = require('./_validation');
+  const role = normalizeModel(body.model) || 'default';
+  const { model, effort } = resolveModel(role, opts.effort || 'low');
+  const params = { model, input: body.input, store: false };
+  if (body.instructions) params.instructions = body.instructions;
+  if (effort) params.reasoning = { effort };
+  if (effort === 'none' && typeof body.temperature === 'number') params.temperature = body.temperature;
+  if (body.max_output_tokens) params.max_output_tokens = body.max_output_tokens;
+  if (body.tools) params.tools = body.tools;
+  if (body.text) {
+    params.text = body.text.format && body.text.format.type === 'json_schema'
+      ? { ...body.text, format: { ...body.text.format, strict: true, schema: strictify(body.text.format.schema) } }
+      : body.text;
+  }
+  const client = opts.client || getClient();
+  const response = await withRetry(() => client.responses.create(params), opts.retry);
+  const text = extractText(response);
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => ({ ...response, output_text: text }),
+    text: async () => text,
+  };
+}
+
 module.exports = {
+  responsesFetch,
   models,
   getClient,
   resolveModel,
