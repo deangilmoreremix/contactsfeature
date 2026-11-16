@@ -4,6 +4,7 @@ import { AIProvider } from '../../contexts/AIContext';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import { ToastProvider } from '../ui/Toast';
+import { aiBatchService } from '../../services/aiBatchService';
 import { AIErrorToaster } from '../ui/AIErrorToaster';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
@@ -815,6 +816,34 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                           Merge Selected ({selectedContacts.length})
                         </button>
                       )}
+                      <button
+                        onClick={async () => {
+                          setBulkActionDropdown(false);
+                          try {
+                            const r = await aiBatchService.submit('enrich', selectedContacts);
+                            alert(`Batch enrichment started for ${r.batch.total} contact(s)${r.skipped.length ? ` (${r.skipped.length} skipped: not enough data)` : ''}. Results are applied automatically within 24 hours; only empty fields are filled.`);
+                          } catch (e) {
+                            alert(e instanceof Error ? e.message : 'Could not start batch enrichment');
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Enrich Selected (batch, 50% cost)
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setBulkActionDropdown(false);
+                          try {
+                            const r = await aiBatchService.submit('embed', selectedContacts);
+                            alert(`Indexing ${r.batch.total} contact(s) for semantic search. This finishes within 24 hours.`);
+                          } catch (e) {
+                            alert(e instanceof Error ? e.message : 'Could not start indexing');
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Index for Search (batch)
+                      </button>
                       <button
                         onClick={() => {
                           if (confirm(`Move ${selectedContacts.length} selected contacts to Trash? You can restore them from Deleted.`)) {
