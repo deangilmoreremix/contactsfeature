@@ -3,58 +3,50 @@ import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 import { SDRPreferencesService } from "../services/sdrPreferencesService";
 import { SDRUserPreferences } from "../types/sdr-preferences";
+import { useAIStream } from "../hooks/useAIStream";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { asObj, asStr } from "../utils/partialText";
 
 interface VoiceAgentResponse {
   contactId?: string;
   script?: string;
   audioUrl?: string;
+  audioBase64?: string;
+  audioMime?: string;
+  audioError?: string;
   debug?: any;
 }
 
 export const VoiceAgentPanel: React.FC = () => {
   const [contactId, setContactId] = useState("");
   const [script, setScript] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VoiceAgentResponse | null>(null);
+  const [withAudio, setWithAudio] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const live = useAIStream<VoiceAgentResponse>();
+  const loading = live.isStreaming;
+  const result = live.state.result;
+  const error = formError || live.state.error;
   const [showSettings, setShowSettings] = useState(false);
   const [userPreferences, setUserPreferences] = useState<SDRUserPreferences | null>(null);
 
   const handleGenerate = async () => {
-    setError(null);
-    setResult(null);
+    setFormError(null);
+    live.reset();
 
     if (!contactId) {
-      setError("Please enter a contact ID.");
+      setFormError("Please enter a contact ID.");
       return;
     }
     if (!script.trim()) {
-      setError("Please enter the script or talking points.");
+      setFormError("Please enter the script or talking points.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/voice-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, script })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Voice agent request failed");
-      }
-
-      const json = (await res.json()) as VoiceAgentResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[VoiceAgentPanel] error:", e);
-      setError(e.message || "Failed to run voice agent");
-    } finally {
-      setLoading(false);
-    }
+    // The voice script streams in; with "Also create audio" it is read aloud (text-to-speech) once it passed moderation.
+    await live.runFunction("/.netlify/functions/voice-agent", { contactId, script, tts: withAudio });
   };
+
+  const audioSrc = result?.audioBase64 ? `data:${result.audioMime || "audio/mpeg"};base64,${result.audioBase64}` : result?.audioUrl;
 
   return (
     <div
@@ -63,6 +55,7 @@ export const VoiceAgentPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
+        color: "#1a202c",
         maxWidth: 520,
         flex: "1 1 340px"
       }}
@@ -76,6 +69,7 @@ export const VoiceAgentPanel: React.FC = () => {
             borderRadius: 6,
             border: '1px solid #cbd5e0',
             background: '#f7fafc',
+            color: '#4a5568',
             cursor: 'pointer',
             fontSize: 12,
             display: 'flex',
@@ -161,6 +155,11 @@ export const VoiceAgentPanel: React.FC = () => {
         />
       </div>
 
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8 }}>
+        <input type="checkbox" checked={withAudio} onChange={(e) => setWithAudio(e.target.checked)} />
+        Also create audio (text-to-speech)
+      </label>
+
       <button
         type="button"
         onClick={handleGenerate}
@@ -178,10 +177,20 @@ export const VoiceAgentPanel: React.FC = () => {
           marginBottom: 10
         }}
       >
-        {loading ? "Generating Voice..." : "Generate Voice Message"}
+        {loading ? "Writing Voice Script..." : "Generate Voice Message"}
       </button>
 
-      {result && (
+      {loading && (
+        <StreamingOutput
+          state={live.state}
+          onStop={live.stop}
+          display={asStr(asObj(live.state.partial).script)}
+          placeholder="Writing the voice script…"
+          className="mb-2"
+        />
+      )}
+
+      {result && !loading && (
         <div
           style={{
             borderRadius: 8,
@@ -202,11 +211,14 @@ export const VoiceAgentPanel: React.FC = () => {
             Result
           </div>
 
-          {result.audioUrl ? (
+          {audioSrc ? (
             <div style={{ marginBottom: 8 }}>
-              <audio controls src={result.audioUrl} style={{ width: "100%" }} />
+              <audio controls src={audioSrc} style={{ width: "100%" }} />
             </div>
           ) : null}
+          {result.audioError && (
+            <div style={{ fontSize: 12, color: "#c53030", marginBottom: 6 }}>{result.audioError}</div>
+          )}
 
           {result.script && (
             <pre

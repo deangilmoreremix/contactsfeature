@@ -25,4 +25,6 @@ direct=$(grep -rnE "api\.openai\.com" src lib netlify supabase/functions scripts
 if [ -n "$direct" ]; then echo "✗ direct api.openai.com calls outside shared helpers"; echo "$direct" | head -8; FAIL=1; else echo "✓ direct api.openai.com calls"; fi
 # Streaming gate: user-facing AI calls must stream (allowlist: scripts/streaming-allowlist.txt).
 node scripts/check-streaming.cjs || FAIL=1
+# Census gate: every UI-reachable AI endpoint streams; no calls to missing functions.
+node scripts/ai-census.cjs --check || FAIL=1
 exit $FAIL

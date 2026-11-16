@@ -1,47 +1,45 @@
 import React, { useState } from "react";
 import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
+import { useAIStream } from "../hooks/useAIStream";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { asObj, asStr, joinSections } from "../utils/partialText";
 
 interface MoodResponse {
   contactId: string;
   mood: string;
+  reason?: string;
+  rationale?: string;
+  sample_message?: string;
   contact: any;
   deal: any;
 }
 
 export const MoodPanel: React.FC = () => {
   const [contactId, setContactId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<MoodResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const live = useAIStream<MoodResponse>();
+  const loading = live.isStreaming;
+  const data = live.state.result;
+  const [formError, setFormError] = useState<string | null>(null);
+  const error = formError || live.state.error;
   const [showSettings, setShowSettings] = useState(false);
 
   const fetchMood = async () => {
-    setError(null);
-    setData(null);
+    setFormError(null);
+    live.reset();
 
     if (!contactId) {
-      setError("Please enter a contact ID.");
+      setFormError("Please enter a contact ID.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/.netlify/functions/mood-preview?contactId=${encodeURIComponent(contactId)}`
-      );
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Request failed");
-      }
-      const json = (await res.json()) as MoodResponse;
-      setData(json);
-    } catch (e: any) {
-      console.error("Mood preview error:", e);
-      setError(e.message || "Failed to load mood");
-    } finally {
-      setLoading(false);
-    }
+    // The mood itself is rule based; the rationale and a sample opener in that tone are written live.
+    await live.runFunction("/.netlify/functions/mood-preview", { contactId });
+  };
+
+  const streamText = () => {
+    const p = asObj(live.state.partial);
+    return joinSections([asStr(p.rationale), p.sample_message ? `Sample opener:\n${asStr(p.sample_message)}` : ""]);
   };
 
   const moodLabel = (mood?: string) => {
@@ -70,6 +68,7 @@ export const MoodPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
+        color: "#1a202c",
         marginTop: 24
       }}
     >
@@ -162,6 +161,16 @@ export const MoodPanel: React.FC = () => {
         </div>
       )}
 
+      {loading && (
+        <StreamingOutput
+          state={live.state}
+          onStop={live.stop}
+          display={streamText()}
+          placeholder="Working out the tone…"
+          className="mb-3"
+        />
+      )}
+
       {data && (
         <div
           style={{
@@ -193,6 +202,9 @@ export const MoodPanel: React.FC = () => {
             <div style={{ fontSize: 16, fontWeight: 700 }}>
               {moodLabel(data.mood)}
             </div>
+            {data.reason && (
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "#4a5568" }}>{data.reason}</p>
+            )}
           </div>
 
           <div
@@ -227,6 +239,23 @@ export const MoodPanel: React.FC = () => {
             >
               {JSON.stringify({ contact: data.contact, deal: data.deal }, null, 2)}
             </pre>
+            {(data.rationale || data.sample_message) && (
+              <>
+                <div
+                  style={{
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    color: "#718096",
+                    margin: "10px 0 4px"
+                  }}
+                >
+                  Tone preview
+                </div>
+                <p style={{ margin: "0 0 6px", fontSize: 13, color: "#4a5568" }}>{data.rationale}</p>
+                <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0 }}>{data.sample_message}</pre>
+              </>
+            )}
           </div>
         </div>
       )}

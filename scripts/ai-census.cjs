@@ -42,7 +42,7 @@ if (fs.existsSync(nonAiFile)) for (const l of read(nonAiFile).split('\n')) {
 }
 
 const NL_STREAM = /runDual|stream\(|text\/event-stream|toSseReadable|streamBackgroundJob/;
-const NL_AI = /createResponse|callOpenAI|responsesFetch|streamResponse|@openai\/agents|runSdrAgent|createSdrHandler|runDual/;
+const NL_AI = /createResponse|callOpenAI|responsesFetch|streamResponse|@openai\/agents|runSdrAgent|createSdrHandler|runDual|createPanelHandler/;
 const EDGE_STREAM = /respondDual|toSseStream|respondDualTask/;
 const EDGE_AI = /_shared\/openai|api\.openai\.com/;
 

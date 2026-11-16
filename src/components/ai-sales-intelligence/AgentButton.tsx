@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { AgentConfig, AgentExecutionRequest, AgentExecutionResult } from '../../types/agent';
+import { AgentConfig, AgentExecutionResult } from '../../types/agent';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentModal } from './AgentModal';
 import { streamFunction } from '../../services/liveFunction';
@@ -90,21 +90,16 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         if (!run) return; // stopped by the user
         result = (run.result ?? {}) as AgentExecutionResult;
       } else {
-        // Use agent-runner (database lookup)
-        const request: AgentExecutionRequest = {
+        // Generic runner: dispatches the agent id to its dual-mode function server-side (allow-list) and streams
+        // the agent's own answer through; ownership of the contact / deal is checked there.
+        const run = await live.run((opts) => streamFunction<AgentExecutionResult>('/.netlify/functions/agent-runner', {
           agentId,
-          userId: 'current-user',
           ...(contactId && { contactId }),
           ...(dealId && { dealId }),
           ...(input && { input })
-        };
-
-        const response = await supabase.functions.invoke('agent-runner', {
-          body: request
-        });
-
-        if (response.error) throw new Error(response.error.message);
-        result = response.data;
+        }, opts));
+        if (!run) return; // stopped by the user
+        result = (run.result ?? {}) as AgentExecutionResult;
       }
 
       setExecutionResult(result);
@@ -196,7 +191,9 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
             <div>
               <div className="font-medium text-green-900">{agent.name} completed</div>
               <div className="text-sm text-green-700">
-                Execution time: {executionResult.response?.usage?.total_tokens || 0} tokens
+                {executionResult.response?.usage?.total_tokens
+                  ? `${executionResult.response.usage.total_tokens} tokens used`
+                  : 'Finished'}
               </div>
             </div>
           </div>

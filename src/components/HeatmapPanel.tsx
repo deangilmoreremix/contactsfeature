@@ -3,52 +3,69 @@ import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 import { SDRPreferencesService } from "../services/sdrPreferencesService";
 import { SDRUserPreferences } from "../types/sdr-preferences";
+import { useAIStream } from "../hooks/useAIStream";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { asArr, asObj, asStr, joinSections } from "../utils/partialText";
+
+interface HeatmapDeal {
+  deal_id: string;
+  title: string | null;
+  stage: string | null;
+  value: number | null;
+  contact_name: string | null;
+  risk_score: number;
+  reason: string;
+  next_action: string;
+  assessed?: boolean;
+  factors?: any;
+  baseline_score?: number;
+}
 
 interface HeatmapResponse {
+  mode?: "single" | "portfolio";
   dealId?: string;
   risk_score?: number;
   reason?: string;
+  next_action?: string;
   factors?: any;
+  baseline_score?: number;
+  summary?: string | null;
+  deals?: HeatmapDeal[];
+  message?: string;
 }
 
 export const HeatmapPanel: React.FC = () => {
   const [dealId, setDealId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<HeatmapResponse | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const live = useAIStream<HeatmapResponse>();
+  const loading = live.isStreaming;
+  const result = live.state.result;
+  const error = formError || live.state.error;
   const [showSettings, setShowSettings] = useState(false);
   const [userPreferences, setUserPreferences] = useState<SDRUserPreferences | null>(null);
 
+  // The AI's reasoning as it is written: one deal (score, reason, next action) or the portfolio (summary + deals)
+  const streamText = () => {
+    const p = asObj(live.state.partial);
+    const deals = asArr(p.deals).map((d) => {
+      const o = asObj(d);
+      return `${asStr(o.deal_id).slice(0, 8)} · risk ${asStr(o.risk_score)}${o.reason ? ` · ${asStr(o.reason)}` : ""}${o.next_action ? ` -> ${asStr(o.next_action)}` : ""}`;
+    });
+    return joinSections([
+      p.risk_score != null && `Risk score: ${asStr(p.risk_score)}/100`,
+      asStr(p.reason),
+      p.next_action ? `Next action: ${asStr(p.next_action)}` : "",
+      asStr(p.summary),
+      deals.length ? deals.join("\n") : "",
+    ]);
+  };
+
   const computeRisk = async () => {
-    setError(null);
-    setResult(null);
+    setFormError(null);
+    live.reset();
 
-    if (!dealId) {
-      setError("Please enter a deal ID.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/deal-heatmap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dealId })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Heatmap request failed");
-      }
-
-      const json = (await res.json()) as HeatmapResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[HeatmapPanel] error:", e);
-      setError(e.message || "Failed to compute deal risk");
-    } finally {
-      setLoading(false);
-    }
+    // With a deal ID: that deal. Without: every open deal of yours, riskiest first.
+    await live.runFunction("/.netlify/functions/deal-heatmap", dealId.trim() ? { dealId: dealId.trim() } : {});
   };
 
   const riskColor = (score?: number) => {
@@ -65,6 +82,7 @@ export const HeatmapPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
+        color: "#1a202c",
         marginTop: 24
       }}
     >
@@ -77,6 +95,7 @@ export const HeatmapPanel: React.FC = () => {
             borderRadius: 6,
             border: '1px solid #cbd5e0',
             background: '#f7fafc',
+            color: '#4a5568',
             cursor: 'pointer',
             fontSize: 12,
             display: 'flex',
@@ -118,12 +137,12 @@ export const HeatmapPanel: React.FC = () => {
             marginBottom: 4
           }}
         >
-          Deal ID
+          Deal ID (optional)
         </label>
         <input
           value={dealId}
           onChange={(e) => setDealId(e.target.value)}
-          placeholder="Enter deal UUID"
+          placeholder="Leave blank to assess all open deals"
           style={{
             width: "100%",
             padding: "8px 10px",
@@ -150,10 +169,47 @@ export const HeatmapPanel: React.FC = () => {
           marginBottom: 12
         }}
       >
-        {loading ? "Analyzing Deal..." : "Compute Deal Risk"}
+        {loading ? "Analyzing..." : dealId.trim() ? "Compute Deal Risk" : "Assess Open Deals"}
       </button>
 
-      {result && (
+      {loading && (
+        <StreamingOutput
+          state={live.state}
+          onStop={live.stop}
+          display={streamText()}
+          placeholder="Reading your deals…"
+          className="mb-3"
+        />
+      )}
+
+      {result && !loading && result.mode === "portfolio" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {result.summary && <p style={{ margin: 0, fontSize: 13, color: "#4a5568" }}>{result.summary}</p>}
+          {(result.deals || []).length === 0 && (
+            <div style={{ fontSize: 13, color: "#718096" }}>{result.message || "No open deals to assess."}</div>
+          )}
+          {(result.deals || []).map((d) => (
+            <div
+              key={d.deal_id}
+              style={{ display: "flex", gap: 10, padding: 10, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f7fafc" }}
+            >
+              <div style={{ width: 20, height: 20, marginTop: 2, flex: "0 0 20px", borderRadius: "999px", background: riskColor(d.risk_score) }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  {d.title || d.deal_id.slice(0, 8)} · {d.risk_score}/100
+                </div>
+                <div style={{ fontSize: 12, color: "#718096" }}>
+                  {[d.contact_name, d.stage, d.value != null ? `$${d.value.toLocaleString()}` : null].filter(Boolean).join(" · ")}
+                </div>
+                {d.reason && <div style={{ fontSize: 12, color: "#4a5568", marginTop: 4 }}>{d.reason}</div>}
+                {d.next_action && <div style={{ fontSize: 12, marginTop: 2 }}>Next: {d.next_action}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && !loading && result.mode !== "portfolio" && (
         <div
           style={{
             display: "flex",
@@ -211,6 +267,9 @@ export const HeatmapPanel: React.FC = () => {
               >
                 {result.reason}
               </p>
+            )}
+            {result.next_action && (
+              <p style={{ marginTop: 6, marginBottom: 0, fontSize: 12 }}>Next: {result.next_action}</p>
             )}
           </div>
 

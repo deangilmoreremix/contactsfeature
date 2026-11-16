@@ -18,6 +18,8 @@ Comments `: ping` are heartbeats (every 15 s). The stream ends with `data: [DONE
 ## Endpoints
 - `POST /.netlify/functions/ai-stream` — generic proxy (`role,input,instructions,schema,tools,conversationId,background,reasoningSummary,resume`).
 - Dual-mode functions (`runDual` in `netlify/functions/_stream/dual.js`): same URL returns JSON, or SSE when `Accept: text/event-stream`, `body.stream:true` or `?stream=true`.
+- Panel endpoints (`createPanelHandler` in `netlify/functions/_lib/panelHandler.js`, dual-mode, caller's rows only, outbound copy moderated): `memory-get`, `skills-api`, `mood-preview`, `playbooks-ai`, `deal-heatmap`, `video-agent`, `voice-agent`. Short answers that need no model call (empty memory, no open deals) are still delivered as SSE (`result` then `done`) when a stream was requested.
+- `agent-runner` — allow-listed dispatcher to the existing dual-mode agent functions (`_lib/agentTargets.js`); the target's JSON/SSE is streamed straight through after an ownership check of `contactId` / `dealId`.
 - Long jobs: `background:true` + stream; if the connection drops the client re-attaches with `resume:{responseId,startingAfter}` (`GET /v1/responses/{id}?stream=true&starting_after=N`).
 
 ## Client

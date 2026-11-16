@@ -139,12 +139,8 @@ export class EdgeFunctionService {
   }
 
   // Personalized messages
-  async generatePersonalizedMessage(contactData: any, context: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('personalized-messages', {
-      body: { contactData, context }
-    })
-    if (error) throw error
-    return result
+  async generatePersonalizedMessage(contactData: any, context: any = {}, live?: TaskLive) {
+    return streamTask<any>('personalized-messages', { contactData, context }, live)
   }
 
   // Email templates

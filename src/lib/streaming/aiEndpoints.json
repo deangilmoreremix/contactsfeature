@@ -10,6 +10,7 @@
     "contact-enrich",
     "content-creation-agent",
     "deal-health-analysis",
+    "deal-heatmap",
     "discovery-sdr",
     "document-analyze",
     "email-analyzer",
@@ -20,14 +21,20 @@
     "generate-image-stream",
     "generate-with-prompt",
     "lead-nurturing",
+    "memory-get",
+    "mood-preview",
     "negotiation-coach-agent",
     "objection-handler-sdr",
+    "playbooks-ai",
     "reactivation-sdr",
     "revenue-intelligence-agent",
     "run-ae-agent",
     "run-agent",
     "sales-forecasting",
+    "skills-api",
     "social-selling-agent",
+    "video-agent",
+    "voice-agent",
     "win-back-sdr"
   ]
 }
