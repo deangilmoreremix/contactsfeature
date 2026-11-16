@@ -420,7 +420,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
     <div
       aria-modal
       role="dialog"
-      className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/60"
+      className="fixed inset-0 z-[70] flex items-stretch justify-center bg-black/60"
       onClick={onClose}
     >
       <div

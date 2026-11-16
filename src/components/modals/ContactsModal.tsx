@@ -4,6 +4,7 @@ import { AIProvider } from '../../contexts/AIContext';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import { ToastProvider } from '../ui/Toast';
+import { AIErrorToaster } from '../ui/AIErrorToaster';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
@@ -1213,6 +1214,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
         <>
           <AIProvider>
             <ToastProvider>
+              <AIErrorToaster />
               <ContactErrorBoundary
                 onError={(error, errorInfo) => {
                   console.error('Contact detail error:', error, errorInfo);

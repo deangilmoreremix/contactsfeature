@@ -208,7 +208,7 @@ const AutomationForm: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
       <div className="bg-white rounded-lg max-w-md w-full p-6">
         <h2 className="text-xl font-semibold mb-4">Create Automation</h2>
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md space-y-2">

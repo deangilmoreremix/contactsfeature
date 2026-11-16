@@ -930,7 +930,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
       {/* Template Edit Modal */}
       {showTemplateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center space-x-3">
@@ -1030,7 +1030,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
       {/* Create/Edit Rule Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center space-x-3">
@@ -1278,17 +1278,17 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
           <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Filter className="w-4 h-4" />
             <span>Filter</span>
-            <ModernButton 
-              variant="outline" 
-              size="toolbar" 
-              onClick={handleGenerateSuggestions}
-              loading={loading}
-              className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
-            >
-              <Brain className="w-4 h-4" />
-              <span>{loading ? 'Analyzing...' : 'AI Suggestions'}</span>
-              <Sparkles className="w-3 h-3 text-yellow-500" />
-            </ModernButton>
+          </ModernButton>
+          <ModernButton 
+            variant="outline" 
+            size="toolbar" 
+            onClick={handleGenerateSuggestions}
+            loading={loading}
+            className="flex items-center space-x-2 bg-purple-50 text-purple-700 border-purple-200"
+          >
+            <Brain className="w-4 h-4" />
+            <span>{loading ? 'Analyzing...' : 'AI Suggestions'}</span>
+            <Sparkles className="w-3 h-3 text-yellow-500" />
           </ModernButton>
           <ModernButton
             variant="primary"

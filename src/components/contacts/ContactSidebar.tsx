@@ -175,6 +175,10 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
     }
   };
 
+  // The composers live in ContactDetailView; ask it to open the right one.
+  const openComposer = (kind: 'email' | 'sms' | 'call') =>
+    window.dispatchEvent(new CustomEvent('smartcrm:contact-compose', { detail: { kind, contactId: contact.id } }));
+
   const handleSendEmail = () => {
     // Validate email before opening composer
     if (!editedContact.email || editedContact.email.trim() === '') {
@@ -189,8 +193,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
       return;
     }
 
-    // Open enhanced email composer
-    // This will be handled by parent component
+    openComposer('email');
   };
 
   const handleMakeCall = () => {
@@ -199,8 +202,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
       return;
     }
 
-    // Open enhanced call handler
-    // This will be handled by parent component
+    openComposer('call');
   };
 
   const handleSendSMS = () => {
@@ -209,8 +211,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
       return;
     }
 
-    // Open SMS composer
-    // This will be handled by parent component
+    openComposer('sms');
   };
 
   return (

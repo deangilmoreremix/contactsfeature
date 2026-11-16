@@ -73,10 +73,38 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const researchStatus = useResearchStatus();
   const otherViewers = useContactPresence(contact.id, isOpen);
 
+  // Overview-tab inline field editing: edits go into a draft and are committed on blur.
+  const [overviewEditingField, setOverviewEditingField] = useState<string | null>(null);
+  const [overviewDraft, setOverviewDraft] = useState<Partial<Contact>>({});
+  useEffect(() => {
+    setOverviewEditingField(null);
+    setOverviewDraft({});
+  }, [contact.id]);
+  const commitOverviewDraft = useCallback(() => {
+    if (Object.keys(overviewDraft).length > 0) {
+      void handleUpdate(contact.id, overviewDraft).catch((err: unknown) => console.error('Failed to save field', err));
+    }
+    setOverviewDraft({});
+    setOverviewEditingField(null);
+  }, [overviewDraft, handleUpdate, contact.id]);
+
   // Modal states
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [showCallHandler, setShowCallHandler] = useState(false);
   const [showSMSComposer, setShowSMSComposer] = useState(false);
+
+  // Sidebar quick actions (Email / SMS / Call) request the matching composer.
+  useEffect(() => {
+    const onCompose = (e: Event) => {
+      const { kind, contactId } = (e as CustomEvent<{ kind: 'email' | 'sms' | 'call'; contactId?: string }>).detail || {};
+      if (contactId && contactId !== contact.id) return;
+      if (kind === 'email') setShowEmailComposer(true);
+      else if (kind === 'sms') setShowSMSComposer(true);
+      else if (kind === 'call') setShowCallHandler(true);
+    };
+    window.addEventListener('smartcrm:contact-compose', onCompose);
+    return () => window.removeEventListener('smartcrm:contact-compose', onCompose);
+  }, [contact.id]);
   const [showAISettings, setShowAISettings] = useState(false);
   const [showAPIConfig, setShowAPIConfig] = useState(false);
 
@@ -331,12 +359,12 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                 <Suspense fallback={<div className="p-6 text-center">Loading...</div>}>
                   {activeTab === 'overview' && (
                     <ContactOverviewTab
-                      contact={contact}
+                      contact={{ ...contact, ...overviewDraft }}
                       isEditing={false}
-                      editingField={null}
-                      onEditField={() => {}}
-                      onStartEditingField={() => {}}
-                      onSaveField={() => {}}
+                      editingField={overviewEditingField}
+                      onEditField={(field: string, value: any) => setOverviewDraft((d) => ({ ...d, [field]: value }))}
+                      onStartEditingField={(field: string) => setOverviewEditingField(field)}
+                      onSaveField={commitOverviewDraft}
                       onUpdate={handleUpdate}
                       lastEnrichment={lastEnrichment}
                     />

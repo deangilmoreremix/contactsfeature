@@ -23,6 +23,18 @@ export const supabase = createClient(
         eventsPerSecond: 10,
       },
     },
+    // Demo mode (no env): never hit the placeholder host
+    ...(supabaseUrl && supabaseAnonKey
+      ? {}
+      : {
+          global: {
+            fetch: (async () =>
+              new Response(JSON.stringify({ message: 'Supabase is not configured', code: 'NOT_CONFIGURED' }), {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' }
+              })) as typeof fetch
+          }
+        }),
   }
 )
 

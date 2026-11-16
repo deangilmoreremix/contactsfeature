@@ -334,7 +334,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
       {/* Template Preview Modal */}
       {isPreviewOpen && previewTemplate && appliedTemplate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[70]">
           <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-xl">
             <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
               <div className="flex items-center justify-between mb-2">
@@ -425,7 +425,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
       {/* Create Template Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[70]">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-xl">
             <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
               <div className="flex items-center justify-between mb-2">

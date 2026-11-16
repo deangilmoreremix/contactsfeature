@@ -116,7 +116,7 @@ export const FeatureImageGallery: React.FC = () => {
 
       {selectedImage && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-fade-in-up"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-6 animate-fade-in-up"
           onClick={closeModal}
         >
           <div

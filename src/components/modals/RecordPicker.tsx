@@ -53,7 +53,7 @@ export function RecordPicker({ isOpen, onClose, onSelect, title = 'Select Contac
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>

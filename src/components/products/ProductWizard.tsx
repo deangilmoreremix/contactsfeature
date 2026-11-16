@@ -785,7 +785,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 dark:bg-black/70">
       <div className={`flex gap-4 max-h-[90vh] ${showAIAssistant && !isAIMinimized ? 'max-w-5xl' : 'max-w-2xl'} w-full transition-all duration-300`}>
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex-1 max-h-[90vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">

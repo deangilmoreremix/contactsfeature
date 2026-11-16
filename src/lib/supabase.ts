@@ -16,6 +16,13 @@ let placeholderInstance: ReturnType<typeof createClient> | null = null;
 /** False when VITE_SUPABASE_* are missing (demo mode): realtime/presence must not try to connect. */
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+/** Local stand-in for fetch when Supabase is not configured: no network, a clean 503 the callers already handle. */
+export const notConfiguredFetch: typeof fetch = async () =>
+  new Response(JSON.stringify({ message: 'Supabase is not configured', code: 'NOT_CONFIGURED' }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' }
+  });
+
 // Create Supabase client with optimized settings - lazy initialization
 function getSupabaseClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -23,7 +30,9 @@ function getSupabaseClient() {
     // One shared instance: creating a client per property access opened a new realtime socket each time.
     if (!placeholderInstance) {
       placeholderInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
-        auth: { autoRefreshToken: false, persistSession: false }
+        auth: { autoRefreshToken: false, persistSession: false },
+        // Demo mode: answer locally instead of sending requests to a host that does not exist.
+        global: { fetch: notConfiguredFetch }
       });
     }
     return placeholderInstance;

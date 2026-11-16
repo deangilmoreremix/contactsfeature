@@ -50,6 +50,10 @@ export class AIError extends Error {
     super(message);
     this.name = 'AIError';
     this.status = status;
+    // Surface every AI failure to the user (see AIErrorToaster) so buttons never fail silently.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('smartcrm:ai-error', { detail: { message, status } }));
+    }
   }
 }
 
