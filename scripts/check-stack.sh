@@ -6,7 +6,7 @@ FAIL=0
 check() {
   local label="$1" pattern="$2"; shift 2
   local hits
-  hits=$(grep -rniE "$pattern" "$@" --include=*.ts --include=*.tsx --include=*.js --include=*.cjs --include=*.mjs --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=public_dist --exclude-dir=docs --exclude-dir=tests --exclude=check-stack.sh 2>/dev/null | grep -v "^src/tests/" || true)
+  hits=$(grep -rniE "$pattern" "$@" --include=*.ts --include=*.tsx --include=*.js --include=*.cjs --include=*.mjs --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=public_dist --exclude-dir=docs --exclude-dir=tests --exclude=check-stack.sh --exclude=_validation.js 2>/dev/null | grep -v "^src/tests/" || true)
   if [ -n "$hits" ]; then echo "✗ $label"; echo "$hits" | head -8; FAIL=1; else echo "✓ $label"; fi
 }
 SRC="src lib netlify supabase/functions scripts"

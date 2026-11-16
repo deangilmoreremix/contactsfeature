@@ -59,57 +59,57 @@ class TaskRouterService {
   }> = {
     contact_scoring: {
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 88, reasoning: 'Optimal cost-performance for contact scoring' },
-        { model: 'gpt-4o', score: 95, reasoning: 'Highest accuracy for critical scoring decisions' },
-        { model: 'gpt-3.5-turbo', score: 78, reasoning: 'Cost-effective for basic scoring' }
+        { model: 'fast', score: 88, reasoning: 'Optimal cost-performance for contact scoring' },
+        { model: 'thinking', score: 95, reasoning: 'Highest accuracy for critical scoring decisions' },
+        { model: 'default', score: 78, reasoning: 'Cost-effective for basic scoring' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'fast', cost: 'low', complexity: 'medium', volume: 'single' }
     },
     
     contact_enrichment: {
       openaiModels: [
-        { model: 'gpt-4o', score: 95, reasoning: 'Superior reasoning for complex data enrichment' },
-        { model: 'gpt-4o-mini', score: 85, reasoning: 'Cost-effective enrichment with good quality' }
+        { model: 'thinking', score: 95, reasoning: 'Superior reasoning for complex data enrichment' },
+        { model: 'fast', score: 85, reasoning: 'Cost-effective enrichment with good quality' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'medium', cost: 'medium', complexity: 'complex', volume: 'single' }
     },
     
     categorization: {
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 88, reasoning: 'Reliable categorization with consistency' },
-        { model: 'gpt-3.5-turbo', score: 82, reasoning: 'Basic categorization at low cost' }
+        { model: 'fast', score: 88, reasoning: 'Reliable categorization with consistency' },
+        { model: 'default', score: 82, reasoning: 'Basic categorization at low cost' }
       ],
       defaultRequirements: { accuracy: 'medium', speed: 'fast', cost: 'free', complexity: 'simple', volume: 'batch' }
     },
     
     tagging: {
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 85, reasoning: 'Consistent tagging quality' },
-        { model: 'gpt-3.5-turbo', score: 80, reasoning: 'Cost-effective basic tagging' }
+        { model: 'fast', score: 85, reasoning: 'Consistent tagging quality' },
+        { model: 'default', score: 80, reasoning: 'Cost-effective basic tagging' }
       ],
       defaultRequirements: { accuracy: 'medium', speed: 'realtime', cost: 'free', complexity: 'simple', volume: 'bulk' }
     },
     
     relationship_mapping: {
       openaiModels: [
-        { model: 'gpt-4o', score: 95, reasoning: 'Superior reasoning for complex relationship mapping' },
-        { model: 'gpt-4o-mini', score: 80, reasoning: 'Good relationship detection with efficiency' }
+        { model: 'thinking', score: 95, reasoning: 'Superior reasoning for complex relationship mapping' },
+        { model: 'fast', score: 80, reasoning: 'Good relationship detection with efficiency' }
       ],
       defaultRequirements: { accuracy: 'critical', speed: 'medium', cost: 'medium', complexity: 'expert', volume: 'single' }
     },
     
     lead_qualification: {
       openaiModels: [
-        { model: 'gpt-4o', score: 95, reasoning: 'Best-in-class qualification accuracy' },
-        { model: 'gpt-4o-mini', score: 87, reasoning: 'Efficient qualification with good accuracy' }
+        { model: 'thinking', score: 95, reasoning: 'Best-in-class qualification accuracy' },
+        { model: 'fast', score: 87, reasoning: 'Efficient qualification with good accuracy' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'fast', cost: 'low', complexity: 'medium', volume: 'batch' }
     },
     
     sentiment_analysis: {
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 90, reasoning: 'Nuanced sentiment detection' },
-        { model: 'gpt-4o', score: 95, reasoning: 'Superior emotional intelligence' }
+        { model: 'fast', score: 90, reasoning: 'Nuanced sentiment detection' },
+        { model: 'thinking', score: 95, reasoning: 'Superior emotional intelligence' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'fast', cost: 'low', complexity: 'medium', volume: 'batch' }
     }
@@ -238,8 +238,8 @@ class TaskRouterService {
     let score = baseScore;
 
     // Accuracy requirement adjustment
-    if (requirements.accuracy === 'critical' && modelConfig.id.includes('gpt-4o')) {
-      score += 15; // Boost OpenAI GPT-4o for critical accuracy
+    if (requirements.accuracy === 'critical' && modelConfig.id === 'thinking') {
+      score += 15; // Boost the thinking model for critical accuracy
     } else if (requirements.accuracy === 'low' && modelConfig.id.includes('2b')) {
       score += 5; // Boost smaller models for low accuracy needs
     }
@@ -250,7 +250,7 @@ class TaskRouterService {
         score += 20; // Significant boost for fastest models
       } else if (modelConfig.id.includes('mini') || modelConfig.id.includes('flash')) {
         score += 10;
-      } else if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
+      } else if (modelConfig.id === 'thinking') {
         score -= 10; // Penalize slower models for realtime needs
       }
     }
@@ -279,8 +279,8 @@ class TaskRouterService {
 
     // Complexity adjustment
     if (requirements.complexity === 'expert') {
-      if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
-        score += 20; // Strong preference for GPT-4o for expert tasks
+      if (modelConfig.id === 'thinking') {
+        score += 20; // Strong preference for the thinking model for expert tasks
       } else if (modelConfig.id.includes('27b') || modelConfig.id.includes('1.5-pro')) {
         score += 15; // Boost larger models for complex tasks
       }
@@ -373,9 +373,9 @@ class TaskRouterService {
   private estimateLatency(modelConfig: AIModel, requirements: TaskRequirements): number {
     // Base latency estimates (in milliseconds)
     const baseLatencies: Record<string, number> = {
-      'gpt-4o-mini': 2200,
-      'gpt-3.5-turbo': 1800,
-      'gpt-4o': 4000
+      'fast': 2200,
+      'default': 1800,
+      'thinking': 4000
     };
 
     let latency = baseLatencies[modelConfig.id] || 2500;

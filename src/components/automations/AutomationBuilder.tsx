@@ -15,8 +15,8 @@ export const AutomationBuilder: React.FC = () => {
   const loadAutomations = async () => {
     try {
       setLoading(true);
-      const activeAutomations = await automationService.getActiveAutomations();
-      setAutomations(activeAutomations);
+      // Include paused rules so they can be resumed.
+      setAutomations(await automationService.getAllAutomations());
     } catch (error) {
       console.error('Failed to load automations:', error);
     } finally {
@@ -172,13 +172,34 @@ const AutomationForm: React.FC<{
   onSubmit: (data: any) => void;
   onCancel: () => void;
 }> = ({ onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string; type: ContactAutomation['type']; trigger: ContactAutomation['trigger'];
+    conditions: ContactAutomation['conditions']; actions: ContactAutomation['actions']; isActive: boolean;
+  }>({
     name: '',
-    type: 'scoring' as const,
-    trigger: { type: 'contact_created' as const },
+    type: 'scoring',
+    trigger: { type: 'contact_created' },
     conditions: [],
-    actions: []
+    actions: [],
+    isActive: true
   });
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const rule = await generateAutomationRule(aiPrompt.trim());
+      setFormData({ name: rule.name, type: 'followup', trigger: rule.trigger, conditions: rule.conditions, actions: rule.actions, isActive: true });
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Could not generate a rule');
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

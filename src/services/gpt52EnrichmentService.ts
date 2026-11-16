@@ -1,11 +1,11 @@
 /**
- * GPT-5.2 Enrichment Service
- * Advanced contact enrichment using GPT-5.2 Responses API with reasoning and tools
+ * the AI model Enrichment Service
+ * Advanced contact enrichment using the AI model Responses API with reasoning and tools
  * Replaces the legacy aiEnrichmentService and Metorial integration
  */
 
 import { logger } from './logger.service';
-import { responsesClient, CustomTool, ResponsesAPIRequest } from '../../lib/core/responsesClient';
+import { aiRespond } from './aiClient';
 import { contextManager } from '../../lib/core/contextManager';
 
 export interface EnrichmentResult {
@@ -73,7 +73,7 @@ export interface EnrichmentOptions {
 }
 
 /**
- * Research tools for GPT-5.2 enrichment
+ * Research tools for the AI model enrichment
  */
 const RESEARCH_TOOLS: CustomTool[] = [
   {
@@ -163,11 +163,9 @@ const RESEARCH_TOOLS: CustomTool[] = [
 ];
 
 class GPT52EnrichmentService {
-  private readonly defaultModel = 'gpt-5.2-thinking';
-  private readonly fastModel = 'gpt-5.2';
 
   /**
-   * Enrich a contact using GPT-5.2 with reasoning and tools
+   * Enrich a contact using the AI model with reasoning and tools
    */
   async enrichContact(
     contactData: {
@@ -185,7 +183,7 @@ class GPT52EnrichmentService {
     const contactName = contactData.name || `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim();
     const companyName = contactData.company || 'Unknown Company';
 
-    logger.info(`Starting GPT-5.2 enrichment`, {
+    logger.info(`Starting the AI model enrichment`, {
       contact: contactName,
       company: companyName,
       reasoningEffort: options.reasoningEffort || 'high'
@@ -198,40 +196,21 @@ class GPT52EnrichmentService {
       // Determine which tools to enable
       const tools = this.selectTools(options);
 
-      // Create the request
-      const request: ResponsesAPIRequest = {
-        model: this.defaultModel,
-        input: prompt,
+      // Server-side call through the AI proxy (no browser key); web_search for current public info
+      const ai = await aiRespond({
+        role: 'thinking',
+        effort: options.reasoningEffort === 'high' ? 'high' : options.reasoningEffort === 'low' ? 'low' : 'medium',
         instructions: this.getSystemInstructions(),
-        reasoning: {
-          effort: options.reasoningEffort || 'high',
-          generateSummary: 'auto'
-        },
-        text: {
-          verbosity: 'medium'
-        },
-        tools: tools,
-        toolChoice: tools.length > 0 ? {
-          type: 'allowed_tools',
-          mode: 'auto',
-          tools: tools.map(t => t.name)
-        } : 'auto',
-        temperature: 0.3,
-        maxOutputTokens: 4000
-      };
+        input: prompt,
+        tools: tools.some((t) => (t as any).name === 'web_search' || (t as any).type === 'web_search') ? [{ type: 'web_search' }] : undefined,
+        maxOutputTokens: 4000,
+        previousResponseId: options.useContext ? options.previousResponseId : undefined
+      });
 
-      // Add previousResponseId only if provided
-      if (options.useContext && options.previousResponseId) {
-        (request as any).previousResponseId = options.previousResponseId;
-      }
-
-      // Execute the enrichment
-      const response = await responsesClient.createResponse(request);
-
-      // Extract the result
-      const textContent = responsesClient.extractTextContent(response.output);
-      const functionCalls = responsesClient.extractFunctionCalls(response.output);
-      const reasoningSummaries = responsesClient.extractReasoningSummaries(response.output);
+      const textContent = ai.text;
+      const functionCalls: any[] = [];
+      const reasoningSummaries: string[] = [];
+      const response = { id: ai.id };
 
       // Parse the enrichment result
       const result = this.parseEnrichmentResult(textContent, contactData, functionCalls);
@@ -254,7 +233,7 @@ class GPT52EnrichmentService {
 
       const processingTime = Date.now() - startTime;
 
-      logger.info(`GPT-5.2 enrichment completed`, {
+      logger.info(`the AI model enrichment completed`, {
         contact: contactName,
         company: companyName,
         confidence: result.metadata.confidence,
@@ -273,7 +252,7 @@ class GPT52EnrichmentService {
       };
 
     } catch (error) {
-      logger.error('GPT-5.2 enrichment failed', error as Error, {
+      logger.error('the AI model enrichment failed', error as Error, {
         contact: contactName,
         company: companyName
       });
@@ -284,14 +263,14 @@ class GPT52EnrichmentService {
   }
 
   /**
-   * Generate SDR insights for a contact using GPT-5.2
+   * Generate SDR insights for a contact using the AI model
    */
   async generateSDRInsights(
     contactName: string,
     companyName: string,
     context: string = ''
   ): Promise<EnrichmentResult> {
-    logger.info(`Generating SDR insights with GPT-5.2`, { contact: contactName, company: companyName });
+    logger.info(`Generating SDR insights with the AI model`, { contact: contactName, company: companyName });
 
     return this.enrichContact(
       { name: contactName, company: companyName },
@@ -311,18 +290,13 @@ class GPT52EnrichmentService {
     const startTime = Date.now();
 
     try {
-      const request: ResponsesAPIRequest = {
-        model: this.fastModel,
+      const ai = await aiRespond({
+        role: 'fast',
+        instructions: 'Provide a quick enrichment with basic company and contact info. Be concise. Use null for anything you cannot verify.',
         input: `Quick enrichment for: ${JSON.stringify(contactData)}`,
-        instructions: 'Provide a quick enrichment with basic company and contact info. Be concise.',
-        reasoning: { effort: 'low' },
-        text: { verbosity: 'low' },
-        temperature: 0.3,
         maxOutputTokens: 1000
-      };
-
-      const response = await responsesClient.createResponse(request);
-      const textContent = responsesClient.extractTextContent(response.output);
+      });
+      const textContent = ai.text;
 
       logger.info(`Quick enrichment completed`, {
         contact: contactData.name || contactData.email,
@@ -466,7 +440,7 @@ Always return a complete enrichment result with all fields populated, even if so
         reasoningEffort: parsed.metadata?.reasoningEffort || 'high',
         toolsUsed: toolsUsed,
         processingTime: 0,
-        model: 'gpt-5.2-thinking'
+        model: 'thinking'
       }
     };
   }

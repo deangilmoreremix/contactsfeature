@@ -44,7 +44,7 @@ exports.handler = withAuth(async (event, user) => {
       deal = dealData;
     }
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.4);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const prefsBlock = buildPreferencesPromptBlock(prefs);
