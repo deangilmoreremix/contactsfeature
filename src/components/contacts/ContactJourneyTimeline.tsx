@@ -135,7 +135,9 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       error: summarizationError,
       summaries,
       processAndSummarizeFile,
+      processAndSummarizeUrl,
       getSummary,
+      getError,
       clearError
     } = useDocumentSummarization();
 
@@ -342,10 +344,9 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           if (uploadedFile) {
             try {
               setSummarizingFileId(uploadedFile.id);
-              // Note: We need the original file object for summarization
-              // In a real implementation, you'd store the file blob or retrieve it
-              const mockFile = new File(['Mock content'], uploadedFile.name, { type: uploadedFile.type }) as any;
-              await processAndSummarizeFile(mockFile, uploadedFile.id, {
+              const originalFile = files.find(f => f.name === uploadedFile.name);
+              if (!originalFile) continue;
+              await processAndSummarizeFile(originalFile, uploadedFile.id, {
                 contactName: contact.name,
                 companyName: contact.company
               });
@@ -411,12 +412,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       setSummarizingFileId(file.id);
       clearError();
 
-      // We need to get the original file object to extract text
-      // In a real implementation, you'd store the file blob or retrieve it from storage
-      // For now, we'll create a mock file object for demonstration
-      const mockFile = new (File as any)(['Mock file content for summarization'], file.name, { type: file.type });
-
-      await processAndSummarizeFile(mockFile, file.id, {
+      await processAndSummarizeUrl(file.url, file.name, file.type, file.id, {
         contactName: contact.name,
         companyName: contact.company
       });
@@ -710,7 +706,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                             <div className="flex items-center space-x-2 text-xs text-gray-500">
                               <span>Confidence: {summary.confidence}%</span>
                               <span>•</span>
-                              <span>{summary.wordCount} words</span>
+                              <span>{summary.wordCount ?? 'n/a'} words</span>
                               <span>•</span>
                               <span>{summary.processingTime}ms</span>
                             </div>
@@ -747,11 +743,11 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                     )}
 
                     {/* Error Display */}
-                    {summarizationError && summarizingFileId === file.id && (
+                    {getError(file.id) && (
                       <div className="border-t border-red-200 bg-red-50 p-3">
                         <div className="flex items-center space-x-2 text-sm text-red-700">
                           <AlertCircle className="w-4 h-4" />
-                          <span>{summarizationError}</span>
+                          <span>{getError(file.id)}</span>
                         </div>
                       </div>
                     )}

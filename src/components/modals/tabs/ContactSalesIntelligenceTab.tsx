@@ -109,20 +109,8 @@ export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabPr
         {/* Deal Health Panel Card */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
           <DealHealthPanel
-            deal={{
-              id: contact.id,
-              name: `${contact.firstName} ${contact.lastName}`.trim() || contact.name,
-              value: contact.aiScore ? contact.aiScore * 1000 : 0,
-              company: contact.company,
-              stage: contact.status || 'prospect',
-              closeDate: '',
-              competitors: [],
-              stakeholders: [],
-              lastActivity: contact.updatedAt
-            }}
-            onRunAnalysis={() => console.log('Run analysis')}
-            onGenerateReport={() => console.log('Generate report')}
-            onViewRecommendations={() => console.log('View recommendations')}
+            contactId={contact.id}
+            contactName={`${contact.firstName} ${contact.lastName}`.trim() || contact.name}
           />
         </div>
       </div>

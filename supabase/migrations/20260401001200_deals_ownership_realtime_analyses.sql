@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS unified_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
   contact_id uuid REFERENCES contacts(id) ON DELETE CASCADE,
-  platform text NOT NULL DEFAULT 'email',
+  platform text NOT NULL DEFAULT 'gmail',
   account_id text,
   direction text NOT NULL DEFAULT 'outbound' CHECK (direction IN ('inbound', 'outbound')),
   sender jsonb NOT NULL DEFAULT '{}'::jsonb,

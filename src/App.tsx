@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { ViewProvider } from "./contexts/ViewContext";
+import { CommunicationProvider } from "./contexts/CommunicationContext";
 import { AIProvider } from "./contexts/AIContext";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
@@ -109,6 +110,7 @@ const App: React.FC<SmartCRMRemoteProps> = ({
     <div className="min-h-screen bg-gray-100" data-smartcrm-remote="true">
       <AIProvider>
         <ViewProvider>
+<CommunicationProvider>
           <ErrorBoundary
             onError={(error, errorInfo) => {
               console.error('App ErrorBoundary caught:', error, errorInfo);
@@ -149,7 +151,8 @@ const App: React.FC<SmartCRMRemoteProps> = ({
               )}
             </Suspense>
           </ErrorBoundary>
-        </ViewProvider>
+        </CommunicationProvider>
+</ViewProvider>
       </AIProvider>
     </div>
   );

@@ -12,6 +12,7 @@ import { ProductIntelligenceModal } from '../product-intelligence/ProductIntelli
 import { SDRModal } from './SDRModal';
 import { PlaybookModal } from '../playbooks/PlaybookModal';
 import { useContactStore } from '../../hooks/useContactStore';
+import { useRealtimeSync } from '../../hooks/useRealtimeSync';
 import { useView } from '../../contexts/ViewContext';
 import { Contact } from '../../types';
 import { SmartContactCard } from '../contacts/SmartContactCard';
@@ -139,6 +140,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
   // Load saved contacts / row order once when the screen opens
   const hydrateContacts = useContactStore((s) => s.hydrateContacts);
+  useRealtimeSync(isOpen);
+
+  // Keep the open contact in sync with live changes from other sessions
+  useEffect(() => {
+    if (!selectedContact) return;
+    const fresh = contacts.find((c) => c.id === selectedContact.id);
+    if (fresh && fresh !== selectedContact) setSelectedContact(fresh);
+  }, [contacts, selectedContact]);
   useEffect(() => {
     if (isOpen) void hydrateContacts();
   }, [isOpen, hydrateContacts]);

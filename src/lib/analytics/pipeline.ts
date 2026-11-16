@@ -171,7 +171,8 @@ export function wonRevenueByMonth(deals: PipelineDeal[], months: number, now: Da
     const d = new Date(t);
     const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     const i = index.get(month);
-    if (i !== undefined) { out[i].revenue = round(out[i].revenue + dealValue(deal)); out[i].deals += 1; }
+    const bucket = i === undefined ? undefined : out[i];
+    if (bucket) { bucket.revenue = round(bucket.revenue + dealValue(deal)); bucket.deals += 1; }
   }
   return out;
 }

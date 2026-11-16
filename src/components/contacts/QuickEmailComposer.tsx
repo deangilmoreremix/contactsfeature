@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Contact } from '../../types';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
-import { emailTrackingService } from '../../services/emailTrackingService';
 import { emailSchedulerService } from '../../services/emailSchedulerService';
 import { copyEmailToClipboard } from '../../utils/clipboardUtils';
 import { EmailTemplateSelector } from './EmailTemplateSelector';
@@ -178,24 +177,13 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
 
     setIsSending(true);
     try {
-      // Generate unique email ID
-      const emailId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // Track email send
-      const emailEvent = emailTrackingService.trackEvent({
-        emailId,
-        contactId: contact.id,
-        eventType: 'sent',
-        metadata: {
-          template: emailData.template,
-          priority: emailData.priority,
-          composer: 'quick'
-        }
+      // Send through the user's own provider (stored in `emails`, tracked via pixel/link rewrite)
+      await emailSchedulerService.sendNow({
+        to: emailData.to,
+        subject: emailData.subject,
+        body: emailData.body,
+        contactId: contact.id
       });
-
-      // Send email via mailto (enhanced version)
-      const mailtoUrl = `mailto:${emailData.to}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;
-      window.open(mailtoUrl, '_blank');
 
       // Call onSend callback if provided
       if (onSend) {
@@ -205,7 +193,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to send email:', error);
-      alert('Failed to send email. Please try again.');
+      alert(error instanceof Error ? `Failed to send email: ${error.message}` : 'Failed to send email. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -237,11 +225,11 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
         priority: emailData.priority
       });
 
-      alert(`Email scheduled for ${scheduledDateTime.toLocaleString()}`);
+      alert(`Email scheduled for ${scheduledDateTime.toLocaleString()}. It will be sent within 5 minutes of that time.`);
       onClose();
     } catch (error) {
       console.error('Failed to schedule email:', error);
-      alert('Failed to schedule email. Please try again.');
+      alert(error instanceof Error ? `Failed to schedule email: ${error.message}` : 'Failed to schedule email. Please try again.');
     } finally {
       setIsScheduling(false);
     }

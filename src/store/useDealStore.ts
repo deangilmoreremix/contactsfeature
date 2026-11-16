@@ -27,6 +27,7 @@ interface DealStore {
   error: string | null;
   userId: string | null;
   fetchDeals: () => Promise<void>;
+  createDeal: (input: { contact_id: string; title: string; value: number; stage: string }) => Promise<DealRow>;
   applyRealtime: (eventType: RealtimeEventType, newRow: Partial<DealRow> | null, oldRow: Partial<DealRow> | null) => void;
   reset: () => void;
 }
@@ -59,6 +60,20 @@ export const useDealStore = create<DealStore>((set, get) => ({
     } catch (e) {
       set({ loading: false, loaded: true, error: e instanceof Error ? e.message : 'Could not load deals' });
     }
+  },
+
+  createDeal: async (input) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) throw new Error('Sign in to create a deal.');
+    const { data, error } = await (supabase.from('deals') as any)
+      .insert({ ...input, user_id: uid })
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('Deal was not saved');
+    set((s) => ({ deals: applyRowChange(s.deals, 'INSERT', data as DealRow, null), userId: uid }));
+    return data as DealRow;
   },
 
   applyRealtime: (eventType, newRow, oldRow) => {

@@ -11,6 +11,7 @@ import { ContactHeader } from '../contacts/ContactHeader';
 import { Contact } from '../../types/contact';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { useContactTabs } from '../../hooks/useContactTabs';
+import { useContactPresence } from '../../hooks/useContactPresence';
 
 // Lazy load tab components for better performance
 const ContactOverviewTab = lazy(() => import('../contacts/ContactOverviewTab').then(module => ({ default: module.ContactOverviewTab })));
@@ -44,6 +45,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   // State management
   const { activeTab, changeTab } = useContactTabs('overview');
   const researchStatus = useResearchStatus();
+  const otherViewers = useContactPresence(contact.id, isOpen);
 
   // Modal states
   const [showEmailComposer, setShowEmailComposer] = useState(false);
@@ -101,6 +103,12 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
 
           {/* Main Content Area */}
           <div className="flex-1 flex flex-col h-full min-w-0">
+            {otherViewers.length > 0 && (
+              <div role="status" className="px-4 py-1 text-xs bg-amber-50 text-amber-800 border-b border-amber-200">
+                Also open in {otherViewers.length} other session{otherViewers.length === 1 ? '' : 's'}
+                {otherViewers.some((v) => v.email) ? `: ${[...new Set(otherViewers.map((v) => v.email).filter(Boolean))].join(', ')}` : ''}
+              </div>
+            )}
             {/* Header */}
             <ContactHeader
               activeTab={activeTab}
