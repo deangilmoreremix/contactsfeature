@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { automationService } from '../../services/automation.service';
 import { ContactAutomation } from '../../types/automation';
 import { generateAutomationRule } from '../../services/automationRuleGenerator';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { objectList, asString } from '../../lib/streaming/previews';
 import { Plus, Settings, Play, Pause, Trash2, Edit } from 'lucide-react';
 
 export const AutomationBuilder: React.FC = () => {
@@ -187,13 +190,27 @@ const AutomationForm: React.FC<{
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  // Live draft: the rule name and action list fill in while the model writes the rule
+  const live = useLiveCall();
+  const [draftActions, setDraftActions] = useState<string[]>([]);
 
   const handleGenerate = async () => {
     if (!aiPrompt.trim()) return;
     setAiBusy(true);
     setAiError(null);
     try {
-      const rule = await generateAutomationRule(aiPrompt.trim());
+      setDraftActions([]);
+      const rule = await live.run((opts) => generateAutomationRule(aiPrompt.trim(), {
+        ...opts,
+        onPartial: (partial) => {
+          opts.onPartial?.(partial);
+          const p = (partial ?? {}) as Record<string, unknown>;
+          const name = asString(p.name);
+          if (name) setFormData((f) => ({ ...f, name }));
+          setDraftActions(objectList(p.actions).map((a) => asString(a.type)).filter(Boolean));
+        },
+      }));
+      if (!rule) return;
       setFormData({ name: rule.name, type: 'followup', trigger: rule.trigger, conditions: rule.conditions, actions: rule.actions, isActive: true });
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Could not generate a rule');
@@ -224,6 +241,10 @@ const AutomationForm: React.FC<{
             {aiBusy ? 'Generating...' : 'Generate with AI'}
           </button>
           {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+          <LiveRunStatus live={live} />
+          {live.state.active && draftActions.length > 0 && (
+            <p className="text-xs text-blue-800">Drafting actions: {draftActions.join(', ')}</p>
+          )}
           {formData.actions.length > 0 && (
             <p className="text-xs text-blue-800">
               Draft: trigger {formData.trigger.type}, {formData.conditions.length} condition(s), actions: {formData.actions.map((a) => a.type).join(', ')}

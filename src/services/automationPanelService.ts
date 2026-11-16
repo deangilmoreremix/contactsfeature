@@ -6,6 +6,7 @@
  */
 import { supabase } from '../lib/supabase';
 import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 
 export interface PanelAction {
   id: string;
@@ -126,7 +127,7 @@ const SUGGESTION_SCHEMA = {
 } as const;
 
 /** Real AI suggestions (OpenAI Responses via the ai-respond proxy). No scores are invented. */
-export async function generateAutomationSuggestions(input: { contactSummary: string; webContext?: string; existingRules: string[] }): Promise<AiSuggestion[]> {
+export async function generateAutomationSuggestions(input: { contactSummary: string; webContext?: string; existingRules: string[] }, live?: LiveOptions): Promise<AiSuggestion[]> {
   const out = await aiJson<{ suggestions: Array<Omit<AiSuggestion, 'id' | 'createdAt'>> }>({
     role: 'default',
     schemaName: 'automation_suggestions',
@@ -134,18 +135,18 @@ export async function generateAutomationSuggestions(input: { contactSummary: str
     instructions: 'You are a CRM automation strategist for a solo salesperson. Suggest at most 4 concrete, practical automation rules for this contact. Base reasoning only on the supplied facts; do not invent statistics.',
     input: `Contact:\n${input.contactSummary}\n\nExisting rules: ${input.existingRules.join('; ') || 'none'}\n\n${input.webContext ? `Research notes:\n${input.webContext.slice(0, 3000)}` : ''}`,
     effort: 'low',
-  });
+  }, live);
   const now = new Date().toISOString();
   return (out.suggestions || []).map((s, i) => ({ ...s, id: `suggestion-${Date.now()}-${i}`, createdAt: now }));
 }
 
 /** AI review of one rule; returns improvement notes (never changes the rule or its stats). */
-export async function reviewRule(rule: PanelRule): Promise<{ summary: string; improvements: string[] }> {
+export async function reviewRule(rule: PanelRule, live?: LiveOptions): Promise<{ summary: string; improvements: string[] }> {
   return aiJson({
     role: 'fast',
     schemaName: 'rule_review',
     schema: { type: 'object', additionalProperties: false, required: ['summary', 'improvements'], properties: { summary: { type: 'string' }, improvements: { type: 'array', items: { type: 'string' }, maxItems: 5 } } },
     instructions: 'Review this CRM automation rule for gaps (missing waits, no stop condition, weak follow-up). Be specific and brief.',
     input: JSON.stringify({ name: rule.name, trigger: rule.trigger, actions: rule.actions.map((a) => ({ type: a.type, description: a.description, delay: a.delay })) }),
-  });
+  }, live);
 }

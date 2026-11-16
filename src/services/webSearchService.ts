@@ -6,7 +6,8 @@
  */
 
 import { logger } from './logger.service';
-import { aiRespond, type AIWebSearchTool } from './aiClient';
+import type { AIWebSearchTool } from './aiClient';
+import { aiCall, type LiveOptions } from './liveOptions';
 
 export interface WebSearchOptions {
   searchContextSize?: 'low' | 'medium' | 'high';
@@ -66,7 +67,8 @@ class WebSearchService {
     query: string,
     systemPrompt: string,
     userPrompt: string,
-    options: WebSearchOptions = {}
+    options: WebSearchOptions = {},
+    live?: LiveOptions
   ): Promise<WebSearchResult> {
     const startTime = Date.now();
 
@@ -87,13 +89,13 @@ class WebSearchService {
     try {
       logger.info('Running hosted web search', { query });
 
-      const res = await aiRespond({
+      const res = await aiCall({
         role: 'default',
         instructions: `${systemPrompt}\n\nUse web search to ground your answer in current sources. Cite the sources you rely on.`,
         input: userPrompt,
         tools: [tool],
         maxOutputTokens: 4000
-      });
+      }, live);
 
       const content = res.text || '';
       if (!content) {

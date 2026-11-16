@@ -5,9 +5,12 @@ import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchTh
 import { CitationBadge } from '../ui/CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
-import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { streamFunction } from '../../services/functionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { SDRPersonaSelector } from './SDRPersonaSelector';
 import {
   Mail,
@@ -136,9 +139,15 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
     } | null>(null);
     const [showContentModal, setShowContentModal] = useState(false);
 
+   // Live AI output (status line, typing text, Stop) shared by every generate action
+   const hub = useFunctionStream<any>();
    // Research state management
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
+   React.useEffect(() => {
+     if (hub.state.error) { setError(hub.state.error); researchThinking.complete('❌ Generation failed'); }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [hub.state.error]);
    const [researchSources, setResearchSources] = useState<any[]>([]);
 
   const tabs = [
@@ -220,15 +229,8 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies.`;
         const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${type} communication. Find recent company news, leadership information, communication preferences, and optimal timing for ${type} contact.`;
 
-        const searchResults = await webSearchService.searchWithAI(
-          searchQuery,
-          systemPrompt,
-          userPrompt,
-          {
-            includeSources: true,
-            searchContextSize: 'high'
-          }
-        );
+        const searchResults = await hub.runLive((h) => webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, { includeSources: true, searchContextSize: 'high' }, h));
+        if (!searchResults) { researchThinking.complete('Stopped'); return; }
 
         researchThinking.moveToSynthesizing('✨ Synthesizing communication insights...');
 
@@ -248,12 +250,12 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         if (type === 'email') {
           researchThinking.moveToOptimizing('📧 Generating personalized email...');
 
-          const result = await edgeFunctionService.composeEmail(contact, 'follow-up', {
-            tone: 'professional',
-            urgency: 'medium',
-            webResearch: searchResults.content,
-            companyContext: searchResults.sources
-          });
+          const composed = await hub.runLive((h) => streamFunction('email-composer', {
+            contact, purpose: 'follow-up', tone: 'professional', context: { urgency: 'medium' },
+            webResearch: searchResults.content, companyContext: searchResults.sources
+          }, h));
+          if (!composed) { researchThinking.complete('Stopped'); return; }
+          const result = composed.result;
           setIsComposing(true);
           console.log('Generated email with web research:', result);
         } else if (type === 'sms') {
@@ -313,9 +315,11 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
       setLoading(true);
       setError(null);
 
-      const result = await edgeFunctionService.getCommunicationHistory(contact.id || 'test-contact-123', {
-        action: 'strategy'
-      });
+      const out = await hub.runLive((h) => streamFunction<any>('communication-manager', {
+        action: 'get', contactId: contact.id || 'test-contact-123', data: { action: 'strategy' }
+      }, h));
+      if (!out) return;
+      const result = out.result || {};
 
       setGeneratedContent({
         type: 'strategy',
@@ -384,28 +388,33 @@ Sales Representative`
         const systemPrompt = `You are a meeting scheduling expert. Create personalized meeting invites based on contact research and communication patterns.`;
         const userPrompt = `Generate a professional meeting invite for ${contact.firstName} ${contact.lastName} at ${contact.company}. Include optimal timing suggestions and personalized content based on their role and company.`;
 
-        const searchResults = await webSearchService.searchWithAI(
-          searchQuery,
-          systemPrompt,
-          userPrompt,
-          {
-            includeSources: true,
-            searchContextSize: 'medium'
-          }
-        );
+        const searchResults = await hub.runLive((h) => webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, { includeSources: true, searchContextSize: 'medium' }, h));
+        if (!searchResults) { researchThinking.complete('Stopped'); return; }
 
         researchThinking.moveToSynthesizing('✨ Crafting personalized meeting invite...');
 
-        const result = await edgeFunctionService.composeEmail(contact, 'meeting_invite', {
-          tone: 'professional',
-          urgency: 'medium',
-          webResearch: searchResults.content,
-          companyContext: searchResults.sources
-        });
+        // The invite / email types itself into the modal while it is written.
+        const composed = await hub.runLive((h) => streamFunction<any>('email-composer', {
+          contact, purpose: 'meeting_invite', tone: 'professional', context: { urgency: 'medium' },
+          webResearch: searchResults.content, companyContext: searchResults.sources
+        }, {
+          ...h,
+          onPartial: (j) => {
+            const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string; content?: string };
+            const text = p.content ?? p.body;
+            if (text || p.subject) {
+              setGeneratedContent({ type: 'meeting', content: text || '', subject: p.subject, timestamp: new Date() });
+              setShowContentModal(true);
+            }
+            h.onPartial?.(j);
+          }
+        }));
+        if (!composed) { researchThinking.complete('Stopped'); return; }
+        const result = composed.result || {};
 
         setGeneratedContent({
           type: 'meeting',
-          content: result.content || 'Meeting invite generated successfully.',
+          content: result.content || result.body || 'Meeting invite generated successfully.',
           subject: result.subject || `Meeting Request: ${contact.company} Discussion`,
           timestamp: new Date()
         });
@@ -476,28 +485,33 @@ Sales Representative`
         const systemPrompt = `You are a sales proposal expert. Create compelling, personalized proposal emails based on contact research and business needs.`;
         const userPrompt = `Generate a professional proposal email for ${contact.firstName} ${contact.lastName} at ${contact.company}. Focus on their specific business challenges and how our solution addresses their needs. Include compelling value propositions and clear next steps.`;
 
-        const searchResults = await webSearchService.searchWithAI(
-          searchQuery,
-          systemPrompt,
-          userPrompt,
-          {
-            includeSources: true,
-            searchContextSize: 'high'
-          }
-        );
+        const searchResults = await hub.runLive((h) => webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, { includeSources: true, searchContextSize: 'high' }, h));
+        if (!searchResults) { researchThinking.complete('Stopped'); return; }
 
         researchThinking.moveToSynthesizing('✨ Crafting compelling proposal email...');
 
-        const result = await edgeFunctionService.composeEmail(contact, 'proposal', {
-          tone: 'professional',
-          urgency: 'high',
-          webResearch: searchResults.content,
-          companyContext: searchResults.sources
-        });
+        // The invite / email types itself into the modal while it is written.
+        const composed = await hub.runLive((h) => streamFunction<any>('email-composer', {
+          contact, purpose: 'proposal', tone: 'professional', context: { urgency: 'high' },
+          webResearch: searchResults.content, companyContext: searchResults.sources
+        }, {
+          ...h,
+          onPartial: (j) => {
+            const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string; content?: string };
+            const text = p.content ?? p.body;
+            if (text || p.subject) {
+              setGeneratedContent({ type: 'proposal', content: text || '', subject: p.subject, timestamp: new Date() });
+              setShowContentModal(true);
+            }
+            h.onPartial?.(j);
+          }
+        }));
+        if (!composed) { researchThinking.complete('Stopped'); return; }
+        const result = composed.result || {};
 
         setGeneratedContent({
           type: 'proposal',
-          content: result.content || 'Proposal email generated successfully.',
+          content: result.content || result.body || 'Proposal email generated successfully.',
           subject: result.subject || `Custom Solution Proposal for ${contact.company}`,
           timestamp: new Date()
         });
@@ -538,6 +552,17 @@ Sales Representative`
         size="md"
       />
 
+      {!showContentModal && (
+        <LiveOutput
+          showError={false}
+          className="mb-3"
+          state={hub.state}
+          onStop={() => { hub.stop(); researchThinking.complete('Stopped'); }}
+          display={liveDisplay(hub.state.partial, hub.state.text)}
+          placeholder="Researching and writing…"
+        />
+      )}
+
       {/* Generated Content Modal */}
       {showContentModal && generatedContent && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
@@ -572,6 +597,10 @@ Sales Representative`
                     <p className="text-gray-900 font-medium">{generatedContent.subject}</p>
                   </div>
                 </div>
+              )}
+
+              {hub.isStreaming && (
+                <LiveOutput showError={false} className="mb-4" state={hub.state} onStop={() => { hub.stop(); researchThinking.complete('Stopped'); }} display="" />
               )}
 
               <div className="mb-4">

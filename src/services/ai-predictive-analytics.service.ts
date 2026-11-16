@@ -9,6 +9,7 @@
 import { logger } from './logger.service';
 import { Contact } from '../types';
 import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 import {
   PREDICTIONS_SCHEMA, RISK_SCHEMA, TRENDS_SCHEMA, CONVERSION_SCHEMA, RESPONSE_TIME_SCHEMA, DEAL_SIZE_SCHEMA,
   normalizePredictions, normalizeRisk, normalizeTrends, normalizeConversion, normalizeResponseTime, normalizeDealSize,
@@ -103,7 +104,8 @@ class AIPredictiveAnalyticsService {
 
   async generatePredictions(
     contact: Contact,
-    predictionTypes: PredictiveModel['type'][] = ['conversion', 'response_time', 'engagement']
+    predictionTypes: PredictiveModel['type'][] = ['conversion', 'response_time', 'engagement'],
+    live?: LiveOptions
   ): Promise<Prediction[]> {
     logger.info('Generating predictions for contact', { contactId: contact.id, types: predictionTypes });
     const raw = await aiJson<unknown>({
@@ -114,7 +116,7 @@ class AIPredictiveAnalyticsService {
       schema: PREDICTIONS_SCHEMA,
       schemaName: 'contact_predictions',
       maxOutputTokens: 3000,
-    });
+    }, live);
     const now = Date.now();
     const created = new Date(now).toISOString();
     const validUntil = new Date(now + 24 * 60 * 60 * 1000).toISOString();
@@ -139,7 +141,8 @@ class AIPredictiveAnalyticsService {
     contact: Contact,
     timeframe: '30d' | '90d' | '6m' | '1y' = '90d',
     metrics: string[] = ['engagement', 'response_time', 'interaction_frequency'],
-    _options: { isMockData?: boolean; forceRealAI?: boolean; skipIfMock?: boolean } = {}
+    _options: { isMockData?: boolean; forceRealAI?: boolean; skipIfMock?: boolean } = {},
+    live?: LiveOptions
   ): Promise<TrendAnalysis> {
     const raw = await aiJson<unknown>({
       role: 'thinking',
@@ -151,7 +154,7 @@ class AIPredictiveAnalyticsService {
       schema: TRENDS_SCHEMA,
       schemaName: 'contact_trends',
       maxOutputTokens: 2000,
-    });
+    }, live);
     const n = normalizeTrends(raw);
     return {
       contactId: contact.id,
@@ -164,7 +167,8 @@ class AIPredictiveAnalyticsService {
 
   async assessRisk(
     contact: Contact,
-    context?: { dealValue?: number; competitorActivity?: boolean; economicFactors?: string[] }
+    context?: { dealValue?: number; competitorActivity?: boolean; economicFactors?: string[] },
+    live?: LiveOptions
   ): Promise<RiskAssessment> {
     logger.info('Assessing risk for contact', { contactId: contact.id });
     const raw = await aiJson<unknown>({
@@ -175,13 +179,14 @@ class AIPredictiveAnalyticsService {
       schema: RISK_SCHEMA,
       schemaName: 'risk_assessment',
       maxOutputTokens: 2500,
-    });
+    }, live);
     return { contactId: contact.id, ...normalizeRisk(raw) };
   }
 
   async predictConversionProbability(
     contact: Contact,
-    timeframes: string[] = ['7d', '30d', '90d']
+    timeframes: string[] = ['7d', '30d', '90d'],
+    live?: LiveOptions
   ): Promise<{ timeframe: string; probability: number | null; confidence: number | null; keyFactors: string[] }[]> {
     const raw = await aiJson<unknown>({
       role: 'thinking',
@@ -191,13 +196,14 @@ class AIPredictiveAnalyticsService {
       schema: CONVERSION_SCHEMA,
       schemaName: 'conversion_probability',
       maxOutputTokens: 1500,
-    });
+    }, live);
     return normalizeConversion(raw);
   }
 
   async predictResponseTime(
     contact: Contact,
-    communicationType: 'email' | 'call' | 'sms' = 'email'
+    communicationType: 'email' | 'call' | 'sms' = 'email',
+    live?: LiveOptions
   ): Promise<{ estimatedResponseTime: number | null; confidence: number | null; optimalSendTime: string | null; factors: string[] }> {
     const raw = await aiJson<unknown>({
       role: 'fast',
@@ -206,13 +212,14 @@ class AIPredictiveAnalyticsService {
       schema: RESPONSE_TIME_SCHEMA,
       schemaName: 'response_time',
       maxOutputTokens: 800,
-    });
+    }, live);
     return normalizeResponseTime(raw);
   }
 
   async predictDealSize(
     contact: Contact,
-    context?: { industry?: string; companySize?: string; previousDeals?: number[] }
+    context?: { industry?: string; companySize?: string; previousDeals?: number[] },
+    live?: LiveOptions
   ): Promise<{ estimatedDealSize: number | null; range: { min: number | null; max: number | null }; confidence: number | null; factors: string[] }> {
     const raw = await aiJson<unknown>({
       role: 'default',
@@ -222,7 +229,7 @@ class AIPredictiveAnalyticsService {
       schema: DEAL_SIZE_SCHEMA,
       schemaName: 'deal_size',
       maxOutputTokens: 800,
-    });
+    }, live);
     return normalizeDealSize(raw);
   }
 

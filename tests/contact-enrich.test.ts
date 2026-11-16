@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
+(globalThis as any).awslambda ||= { streamifyResponse: (f: unknown) => f, HttpResponseStream: { from: (s: unknown) => s } };
 process.env['SUPABASE_URL'] = 'http://localhost:54321';
 process.env['SUPABASE_SERVICE_ROLE_KEY'] = 'test-key';
 const require = createRequire(import.meta.url);

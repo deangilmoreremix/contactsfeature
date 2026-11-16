@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { logger } from '../services/logger.service';
 import { sdrAuthHeaders } from '../services/sdrClient';
 import { supabase } from '../lib/supabase';
+import { newOutcome, streamSse } from '../lib/streaming/streamClient';
 
 export interface DocumentSummary {
   summary: string;
@@ -24,7 +25,11 @@ interface State {
   summaries: Map<string, DocumentSummary>;
   /** per-file progress while analysing */
   stages: Map<string, AnalyzeStage>;
+  /** summary fields as the model writes them (streaming), cleared once the final summary lands */
+  live: Map<string, LiveSummary>;
 }
+
+export type LiveSummary = Partial<Pick<DocumentSummary, 'summary' | 'keyPoints' | 'actionItems' | 'documentType' | 'sentiment' | 'confidence'>>;
 
 export type AnalyzeStage = 'uploading' | 'analyzing';
 
@@ -52,7 +57,7 @@ function safeName(name: string): string {
 }
 
 export const useDocumentSummarization = () => {
-  const [state, setState] = useState<State>({ isSummarizing: false, error: null, errors: new Map(), summaries: new Map(), stages: new Map() });
+  const [state, setState] = useState<State>({ isSummarizing: false, error: null, errors: new Map(), summaries: new Map(), stages: new Map(), live: new Map() });
 
   const setStage = (fileId: string, stage: AnalyzeStage | null) =>
     setState((prev) => {
@@ -65,7 +70,9 @@ export const useDocumentSummarization = () => {
     setState((prev) => {
       const stages = new Map(prev.stages);
       stages.delete(fileId);
-      return { ...prev, isSummarizing: false, error: message, errors: new Map(prev.errors).set(fileId, message), stages };
+      const live = new Map(prev.live);
+      live.delete(fileId);
+      return { ...prev, isSummarizing: false, error: message, errors: new Map(prev.errors).set(fileId, message), stages, live };
     });
 
   /**
@@ -97,20 +104,46 @@ export const useDocumentSummarization = () => {
         if (uploadError) throw new Error(`Could not upload the file: ${uploadError.message}`);
 
         setStage(fileId, 'analyzing');
-        const res = await fetch('/.netlify/functions/document-analyze', {
-          method: 'POST',
-          headers: await sdrAuthHeaders(),
-          body: JSON.stringify({ storagePath, filename: file.name, mimeType, context }),
-        }).catch(async (e) => {
-          // The server deletes the object after analysis; if the request never reached it, clean up here.
-          await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
-          throw new Error(`Could not reach the analysis service${e instanceof Error ? `: ${e.message}` : ''}`);
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json?.data) {
-          // The server deletes after analysis, but early rejections (auth, type) leave the object; best-effort cleanup (RLS limits it to our own).
-          await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
-          throw new Error(json?.error || `Document analysis failed (${res.status})`);
+        const cleanupObject = () => supabase.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+        const fnUrl = '/.netlify/functions/document-analyze';
+        const headers = await sdrAuthHeaders();
+        const payload = { storagePath, filename: file.name, mimeType, context };
+        let json: { data?: Record<string, any>; error?: string } = {};
+        let serverError: string | null = null;
+        try {
+          // Live: partial summary fields arrive while the model writes them; the final `result` equals the JSON payload.
+          const outcome = await streamSse(
+            fnUrl,
+            { headers, body: { ...payload, stream: true } },
+            {
+              onPartial: (p) => {
+                if (!p || typeof p !== 'object') return;
+                setState((prev) => ({ ...prev, live: new Map(prev.live).set(fileId, p as LiveSummary) }));
+              },
+            },
+            newOutcome(),
+            (m) => { serverError = m; return new Error(m); },
+          );
+          if (outcome.error) { serverError = outcome.error; throw new Error(outcome.error); }
+          json = (outcome.result ?? {}) as typeof json;
+          if (!json.data) throw new Error('Analysis stream ended without a result');
+        } catch (e) {
+          if (serverError) {
+            // The server deletes after analysis, but early rejections (auth, type) leave the object; best-effort cleanup (RLS limits it to our own).
+            await cleanupObject();
+            throw new Error(serverError);
+          }
+          // Transport failure: fall back to the plain JSON request (same endpoint).
+          const res = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify(payload) }).catch(async (err) => {
+            // The server deletes the object after analysis; if the request never reached it, clean up here.
+            await cleanupObject();
+            throw new Error(`Could not reach the analysis service${err instanceof Error ? `: ${err.message}` : ''}`);
+          });
+          json = await res.json().catch(() => ({}));
+          if (!res.ok || !json?.data) {
+            await cleanupObject();
+            throw new Error(json?.error || `Document analysis failed (${res.status})`);
+          }
         }
         const d = json.data;
         const summary: DocumentSummary = {
@@ -128,7 +161,9 @@ export const useDocumentSummarization = () => {
         setState((prev) => {
           const stages = new Map(prev.stages);
           stages.delete(fileId);
-          return { ...prev, isSummarizing: false, summaries: new Map(prev.summaries).set(fileId, summary), stages };
+          const live = new Map(prev.live);
+          live.delete(fileId);
+          return { ...prev, isSummarizing: false, summaries: new Map(prev.summaries).set(fileId, summary), stages, live };
         });
         logger.info('Document analysed', { fileId, fileName: file.name, extraction: d.extraction });
         return summary;
@@ -169,8 +204,10 @@ export const useDocumentSummarization = () => {
     getSummary: (fileId: string) => state.summaries.get(fileId),
     getError: (fileId: string) => state.errors.get(fileId) ?? null,
     /** 'uploading' | 'analyzing' while a file is in flight, else null */
+    /** summary fields written so far while analysing (streaming), else null */
+    getLive: (fileId: string): LiveSummary | null => state.live.get(fileId) ?? null,
     getStage: (fileId: string): AnalyzeStage | null => state.stages.get(fileId) ?? null,
     clearError: () => setState((prev) => ({ ...prev, error: null, errors: new Map() })),
-    reset: () => setState({ isSummarizing: false, error: null, errors: new Map(), summaries: new Map(), stages: new Map() }),
+    reset: () => setState({ isSummarizing: false, error: null, errors: new Map(), summaries: new Map(), stages: new Map(), live: new Map() }),
   };
 };

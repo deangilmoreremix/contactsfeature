@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Copy, Check, Save, Loader2 } from 'lucide-react';
 import { Contact } from '../../types/contact';
-import { sdrAuthHeaders } from '../../services/sdrClient';
+import { useSdrRun, SdrLiveBar } from './SdrLive';
 import { saveSdrDraft } from '../../utils/sdrDraftUtils';
 import { OUTBOUND_PERSONAS } from '../../agents/personas';
 
@@ -55,9 +55,10 @@ const smallBtn: React.CSSProperties = {
 export const GenericSdrAgentCard: React.FC<Props> = ({ contact, config }) => {
   const [contactId, setContactId] = useState(contact?.id || '');
   const [personaId, setPersonaId] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Record<string, any> | null>(null);
+  const run = useSdrRun<Record<string, any>>();
+  const loading = run.loading;
+  const result = run.live as Record<string, any> | null;
   const [copied, setCopied] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
 
@@ -65,29 +66,15 @@ export const GenericSdrAgentCard: React.FC<Props> = ({ contact, config }) => {
     if (contact?.id) setContactId(contact.id);
   }, [contact?.id]);
 
-  const run = async () => {
+  const start = async () => {
     setError(null);
-    setResult(null);
+    run.reset();
     setDraftSaved(false);
     if (!contactId) {
       setError('Please enter a contact ID.');
       return;
     }
-    setLoading(true);
-    try {
-      const res = await fetch(`/.netlify/functions/${config.slug}`, {
-        method: 'POST',
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({ contactId, personaId: personaId || undefined }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || `${config.title} failed`);
-      setResult(json);
-    } catch (e: any) {
-      setError(e.message || `${config.title} failed`);
-    } finally {
-      setLoading(false);
-    }
+    await run.runFunction(`/.netlify/functions/${config.slug}`, { contactId, personaId: personaId || undefined });
   };
 
   const textOf = (): string =>
@@ -123,9 +110,9 @@ export const GenericSdrAgentCard: React.FC<Props> = ({ contact, config }) => {
       </h2>
       <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: 'var(--sdr-4a5568)' }}>{config.description}</p>
 
-      {error && (
+      {(error || run.streamError) && (
         <div style={{ marginBottom: 10, padding: '6px 8px', borderRadius: 8, background: 'var(--sdr-fff5f5)', color: 'var(--sdr-c53030)', fontSize: 12 }}>
-          ⚠️ {error}
+          ⚠️ {error || run.streamError}
         </div>
       )}
 
@@ -159,13 +146,15 @@ export const GenericSdrAgentCard: React.FC<Props> = ({ contact, config }) => {
 
       <button
         type="button"
-        onClick={run}
+        onClick={start}
         disabled={loading}
         style={{ width: '100%', height: 40, padding: '0 16px', borderRadius: 8, border: 'none', background: loading ? '#a0aec0' : '#2b6cb0', color: '#ffffff', fontWeight: 600, fontSize: 14, cursor: loading ? 'default' : 'pointer', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, whiteSpace: 'nowrap' }}
       >
         {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
         {loading ? 'Working…' : config.buttonLabel}
       </button>
+
+      <SdrLiveBar run={run} />
 
       {result && (
         <div style={{ borderRadius: 8, border: '1px solid var(--sdr-e2e8f0)', background: 'var(--sdr-f7fafc)', padding: 8 }}>
@@ -189,7 +178,7 @@ export const GenericSdrAgentCard: React.FC<Props> = ({ contact, config }) => {
               </div>
             );
           })}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ display: loading ? 'none' : 'flex', gap: 8, marginTop: 8 }}>
             <button type="button" onClick={copy} style={{ ...smallBtn, border: '1px solid var(--sdr-d1d5db)', background: copied ? 'var(--sdr-f0fdf4)' : 'var(--sdr-surface)', color: copied ? 'var(--sdr-166534)' : 'var(--sdr-374151)' }}>
               {copied ? <Check size={14} /> : <Copy size={14} />}
               {copied ? 'Copied' : 'Copy'}

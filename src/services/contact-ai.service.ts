@@ -4,6 +4,7 @@
  */
 
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
+import type { LiveOptions } from './liveOptions';
 import { enrichContactWithWebSearch, type EnrichmentOutcome, type EnrichmentProgress } from './contactEnrichment';
 import { logger } from './logger.service';
 import { webSearchService } from './webSearchService';
@@ -87,7 +88,8 @@ class ContactAIService {
       competitorInfo?: any;
       webResearch?: string; // NEW: Web research context
       companyContext?: any[]; // NEW: Company research sources
-    }
+    },
+    live?: LiveOptions
   ): Promise<ContactScore> {
     const request: Omit<AIRequest, 'id'> = {
       type: 'contact_scoring',
@@ -100,7 +102,8 @@ class ContactAIService {
       },
       context: {
         contactId: contact.id
-      }
+      },
+      ...(live ? { live } : {})
     };
 
     try {
@@ -133,7 +136,8 @@ class ContactAIService {
       goalContext?: string[];
       webResearch?: string; // NEW: Web research context
       companyContext?: any[]; // NEW: Company research sources
-    }
+    },
+    live?: LiveOptions
   ): Promise<ContactInsight[]> {
     const request: Omit<AIRequest, 'id'> = {
       type: 'insights_generation',
@@ -147,7 +151,8 @@ class ContactAIService {
       },
       context: {
         contactId: contact.id
-      }
+      },
+      ...(live ? { live } : {})
     };
 
     try {
@@ -249,10 +254,21 @@ class ContactAIService {
   async enrichContact(
     contact: Contact,
     _enrichmentType: 'basic' | 'comprehensive' | 'social' = 'basic',
-    onProgress?: EnrichmentProgress
+    onProgress?: EnrichmentProgress,
+    live?: LiveOptions
   ): Promise<EnrichmentOutcome> {
     try {
-      return await enrichContactWithWebSearch(contact, onProgress ? { onProgress } : {});
+      return await enrichContactWithWebSearch(contact, {
+        ...(onProgress ? { onProgress } : {}),
+        // streamed run: web-search status + findings filling in; Stop via live.signal
+        ...(live ? {
+          ...(live.signal ? { signal: live.signal } : {}),
+          live: {
+            onStatus: (label: string) => live.onStatus?.(label, { type: 'status', phase: 'live', label }),
+            onPartial: (partial: unknown) => live.onPartial?.(partial),
+          },
+        } : {}),
+      });
     } catch (error) {
       logger.error('Contact enrichment failed', error as Error, { contactId: contact.id });
       throw error;

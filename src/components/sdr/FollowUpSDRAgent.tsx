@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Settings, MessageSquare, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
-import { sdrAuthHeaders } from "../../services/sdrClient";
+import { useSdrRun, SdrLiveBar } from "./SdrLive";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
@@ -29,13 +29,15 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
       setContactId(contact.id);
     }
   }, [contact?.id]);
-  const [loading, setLoading] = useState(false);
+  
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<FollowUpResponse | null>(null);
+  const run = useSdrRun<FollowUpResponse>();
+  const result = run.live as FollowUpResponse | null;
   const [showSettings, setShowSettings] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const loading = run.loading;
   const handleSaveDraft = async () => {
     if (!result) return;
     const res = await saveSdrDraft({
@@ -56,34 +58,15 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
 
   const handleSend = async () => {
     setError(null);
-    setResult(null);
+    run.reset();
+    setDraftSaved(false);
 
     if (!contactId) {
       setError("Please enter a contact ID.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/follow-up-sdr", {
-        method: "POST",
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({ contactId, followUpNumber, preferences: apiPreferences })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Follow-up request failed");
-      }
-
-      const json = (await res.json()) as FollowUpResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[FollowUpSDRAgent] error:", e);
-      setError(e.message || "Failed to send follow-up");
-    } finally {
-      setLoading(false);
-    }
+    await run.runFunction("/.netlify/functions/follow-up-sdr", { contactId, followUpNumber, preferences: apiPreferences });
   };
 
   return (
@@ -182,7 +165,7 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
         </div>
       )}
 
-      {error && (
+      {(error || run.streamError) && (
         <div
           style={{
             marginBottom: 10,
@@ -193,9 +176,11 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
             fontSize: 12
           }}
         >
-          ⚠️ {error}
+          ⚠️ {error || run.streamError}
         </div>
       )}
+
+      <SdrLiveBar run={run} />
 
       {contact ? (
         <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "var(--sdr-f0fdf4)", border: "1px solid var(--sdr-bbf7d0)" }}>
@@ -306,12 +291,14 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <strong>Follow-Up #{result.followUpNumber}</strong>
+            <strong>Follow-Up #{result.followUpNumber ?? followUpNumber}</strong>
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Subject:</strong> {result.subject}
-          </div>
+          {result.subject != null && (
+            <div style={{ marginBottom: 8 }}>
+              <strong>Subject:</strong> {result.subject}
+            </div>
+          )}
 
           <div>
             <strong>Message:</strong>
@@ -325,11 +312,11 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
                 borderRadius: 6
               }}
             >
-              {result.body}
+              {result.body}{loading && <span style={{ opacity: 0.5 }}>|</span>}
             </pre>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <div style={{ display: loading ? "none" : "flex", gap: 8, marginTop: 8 }}>
             <button
               onClick={handleCopy}
               style={{

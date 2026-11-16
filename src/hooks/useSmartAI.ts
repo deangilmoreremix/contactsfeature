@@ -9,6 +9,7 @@ import { taskRouter } from '../services/task-router.service';
 import { logger } from '../services/logger.service';
 import { aiOrchestrator, AIRequest } from '../services/ai-orchestrator.service';
 import { Contact } from '../types';
+import type { LiveOptions } from '../services/liveOptions';
 
 export interface SmartAIState {
   analyzing: boolean;
@@ -33,7 +34,8 @@ export const useSmartAI = () => {
   const smartScoreContact = useCallback(async (
     contactId: string,
     contact: Contact,
-    urgency: 'low' | 'medium' | 'high' = 'medium'
+    urgency: 'low' | 'medium' | 'high' = 'medium',
+    live?: LiveOptions
   ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true, errors: { ...prev.errors, [contactId]: '' } }));
     
@@ -43,7 +45,8 @@ export const useSmartAI = () => {
         type: 'contact_scoring',
         priority: urgency === 'high' ? 'high' : urgency === 'low' ? 'low' : 'medium',
         data: { contact },
-        context: { contactId }
+        context: { contactId },
+        ...(live ? { live } : {})
       };
 
       const result = await aiOrchestrator.executeImmediate(request);
@@ -71,12 +74,13 @@ export const useSmartAI = () => {
   const smartEnrichContact = useCallback(async (
     contactId: string,
     contact: Contact,
-    priority: 'standard' | 'premium' = 'standard'
+    priority: 'standard' | 'premium' = 'standard',
+    live?: LiveOptions
   ): Promise<any> => {
     setState(prev => ({ ...prev, enriching: true, errors: { ...prev.errors, [`enrich_${contactId}`]: '' } }));
     
     try {
-      const result = await enhancedAI.enrichContact(contactId, contact, priority);
+      const result = await enhancedAI.enrichContact(contactId, contact, priority, live);
       setState(prev => ({
         ...prev,
         analyzing: false,
@@ -101,12 +105,13 @@ export const useSmartAI = () => {
   // Quick categorization and tagging
   const smartCategorizeAndTag = useCallback(async (
     contactId: string,
-    contact: Contact
+    contact: Contact,
+    live?: LiveOptions
   ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true }));
     
     try {
-      const result = await enhancedAI.categorizeAndTag(contactId, contact);
+      const result = await enhancedAI.categorizeAndTag(contactId, contact, live);
       setState(prev => ({
         ...prev,
         analyzing: false,
@@ -124,12 +129,13 @@ export const useSmartAI = () => {
   const smartQualifyLead = useCallback(async (
     contactId: string,
     contact: Contact,
-    businessContext?: string
+    businessContext?: string,
+    live?: LiveOptions
   ): Promise<any> => {
     setState(prev => ({ ...prev, analyzing: true }));
     
     try {
-      const result = await enhancedAI.qualifyLead(contactId, contact, businessContext);
+      const result = await enhancedAI.qualifyLead(contactId, contact, businessContext, live);
       setState(prev => ({
         ...prev,
         analyzing: false,

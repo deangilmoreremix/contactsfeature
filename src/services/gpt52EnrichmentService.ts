@@ -7,7 +7,8 @@
  */
 
 import { logger } from './logger.service';
-import { aiRespond, AIError, type AICitation } from './aiClient';
+import { AIError, type AICitation } from './aiClient';
+import { aiCall, type LiveOptions } from './liveOptions';
 import { contextManager } from '../../lib/core/contextManager';
 import {
   ENRICHMENT_SCHEMA,
@@ -71,6 +72,8 @@ export interface EnrichmentOptions {
   includeSDRInsights?: boolean;
   useContext?: boolean;
   previousResponseId?: string;
+  /** Live progress: web-search status lines and the structured result filling in. */
+  live?: LiveOptions;
 }
 
 interface ContactInput {
@@ -102,7 +105,7 @@ class GPT52EnrichmentService {
     logger.info('Starting AI enrichment', { contact: contactName, company: contactData.company, effort });
 
     try {
-      const ai = await aiRespond({
+      const ai = await aiCall({
         role: 'thinking',
         effort,
         instructions: INSTRUCTIONS,
@@ -112,7 +115,7 @@ class GPT52EnrichmentService {
         tools: [{ type: 'web_search' }],
         maxOutputTokens: 6000,
         ...(options.useContext && options.previousResponseId ? { previousResponseId: options.previousResponseId } : {}),
-      });
+      }, options.live ? { background: true, ...options.live } : undefined);
       if (ai.json == null) throw new AIError('Enrichment returned no structured result', 502);
 
       const payload = normalizeEnrichment(ai.json);
@@ -159,13 +162,13 @@ class GPT52EnrichmentService {
     }
   }
 
-  async generateSDRInsights(contactName: string, companyName: string): Promise<EnrichmentResult> {
-    return this.enrichContact({ name: contactName, company: companyName }, { reasoningEffort: 'high' });
+  async generateSDRInsights(contactName: string, companyName: string, live?: LiveOptions): Promise<EnrichmentResult> {
+    return this.enrichContact({ name: contactName, company: companyName }, { reasoningEffort: 'high', ...(live ? { live } : {}) });
   }
 
   /** Same schema on the fast role; no deep research, so expect more nulls. */
-  async quickEnrich(contactData: { email?: string; name?: string; company?: string }): Promise<EnrichmentResult> {
-    return this.enrichContact(contactData, { reasoningEffort: 'low' });
+  async quickEnrich(contactData: { email?: string; name?: string; company?: string }, live?: LiveOptions): Promise<EnrichmentResult> {
+    return this.enrichContact(contactData, { reasoningEffort: 'low', ...(live ? { live } : {}) });
   }
 }
 

@@ -9,7 +9,8 @@ import { cacheService } from './cache.service';
 import { logger } from './logger.service';
 import { Contact } from '../types';
 import { ContactEnrichmentData, aiEnrichmentService } from './aiEnrichmentService';
-import { aiRespond, type AIRole } from './aiClient';
+import type { AIRole } from './aiClient';
+import { aiCall, type LiveOptions } from './liveOptions';
 
 export interface AIAnalysisRequest {
   contactId: string;
@@ -23,6 +24,8 @@ export interface AIAnalysisRequest {
     model?: string;
     includeConfidence?: boolean;
   };
+  /** Live progress callbacks (partial insights / recommendations as they are written). */
+  live?: LiveOptions;
 }
 
 export interface AIAnalysisResponse {
@@ -124,7 +127,7 @@ class AIIntegrationService {
         lastConnected: c.lastConnected
       };
 
-      const res = await aiRespond<{
+      const res = await aiCall<{
         score: number; confidence: number; insights: string[]; recommendations: string[]; categories: string[]; tags: string[];
       }>({
         role: toRole(request.options?.model),
@@ -136,7 +139,7 @@ class AIIntegrationService {
         schema: ANALYSIS_SCHEMA,
         schemaName: 'contact_analysis',
         maxOutputTokens: 1500
-      });
+      }, request.live);
       const j = res.json;
       if (!j) throw new Error('AI did not return a valid analysis');
 
@@ -248,7 +251,8 @@ class AIIntegrationService {
 
   async enrichContact(
     contactId: string,
-    enrichmentRequest: Partial<ContactEnrichmentData>
+    enrichmentRequest: Partial<ContactEnrichmentData>,
+    live?: LiveOptions
   ): Promise<ContactEnrichmentData> {
     const validation = validationService.validateEnrichmentRequest(enrichmentRequest);
     if (!validation.isValid) {
@@ -267,15 +271,16 @@ class AIIntegrationService {
 
       let result: ContactEnrichmentData;
       if (enrichmentRequest.socialProfiles?.linkedin) {
-        result = await aiEnrichmentService.enrichContactByLinkedIn(enrichmentRequest.socialProfiles.linkedin);
+        result = await aiEnrichmentService.enrichContactByLinkedIn(enrichmentRequest.socialProfiles.linkedin, live);
       } else if (enrichmentRequest.firstName) {
         result = await aiEnrichmentService.enrichContactByName(
           enrichmentRequest.firstName,
           enrichmentRequest.lastName || '',
-          enrichmentRequest.company
+          enrichmentRequest.company,
+          live
         );
       } else if (enrichmentRequest.email) {
-        result = await aiEnrichmentService.enrichContactByEmail(enrichmentRequest.email);
+        result = await aiEnrichmentService.enrichContactByEmail(enrichmentRequest.email, {}, live);
       } else {
         throw new Error('Enrichment needs an email, name or LinkedIn URL');
       }

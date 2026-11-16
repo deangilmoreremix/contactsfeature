@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Settings, Shield } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
-import { sdrAuthHeaders } from "../../services/sdrClient";
+import { useSdrRun, SdrLiveBar } from "./SdrLive";
 import { Contact } from "../../types/contact";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
@@ -29,14 +29,16 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
       setContactId(contact.id);
     }
   }, [contact?.id]);
-  const [loading, setLoading] = useState(false);
+  
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ObjectionResponse | null>(null);
+  const run = useSdrRun<ObjectionResponse>();
+  const result = run.live as ObjectionResponse | null;
   const [showSettings, setShowSettings] = useState(false);
 
+  const loading = run.loading;
   const handleRespond = async () => {
     setError(null);
-    setResult(null);
+    run.reset();
 
     if (!contactId) {
       setError("Please enter a contact ID.");
@@ -47,27 +49,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/objection-handler-sdr", {
-        method: "POST",
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({ contactId, objection, preferences: apiPreferences })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Objection handler request failed");
-      }
-
-      const json = (await res.json()) as ObjectionResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[ObjectionHandlerSDRAgent] error:", e);
-      setError(e.message || "Failed to handle objection");
-    } finally {
-      setLoading(false);
-    }
+    await run.runFunction("/.netlify/functions/objection-handler-sdr", { contactId, objection, preferences: apiPreferences });
   };
 
   return (
@@ -117,7 +99,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
         Respond to objections like "too expensive", "not now", or "we're good with what we have."
       </p>
 
-      {error && (
+      {(error || run.streamError) && (
         <div
           style={{
             marginBottom: 10,
@@ -128,9 +110,11 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
             fontSize: 12
           }}
         >
-          ⚠️ {error}
+          ⚠️ {error || run.streamError}
         </div>
       )}
+
+      <SdrLiveBar run={run} />
 
       {contact ? (
         <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "var(--sdr-f0fdf4)", border: "1px solid var(--sdr-bbf7d0)" }}>
@@ -257,7 +241,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
                 borderRadius: 6
               }}
             >
-              {result.body}
+              {result.body}{loading && <span style={{ opacity: 0.5 }}>|</span>}
             </pre>
           </div>
         </div>

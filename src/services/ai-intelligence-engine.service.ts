@@ -9,6 +9,7 @@ import { Contact } from '../types';
 import { contactAI, ContactInsight, ContactScore } from './contact-ai.service';
 import { communicationAI } from './communication-ai.service';
 import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 import { RECOMMENDATIONS_SCHEMA, normalizeRecommendations, PREDICTIVE_SCHEMA, normalizePredictive, type NormalizedPredictive } from './intelligenceSchemas';
 
 export interface IntelligenceCorrelation {
@@ -116,7 +117,8 @@ class AIIntelligenceEngine {
       dealStage?: string;
       lastContact?: string;
       responseRate?: number;
-    }
+    },
+    live?: LiveOptions
   ): Promise<SmartRecommendation[]> {
     logger.info('Generating smart recommendations', { contactId });
 
@@ -133,7 +135,7 @@ class AIIntelligenceEngine {
       schema: RECOMMENDATIONS_SCHEMA,
       schemaName: 'smart_recommendations',
       maxOutputTokens: 2500,
-    });
+    }, live);
 
     const createdAt = new Date().toISOString();
     return normalizeRecommendations(raw, 8).map((r, i) => ({
@@ -208,7 +210,8 @@ class AIIntelligenceEngine {
   async generatePredictiveInsights(
     contactId: string,
     contact: Contact,
-    timeframe: '30d' | '90d' | '6m' = '90d'
+    timeframe: '30d' | '90d' | '6m' = '90d',
+    live?: LiveOptions
   ): Promise<NormalizedPredictive> {
     const raw = await aiJson<unknown>({
       role: 'thinking',
@@ -221,7 +224,7 @@ class AIIntelligenceEngine {
       schema: PREDICTIVE_SCHEMA,
       schemaName: 'predictive_insights',
       maxOutputTokens: 2500,
-    });
+    }, live);
     return normalizePredictive(raw);
   }
 

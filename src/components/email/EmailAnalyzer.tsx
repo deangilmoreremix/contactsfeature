@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { useEmailAI } from '../../hooks/useEmailAI';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
@@ -33,7 +35,10 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
   defaultBody = '',
   className = ''
 }) => {
-  const { analyzeEmail, isAnalyzing, emailAnalysis, error } = useEmailAI();
+  const analysis = useFunctionStream<any>();
+  const isAnalyzing = analysis.isStreaming;
+  const emailAnalysis = analysis.state.result;
+  const error = analysis.state.error;
   
   const [emailSubject, setEmailSubject] = useState(defaultSubject);
   const [emailBody, setEmailBody] = useState(defaultBody);
@@ -44,12 +49,8 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
   const handleAnalyzeEmail = async () => {
     if (!emailSubject || !emailBody) return;
     
-    try {
-      await analyzeEmail(emailSubject, emailBody, context, contact);
-      setHasAnalyzed(true);
-    } catch (error) {
-      console.error('Failed to analyze email:', error);
-    }
+    setHasAnalyzed(true);
+    await analysis.run('email-analyzer', { emailSubject, emailBody, context, recipient: contact });
   };
 
   // Render the tone analysis as a horizontal bar chart
@@ -246,6 +247,14 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
               <p className="text-sm text-gray-500 mt-2">
                 Our AI is examining tone, structure, and effectiveness
               </p>
+              <LiveOutput
+          showError={false}
+                className="w-full mt-4"
+                state={analysis.state}
+                onStop={analysis.stop}
+                display={liveDisplay(analysis.state.partial, analysis.state.text)}
+                placeholder="Reading your email…"
+              />
             </div>
           ) : emailAnalysis ? (
             <>

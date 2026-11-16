@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Settings, RotateCcw, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
-import { sdrAuthHeaders } from "../../services/sdrClient";
+import { useSdrRun, SdrLiveBar } from "./SdrLive";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
@@ -28,13 +28,15 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
       setContactId(contact.id);
     }
   }, [contact?.id]);
-  const [loading, setLoading] = useState(false);
+  
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ReactivationResponse | null>(null);
+  const run = useSdrRun<ReactivationResponse>();
+  const result = run.live as ReactivationResponse | null;
   const [showSettings, setShowSettings] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const loading = run.loading;
   const handleSaveDraft = async () => {
     if (!result) return;
     const res = await saveSdrDraft({
@@ -55,34 +57,15 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
 
   const handleReactivate = async () => {
     setError(null);
-    setResult(null);
+    run.reset();
+    setDraftSaved(false);
 
     if (!contactId) {
       setError("Please enter a contact ID.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/reactivation-sdr", {
-        method: "POST",
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({ contactId, preferences: apiPreferences })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Reactivation request failed");
-      }
-
-      const json = (await res.json()) as ReactivationResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[ReactivationSDRAgent] error:", e);
-      setError(e.message || "Failed to send reactivation");
-    } finally {
-      setLoading(false);
-    }
+    await run.runFunction("/.netlify/functions/reactivation-sdr", { contactId, preferences: apiPreferences });
   };
 
   return (
@@ -132,7 +115,7 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
         Reaches out to leads who showed interest before but went quiet.
       </p>
 
-      {error && (
+      {(error || run.streamError) && (
         <div
           style={{
             marginBottom: 10,
@@ -143,9 +126,11 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
             fontSize: 12
           }}
         >
-          ⚠️ {error}
+          ⚠️ {error || run.streamError}
         </div>
       )}
+
+      <SdrLiveBar run={run} />
 
       {contact ? (
         <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "var(--sdr-f0fdf4)", border: "1px solid var(--sdr-bbf7d0)" }}>
@@ -224,13 +209,17 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
             Result
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Days Since Last Contact:</strong> {result.daysSinceLastActivity}
-          </div>
+          {result.daysSinceLastActivity != null && (
+            <div style={{ marginBottom: 8 }}>
+              <strong>Days Since Last Contact:</strong> {result.daysSinceLastActivity}
+            </div>
+          )}
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Subject:</strong> {result.subject}
-          </div>
+          {result.subject != null && (
+            <div style={{ marginBottom: 8 }}>
+              <strong>Subject:</strong> {result.subject}
+            </div>
+          )}
 
           <div>
             <strong>Message:</strong>
@@ -244,11 +233,11 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
                 borderRadius: 6
               }}
             >
-              {result.body}
+              {result.body}{loading && <span style={{ opacity: 0.5 }}>|</span>}
             </pre>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <div style={{ display: loading ? "none" : "flex", gap: 8, marginTop: 8 }}>
             <button
               onClick={handleCopy}
               style={{

@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { createResponse, resolveModel } from "../_shared/openai.ts";
+import { resolveModel, respondDual } from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,61 +92,57 @@ Template should:
 6. Include a clear call-to-action
 7. List all variables used in the "variables" array`;
 
-        const ai = await createResponse({
-          role: "default",
-          effort: "low",
-          instructions: systemPrompt,
-          input: userPrompt,
-          schemaName: "email_template",
-          maxOutputTokens: 3000,
-          schema: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-              category: { type: "string" },
-              subject: { type: "string" },
-              body: { type: "string" },
-              variables: { type: "array", items: { type: "string" } },
+        return await respondDual({
+          req, body: postBody, headers: corsHeaders,
+          options: {
+            role: "default",
+            effort: "low",
+            instructions: systemPrompt,
+            input: userPrompt,
+            schemaName: "email_template",
+            maxOutputTokens: 3000,
+            schema: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                description: { type: "string" },
+                category: { type: "string" },
+                subject: { type: "string" },
+                body: { type: "string" },
+                variables: { type: "array", items: { type: "string" } },
+              },
             },
           },
+          finalize: async (ai) => {
+            if (!ai.json) throw new Error("AI returned no structured template");
+            const generatedTemplate = ai.json;
+
+            const { data: user } = await supabaseClient.auth.getUser();
+
+            const { data: newTemplate, error: insertError } = await supabaseClient
+              .from("email_templates")
+              .insert({
+                user_id: user?.user?.id,
+                name: generatedTemplate.name,
+                description: generatedTemplate.description,
+                category: generatedTemplate.category,
+                subject: generatedTemplate.subject,
+                body: generatedTemplate.body,
+                variables: generatedTemplate.variables,
+                is_default: false,
+                is_ai_generated: true,
+                model: resolveModel("default").model,
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              throw new Error(`Failed to save template: ${insertError.message}`);
+            }
+
+            return { success: true, template: newTemplate, aiGenerated: true };
+          },
         });
-        if (!ai.json) throw new Error("AI returned no structured template");
-        const generatedTemplate = ai.json;
-
-        const { data: user } = await supabaseClient.auth.getUser();
-
-        const { data: newTemplate, error: insertError } = await supabaseClient
-          .from("email_templates")
-          .insert({
-            user_id: user?.user?.id,
-            name: generatedTemplate.name,
-            description: generatedTemplate.description,
-            category: generatedTemplate.category,
-            subject: generatedTemplate.subject,
-            body: generatedTemplate.body,
-            variables: generatedTemplate.variables,
-            is_default: false,
-            is_ai_generated: true,
-            model: resolveModel("default").model,
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          throw new Error(`Failed to save template: ${insertError.message}`);
-        }
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            template: newTemplate,
-            aiGenerated: true,
-          }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
       }
 
       if (action === "create" && templateData) {

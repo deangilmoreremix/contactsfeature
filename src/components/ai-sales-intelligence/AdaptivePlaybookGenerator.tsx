@@ -1,5 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import { streamFunction } from '../../services/functionStream';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { cacheService } from '../../services/cache.service';
 import { GlassCard } from '../ui/GlassCard';
@@ -108,6 +111,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   const [activeStreams, setActiveStreams] = useState<Set<string>>(new Set());
 
   const streamingControllerRef = useRef<AbortController | null>(null);
+  const gen = useFunctionStream<any>();
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
@@ -115,10 +119,11 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
   const stopStreaming = useCallback(() => {
     streamingControllerRef.current?.abort();
+    gen.stop();
     setActiveStreams(new Set());
     setStreamingProgress(0);
     setStreamingPhases([]);
-  }, []);
+  }, [gen]);
 
   const generatePlaybook = useCallback(async (onProgress?: (update: StreamingUpdate) => void) => {
     setLoading(true);
@@ -159,46 +164,27 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
       setStreamingProgress(30);
       onProgress?.({ type: 'progress', progress: 30 });
 
-      if (isStreamingMode) {
-        // Streaming generation with real-time updates
-        const streamId = `playbook-${Date.now()}`;
-        setActiveStreams(prev => new Set([...prev, streamId]));
+      // Real progress: each status the model/tools report becomes a phase; the playbook fills in live below.
+      const streamId = `playbook-${Date.now()}`;
+      if (isStreamingMode) setActiveStreams(prev => new Set([...prev, streamId]));
+      const onStatusPhase = (label: string) => {
+        setStreamingPhases(prev => (prev.some(ph => ph.name === label) ? prev : [...prev, { name: label, progress: Math.min(90, 40 + prev.length * 15) }]));
+        setStreamingProgress(prev => Math.min(90, prev + 10));
+        researchThinking.updateProgress(Math.min(90, 40), `📋 ${label}`);
+        onProgress?.({ type: 'phase', phase: { name: label } } as any);
+      };
 
-        // Simulate streaming phases
-        const mockPhases = [
-          { name: 'Discovery & Research', progress: 40 },
-          { name: 'Strategy Development', progress: 60 },
-          { name: 'Tactics Planning', progress: 80 },
-          { name: 'Risk Assessment', progress: 90 }
-        ];
-
-        for (const phase of mockPhases) {
-          if (streamingControllerRef.current?.signal.aborted) break;
-
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing time
-          setStreamingProgress(phase.progress);
-          setStreamingPhases(prev => [...prev, phase]);
-          researchThinking.updateProgress(phase.progress, `📋 ${phase.name}...`);
-          onProgress?.({ type: 'phase', phase });
-        }
-
-        setActiveStreams(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(streamId);
-          return newSet;
-        });
-      }
-
-      const response = await supabase.functions.invoke('adaptive-playbook', {
-        body: {
+      const out = await gen.runLive((h) => streamFunction<any>('adaptive-playbook', {
           contact: deal,
           currentStage: deal.stage,
           businessGoals: ['increase_revenue', 'improve_efficiency', 'expand_market'],
           automationType: playbookType,
           playbookType: playbookType,
           aiProvider: 'openai'
-        }
-      });
+        }, { ...h, onStatus: (label, e) => { h.onStatus?.(label, e); onStatusPhase(label); } }));
+        setActiveStreams(new Set());
+        if (!out) { researchThinking.complete('Stopped'); setStreamingProgress(0); analyticsService.endTracking(sessionId, false, 'Stopped'); return; }
+        const response = { data: out.result as any };
 
       researchThinking.updateProgress(60, '📋 Synthesizing strategic recommendations...');
       setStreamingProgress(60);
@@ -412,6 +398,14 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           </div>
         </div>
       </div>
+
+      <LiveOutput
+        className="mb-6"
+        state={gen.state}
+        onStop={stopStreaming}
+        display={liveDisplay(gen.state.partial, gen.state.text)}
+        placeholder="Building your playbook…"
+      />
 
       <StreamingProgress
         isStreamingMode={isStreamingMode}

@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { useCommunicationAI } from '../../contexts/AIContext';
+import React, { useState, useCallback, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
@@ -18,7 +17,10 @@ import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
 import { ERROR_MESSAGES, LOADING_MESSAGES } from '../../utils/constants';
 import { isValidEmail, safeClipboardWrite } from '../../utils/validation';
-import { useResearchOperations } from '../../hooks/useResearchOperations';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { streamFunction } from '../../services/functionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import {
   Mail,
   MessageSquare,
@@ -54,11 +56,13 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
   // Toast notifications
   const { showToast } = useToast();
 
-  // Connect to Communication AI
-  const { generateEmail, analyzeEmail, isProcessing } = useCommunicationAI();
-
-  // Research operations hook
-  const { performResearch, isResearching } = useResearchOperations();
+  // Live research + email generation (status line, typing draft, Stop)
+  const quick = useFunctionStream<any>();
+  const isProcessing = quick.isStreaming;
+  useEffect(() => {
+    if (quick.state.error) { setError(quick.state.error); researchThinking.complete('❌ Email generation failed'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quick.state.error]);
 
   // Research state management
   const researchThinking = useResearchThinking();
@@ -90,31 +94,46 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective ${purpose} communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies for ${purpose} emails.`;
       const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${purpose} email. Find recent company news, leadership information, communication preferences, and optimal timing for ${purpose} contact.`;
 
-      const searchResults = await performResearch(searchQuery, systemPrompt, userPrompt, {
-        includeSources: true,
-        searchContextSize: 'high'
-      });
+      const emailData = await quick.runLive(async (h) => {
+        const searchResults = await webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, {
+          includeSources: true,
+          searchContextSize: 'high'
+        }, h);
 
-      researchThinking.moveToSynthesizing('📧 Generating personalized email content...');
+        researchThinking.moveToSynthesizing('📧 Generating personalized email content...');
 
-      // Convert search results to citations
-      const sources = searchResults.sources.map((source: any) => ({
-        url: source.url,
-        title: source.title,
-        domain: source.domain,
-        type: 'company' as const,
-        confidence: 85,
-        timestamp: new Date(),
-        snippet: searchResults.content.substring(0, 200) + '...'
-      }));
+        // Convert search results to citations
+        const sources = searchResults.sources.map((source: any) => ({
+          url: source.url,
+          title: source.title,
+          domain: source.domain,
+          type: 'company' as const,
+          confidence: 85,
+          timestamp: new Date(),
+          snippet: searchResults.content.substring(0, 200) + '...'
+        }));
 
-      setResearchSources(sources);
+        setResearchSources(sources);
 
-      const emailData = await generateEmail(contact, purpose, {
-        tone: 'professional',
-        urgency: 'medium',
-        webResearch: searchResults.content,
-        companyContext: searchResults.sources
+        // The draft types itself into the preview while the email is written.
+        const composed = await streamFunction<{ subject: string; body: string }>('email-composer', {
+          contact,
+          purpose,
+          tone: 'professional',
+          webResearch: searchResults.content,
+          companyContext: searchResults.sources,
+          context: { urgency: 'medium' }
+        }, {
+          ...h,
+          onPartial: (j) => {
+            const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string };
+            if (p.subject !== undefined) setEmailSubject(p.subject);
+            if (p.body !== undefined) setEmailBody(p.body);
+            if (p.subject || p.body) { setIsDrafting(true); setActiveTab('compose'); }
+            h.onPartial?.(j);
+          }
+        });
+        return composed.result;
       });
 
       if (emailData) {
@@ -122,9 +141,8 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
         setEmailBody(emailData.body);
         setIsDrafting(true);
         setActiveTab('compose');
+        researchThinking.complete('✅ Research-powered email generated!');
       }
-
-      researchThinking.complete('✅ Research-powered email generated!');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.AI_ANALYSIS_FAILED;
@@ -132,7 +150,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
       setError(errorMessage);
       researchThinking.complete('❌ Email generation failed');
     }
-  }, [contact, performResearch, generateEmail, researchThinking]);
+  }, [contact, quick, researchThinking]);
   const handleSendEmail = useCallback(async () => {
     if (!emailSubject.trim() || !emailBody.trim()) {
       showToast({
@@ -334,6 +352,14 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
         })}
       </div>
       
+      <LiveOutput
+          showError={false}
+        state={quick.state}
+        onStop={() => { quick.stop(); researchThinking.complete('Stopped'); }}
+        display={liveDisplay(quick.state.partial, quick.state.text)}
+        placeholder="Researching and writing…"
+      />
+
       {/* Draft Preview */}
       {isDrafting && (
         <GlassCard className="p-6 bg-gradient-to-r from-blue-50 to-green-50">

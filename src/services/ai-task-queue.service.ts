@@ -504,6 +504,8 @@ class AITaskQueueService {
     });
   }
 
+  // INTENTIONALLY NON-STREAMING: queued background workers (retry/priority queue, no UI is attached to a single
+  // run), so these keep the plain aiJson request. User-visible AI goes through the streaming-capable services.
   // Real AI calls (Responses API via the server proxy). Failures reject and flow into the task's retry/error handling.
   private static readonly GROUND =
     'Use ONLY the supplied data. Never invent values; use null / empty lists when the data does not support a field. ' +

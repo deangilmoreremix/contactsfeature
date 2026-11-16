@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createResponse, resolveModel, MODEL_ROLES } from "../_shared/openai.ts";
+import { resolveModel, respondDual, MODEL_ROLES } from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,7 +34,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { fileName, text, context, model: requestedRole }: SummarizationRequest = await req.json();
+    const body = await req.json();
+    const { fileName, text, context, model: requestedRole }: SummarizationRequest = body;
 
     if (!text || text.trim().length === 0) {
       return new Response(
@@ -71,39 +72,41 @@ Guidelines:
 
     // Only model roles are accepted from clients; unknown values fall back to the fast role.
     const role = requestedRole && MODEL_ROLES[requestedRole] ? requestedRole : "fast";
-    const ai = await createResponse({
-      role,
-      effort: role === "fast" ? "none" : undefined,
-      instructions: systemPrompt,
-      input: userPrompt,
-      schemaName: "document_summary",
-      maxOutputTokens: 2000,
-      schema: {
-        type: "object",
-        properties: {
-          summary: { type: "string" },
-          keyPoints: { type: "array", items: { type: "string" } },
-          sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
-          confidence: { type: "number" },
+    return await respondDual({
+      req, body, headers: corsHeaders,
+      options: {
+        role,
+        effort: role === "fast" ? "none" : undefined,
+        instructions: systemPrompt,
+        input: userPrompt,
+        schemaName: "document_summary",
+        maxOutputTokens: 2000,
+        schema: {
+          type: "object",
+          properties: {
+            summary: { type: "string" },
+            keyPoints: { type: "array", items: { type: "string" } },
+            sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
+            confidence: { type: "number" },
+          },
         },
       },
-    });
+      finalize: async (ai) => {
 
-    if (!ai.json) {
-      throw new Error("AI returned no structured summary");
-    }
-    const parsed = ai.json;
-    const result: SummarizationResponse = {
-      summary: parsed.summary,
-      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
-      sentiment: ["positive", "neutral", "negative"].includes(parsed.sentiment) ? parsed.sentiment : "neutral",
-      confidence: typeof parsed.confidence === "number" ? Math.min(100, Math.max(0, parsed.confidence)) : 0,
-      model: resolveModel(role).model,
-    };
+        if (!ai.json) {
+          throw new Error("AI returned no structured summary");
+        }
+        const parsed = ai.json;
+        const result: SummarizationResponse = {
+          summary: parsed.summary,
+          keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+          sentiment: ["positive", "neutral", "negative"].includes(parsed.sentiment) ? parsed.sentiment : "neutral",
+          confidence: typeof parsed.confidence === "number" ? Math.min(100, Math.max(0, parsed.confidence)) : 0,
+          model: resolveModel(role).model,
+        };
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return result;
+      },
     });
 
   } catch (error) {

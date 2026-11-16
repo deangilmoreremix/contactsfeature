@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useAI, useContactAI } from '../../contexts/AIContext';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { insightsFromPartial } from '../../lib/streaming/previews';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
 import { Contact } from '../../types';
@@ -42,6 +45,10 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   
   const contactAI = contact ? useContactAI(contact.id) : null;
 
+  // Live run: status line ("Searching the web…"), insights counted as they stream in, Stop
+  const live = useLiveCall();
+  const [liveCount, setLiveCount] = useState(0);
+
   const [selectedOperation, setSelectedOperation] = useState<string>('score');
   const [urgency, setUrgency] = useState<'low' | 'medium' | 'high'>('medium');
   const [bulkSettings, setBulkSettings] = useState({
@@ -54,22 +61,22 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
     if (!contact) return;
 
     try {
-      let result;
-      
-      switch (selectedOperation) {
-        case 'score':
-          result = await contactAI.scoreContact(contact);
-          break;
-        case 'enrich':
-          result = await contactAI.enrichContact(contact);
-          break;
-        case 'categorize':
-          result = await contactAI.generateInsights(contact, ['recommendation']);
-          break;
-        case 'qualify':
-          result = await contactAI.generateInsights(contact, ['opportunity']);
-          break;
-      }
+      setLiveCount(0);
+      const result = await live.run((opts) => {
+        const withCount = { ...opts, onPartial: (partial: unknown) => { opts.onPartial?.(partial); setLiveCount(insightsFromPartial(partial).length); } };
+        switch (selectedOperation) {
+          case 'score':
+            return contactAI.scoreContact(contact, undefined, withCount);
+          case 'enrich':
+            return contactAI.enrichContact(contact, 'basic', withCount);
+          case 'categorize':
+            return contactAI.generateInsights(contact, ['recommendation'], withCount);
+          case 'qualify':
+            return contactAI.generateInsights(contact, ['opportunity'], withCount);
+          default:
+            return Promise.resolve(undefined);
+        }
+      });
       
       if (onAnalysisComplete && result) {
         onAnalysisComplete(result);
@@ -258,6 +265,11 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
                 : `Run ${operations.find(op => op.id === selectedOperation)?.name}`}
             </span>
           </ModernButton>
+
+          <LiveRunStatus live={live} className="mt-4" />
+          {live.state.active && liveCount > 0 && (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{liveCount} insight{liveCount === 1 ? '' : 's'} so far…</p>
+          )}
 
           {/* Results Display */}
           {contactAI?.contactScore && (

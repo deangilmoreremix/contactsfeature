@@ -3,6 +3,7 @@ import { logger } from './logger.service';
 import { aiCache } from '../utils/cache';
 import { sanitizeString } from '../utils/validation';
 import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 
 interface EmailData {
   to: string;
@@ -33,7 +34,7 @@ export class GPT5ToolsService {
   /**
     * Prepare email using GPT-5 tools to open Gmail compose window
     */
-   async prepareEmail(emailData: EmailData): Promise<{ success: boolean; message: string; gmailUrl?: string }> {
+   async prepareEmail(emailData: EmailData, live?: LiveOptions): Promise<{ success: boolean; message: string; gmailUrl?: string }> {
 
      try {
        logger.info('Preparing email via GPT-5 tools', { to: emailData.to, subject: emailData.subject });
@@ -44,7 +45,7 @@ export class GPT5ToolsService {
 
        if (!enhancedEmail) {
          // Use GPT-5 to validate and enhance the email
-         enhancedEmail = await this.enhanceEmailWithGPT5(emailData);
+         enhancedEmail = await this.enhanceEmailWithGPT5(emailData, live);
          // Cache the result
          aiCache.set(cacheKey, enhancedEmail);
        }
@@ -68,13 +69,13 @@ export class GPT5ToolsService {
   /**
    * Send SMS using GPT-5 tools
    */
-  async sendSMS(smsData: SMSData): Promise<{ success: boolean; message: string; smsAppUrl?: string }> {
+  async sendSMS(smsData: SMSData, live?: LiveOptions): Promise<{ success: boolean; message: string; smsAppUrl?: string }> {
 
     try {
       logger.info('Sending SMS via GPT-5 tools', { to: smsData.to });
 
       // Use GPT-5 to enhance the SMS message
-      const enhancedSMS = await this.enhanceSMSWithGPT5(smsData);
+      const enhancedSMS = await this.enhanceSMSWithGPT5(smsData, live);
 
       // Generate SMS app URL (this would depend on the user's SMS app)
       const smsUrl = this.generateSMSUrl(enhancedSMS);
@@ -96,13 +97,13 @@ export class GPT5ToolsService {
   /**
    * Make call using GPT-5 tools
    */
-  async makeCall(callData: CallData): Promise<{ success: boolean; message: string; callUrl?: string }> {
+  async makeCall(callData: CallData, live?: LiveOptions): Promise<{ success: boolean; message: string; callUrl?: string }> {
 
     try {
       logger.info('Making call via GPT-5 tools', { to: callData.to });
 
       // Use GPT-5 to prepare call notes and context
-      const enhancedCall = await this.enhanceCallWithGPT5(callData);
+      const enhancedCall = await this.enhanceCallWithGPT5(callData, live);
 
       // Generate call URL (this would depend on the user's calling app like Skype)
       const callUrl = this.generateCallUrl(enhancedCall);
@@ -165,7 +166,7 @@ export class GPT5ToolsService {
   /**
    * Use GPT-5 to enhance email content with retry logic
    */
-  private async enhanceEmailWithGPT5(emailData: EmailData): Promise<EmailData> {
+  private async enhanceEmailWithGPT5(emailData: EmailData, live?: LiveOptions): Promise<EmailData> {
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         const enhancedContent = await aiJson<{ subject: string; body: string }>({
@@ -180,7 +181,7 @@ ${emailData.body}`,
           schema: { type: 'object', properties: { subject: { type: 'string' },body: { type: 'string' } }, required: ['subject','body'], additionalProperties: false },
           schemaName: 'enhanced_email',
           maxOutputTokens: 1000
-        });
+        }, live);
 
         // Sanitize AI-generated content
         const sanitizedSubject = sanitizeString(enhancedContent.subject || emailData.subject);
@@ -210,7 +211,7 @@ ${emailData.body}`,
   /**
    * Use GPT-5 to enhance SMS content
    */
-  private async enhanceSMSWithGPT5(smsData: SMSData): Promise<SMSData> {
+  private async enhanceSMSWithGPT5(smsData: SMSData, live?: LiveOptions): Promise<SMSData> {
     try {
       const enhancedContent = await aiJson<{ message: string }>({
         role: 'fast',
@@ -219,7 +220,7 @@ ${emailData.body}`,
         schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false },
         schemaName: 'enhanced_sms',
         maxOutputTokens: 200
-      });
+      }, live);
 
       return {
         ...smsData,
@@ -234,7 +235,7 @@ ${emailData.body}`,
   /**
    * Use GPT-5 to enhance call preparation
    */
-  private async enhanceCallWithGPT5(callData: CallData): Promise<CallData> {
+  private async enhanceCallWithGPT5(callData: CallData, live?: LiveOptions): Promise<CallData> {
     try {
       const enhancedContent = await aiJson<{ notes: string }>({
         role: 'fast',
@@ -243,7 +244,7 @@ ${emailData.body}`,
         schema: { type: 'object', properties: { notes: { type: 'string' } }, required: ['notes'], additionalProperties: false },
         schemaName: 'enhanced_call_notes',
         maxOutputTokens: 300
-      });
+      }, live);
 
       return {
         ...callData,

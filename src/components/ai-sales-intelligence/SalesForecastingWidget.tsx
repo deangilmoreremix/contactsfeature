@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { DollarSign, Target, RefreshCw, BarChart3, TrendingUp } from 'lucide-react';
 import { useDealStore } from '../../store/useDealStore';
 import { computePipelineAnalytics, wonRevenueByMonth } from '../../lib/analytics/pipeline';
-import { sdrAuthHeaders } from '../../services/sdrClient';
+import { streamFunction } from '../../services/liveFunction';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { forecastFromPartial } from '../../lib/streaming/previews';
 
 interface AiForecast {
   projectedWonNext90Days: { low: number; expected: number; high: number };
@@ -33,6 +35,9 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({ 
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
+  // Live run: status line + the forecast as it is written (partial JSON)
+  const [live, setLive] = useState<{ label: string; steps: string[]; partial: unknown }>({ label: '', steps: [], partial: undefined });
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => { if (!loaded) void fetchDeals(); }, [loaded, fetchDeals]);
 
@@ -43,26 +48,31 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({ 
   const generate = async () => {
     setRunning(true);
     setError(null);
+    setReason(null);
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setLive({ label: 'Starting…', steps: [], partial: undefined });
     try {
-      const res = await fetch('/.netlify/functions/sales-forecasting', {
-        method: 'POST',
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({
-          deals: deals.map((d) => ({ id: d.id, stage: d.stage, value: d.value, created_at: d.created_at, updated_at: d.updated_at, closed_at: d.closed_at })),
-        }),
+      const { result } = await streamFunction<{ data?: { forecast?: AiForecast | null; reason?: string | null } }>('/.netlify/functions/sales-forecasting', {
+        deals: deals.map((d) => ({ id: d.id, stage: d.stage, value: d.value, created_at: d.created_at, updated_at: d.updated_at, closed_at: d.closed_at })),
+      }, {
+        signal: ac.signal,
+        onStatus: (label) => setLive((l) => ({ ...l, label, steps: l.steps[l.steps.length - 1] === label ? l.steps : [...l.steps, label] })),
+        onPartial: (partial) => setLive((l) => ({ ...l, partial })),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.data) throw new Error(json?.error || `Forecast failed (${res.status})`);
-      setForecast(json.data.forecast ?? null);
-      setReason(json.data.reason ?? null);
+      if (!result?.data) throw new Error('Forecast failed');
+      setForecast(result.data.forecast ?? null);
+      setReason(result.data.reason ?? null);
       setGeneratedAt(new Date());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Forecast failed');
+      if (!ac.signal.aborted) setError(e instanceof Error ? e.message : 'Forecast failed');
     } finally {
+      abortRef.current = null;
       setRunning(false);
     }
   };
 
+  const draft = useMemo(() => (running ? forecastFromPartial(live.partial) : null), [running, live.partial]);
   const busy = running || loading;
   const noDeals = loaded && deals.length === 0;
 
@@ -172,22 +182,41 @@ export const SalesForecastingWidget: React.FC<SalesForecastingWidgetProps> = ({ 
 
           {reason && <div className="p-3 text-sm rounded-lg bg-yellow-50 text-yellow-800">{reason}</div>}
 
-          {forecast && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-blue-50">
-                <div className="text-sm text-gray-600">Projected revenue won, next 90 days ({forecast.confidence} confidence)</div>
-                <div className="text-2xl font-bold text-blue-700">
-                  {formatCurrency(forecast.projectedWonNext90Days.expected)}
-                  <span className="ml-2 text-sm font-normal text-gray-600">range {formatCurrency(forecast.projectedWonNext90Days.low)} to {formatCurrency(forecast.projectedWonNext90Days.high)}</span>
-                </div>
-              </div>
-              {forecast.insights.length > 0 && <ul className="list-disc ml-5 text-sm text-gray-700 space-y-1">{forecast.insights.map((t, i) => <li key={i}>{t}</li>)}</ul>}
-              {forecast.recommendedActions.length > 0 && (
-                <div><h4 className="text-sm font-medium text-gray-900 mb-1">Recommended actions</h4><ul className="list-disc ml-5 text-sm text-gray-700 space-y-1">{forecast.recommendedActions.map((t, i) => <li key={i}>{t}</li>)}</ul></div>
-              )}
-              {forecast.caveats.length > 0 && <ul className="list-disc ml-5 text-xs text-gray-500 space-y-1">{forecast.caveats.map((t, i) => <li key={i}>{t}</li>)}</ul>}
-            </div>
+          {running && (
+            <StreamingOutput
+              className="mb-4"
+              state={{ status: 'streaming', text: '', label: live.label, steps: live.steps, reasoning: '' }}
+              display=""
+              onStop={() => abortRef.current?.abort()}
+            />
           )}
+
+          {(forecast || draft) && (() => {
+            const f = draft ?? {
+              projected: { low: forecast!.projectedWonNext90Days.low, expected: forecast!.projectedWonNext90Days.expected, high: forecast!.projectedWonNext90Days.high },
+              confidence: forecast!.confidence, insights: forecast!.insights, risks: forecast!.risks, recommendedActions: forecast!.recommendedActions, caveats: forecast!.caveats,
+            };
+            return (
+              <div className="space-y-4">
+                {f.projected.expected !== null && (
+                  <div className="p-4 rounded-lg bg-blue-50">
+                    <div className="text-sm text-gray-600">Projected revenue won, next 90 days{f.confidence ? ` (${f.confidence} confidence)` : ''}</div>
+                    <div className="text-2xl font-bold text-blue-700">
+                      {formatCurrency(f.projected.expected)}
+                      {f.projected.low !== null && f.projected.high !== null && (
+                        <span className="ml-2 text-sm font-normal text-gray-600">range {formatCurrency(f.projected.low)} to {formatCurrency(f.projected.high)}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {f.insights.length > 0 && <ul className="list-disc ml-5 text-sm text-gray-700 space-y-1">{f.insights.map((t, i) => <li key={i}>{t}</li>)}</ul>}
+                {f.recommendedActions.length > 0 && (
+                  <div><h4 className="text-sm font-medium text-gray-900 mb-1">Recommended actions</h4><ul className="list-disc ml-5 text-sm text-gray-700 space-y-1">{f.recommendedActions.map((t, i) => <li key={i}>{t}</li>)}</ul></div>
+                )}
+                {f.caveats.length > 0 && <ul className="list-disc ml-5 text-xs text-gray-500 space-y-1">{f.caveats.map((t, i) => <li key={i}>{t}</li>)}</ul>}
+              </div>
+            );
+          })()}
         </>
       )}
     </GlassCard>

@@ -9,6 +9,7 @@ import { contactAI, ContactInsight, ContactScore } from '../services/contact-ai.
 import { communicationAI } from '../services/communication-ai.service';
 import { logger } from '../services/logger.service';
 import { Contact } from '../types';
+import type { LiveOptions } from '../services/liveOptions';
 
 interface AIState {
   // Processing states
@@ -40,9 +41,9 @@ interface AIState {
 
 interface AIActions {
   // Contact operations
-  scoreContact: (contact: Contact, options?: any) => Promise<ContactScore>;
-  generateInsights: (contact: Contact, types?: ContactInsight['type'][]) => Promise<ContactInsight[]>;
-  enrichContact: (contact: Contact, level?: string) => Promise<any>;
+  scoreContact: (contact: Contact, options?: any, live?: LiveOptions) => Promise<ContactScore>;
+  generateInsights: (contact: Contact, types?: ContactInsight['type'][], live?: LiveOptions) => Promise<ContactInsight[]>;
+  enrichContact: (contact: Contact, level?: string, live?: LiveOptions) => Promise<any>;
   
   // Communication operations
   generateEmail: (contact: Contact, purpose: string, context?: any) => Promise<any>;
@@ -262,14 +263,14 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   }, []);
 
   // Action implementations
-  const scoreContact = useCallback(async (contact: Contact, options?: any): Promise<ContactScore> => {
+  const scoreContact = useCallback(async (contact: Contact, options?: any, live?: LiveOptions): Promise<ContactScore> => {
     const requestId = `score_${contact.id}_${Date.now()}`;
     
     try {
       dispatch({ type: 'ADD_ACTIVE_REQUEST', payload: { id: requestId, type: 'scoring' } });
       dispatch({ type: 'SET_PROCESSING', payload: true });
       
-      const score = await contactAI.scoreContact(contact, options);
+      const score = await contactAI.scoreContact(contact, options, live);
       
       dispatch({ type: 'SET_CONTACT_SCORE', payload: { contactId: contact.id, score } });
       dispatch({ type: 'REMOVE_ACTIVE_REQUEST', payload: requestId });
@@ -290,7 +291,8 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const generateInsights = useCallback(async (
     contact: Contact, 
-    types?: ContactInsight['type'][]
+    types?: ContactInsight['type'][],
+    live?: LiveOptions
   ): Promise<ContactInsight[]> => {
     const requestId = `insights_${contact.id}_${Date.now()}`;
     
@@ -298,7 +300,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       dispatch({ type: 'ADD_ACTIVE_REQUEST', payload: { id: requestId, type: 'insights' } });
       dispatch({ type: 'SET_PROCESSING', payload: true });
       
-      const insights = await contactAI.generateInsights(contact, types || state.aiPreferences.insightTypes);
+      const insights = await contactAI.generateInsights(contact, types || state.aiPreferences.insightTypes, undefined, live);
       
       dispatch({ type: 'SET_CONTACT_INSIGHTS', payload: { contactId: contact.id, insights } });
       dispatch({ type: 'REMOVE_ACTIVE_REQUEST', payload: requestId });
@@ -320,14 +322,14 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   }, [state.aiPreferences.insightTypes]);
 
-  const enrichContact = useCallback(async (contact: Contact, level = 'basic'): Promise<any> => {
+  const enrichContact = useCallback(async (contact: Contact, level = 'basic', live?: LiveOptions): Promise<any> => {
     const requestId = `enrich_${contact.id}_${Date.now()}`;
     
     try {
       dispatch({ type: 'ADD_ACTIVE_REQUEST', payload: { id: requestId, type: 'enrichment' } });
       dispatch({ type: 'SET_PROCESSING', payload: true });
       
-      const enrichmentData = await contactAI.enrichContact(contact, level as any);
+      const enrichmentData = await contactAI.enrichContact(contact, level as any, undefined, live);
       
       dispatch({ type: 'REMOVE_ACTIVE_REQUEST', payload: requestId });
       

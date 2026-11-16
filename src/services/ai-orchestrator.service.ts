@@ -8,7 +8,8 @@ import { cleanConfidence } from './aiNormalize';
 import { cacheService } from './cache.service';
 import { rateLimiter } from './rate-limiter.service';
 import { httpClient } from './http-client.service';
-import { aiRespond, AIRole } from './aiClient';
+import { aiJson, AIRole } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 import { Contact } from '../types/contact';
 
 export interface AIRequest {
@@ -30,6 +31,8 @@ export interface AIRequest {
     model?: string;
     timeout?: number;
   };
+  /** Live progress (onPartial / onStatus / onDelta / signal): the answer streams in while it is produced. */
+  live?: LiveOptions;
 }
 
 export interface AIResponse {
@@ -671,7 +674,7 @@ class AIOrchestrator {
     const { name, schema } = this.schemaForRequest(request.type);
 
     try {
-      const response = await aiRespond<any>({
+      const json = await aiJson<any>({
         role,
         instructions,
         input,
@@ -680,7 +683,8 @@ class AIOrchestrator {
         maxOutputTokens: 2000,
         // Enrichment must be grounded in real sources rather than guessed.
         ...(request.type === 'contact_enrichment' ? { tools: [{ type: 'web_search' as const }] } : {})
-      });
+      }, request.live);
+      const response = { json };
 
       if (response.json == null) {
         throw new Error('AI did not return structured JSON');

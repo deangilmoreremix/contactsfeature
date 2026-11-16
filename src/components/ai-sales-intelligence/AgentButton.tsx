@@ -3,6 +3,9 @@ import { supabase } from '../../lib/supabase';
 import { AgentConfig, AgentExecutionRequest, AgentExecutionResult } from '../../types/agent';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentModal } from './AgentModal';
+import { streamFunction } from '../../services/liveFunction';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
 import { Loader2, Sparkles, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface AgentButtonProps {
@@ -35,6 +38,8 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [executionResult, setExecutionResult] = useState<AgentExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Live run: status line + the agent's answer typing in (dual-mode functions stream; others answer as plain JSON)
+  const live = useLiveCall();
 
   // Use functionName if provided, otherwise use agentId as function name
   const activeFunctionName = functionName || agentId;
@@ -76,22 +81,14 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
       let result: AgentExecutionResult;
 
       if (functionName) {
-        // Call Netlify function directly
-        const response = await fetch(`/.netlify/functions/${functionName}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...(contactId && { contactId }),
-            ...(dealId && { dealId }),
-            ...(input && { input })
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Function ${functionName} failed: ${response.statusText}`);
-        }
-
-        result = await response.json();
+        // Call the Netlify function over SSE (dual-mode); a plain JSON reply is handled the same way
+        const run = await live.run((opts) => streamFunction<AgentExecutionResult>(`/.netlify/functions/${functionName}`, {
+          ...(contactId && { contactId }),
+          ...(dealId && { dealId }),
+          ...(input && { input })
+        }, opts));
+        if (!run) return; // stopped by the user
+        result = (run.result ?? {}) as AgentExecutionResult;
       } else {
         // Use agent-runner (database lookup)
         const request: AgentExecutionRequest = {
@@ -183,6 +180,12 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
           onClose={() => setShowModal(false)}
           loading={loading}
         />
+      )}
+
+      {live.state.active && (
+        <div className="fixed bottom-4 right-4 max-w-sm w-full z-50">
+          <LiveRunStatus live={live} />
+        </div>
       )}
 
       {/* Success/Error Feedback */}

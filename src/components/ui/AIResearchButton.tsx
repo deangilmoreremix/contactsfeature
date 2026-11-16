@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { ModernButton } from './ModernButton';
 import { SmartTooltip } from './SmartTooltip';
 import { ResearchTooltip } from './AITooltipContent';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from './LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { ContactEnrichmentData, aiEnrichmentService } from '../../services/aiEnrichmentService';
 import {
   Brain,
@@ -60,6 +63,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
   disabled = false
 }) => {
   const [isSearching, setIsSearching] = useState(false);
+  const lv = useFunctionStream<ContactEnrichmentData>();
   const [searchResults, setSearchResults] = useState<ContactEnrichmentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -78,13 +82,14 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
     console.log('AIResearchButton - starting search', { searchType, searchQuery });
 
+    const t = lv.start();
     try {
       let results: ContactEnrichmentData;
 
       switch (searchType) {
         case 'email':
           if (searchQuery.email) {
-            results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email);
+            results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email, {}, t.h);
           } else {
             throw new Error('Email is required for search');
           }
@@ -95,7 +100,8 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
             results = await aiEnrichmentService.enrichContactByName(
               searchQuery.firstName,
               searchQuery.lastName || '',
-              searchQuery.company
+              searchQuery.company,
+              t.h
             );
           } else {
             throw new Error('First name is required for search');
@@ -104,7 +110,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
         case 'linkedin':
            if (searchQuery.linkedinUrl) {
-             results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl);
+             results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl, t.h);
            } else {
              throw new Error('LinkedIn URL is required for search');
            }
@@ -112,7 +118,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
          case 'twitter':
            if (searchQuery.twitterUrl) {
-             results = await aiEnrichmentService.enrichContactBySocialNetwork('twitter', searchQuery.twitterUrl);
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('twitter', searchQuery.twitterUrl, t.h);
            } else {
              throw new Error('Twitter URL is required for search');
            }
@@ -120,7 +126,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
          case 'facebook':
            if (searchQuery.facebookUrl) {
-             results = await aiEnrichmentService.enrichContactBySocialNetwork('facebook', searchQuery.facebookUrl);
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('facebook', searchQuery.facebookUrl, t.h);
            } else {
              throw new Error('Facebook URL is required for search');
            }
@@ -128,7 +134,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
          case 'instagram':
            if (searchQuery.instagramUrl) {
-             results = await aiEnrichmentService.enrichContactBySocialNetwork('instagram', searchQuery.instagramUrl);
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('instagram', searchQuery.instagramUrl, t.h);
            } else {
              throw new Error('Instagram URL is required for search');
            }
@@ -136,7 +142,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
          case 'whatsapp':
            if (searchQuery.whatsappUrl) {
-             results = await aiEnrichmentService.enrichContactBySocialNetwork('whatsapp', searchQuery.whatsappUrl);
+             results = await aiEnrichmentService.enrichContactBySocialNetwork('whatsapp', searchQuery.whatsappUrl, t.h);
            } else {
              throw new Error('WhatsApp URL is required for search');
            }
@@ -144,7 +150,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
          case 'social':
            if (searchQuery.socialProfiles && Object.keys(searchQuery.socialProfiles).length > 0) {
-             results = await aiEnrichmentService.enrichContactByMultipleSocialNetworks(searchQuery.socialProfiles);
+             results = await aiEnrichmentService.enrichContactByMultipleSocialNetworks(searchQuery.socialProfiles, t.h);
            } else {
              throw new Error('Social profiles are required for search');
            }
@@ -153,15 +159,16 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
          case 'auto':
           // Auto-detect best search method
           if (searchQuery.email) {
-            results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email);
+            results = await aiEnrichmentService.enrichContactByEmail(searchQuery.email, {}, t.h);
           } else if (searchQuery.firstName) {
             results = await aiEnrichmentService.enrichContactByName(
               searchQuery.firstName,
               searchQuery.lastName || '',
-              searchQuery.company
+              searchQuery.company,
+              t.h
             );
           } else if (searchQuery.linkedinUrl) {
-            results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl);
+            results = await aiEnrichmentService.enrichContactByLinkedIn(searchQuery.linkedinUrl, t.h);
           } else {
             throw new Error('Insufficient search parameters');
           }
@@ -182,12 +189,15 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
       if (hasRealData) {
         setSearchResults(results);
         setShowPreview(true);
+        t.finish();
       } else {
+        t.finish();
         setError('No meaningful information found. Try with more specific details.');
       }
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed');
+      t.fail(err);
+      if (!t.h.signal?.aborted) setError(err instanceof Error ? err.message : 'Search failed');
     } finally {
       setIsSearching(false);
     }
@@ -285,6 +295,19 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
             <AlertCircle className="w-4 h-4 text-red-500" />
             <p className="text-sm text-red-700">{error}</p>
           </div>
+        </div>
+      )}
+
+      {/* Live research (status, typing findings, Stop) */}
+      {lv.isStreaming && (
+        <div className="absolute top-full left-0 mt-2 z-20 min-w-96 max-w-lg shadow-xl">
+          <LiveOutput
+            showError={false}
+            state={lv.state}
+            onStop={lv.stop}
+            display={liveDisplay(lv.state.partial, lv.state.text)}
+            placeholder="Researching…"
+          />
         </div>
       )}
 

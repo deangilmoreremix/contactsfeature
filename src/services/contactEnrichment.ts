@@ -6,6 +6,7 @@
 import { supabase } from '../lib/supabase';
 import { logger } from './logger.service';
 import type { Contact } from '../types/contact';
+import { streamFunction } from './liveFunction';
 
 export interface EnrichmentCitation { url: string; title: string }
 
@@ -31,6 +32,13 @@ export interface EnrichmentOutcome {
 
 export type EnrichmentProgress = (status: 'starting' | 'searching' | 'applying') => void;
 
+/** Live callbacks: the run streams ("Searching the web…" status, findings filling in), then fills empty fields. */
+export interface EnrichmentLive {
+  onStatus?: (label: string) => void;
+  /** Structured findings so far (partial JSON of EnrichmentResult). */
+  onPartial?: (partial: unknown) => void;
+}
+
 const FN = '/.netlify/functions/contact-enrich';
 const POLL_MS = 3000;
 const MAX_WAIT_MS = 4 * 60 * 1000;
@@ -50,43 +58,89 @@ async function call(body: Record<string, unknown>): Promise<any> {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function enrichContactWithWebSearch(
-  contact: Contact,
-  opts: { apply?: boolean; onProgress?: EnrichmentProgress; signal?: AbortSignal } = {}
-): Promise<EnrichmentOutcome> {
-  const { apply = true, onProgress, signal } = opts;
-  onProgress?.('starting');
+interface Completed {
+  result: EnrichmentResult;
+  citations: EnrichmentCitation[];
+  suggestedUpdates: Partial<Contact>;
+  persisted: boolean;
+}
 
-  const start = await call(
-    UUID.test(contact.id)
-      ? { action: 'start', contactId: contact.id }
-      : { action: 'start', contact: { name: contact.name, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, company: contact.company, title: contact.title, industry: contact.industry, socialProfiles: contact.socialProfiles } }
-  );
+const startBody = (contact: Contact): Record<string, unknown> =>
+  UUID.test(contact.id)
+    ? { action: 'start', contactId: contact.id }
+    : { action: 'start', contact: { name: contact.name, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, company: contact.company, title: contact.title, industry: contact.industry, socialProfiles: contact.socialProfiles } };
 
-  onProgress?.('searching');
+const currentFields = (contact: Contact) => ({ title: contact.title, company: contact.company, industry: contact.industry, phone: contact.phone, socialProfiles: contact.socialProfiles });
+
+/** Legacy path: poll `status` until the background run finishes (also the fallback when a stream is cut off). */
+async function pollUntilDone(responseId: string, contact: Contact, signal?: AbortSignal): Promise<Completed> {
   const deadline = Date.now() + MAX_WAIT_MS;
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new Error('Enrichment cancelled');
     await new Promise((r) => setTimeout(r, POLL_MS));
-    const status = await call({ action: 'status', responseId: start.responseId, contact: { title: contact.title, company: contact.company, industry: contact.industry, phone: contact.phone, socialProfiles: contact.socialProfiles } });
+    const status = await call({ action: 'status', responseId, contact: currentFields(contact) });
     if (status.status === 'failed') throw new Error(status.error || 'Enrichment failed');
     if (status.status !== 'completed') continue;
-
-    const suggestedUpdates = (status.suggestedUpdates || {}) as Partial<Contact>;
-    let appliedFields: string[] = [];
-    if (apply && Object.keys(suggestedUpdates).length > 0) {
-      onProgress?.('applying');
-      appliedFields = await applyUpdates(contact, suggestedUpdates, status.result as EnrichmentResult);
-    }
-    return {
-      result: status.result as EnrichmentResult,
-      citations: (status.citations || []) as EnrichmentCitation[],
-      suggestedUpdates,
-      appliedFields,
-      persisted: !!status.persisted,
-    };
+    return status as Completed;
   }
   throw new Error('Enrichment timed out. Try again in a moment.');
+}
+
+/**
+ * Stream the research run (background + SSE via contact-enrich). Resolves with the completed payload; if the
+ * connection is lost for good it keeps polling the same run so no work is lost.
+ */
+async function runStreamed(contact: Contact, live: EnrichmentLive, signal?: AbortSignal): Promise<Completed> {
+  let responseId: string | null = null;
+  try {
+    const { result } = await streamFunction<Completed & { status?: string }>(FN, { ...startBody(contact), background: true }, {
+      ...(signal ? { signal } : {}),
+      onStatus: (label, e) => { if (e.id) responseId = e.id; live.onStatus?.(label); },
+      onPartial: (json) => live.onPartial?.(json),
+    });
+    if (!result || result.status === 'failed') throw new Error('Enrichment failed');
+    return result;
+  } catch (error) {
+    if (signal?.aborted) throw new Error('Enrichment cancelled');
+    if (responseId) {
+      live.onStatus?.('Reconnecting…');
+      return pollUntilDone(responseId, contact, signal);
+    }
+    throw error;
+  }
+}
+
+export async function enrichContactWithWebSearch(
+  contact: Contact,
+  opts: { apply?: boolean; onProgress?: EnrichmentProgress; signal?: AbortSignal; live?: EnrichmentLive } = {}
+): Promise<EnrichmentOutcome> {
+  const { apply = true, onProgress, signal, live } = opts;
+  onProgress?.('starting');
+
+  let done: Completed;
+  if (live) {
+    onProgress?.('searching');
+    done = await runStreamed(contact, live, signal);
+  } else {
+    // No live UI attached: start the background run and poll (same server bookkeeping).
+    const start = await call(startBody(contact));
+    onProgress?.('searching');
+    done = await pollUntilDone(start.responseId, contact, signal);
+  }
+
+  const suggestedUpdates = (done.suggestedUpdates || {}) as Partial<Contact>;
+  let appliedFields: string[] = [];
+  if (apply && Object.keys(suggestedUpdates).length > 0) {
+    onProgress?.('applying');
+    appliedFields = await applyUpdates(contact, suggestedUpdates, done.result);
+  }
+  return {
+    result: done.result,
+    citations: (done.citations || []) as EnrichmentCitation[],
+    suggestedUpdates,
+    appliedFields,
+    persisted: !!done.persisted,
+  };
 }
 
 async function applyUpdates(contact: Contact, updates: Partial<Contact>, result: EnrichmentResult): Promise<string[]> {

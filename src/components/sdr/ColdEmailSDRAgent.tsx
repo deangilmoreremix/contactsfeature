@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Settings, Send, Mail, Copy, Check, Loader2, X } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
-import { useStreamingAI } from "../../hooks/useStreamingAI";
-import { supabase } from "../../services/supabaseClient";
+import { useSdrRun, SdrLiveBar } from "./SdrLive";
 
 interface ColdEmailResponse {
   contactId: string;
@@ -24,18 +23,18 @@ export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact })
   const [contactId, setContactId] = useState(contact?.id || "");
   const { preferences, apiPreferences, savePreferences, resetPreferences } = useSDRPreferences('cold-email-sdr');
   
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ColdEmailResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Streaming state
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
-  const [streamingSubject, setStreamingSubject] = useState('');
-  const [streamingProgress, setStreamingProgress] = useState(0);
+  // Live generation: subject / body fill in as the model writes them (Responses API stream).
+  const run = useSdrRun<ColdEmailResponse>();
+  const isStreaming = run.loading;
+  const loading = isStreaming;
+  const live = run.live;
+  const displaySubject = live?.subject || '';
+  const displayBody = live?.body || '';
 
   useEffect(() => {
     if (contact?.id) {
@@ -43,110 +42,39 @@ export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact })
     }
   }, [contact?.id]);
 
-  // Streaming hook for real-time email generation
-  const { startStream, stopStream } = useStreamingAI<ColdEmailResponse>({
-    onProgress: (progress, message) => {
-      setStreamingProgress(progress);
-    },
-    onComplete: (data) => {
-      if (data) {
-        setResult(data);
-      }
-      setIsStreaming(false);
-      setStreamingProgress(100);
-    },
-    onError: (errorMsg) => {
-      setError(errorMsg);
-      setIsStreaming(false);
-    },
-  });
-
   const handleSaveDraft = async () => {
-    const finalResult = result || { 
-      contactId, 
-      subject: streamingSubject || 'Generated Email', 
-      body: streamingContent,
-      sent: false 
-    };
-    
     const res = await saveSdrDraft({
-      contactId: finalResult.contactId || contactId,
-      subject: finalResult.subject,
-      body: finalResult.body,
+      contactId: live?.contactId || contactId,
+      subject: displaySubject || 'Generated Email',
+      body: displayBody,
       agentType: 'cold-email-sdr',
     });
     if (res.success) setDraftSaved(true);
   };
 
   const handleCopy = () => {
-    const textToCopy = streamingSubject 
-      ? `Subject: ${streamingSubject}\n\n${streamingContent}`
-      : result 
-        ? `Subject: ${result.subject}\n\n${result.body}`
-        : '';
-    
-    if (textToCopy) {
-      navigator.clipboard.writeText(textToCopy);
+    if (displayBody) {
+      navigator.clipboard.writeText(`Subject: ${displaySubject}\n\n${displayBody}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
-  const handleStopStreaming = () => {
-    stopStream();
-    setIsStreaming(false);
-    // Keep what was generated so far
-    if (streamingContent) {
-      setResult({
-        contactId,
-        subject: streamingSubject || 'Generated Email',
-        body: streamingContent,
-        sent: false,
-      });
-    }
-  };
+  // Stop keeps whatever has been written so far (it can still be copied / saved).
+  const handleStopStreaming = () => run.stop();
 
   const handleSend = async () => {
     setError(null);
-    setResult(null);
-    setStreamingContent('');
-    setStreamingSubject('');
-    setStreamingProgress(0);
+    setDraftSaved(false);
+    run.reset();
 
     if (!contactId) {
       setError("Please enter a contact ID.");
       return;
     }
 
-    setLoading(true);
-    setIsStreaming(true);
-
-    try {
-      // Get session for auth
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Not authenticated');
-      }
-
-      // Start streaming request
-      await startStream(
-        '/.netlify/functions/cold-email-sdr',
-        { contactId, preferences: apiPreferences },
-        { 'Authorization': `Bearer ${session.access_token}` }
-      );
-
-    } catch (e: any) {
-      console.error("[ColdEmailSDRAgent] error:", e);
-      setError(e.message || "Failed to send cold email");
-      setIsStreaming(false);
-    } finally {
-      setLoading(false);
-    }
+    await run.runFunction('/.netlify/functions/cold-email-sdr', { contactId, preferences: apiPreferences });
   };
-
-  // Generate display content - either streaming or final result
-  const displaySubject = streamingSubject || result?.subject || '';
-  const displayBody = streamingContent || result?.body || '';
 
   return (
     <div
@@ -195,7 +123,7 @@ export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact })
         Send first-touch cold emails to brand new prospects with personalized messaging.
       </p>
 
-      {error && (
+      {(error || run.streamError) && (
         <div
           style={{
             marginBottom: 10,
@@ -206,65 +134,11 @@ export const ColdEmailSDRAgent: React.FC<ColdEmailSDRAgentProps> = ({ contact })
             fontSize: 12
           }}
         >
-          ⚠️ {error}
+          ⚠️ {error || run.streamError}
         </div>
       )}
 
-      {/* Streaming Progress */}
-      {isStreaming && (
-        <div
-          style={{
-            marginBottom: 10,
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "var(--sdr-eff6ff)",
-            border: "1px solid var(--sdr-bfdbfe)"
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Loader2 size={14} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: 12, color: "var(--sdr-1e40af)", fontWeight: 500 }}>
-              Generating email... {streamingProgress}%
-            </span>
-          </div>
-          <div style={{
-            height: 4,
-            background: 'var(--sdr-e5e7eb)',
-            borderRadius: 2,
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              height: '100%',
-              width: `${streamingProgress}%`,
-              background: '#3b82f6',
-              transition: 'width 0.3s ease'
-            }} />
-          </div>
-          {streamingSubject && (
-            <div style={{ marginTop: 8, fontSize: 11, color: "var(--sdr-6b7280)" }}>
-              <strong>Subject:</strong> {streamingSubject}
-            </div>
-          )}
-          <button
-            onClick={handleStopStreaming}
-            style={{
-              marginTop: 8,
-              padding: "0 16px", height: 40, whiteSpace: "nowrap",
-              fontSize: 14,
-              borderRadius: 8,
-              border: '1px solid var(--sdr-d1d5db)',
-              background: 'var(--sdr-surface)',
-              cursor: 'pointer',
-              display: "flex",
-            justifyContent: "center",
-              alignItems: 'center',
-              gap: 8
-            }}
-          >
-            <X size={10} /> Stop
-          </button>
-        </div>
-      )}
+      <SdrLiveBar run={run} showStop={false} />
 
       {contact ? (
         <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "var(--sdr-f0fdf4)", border: "1px solid var(--sdr-bbf7d0)" }}>

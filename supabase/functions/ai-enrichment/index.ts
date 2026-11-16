@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createResponse } from '../_shared/openai.ts'
+import { respond, respondDualTask } from '../_shared/openai.ts'
 
 /**
  * AI Enrichment Edge Function (OpenAI Responses API + hosted web_search tool).
@@ -23,7 +23,7 @@ const nullableString = { type: ['string', 'null'] }
 
 /** Research a question with the hosted web_search tool and return structured JSON + sources. */
 async function research(instructions: string, input: string, schemaName: string, schema: Record<string, unknown>) {
-  const ai = await createResponse({
+  const ai = await respond({
     role: 'thinking',
     effort: 'low',
     instructions: `${instructions}
@@ -33,7 +33,7 @@ Rules: use web search and report only facts supported by sources you found. If y
     schema,
     tools: [{ type: 'web_search' }],
     maxOutputTokens: 4000
-  })
+  }, { forward: 'status' }) // research calls may run in parallel: only live status is forwarded
   if (!ai.json) throw new Error('AI returned no structured research result')
   return { data: ai.json, sources: ai.citations as Source[] }
 }
@@ -69,8 +69,6 @@ Deno.serve(async (req: Request) => {
     const requestBody = await req.json()
     const { type, contactData, enrichmentType, email, name, linkedin, contacts, enrichmentRequest } = requestBody
 
-    let enrichedData
-
     // Use 'type' field first, fallback to 'enrichmentType' for backward compatibility
     const requestType = type || enrichmentType
 
@@ -83,42 +81,43 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    switch (requestType) {
-      case 'image':
-        enrichedData = await findContactImage(processedData)
-        break
-      case 'email':
-        enrichedData = await enrichByEmail(processedData.email || email, processedData)
-        break
-      case 'name':
-        enrichedData = await enrichByName(processedData.name || name, processedData)
-        break
-      case 'linkedin':
-        enrichedData = await enrichByLinkedIn(processedData.linkedin || linkedin, processedData)
-        break
-      case 'bulk':
-        enrichedData = await enrichBulkContacts(contacts || processedData.contacts || processedData)
-        break
-      case 'company':
-        enrichedData = await enrichCompanyInfo(processedData)
-        break
-      case 'social':
-        enrichedData = await enrichSocialProfiles(processedData)
-        break
-      case 'interests':
-        enrichedData = await enrichInterests(processedData)
-        break
-      case 'comprehensive':
-        enrichedData = await comprehensiveEnrichment(processedData)
-        break
-      default:
-        enrichedData = { success: true, data: await basicEnrichment(processedData) }
+    const run = async () => {
+      let enrichedData
+      switch (requestType) {
+        case 'image':
+          enrichedData = await findContactImage(processedData)
+          break
+        case 'email':
+          enrichedData = await enrichByEmail(processedData.email || email, processedData)
+          break
+        case 'name':
+          enrichedData = await enrichByName(processedData.name || name, processedData)
+          break
+        case 'linkedin':
+          enrichedData = await enrichByLinkedIn(processedData.linkedin || linkedin, processedData)
+          break
+        case 'bulk':
+          enrichedData = await enrichBulkContacts(contacts || processedData.contacts || processedData)
+          break
+        case 'company':
+          enrichedData = await enrichCompanyInfo(processedData)
+          break
+        case 'social':
+          enrichedData = await enrichSocialProfiles(processedData)
+          break
+        case 'interests':
+          enrichedData = await enrichInterests(processedData)
+          break
+        case 'comprehensive':
+          enrichedData = await comprehensiveEnrichment(processedData)
+          break
+        default:
+          enrichedData = { success: true, data: await basicEnrichment(processedData) }
+      }
+      return enrichedData
     }
 
-    return new Response(JSON.stringify(enrichedData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
+    return await respondDualTask({ req, body: requestBody, headers: corsHeaders, run })
   } catch (error) {
     console.error('AI Enrichment Error:', error)
 

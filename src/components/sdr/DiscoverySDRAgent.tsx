@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Search, Users, Building } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
-import { sdrAuthHeaders } from "../../services/sdrClient";
+import { useSdrRun, SdrLiveBar } from "./SdrLive";
 import { Contact } from "../../types/contact";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
@@ -26,41 +26,23 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
       setContactId(contact.id);
     }
   }, [contact?.id]);
-  const [loading, setLoading] = useState(false);
+  
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<DiscoveryResponse | null>(null);
+  const run = useSdrRun<DiscoveryResponse>();
+  const result = run.live as DiscoveryResponse | null;
   const [showSettings, setShowSettings] = useState(false);
 
+  const loading = run.loading;
   const handleResearch = async () => {
     setError(null);
-    setResult(null);
+    run.reset();
 
     if (!contactId) {
       setError("Please enter a contact ID.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/discovery-sdr", {
-        method: "POST",
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({ contactId, preferences: apiPreferences })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Discovery research failed");
-      }
-
-      const json = (await res.json()) as DiscoveryResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[DiscoverySDRAgent] error:", e);
-      setError(e.message || "Failed to perform discovery research");
-    } finally {
-      setLoading(false);
-    }
+    await run.runFunction("/.netlify/functions/discovery-sdr", { contactId, preferences: apiPreferences });
   };
 
   return (
@@ -110,7 +92,7 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
         Research prospects and qualify leads with AI-powered intelligence gathering.
       </p>
 
-      {error && (
+      {(error || run.streamError) && (
         <div
           style={{
             marginBottom: 10,
@@ -121,9 +103,11 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
             fontSize: 12
           }}
         >
-          ⚠️ {error}
+          ⚠️ {error || run.streamError}
         </div>
       )}
+
+      <SdrLiveBar run={run} />
 
       {contact ? (
         <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "var(--sdr-f0fdf4)", border: "1px solid var(--sdr-bbf7d0)" }}>
@@ -207,7 +191,7 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
               <Users size={16} />
               <strong>{result.subject}</strong>
             </div>
-            <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, paddingLeft: 24, fontFamily: "inherit" }}>{result.body}</pre>
+            <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, paddingLeft: 24, fontFamily: "inherit" }}>{result.body}{loading && <span style={{ opacity: 0.5 }}>|</span>}</pre>
           </div>
 
           <div>

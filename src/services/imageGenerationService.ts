@@ -1,20 +1,25 @@
 /**
- * Client for the generate-image / generate-image-status Netlify functions (OpenAI Responses image_generation,
- * background mode). Starts one job per variant, then polls with backoff; never holds a long request open.
+ * Client for the image generation Netlify functions (OpenAI Responses image_generation).
+ * Primary path: one live SSE stream per variant (generate-image-stream, up to 4 in parallel) so previews
+ * sharpen on screen. Automatic fallback when a stream fails: background jobs polled with backoff
+ * (generate-image + generate-image-status), re-attaching to the job the stream already started when known.
  */
 import { supabase } from '../lib/supabase';
+import { newOutcome, streamSse } from '../lib/streaming/streamClient';
 
 export type ImageSize = 'auto' | '1024x1024' | '1536x1024' | '1024x1536';
 export type ImageQuality = 'auto' | 'low' | 'medium' | 'high';
 
-export type VariantStatus = 'pending' | 'done' | 'failed';
+export type VariantStatus = 'pending' | 'preview' | 'done' | 'failed';
 
 export interface VariantUpdate {
   index: number;
   status: VariantStatus;
-  /** data URL when status === 'done' */
+  /** data URL when status === 'done' (final) or 'preview' (progressive, still sharpening) */
   image?: string;
   error?: string;
+  /** stream label for 'pending' updates, e.g. "Generating image…" */
+  label?: string;
 }
 
 export interface GenerateImageOptions {
@@ -27,7 +32,7 @@ export interface GenerateImageOptions {
   /** base64 data URLs used as visual references (synchronous Images edit endpoint, one image per request) */
   referenceImages?: string[];
   signal?: AbortSignal;
-  /** called whenever a variant changes state (pending at start, then done/failed) */
+  /** called whenever a variant changes state (pending at start, live previews, then done/failed) */
   onVariant?: (update: VariantUpdate) => void;
 }
 
@@ -40,11 +45,13 @@ export interface GeneratedImagesResult {
 }
 
 const FN = '/.netlify/functions/generate-image';
+const STREAM_FN = '/.netlify/functions/generate-image-stream';
 const STATUS_FN = '/.netlify/functions/generate-image-status';
 const MAX_WAIT_MS = 4 * 60 * 1000;
 const FIRST_POLL_MS = 2500;
 const MAX_POLL_MS = 8000;
 const MAX_PER_REQUEST = 4;
+const MAX_PARALLEL_STREAMS = 4;
 
 /** Map an aspect ratio like "16:9" to the closest supported OpenAI image size. */
 export function aspectToSize(aspect?: string): ImageSize {
@@ -84,8 +91,8 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 const toDataUrl = (i: { b64_json: string; mime_type?: string }) => `data:${i.mime_type || 'image/png'};base64,${i.b64_json}`;
 
 /**
- * Generate `n` variants. Text-to-image runs as background jobs that are polled (backoff 2.5s -> 8s, overall
- * 4 minute cap); each variant is reported through `onVariant` as soon as it finishes. Rejects only when
+ * Generate `n` variants. Text-to-image streams live per variant (previews via `onVariant` status 'preview'); on a stream failure
+ * it falls back to polled background jobs (backoff 2.5s -> 8s, overall 4 minute cap). Each variant is reported as soon as it finishes. Rejects only when
  * every variant failed or the call was aborted.
  */
 export async function generateImages(opts: GenerateImageOptions): Promise<GeneratedImagesResult> {
@@ -117,25 +124,68 @@ export async function generateImages(opts: GenerateImageOptions): Promise<Genera
       }
     }
   } else {
-    // Start jobs (<= 4 per request), remembering which variant slot each response id fills.
+    // Live path: one SSE stream per variant, at most MAX_PARALLEL_STREAMS at a time.
     const slots = new Map<string, number>();
-    for (let from = 0; from < total; from += MAX_PER_REQUEST) {
-      const count = Math.min(MAX_PER_REQUEST, total - from);
+    const fallback: Array<{ index: number; responseId?: string }> = [];
+    const mime = (rest as { outputFormat?: string }).outputFormat || 'png';
+
+    const streamVariant = async (index: number) => {
+      let responseId: string | undefined;
       try {
-        const json = await authedPost(FN, { ...rest, n: count }, signal);
-        model = json.model || model;
-        const jobs: Array<{ responseId: string }> = json.jobs || [];
-        jobs.forEach((j, k) => slots.set(j.responseId, from + k));
-        for (let k = jobs.length; k < count; k++) settle(from + k, undefined, 'Could not start this variant');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error('Please sign in to generate images');
+        const outcome = await streamSse(
+          STREAM_FN,
+          { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: { ...rest, variant: index } },
+          {
+            signal,
+            onStatus: (label, e) => {
+              if (e.id) responseId = e.id;
+              onVariant?.({ index, status: 'pending', label });
+            },
+            onImage: (e) => onVariant?.({ index, status: 'preview', image: `data:image/${mime};base64,${e.b64}` }),
+          },
+          newOutcome()
+        );
+        if (outcome.error) throw new Error(outcome.error);
+        const r = outcome.result as { image?: { b64_json: string; mime_type?: string }; model?: string } | undefined;
+        if (!r?.image?.b64_json) throw new Error('Stream ended without an image');
+        model = r.model || model;
+        settle(index, toDataUrl(r.image));
       } catch (e) {
         if (signal?.aborted) throw e;
-        for (let k = 0; k < count; k++) settle(from + k, undefined, e instanceof Error ? e.message : undefined);
+        fallback.push({ index, responseId });
+      }
+    };
+    const queue = Array.from({ length: total }, (_, i) => i);
+    await Promise.all(Array.from({ length: Math.min(MAX_PARALLEL_STREAMS, total) }, async () => {
+      for (let i = queue.shift(); i !== undefined; i = queue.shift()) await streamVariant(i);
+    }));
+
+    // Fallback: poll background jobs. Re-attach to a job the stream already started, else start new ones.
+    const needStart: number[] = [];
+    for (const f of fallback) {
+      if (f.responseId) slots.set(f.responseId, f.index);
+      else needStart.push(f.index);
+    }
+    for (let from = 0; from < needStart.length; from += MAX_PER_REQUEST) {
+      const group = needStart.slice(from, from + MAX_PER_REQUEST);
+      try {
+        const json = await authedPost(FN, { ...rest, n: group.length }, signal);
+        model = json.model || model;
+        const jobs: Array<{ responseId: string }> = json.jobs || [];
+        jobs.forEach((j, k) => slots.set(j.responseId, group[k]));
+        for (let k = jobs.length; k < group.length; k++) settle(group[k], undefined, 'Could not start this variant');
+      } catch (e) {
+        if (signal?.aborted) throw e;
+        for (const idx of group) settle(idx, undefined, e instanceof Error ? e.message : undefined);
       }
     }
+    for (const idx of slots.values()) onVariant?.({ index: idx, status: 'pending', label: 'Finishing in the background…' });
 
     // Poll each pending id on its own (keeps every response far below Netlify's payload limit).
     let delay = FIRST_POLL_MS;
-    let pending = new Set(slots.keys());
+    const pending = new Set(slots.keys());
     while (pending.size && Date.now() < deadline) {
       await sleep(delay, signal);
       delay = Math.min(MAX_POLL_MS, Math.round(delay * 1.4));

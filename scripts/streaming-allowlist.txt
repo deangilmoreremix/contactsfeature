@@ -1,0 +1,33 @@
+# Streaming gate allowlist (read by scripts/check-streaming.cjs, run from scripts/check-stack.sh).
+# One repo-relative path per line (a trailing "/" matches a directory, "*" matches within a segment, "**" across).
+# Format: <path>   # reason
+# Every user-visible AI answer must stream (docs/STREAMING.md). Only files whose output is NOT shown live to a user
+# belong here: scheduled/background pipelines, webhooks, batch jobs and the plain-JSON twin of ai-stream.
+
+# ---- intentionally non-streaming pipelines (no user is watching the response)
+netlify/functions/trigger-autopilot.js          # autopilot event worker (server-to-server)
+netlify/functions/inbound-email-webhook.js      # inbound email webhook: classify + draft reply, no live viewer
+netlify/functions/autopilot-scheduled.js        # scheduled autopilot tick
+netlify/functions/autopilot-batch.js            # autopilot batch apply
+netlify/functions/autopilot-run.js              # autopilot background run
+netlify/functions/ai-batch-submit.js            # OpenAI Batch API submit (results arrive hours later)
+netlify/functions/ai-batch-poll.js              # Batch API poller
+netlify/functions/ai-batch-status.js            # Batch API status
+netlify/functions/openai-webhook.js             # OpenAI webhook receiver (response.completed etc.)
+netlify/functions/process-email-queue.js        # email queue worker
+netlify/functions/process-email-queue-scheduled.js  # scheduled queue worker
+netlify/functions/sequence-advance-scheduled.js # scheduled sequence step advance
+netlify/functions/ai-task-queue*.js             # background task-queue workers
+netlify/functions/ai-respond.js                 # plain-JSON twin of ai-stream (UI uses aiStream/aiJson with handlers)
+lib/autopilot/                                  # autopilot state machine / handlers (server-side, not UI)
+lib/skills/                                     # non-UI agent skills invoked by autopilot / runSkill
+lib/heatmap/                                    # deal-risk scoring computed in the background
+lib/video/                                      # video script worker
+lib/voice/                                      # voice agent worker (realtime audio streams separately)
+
+# PENDING (remove when converted)
+# Files below still call a non-streaming AI API and are being converted by other work streams.
+src/components/ai-sales-intelligence/GPT51Controls.tsx   # gpt51ResponsesService.createResponse -> aiStream / StreamingOutput
+netlify/functions/contact-enrich.js                      # -> runDual
+netlify/functions/deal-health-analysis.js                # -> runDual
+netlify/functions/sales-forecasting.js                   # -> runDual

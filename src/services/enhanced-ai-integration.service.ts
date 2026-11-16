@@ -7,6 +7,7 @@ import { aiIntegration as baseAIIntegration } from './ai-integration.service';
 import { taskRouter, TaskContext, TaskPerformanceMetrics } from './task-router.service';
 import { logger } from './logger.service';
 import { Contact } from '../types';
+import type { LiveOptions } from './liveOptions';
 
 export interface EnhancedAIAnalysisRequest {
   contactId: string;
@@ -17,6 +18,8 @@ export interface EnhancedAIAnalysisRequest {
   urgency?: 'low' | 'medium' | 'high' | 'critical';
   requirements?: Partial<import('./task-router.service').TaskRequirements>;
   businessContext?: string;
+  /** Live progress callbacks (insights / recommendations appear as they are written). */
+  live?: LiveOptions;
 }
 
 export interface SmartBulkRequest {
@@ -31,7 +34,7 @@ class EnhancedAIIntegrationService {
   
   async smartAnalyzeContact(request: EnhancedAIAnalysisRequest): Promise<any> {
     const startTime = Date.now();
-    const { contactId, contact, analysisTypes, urgency = 'medium', requirements, businessContext } = request;
+    const { contactId, contact, analysisTypes, urgency = 'medium', requirements, businessContext, live } = request;
     
     logger.info(`Starting smart analysis for contact ${contactId}`, {
       analysisTypes,
@@ -62,7 +65,7 @@ class EnhancedAIIntegrationService {
 
         // Execute the analysis with selected model
         const analysisResult = await this.executeAnalysisWithModel(
-          { contactId, contact, analysisTypes: [analysisType] },
+          { contactId, contact, analysisTypes: [analysisType], ...(live ? { live } : {}) },
           modelSelection
         );
 
@@ -329,42 +332,46 @@ class EnhancedAIIntegrationService {
   }
 
   // Convenience methods for common operations
-  async scoreContact(contactId: string, contact: Contact, urgency: 'low' | 'medium' | 'high' = 'medium'): Promise<any> {
+  async scoreContact(contactId: string, contact: Contact, urgency: 'low' | 'medium' | 'high' = 'medium', live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['contact_scoring'],
-      urgency
+      urgency,
+      ...(live ? { live } : {})
     });
   }
 
-  async enrichContact(contactId: string, contact: Contact, priority: 'standard' | 'premium' = 'standard'): Promise<any> {
+  async enrichContact(contactId: string, contact: Contact, priority: 'standard' | 'premium' = 'standard', live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['contact_enrichment'],
       urgency: priority === 'premium' ? 'high' : 'medium',
-      requirements: priority === 'premium' ? { accuracy: 'critical', cost: 'medium' } : undefined
+      requirements: priority === 'premium' ? { accuracy: 'critical', cost: 'medium' } : undefined,
+      ...(live ? { live } : {})
     });
   }
 
-  async categorizeAndTag(contactId: string, contact: Contact): Promise<any> {
+  async categorizeAndTag(contactId: string, contact: Contact, live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['categorization', 'tagging'],
       urgency: 'medium',
-      requirements: { speed: 'fast', cost: 'free' }
+      requirements: { speed: 'fast', cost: 'free' },
+      ...(live ? { live } : {})
     });
   }
 
-  async qualifyLead(contactId: string, contact: Contact, businessContext?: string): Promise<any> {
+  async qualifyLead(contactId: string, contact: Contact, businessContext?: string, live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['lead_qualification', 'contact_scoring', 'sentiment_analysis'],
       urgency: 'high',
-      businessContext
+      businessContext,
+      ...(live ? { live } : {})
     });
   }
 

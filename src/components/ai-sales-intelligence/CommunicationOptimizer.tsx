@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { streamFunction } from '../../services/functionStream';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
@@ -58,6 +61,7 @@ export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
 }) => {
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const gen = useFunctionStream<any>();
   const [appliedOptimizations, setAppliedOptimizations] = useState<Set<string>>(new Set());
   const [showSettings, setShowSettings] = useState(false);
 
@@ -154,8 +158,7 @@ Best regards,
         analyticsService.endTracking(sessionId, true, undefined, 'mock', 'mock');
       } else {
         // Real optimization for non-mock contacts
-        const response = await supabase.functions.invoke('communication-optimization', {
-          body: {
+        const out = await gen.runLive((h) => streamFunction<any>('communication-optimization', {
             contact: {
               id: 'temp-id', // Would need actual contact ID
               name: context.recipient.name,
@@ -167,8 +170,9 @@ Best regards,
             timeframe: '30d',
             optimizationType: 'comprehensive',
             aiProvider: 'openai'
-          }
-        });
+          }, h));
+        if (!out) { researchThinking.complete('Stopped'); analyticsService.endTracking(sessionId, false, 'Stopped'); return; }
+        const response = { data: out.result as any };
 
         researchThinking.moveToSynthesizing('📊 Generating optimization recommendations...');
 
@@ -525,6 +529,14 @@ Best regards,
           </div>
         </>
       )}
+
+      <LiveOutput
+        className="mb-6"
+        state={gen.state}
+        onStop={() => { gen.stop(); researchThinking.complete('Stopped'); }}
+        display={liveDisplay(gen.state.partial, gen.state.text)}
+        placeholder="Analyzing your communication…"
+      />
 
       {!optimization && !loading && (
         <div className="text-center py-12">

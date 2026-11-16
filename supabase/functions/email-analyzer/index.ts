@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createResponse, resolveModel } from "../_shared/openai.ts";
+import { resolveModel, respondDual } from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,12 +28,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const body = await req.json();
     const {
       emailSubject,
       emailBody,
       context,
       recipient,
-    }: EmailAnalysisRequest = await req.json();
+    }: EmailAnalysisRequest = body;
 
     if (!emailSubject || !emailBody) {
       return new Response(
@@ -94,75 +95,75 @@ Consider:
 - Grammar and clarity
 - Likelihood to prompt response`;
 
-    const ai = await createResponse({
-      role: "default",
-      effort: "low",
-      instructions: systemPrompt,
-      input: userPrompt,
-      schemaName: "email_analysis",
-      maxOutputTokens: 3000,
-      schema: {
-        type: "object",
-        properties: {
-          toneAnalysis: {
-            type: "object",
-            properties: {
-              formal: { type: "number" },
-              friendly: { type: "number" },
-              persuasive: { type: "number" },
-              urgent: { type: "number" },
-              informative: { type: "number" },
-            },
-          },
-          dominantTone: { type: "string", enum: ["formal", "friendly", "persuasive", "urgent", "informative"] },
-          qualityScore: { type: "number" },
-          responseLikelihood: { type: "number" },
-          improvements: {
-            type: "array",
-            items: {
+    return await respondDual({
+      req, body, headers: corsHeaders,
+      options: {
+        role: "default",
+        effort: "low",
+        instructions: systemPrompt,
+        input: userPrompt,
+        schemaName: "email_analysis",
+        maxOutputTokens: 3000,
+        schema: {
+          type: "object",
+          properties: {
+            toneAnalysis: {
               type: "object",
               properties: {
-                type: { type: "string", enum: ["issue", "suggestion", "structural", "subject"] },
-                description: { type: "string" },
+                formal: { type: "number" },
+                friendly: { type: "number" },
+                persuasive: { type: "number" },
+                urgent: { type: "number" },
+                informative: { type: "number" },
               },
             },
+            dominantTone: { type: "string", enum: ["formal", "friendly", "persuasive", "urgent", "informative"] },
+            qualityScore: { type: "number" },
+            responseLikelihood: { type: "number" },
+            improvements: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["issue", "suggestion", "structural", "subject"] },
+                  description: { type: "string" },
+                },
+              },
+            },
+            assessment: { type: "string" },
+            confidence: { type: "number" },
           },
-          assessment: { type: "string" },
-          confidence: { type: "number" },
         },
       },
-    });
-    if (!ai.json) throw new Error("AI returned no structured analysis");
-    const analysis = ai.json;
+      finalize: async (ai) => {
+        if (!ai.json) throw new Error("AI returned no structured analysis");
+        const analysis = ai.json;
 
-    // Deterministic metrics (computed in code, not by the model)
-    const words = emailBody.trim().split(/\s+/).filter(Boolean);
-    const sentences = emailBody.split(/[.!?]+(?:\s|$)/).filter((s: string) => s.trim().length > 0);
-    const paragraphs = emailBody.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
-    const metrics = {
-      wordCount: words.length,
-      sentenceCount: sentences.length,
-      avgSentenceLength: sentences.length ? Math.round((words.length / sentences.length) * 10) / 10 : 0,
-      paragraphCount: paragraphs.length,
-      subjectLength: emailSubject.length,
-    };
+        // Deterministic metrics (computed in code, not by the model)
+        const words = emailBody.trim().split(/\s+/).filter(Boolean);
+        const sentences = emailBody.split(/[.!?]+(?:\s|$)/).filter((s: string) => s.trim().length > 0);
+        const paragraphs = emailBody.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
+        const metrics = {
+          wordCount: words.length,
+          sentenceCount: sentences.length,
+          avgSentenceLength: sentences.length ? Math.round((words.length / sentences.length) * 10) / 10 : 0,
+          paragraphCount: paragraphs.length,
+          subjectLength: emailSubject.length,
+        };
 
-    const result = {
-      metrics,
-      toneAnalysis: analysis.toneAnalysis,
-      dominantTone: analysis.dominantTone,
-      qualityScore: analysis.qualityScore,
-      responseLikelihood: analysis.responseLikelihood,
-      improvements: analysis.improvements,
-      assessment: analysis.assessment,
-      confidence: analysis.confidence,
-      model: resolveModel("default").model,
-    };
+        const result = {
+          metrics,
+          toneAnalysis: analysis.toneAnalysis,
+          dominantTone: analysis.dominantTone,
+          qualityScore: analysis.qualityScore,
+          responseLikelihood: analysis.responseLikelihood,
+          improvements: analysis.improvements,
+          assessment: analysis.assessment,
+          confidence: analysis.confidence,
+          model: resolveModel("default").model,
+        };
 
-    return new Response(JSON.stringify(result), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
+        return result;
       },
     });
   } catch (error) {

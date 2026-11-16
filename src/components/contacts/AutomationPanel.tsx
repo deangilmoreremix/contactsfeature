@@ -3,6 +3,9 @@ import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchTh
 import { CitationBadge } from '../ui/CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { webSearchService } from '../../services/webSearchService';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { suggestionsFromPartial } from '../../lib/streaming/previews';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
@@ -470,6 +473,8 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
    const [researchSources, setResearchSources] = useState<any[]>([]);
+   // Live run: "Searching the web…" status, then suggestion cards appear as the model writes them
+   const live = useLiveCall();
 
    // Rules are persisted in automation_rules; edits are flushed (debounced) for the rules marked dirty.
    const dirtyRules = React.useRef<Set<string>>(new Set());
@@ -524,7 +529,8 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     try {
       const rule = automations.find(r => r.id === ruleId);
       if (!rule) return;
-      const review = await reviewRule(rule);
+      const review = await live.run((opts) => reviewRule(rule, opts));
+      if (!review) return;
       alert(`${review.summary}\n\n${review.improvements.map((i, n) => `${n + 1}. ${i}`).join('\n')}`);
     } catch (error) {
       console.error('Failed to review rule:', error);
@@ -546,51 +552,62 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
        // Check if this is mock data
        const isMockData = contact.isMockData || contact.dataSource === 'mock' || contact.createdBy === 'demo';
 
-       let searchResults: any = { content: '', sources: [] };
+       // One live run for both steps: "Searching the web…" status first, then suggestion cards as they are written.
+       const suggestionsData = await live.run(async (opts) => {
+         let searchResults: any = { content: '', sources: [] };
 
-       if (!isMockData) {
-         // Perform web search for company and industry context
-         const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} company news industry trends automation opportunities`;
-         const systemPrompt = `You are an automation strategist. Analyze this contact's company and industry to suggest intelligent automation opportunities. Focus on triggers based on company events, industry trends, and contact behavior patterns.`;
-         const userPrompt = `Analyze ${contact.firstName} ${contact.lastName} at ${contact.company} for automation opportunities. Suggest intelligent triggers based on company news, industry trends, and optimal automation timing.`;
+         if (!isMockData) {
+           // Perform web search for company and industry context
+           const searchQuery = `${contact.company} ${contact.firstName} ${contact.lastName} company news industry trends automation opportunities`;
+           const systemPrompt = `You are an automation strategist. Analyze this contact's company and industry to suggest intelligent automation opportunities. Focus on triggers based on company events, industry trends, and contact behavior patterns.`;
+           const userPrompt = `Analyze ${contact.firstName} ${contact.lastName} at ${contact.company} for automation opportunities. Suggest intelligent triggers based on company news, industry trends, and optimal automation timing.`;
 
-         searchResults = await webSearchService.searchWithAI(
-           searchQuery,
-           systemPrompt,
-           userPrompt,
-           {
-             includeSources: true,
-             searchContextSize: 'high'
-           }
-         );
-       }
+           searchResults = await webSearchService.searchWithAI(
+             searchQuery,
+             systemPrompt,
+             userPrompt,
+             {
+               includeSources: true,
+               searchContextSize: 'high'
+             },
+             opts
+           );
+         }
 
-       researchThinking.moveToSynthesizing('🤖 Generating intelligent automation suggestions...');
+         researchThinking.moveToSynthesizing('🤖 Generating intelligent automation suggestions...');
 
-       // Convert search results to citations
-       const sources = (searchResults.sources || []).map((source: any) => ({
-         url: source.url,
-         title: source.title,
-         domain: source.domain,
-         type: 'company' as const,
-         confidence: 85,
-         timestamp: new Date(),
-         snippet: searchResults.content.substring(0, 200) + '...'
-       }));
+         // Convert search results to citations
+         const sources = (searchResults.sources || []).map((source: any) => ({
+           url: source.url,
+           title: source.title,
+           domain: source.domain,
+           type: 'company' as const,
+           confidence: 85,
+           timestamp: new Date(),
+           snippet: searchResults.content.substring(0, 200) + '...'
+         }));
 
-       setResearchSources(sources);
+         setResearchSources(sources);
 
-       const suggestionsData = await generateAutomationSuggestions({
-         contactSummary: [
-           `Name: ${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
-           `Company: ${contact.company || 'unknown'}`, `Industry: ${contact.industry || 'unknown'}`,
-           `Status: ${contact.status || 'unknown'}`, `Interest level: ${contact.interestLevel || 'unknown'}`,
-           `Last connected: ${contact.lastConnected || 'never'}`
-         ].join('\n'),
-         ...(searchResults.content ? { webContext: String(searchResults.content) } : {}),
-         existingRules: automations.map(a => a.name)
+         return generateAutomationSuggestions({
+           contactSummary: [
+             `Name: ${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+             `Company: ${contact.company || 'unknown'}`, `Industry: ${contact.industry || 'unknown'}`,
+             `Status: ${contact.status || 'unknown'}`, `Interest level: ${contact.interestLevel || 'unknown'}`,
+             `Last connected: ${contact.lastConnected || 'never'}`
+           ].join('\n'),
+           ...(searchResults.content ? { webContext: String(searchResults.content) } : {}),
+           existingRules: automations.map(a => a.name)
+         }, {
+           ...opts,
+           onPartial: (partial) => { opts.onPartial?.(partial); setSuggestions(suggestionsFromPartial(partial)); }
+         });
        });
 
+       if (!suggestionsData) {
+         researchThinking.complete('Suggestions stopped');
+         return;
+       }
        setSuggestions(suggestionsData);
 
        researchThinking.complete('✅ Intelligent automation suggestions generated!');
@@ -1593,6 +1610,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
 
       {activeTab === 'suggestions' && (
         <div className="space-y-4">
+          <LiveRunStatus live={live} />
           {suggestions.length === 0 ? (
             <GlassCard className="p-8">
               <div className="flex items-center justify-center">

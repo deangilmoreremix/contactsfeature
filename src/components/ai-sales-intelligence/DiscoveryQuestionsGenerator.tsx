@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { streamFunction } from '../../services/functionStream';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
@@ -56,6 +59,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
 }) => {
   const [questions, setQuestions] = useState<GeneratedQuestions | null>(null);
   const [loading, setLoading] = useState(false);
+  const gen = useFunctionStream<any>();
   const [copiedQuestions, setCopiedQuestions] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showSettings, setShowSettings] = useState(false);
@@ -158,8 +162,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
         analyticsService.endTracking(sessionId, true, undefined, 'mock', 'mock');
       } else {
         // Real question generation for non-mock contacts
-        const response = await supabase.functions.invoke('discovery-questions', {
-          body: {
+        const out = await gen.runLive((h) => streamFunction<any>('discovery-questions', {
             contact: {
               id: contact.id,
               name: contact.name,
@@ -171,8 +174,9 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
             meetingContext,
             questionType: 'comprehensive',
             aiProvider: 'openai'
-          }
-        });
+          }, h));
+        if (!out) {  analyticsService.endTracking(sessionId, false, 'Stopped'); return; }
+        const response = { data: out.result as any };
 
         if (response.data?.data) {
           // Transform the API response to match the expected questions structure
@@ -345,6 +349,14 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
           </div>
         </div>
       </div>
+
+      <LiveOutput
+        className="mb-6"
+        state={gen.state}
+        onStop={gen.stop}
+        display={liveDisplay(gen.state.partial, gen.state.text)}
+        placeholder="Drafting discovery questions…"
+      />
 
       {questions && (
         <>

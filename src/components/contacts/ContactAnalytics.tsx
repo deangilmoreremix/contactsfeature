@@ -7,6 +7,10 @@ import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOv
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
+import { aiPredictiveAnalytics } from '../../services/ai-predictive-analytics.service';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { predictionsFromPartial } from '../../lib/streaming/previews';
 import {
   BarChart3,
   TrendingUp,
@@ -92,6 +96,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
    const [researchSources, setResearchSources] = useState<any[]>([]);
+   // Live status + partial results for the web research and the AI predictions
+   const live = useLiveCall();
 
    useEffect(() => {
      loadAnalyticsData();
@@ -111,15 +117,17 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
        const systemPrompt = `You are a business intelligence analyst. Research this company's industry trends, market position, financial performance, and competitive landscape. Provide detailed analytics and insights for sales intelligence.`;
        const userPrompt = `Research ${contact.company} in the ${contact.industry} industry. Provide market analysis, industry trends, company performance metrics, competitive positioning, and sales intelligence insights.`;
 
-       const searchResults = await webSearchService.searchWithAI(
+       const searchResults = await live.run((opts) => webSearchService.searchWithAI(
          searchQuery,
          systemPrompt,
          userPrompt,
          {
            includeSources: true,
            searchContextSize: 'high'
-         }
-       );
+         },
+         opts
+       ));
+       if (!searchResults) { researchThinking.complete('Research stopped'); return; }
 
        researchThinking.moveToSynthesizing('📊 Synthesizing analytics with industry data...');
 
@@ -209,47 +217,20 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
          setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
          setShowPredictive(true);
        } else {
-         // Real prediction generation for non-mock contacts
-         // Note: edgeFunctionService.generatePredictions may not exist or have different signature
-         // For now, use mock data for all contacts
-         const mockPredictions = [
-           {
-             predictionType: 'conversion',
-             value: 78,
-             confidence: 85,
-             timeframe: 'Next 30 days',
-             reasoning: [
-               'Strong engagement patterns observed',
-               'Positive response to recent communications',
-               'Company growth indicators align with our solution'
-             ]
-           },
-           {
-             predictionType: 'response_time',
-             value: 2.8,
-             confidence: 72,
-             timeframe: 'Next interaction',
-             reasoning: [
-               'Historical response time average: 3.2 hours',
-               'Recent activity suggests improved responsiveness',
-               'Optimal contact time identified: Tuesday 2-4 PM'
-             ]
-           },
-           {
-             predictionType: 'engagement',
-             value: 92,
-             confidence: 88,
-             timeframe: 'Next quarter',
-             reasoning: [
-               'Consistent interaction patterns',
-               'Multiple touchpoints established',
-               'Industry trends favor increased engagement'
-             ]
-           }
-         ];
-
-         setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
+         // Real AI predictions, streamed: each prediction card appears as the model writes it.
          setShowPredictive(true);
+         const predictions = await live.run((opts) => aiPredictiveAnalytics.generatePredictions(
+           contact,
+           ['conversion', 'response_time', 'engagement'],
+           {
+             ...opts,
+             onPartial: (partial) => {
+               opts.onPartial?.(partial);
+               setAnalyticsData((prev: any) => ({ ...prev, predictions: predictionsFromPartial(partial) }));
+             },
+           }
+         ));
+         if (predictions) setAnalyticsData((prev: any) => ({ ...prev, predictions }));
        }
      } catch (error) {
        console.error('Failed to generate predictions:', error);
@@ -321,6 +302,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
           </ModernButton>
         </div>
       </div>
+
+      <LiveRunStatus live={live} showText />
 
       {/* Advanced Predictive Analytics Panel */}
       {(showPredictive && analyticsData?.predictions) && (

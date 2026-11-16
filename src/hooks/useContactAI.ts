@@ -5,6 +5,8 @@ import { useContactStore } from './useContactStore';
 import { Contact } from '../types';
 import { validateContactData, sanitizeString } from '../utils/validation';
 import { ERROR_MESSAGES } from '../utils/constants';
+import type { LiveOptions } from '../services/liveOptions';
+import { insightsFromPartial } from '../lib/streaming/previews';
 
 interface AIScore {
   overall: number;
@@ -17,8 +19,11 @@ interface UseContactAIResult {
   aiInsights: ContactInsight[] | null;
   isAnalyzing: boolean;
   error: string | null;
-  scoreContact: () => Promise<void>;
-  generateInsights: () => Promise<void>;
+  /** Current activity while a run streams ("Searching the web…"), '' otherwise. */
+  liveLabel: string;
+  /** Optional live callbacks (onStatus / onPartial / signal); insights also fill `aiInsights` card by card. */
+  scoreContact: (live?: LiveOptions) => Promise<void>;
+  generateInsights: (live?: LiveOptions) => Promise<void>;
   clearError: () => void;
 }
 
@@ -27,6 +32,7 @@ export const useContactAI = (contactId: string): UseContactAIResult => {
   const [aiInsights, setAiInsights] = useState<ContactInsight[] | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [liveLabel, setLiveLabel] = useState('');
 
   // Connect to AI services
   const { scoreContact: aiScoreContact, generateInsights: aiGenerateInsights } = useAIContext();
@@ -49,7 +55,7 @@ export const useContactAI = (contactId: string): UseContactAIResult => {
     setError(null);
   }, []);
 
-  const scoreContact = useCallback(async () => {
+  const scoreContact = useCallback(async (live?: LiveOptions) => {
     if (!contact || isAnalyzing) return;
 
     setIsAnalyzing(true);
@@ -81,7 +87,10 @@ export const useContactAI = (contactId: string): UseContactAIResult => {
       }
 
       // Use real AI services for non-demo contacts
-      const score = await aiScoreContact(contact, { skipIfMock: true });
+      const score = await aiScoreContact(contact, { skipIfMock: true }, {
+        ...live,
+        onStatus: (label, e) => { setLiveLabel(label); live?.onStatus?.(label, e); }
+      });
 
       if (score?.overall) {
         const roundedScore = Math.round(score.overall);
@@ -101,17 +110,22 @@ export const useContactAI = (contactId: string): UseContactAIResult => {
       setError(errorMessage);
     } finally {
       setIsAnalyzing(false);
+      setLiveLabel('');
     }
   }, [contact, isAnalyzing, aiScoreContact, updateContact]);
 
-  const generateInsights = useCallback(async () => {
+  const generateInsights = useCallback(async (live?: LiveOptions) => {
     if (!contact || isAnalyzing) return;
 
     setIsAnalyzing(true);
     setError(null);
 
     try {
-      const insights = await aiGenerateInsights(contact, ['opportunity', 'recommendation']);
+      const insights = await aiGenerateInsights(contact, ['opportunity', 'recommendation'], {
+        ...live,
+        onStatus: (label, e) => { setLiveLabel(label); live?.onStatus?.(label, e); },
+        onPartial: (partial) => { setAiInsights(insightsFromPartial(partial) as ContactInsight[]); live?.onPartial?.(partial); }
+      });
 
       if (insights) {
         setAiInsights(insights);
@@ -123,6 +137,7 @@ export const useContactAI = (contactId: string): UseContactAIResult => {
       setError(errorMessage);
     } finally {
       setIsAnalyzing(false);
+      setLiveLabel('');
     }
   }, [contact, isAnalyzing, aiGenerateInsights]);
 
@@ -131,6 +146,7 @@ export const useContactAI = (contactId: string): UseContactAIResult => {
     aiInsights,
     isAnalyzing,
     error,
+    liveLabel,
     scoreContact,
     generateInsights,
     clearError

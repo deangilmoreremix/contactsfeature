@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createResponse, resolveModel } from "../_shared/openai.ts";
+import { resolveModel, respondDual } from "../_shared/openai.ts";
 import { generateImages } from "../_shared/images.ts";
 
 const corsHeaders = {
@@ -25,13 +25,14 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const body = await req.json();
     const {
       deal_id,
       contact_id,
       action,
       generate_images = false,
       custom_prompt,
-    }: AIAERequest = await req.json();
+    }: AIAERequest = body;
 
     if (!action) {
       return new Response(
@@ -86,55 +87,55 @@ Please provide comprehensive recommendations for this sales scenario. Focus on:
 
 Be specific and actionable in your response.`;
 
-    const ai = await createResponse({
-      role: "thinking",
-      effort: "medium",
-      instructions: systemPrompt,
-      input: userPrompt,
-      schemaName: "ai_ae_recommendations",
-      maxOutputTokens: 4000,
-      schema: {
-        type: "object",
-        properties: {
-          recommendations: { type: "array", items: { type: "string" } },
-          next_steps: { type: "array", items: { type: "string" } },
-          risks: { type: "array", items: { type: "string" } },
-          confidence: { type: "string", enum: ["high", "medium", "low"] },
-          deal_health_score: { type: "number" },
+    return await respondDual({
+      req, body, headers: corsHeaders,
+      options: {
+        role: "thinking",
+        effort: "medium",
+        instructions: systemPrompt,
+        input: userPrompt,
+        schemaName: "ai_ae_recommendations",
+        maxOutputTokens: 4000,
+        schema: {
+          type: "object",
+          properties: {
+            recommendations: { type: "array", items: { type: "string" } },
+            next_steps: { type: "array", items: { type: "string" } },
+            risks: { type: "array", items: { type: "string" } },
+            confidence: { type: "string", enum: ["high", "medium", "low"] },
+            deal_health_score: { type: "number" },
+          },
         },
       },
-    });
-    if (!ai.json) throw new Error("AI returned no structured result");
-    const content = ai.json;
+      finalize: async (ai) => {
+        if (!ai.json) throw new Error("AI returned no structured result");
+        const content = ai.json;
 
-    let generatedImages: { url: string; mime_type: string }[] = [];
-    let imageError: string | null = null;
+        let generatedImages: { url: string; mime_type: string }[] = [];
+        let imageError: string | null = null;
 
-    // Generate demo visuals if requested (failure does not fail the whole request)
-    if (generate_images) {
-      const gen = await generateImages(
-        req.headers.get("Authorization"),
-        custom_prompt || `Create professional demo visuals for ${action}. Business presentation style, modern design, suitable for sales demos.`,
-        3,
-      );
-      generatedImages = gen.images;
-      imageError = gen.error;
-    }
+        // Generate demo visuals if requested (failure does not fail the whole request)
+        if (generate_images) {
+          const gen = await generateImages(
+            req.headers.get("Authorization"),
+            custom_prompt || `Create professional demo visuals for ${action}. Business presentation style, modern design, suitable for sales demos.`,
+            3,
+          );
+          generatedImages = gen.images;
+          imageError = gen.error;
+        }
 
-    const result = {
-      ...content,
-      images: generatedImages,
-      image_error: imageError,
-      demo_visual_url: generatedImages.length > 0 ? generatedImages[0].url : null,
-      action_performed: action,
-      model: resolveModel("thinking").model,
-      timestamp: new Date().toISOString(),
-    };
+        const result = {
+          ...content,
+          images: generatedImages,
+          image_error: imageError,
+          demo_visual_url: generatedImages.length > 0 ? generatedImages[0].url : null,
+          action_performed: action,
+          model: resolveModel("thinking").model,
+          timestamp: new Date().toISOString(),
+        };
 
-    return new Response(JSON.stringify(result), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
+        return result;
       },
     });
   } catch (error) {

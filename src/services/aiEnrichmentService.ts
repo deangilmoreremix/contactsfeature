@@ -2,7 +2,7 @@
 // All AI goes through the server-side proxy (aiClient -> hosted web_search). Failures are thrown;
 // no mock/estimated data is ever returned as if it were enrichment output.
 import { logger } from './logger.service';
-import { aiRespond } from './aiClient';
+import { aiCall, type LiveOptions } from './liveOptions';
 
 export interface ContactEnrichmentData {
   firstName?: string;
@@ -75,8 +75,8 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim
 
 class AIEnrichmentService {
   /** Research a subject with hosted web search and map the result to ContactEnrichmentData. */
-  private async research(subject: string, hints: Partial<ContactEnrichmentData> = {}): Promise<ContactEnrichmentData> {
-    const res = await aiRespond<ProfileJson>({
+  private async research(subject: string, hints: Partial<ContactEnrichmentData> = {}, live?: LiveOptions): Promise<ContactEnrichmentData> {
+    const res = await aiCall<ProfileJson>({
       role: 'default',
       instructions: INSTRUCTIONS,
       input: subject,
@@ -84,7 +84,7 @@ class AIEnrichmentService {
       schemaName: 'contact_profile',
       tools: [{ type: 'web_search' }],
       maxOutputTokens: 1500
-    });
+    }, live);
     const p = res.json;
     if (!p) throw new Error('AI did not return a usable enrichment result');
 
@@ -121,7 +121,8 @@ class AIEnrichmentService {
       dataSource?: 'mock' | 'real' | 'imported' | 'manual';
       forceRealAI?: boolean;
       skipIfMock?: boolean;
-    } = {}
+    } = {},
+    live?: LiveOptions
   ): Promise<ContactEnrichmentData> {
     logger.info('Enriching contact by email');
 
@@ -138,33 +139,33 @@ class AIEnrichmentService {
     }
 
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Invalid email format');
-    return this.research(`Find public professional information for the person with this email address: ${email}. Also identify their company from the email domain if it is a business domain.`, { email });
+    return this.research(`Find public professional information for the person with this email address: ${email}. Also identify their company from the email domain if it is a business domain.`, { email }, live);
   }
 
-  async enrichContactByName(firstName: string, lastName: string, company?: string): Promise<ContactEnrichmentData> {
+  async enrichContactByName(firstName: string, lastName: string, company?: string, live?: LiveOptions): Promise<ContactEnrichmentData> {
     logger.info('Enriching contact by name');
     return this.research(`Find public professional information for ${firstName} ${lastName}${company ? ` who works at or is associated with ${company}` : ''}.`, {
       firstName,
       lastName,
       name: `${firstName} ${lastName}`.trim(),
       ...(company ? { company } : {})
-    });
+    }, live);
   }
 
-  async enrichContactByLinkedIn(linkedinUrl: string): Promise<ContactEnrichmentData> {
+  async enrichContactByLinkedIn(linkedinUrl: string, live?: LiveOptions): Promise<ContactEnrichmentData> {
     logger.info('Enriching contact by LinkedIn URL');
     return this.research(`Find public professional information for the person with this LinkedIn profile: ${linkedinUrl}`, {
       socialProfiles: { linkedin: linkedinUrl }
-    });
+    }, live);
   }
 
-  async enrichContactBySocialNetwork(platform: string, profileUrl: string): Promise<ContactEnrichmentData> {
+  async enrichContactBySocialNetwork(platform: string, profileUrl: string, live?: LiveOptions): Promise<ContactEnrichmentData> {
     logger.info(`Enriching contact by ${platform} URL`);
     const key = platform.toLowerCase();
     const known = ['linkedin', 'twitter', 'facebook', 'website'].includes(key);
     return this.research(`Find public professional information for the person with this ${platform} profile: ${profileUrl}`, known ? {
       socialProfiles: { [key]: profileUrl }
-    } : {});
+    } : {}, live);
   }
 
   async enrichContactByMultipleSocialNetworks(socialProfiles: {
@@ -174,14 +175,15 @@ class AIEnrichmentService {
     instagram?: string;
     whatsapp?: string;
     website?: string;
-  }): Promise<ContactEnrichmentData> {
+  }, live?: LiveOptions): Promise<ContactEnrichmentData> {
     const entries = Object.entries(socialProfiles).filter(([, v]) => !!v);
     if (!entries.length) throw new Error('No social profiles provided');
     logger.info(`Enriching contact by ${entries.length} social profiles`);
     const { linkedin, twitter, facebook, website } = socialProfiles;
     return this.research(
       `Find public professional information for the person who owns these profiles (they should all be the same person):\n${entries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}`,
-      { socialProfiles: { ...(linkedin ? { linkedin } : {}), ...(twitter ? { twitter } : {}), ...(facebook ? { facebook } : {}), ...(website ? { website } : {}) } }
+      { socialProfiles: { ...(linkedin ? { linkedin } : {}), ...(twitter ? { twitter } : {}), ...(facebook ? { facebook } : {}), ...(website ? { website } : {}) } },
+      live
     );
   }
 
@@ -198,7 +200,8 @@ class AIEnrichmentService {
       useGPT5?: boolean;
       includeWebResearch?: boolean;
       realTimeUpdates?: boolean;
-    } = {}
+    } = {},
+    live?: LiveOptions
   ): Promise<ContactEnrichmentData> {
     void options;
     const known = [
@@ -211,7 +214,7 @@ class AIEnrichmentService {
     return this.research(`Find public professional information for the person described by:\n${known.join('\n')}`, {
       ...(contactData.email ? { email: contactData.email } : {}),
       ...(contactData.company ? { company: contactData.company } : {})
-    });
+    }, live);
   }
 
   async enrichContactRealTime(
@@ -220,7 +223,8 @@ class AIEnrichmentService {
       searchQuery?: string;
       industryData?: any;
       companyNews?: any[];
-    }
+    },
+    live?: LiveOptions
   ): Promise<ContactEnrichmentData> {
     const known = JSON.stringify({
       name: contactData.name || [contactData.firstName, contactData.lastName].filter(Boolean).join(' ') || undefined,
@@ -231,7 +235,8 @@ class AIEnrichmentService {
     });
     const out = await this.research(
       `Find current public professional information (including recent role or company changes) for this contact: ${known}${webContext?.searchQuery ? `\nFocus: ${webContext.searchQuery}` : ''}`,
-      contactData
+      contactData,
+      live
     );
     return { ...out, enrichmentType: 'real_time' };
   }
@@ -281,7 +286,8 @@ class AIEnrichmentService {
    * Enrich many contacts. A contact that fails comes back with confidence 0 and a notes message
    * explaining the failure (never fabricated data).
    */
-  async bulkEnrichContacts(contacts: Array<{email?: string, name?: string, company?: string}>): Promise<ContactEnrichmentData[]> {
+  /** `live` only forwards onStatus/signal: items run concurrently, so per-item text would interleave. */
+  async bulkEnrichContacts(contacts: Array<{email?: string, name?: string, company?: string}>, live?: Pick<LiveOptions, 'onStatus' | 'signal'>): Promise<ContactEnrichmentData[]> {
     logger.info(`Bulk enriching ${contacts.length} contacts`);
     const results: ContactEnrichmentData[] = new Array(contacts.length);
     let next = 0;
@@ -290,10 +296,10 @@ class AIEnrichmentService {
         const i = next++;
         const c = contacts[i]!;
         try {
-          if (c.email) results[i] = await this.enrichContactByEmail(c.email);
+          if (c.email) results[i] = await this.enrichContactByEmail(c.email, {}, live);
           else if (c.name) {
             const [first = '', ...rest] = c.name.trim().split(/\s+/);
-            results[i] = await this.enrichContactByName(first, rest.join(' '), c.company);
+            results[i] = await this.enrichContactByName(first, rest.join(' '), c.company, live);
           } else throw new Error('Contact needs an email or name');
         } catch (error) {
           logger.error('Bulk enrichment item failed', error as Error);

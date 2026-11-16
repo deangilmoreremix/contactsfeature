@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createResponse, resolveModel } from "../_shared/openai.ts";
+import { resolveModel, respondDual } from "../_shared/openai.ts";
 import { generateImages as generateBannerImages } from "../_shared/images.ts";
 
 const corsHeaders = {
@@ -140,55 +140,55 @@ Requirements:
 
 ${length === "short" ? "Be extremely concise - every word must add value." : length === "long" ? "Provide thorough detail while maintaining engagement." : "Balance detail with brevity."}`;
 
-    const ai = await createResponse({
-      role: "default",
-      effort: "low",
-      instructions: systemPrompt,
-      input: userPrompt,
-      schemaName: "email_draft",
-      maxOutputTokens: 3000,
-      schema: {
-        type: "object",
-        properties: {
-          subject: { type: "string" },
-          body: { type: "string" },
+    return await respondDual({
+      req, body, headers: corsHeaders,
+      options: {
+        role: "default",
+        effort: "low",
+        instructions: systemPrompt,
+        input: userPrompt,
+        schemaName: "email_draft",
+        maxOutputTokens: 3000,
+        schema: {
+          type: "object",
+          properties: {
+            subject: { type: "string" },
+            body: { type: "string" },
+          },
         },
       },
-    });
-    if (!ai.json) throw new Error("AI returned no structured email");
-    const content = ai.json;
+      finalize: async (ai) => {
+        if (!ai.json) throw new Error("AI returned no structured email");
+        const content = ai.json;
 
-    let generatedImages: { url: string; mime_type: string }[] = [];
-    let imageError: string | null = null;
+        let generatedImages: { url: string; mime_type: string }[] = [];
+        let imageError: string | null = null;
 
-    // Generate email banner images if requested (failure does not fail the whole request)
-    if (generateImages) {
-      const gen = await generateBannerImages(
-        req.headers.get("Authorization"),
-        `Create a professional email banner for ${contact.company} ${purpose} campaign. ${tone} style, suitable for email headers. Company: ${contact.company}, Industry: ${contact.industry || "general"}. Make it visually appealing and brand-appropriate.`,
-        2,
-      );
-      generatedImages = gen.images;
-      imageError = gen.error;
-    }
+        // Generate email banner images if requested (failure does not fail the whole request)
+        if (generateImages) {
+          const gen = await generateBannerImages(
+            req.headers.get("Authorization"),
+            `Create a professional email banner for ${contact.company} ${purpose} campaign. ${tone} style, suitable for email headers. Company: ${contact.company}, Industry: ${contact.industry || "general"}. Make it visually appealing and brand-appropriate.`,
+            2,
+          );
+          generatedImages = gen.images;
+          imageError = gen.error;
+        }
 
-    const result = {
-      subject: content.subject,
-      body: content.body,
-      purpose,
-      tone,
-      model: resolveModel("default").model,
-      webResearchUsed: !!webResearch,
-      sources: companyContext || [],
-      images: generatedImages,
-      imageError,
-      bannerImageUrl: generatedImages.length > 0 ? generatedImages[0].url : null,
-    };
+        const result = {
+          subject: content.subject,
+          body: content.body,
+          purpose,
+          tone,
+          model: resolveModel("default").model,
+          webResearchUsed: !!webResearch,
+          sources: companyContext || [],
+          images: generatedImages,
+          imageError,
+          bannerImageUrl: generatedImages.length > 0 ? generatedImages[0].url : null,
+        };
 
-    return new Response(JSON.stringify(result), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
+        return result;
       },
     });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createResponse, resolveModel } from '../_shared/openai.ts'
+import { type CreateResponseOptions, type OpenAIResult, resolveModel, respondDual } from '../_shared/openai.ts'
 
 /**
  * Adaptive Playbook Generator Edge Function
@@ -139,26 +139,31 @@ Deno.serve(async (req: Request) => {
     }
 
     const startedAt = Date.now()
-    const { playbook, usage } = await generateAdaptivePlaybook(requestData)
+    return await respondDual({
+      req,
+      body: requestData,
+      headers: corsHeaders,
+      options: buildPlaybookOptions(requestData),
+      finalize: async (ai) => {
+        const { playbook, usage } = finalizePlaybook(ai, requestData)
 
-    // Usage logging must never fail the request
-    try {
-      await supabaseClient.from('ai_usage_logs').insert({
-        user_id: user.user.id,
-        feature: 'adaptive-playbook',
-        model: resolveModel('thinking').model,
-        tokens_used: usage?.total_tokens ?? 0,
-        response_time_ms: Date.now() - startedAt,
-        success: true
-      })
-    } catch (logError) {
-      console.warn('Failed to log AI usage:', logError)
-    }
+        // Usage logging must never fail the request
+        try {
+          await supabaseClient.from('ai_usage_logs').insert({
+            user_id: user.user.id,
+            feature: 'adaptive-playbook',
+            model: resolveModel('thinking').model,
+            tokens_used: usage?.total_tokens ?? 0,
+            response_time_ms: Date.now() - startedAt,
+            success: true
+          })
+        } catch (logError) {
+          console.warn('Failed to log AI usage:', logError)
+        }
 
-    return new Response(
-      JSON.stringify({ data: playbook }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+        return { data: playbook }
+      },
+    })
   } catch (error) {
     console.error('Adaptive playbook generation error:', error)
 
@@ -258,9 +263,7 @@ const PLAYBOOK_SCHEMA = {
   }
 }
 
-async function generateAdaptivePlaybook(
-  request: PlaybookRequest
-): Promise<{ playbook: PlaybookStrategy; usage: { total_tokens?: number } | null }> {
+function buildPlaybookOptions(request: PlaybookRequest): CreateResponseOptions {
   const { contact, currentStage, businessGoals = [], automationType = 'comprehensive', playbookType } = request
 
   const instructions = `You are a senior B2B sales strategist creating an adaptive sales playbook for a specific deal.
@@ -276,7 +279,7 @@ ${JSON.stringify(contact, null, 2)}
 Current stage: ${currentStage || contact.stage || 'unknown'}
 Business goals: ${businessGoals.length ? businessGoals.join(', ') : 'not specified'}`
 
-  const ai = await createResponse({
+  return {
     role: 'thinking',
     effort: 'medium',
     instructions,
@@ -284,7 +287,14 @@ Business goals: ${businessGoals.length ? businessGoals.join(', ') : 'not specifi
     schemaName: 'adaptive_playbook',
     schema: PLAYBOOK_SCHEMA,
     maxOutputTokens: 8000
-  })
+  }
+}
+
+function finalizePlaybook(
+  ai: OpenAIResult,
+  request: PlaybookRequest
+): { playbook: PlaybookStrategy; usage: { total_tokens?: number } | null } {
+  const { contact } = request
 
   if (!ai.json) {
     throw new Error('AI returned no structured playbook')

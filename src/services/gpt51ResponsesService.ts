@@ -6,9 +6,12 @@
 
 import { logger } from './logger.service';
 import { aiCache } from '../utils/cache';
-import { aiRespond, AIError, type AIRole, type AIEffort } from './aiClient';
+import { AIError, type AIRole, type AIEffort } from './aiClient';
+import { aiCall, type LiveOptions } from './liveOptions';
 
 export interface GPT51Request {
+  /** Live progress callbacks (text typing in, web-search status, Stop via signal). */
+  live?: LiveOptions;
   /** Preferred: model role resolved server-side. */
   role?: AIRole;
   /**
@@ -95,7 +98,7 @@ export class GPT51ResponsesService {
     }
 
     try {
-      const res = await aiRespond({
+      const res = await aiCall({
         role: resolveRole(request),
         ...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
         input: request.input,
@@ -103,7 +106,7 @@ export class GPT51ResponsesService {
         ...(request.max_output_tokens ? { maxOutputTokens: request.max_output_tokens } : {}),
         ...(request.previous_response_id ? { previousResponseId: request.previous_response_id } : {}),
         ...(request.webSearch ? { tools: [{ type: 'web_search' as const }] } : {})
-      });
+      }, request.live);
 
       const result: GPT51Response = {
         id: res.id,
@@ -133,7 +136,8 @@ export class GPT51ResponsesService {
   async analyzeProductIntelligence(
     urls: string[],
     documents: string[],
-    context?: string
+    context?: string,
+    live?: LiveOptions
   ): Promise<{
     company: any;
     product: any;
@@ -164,7 +168,8 @@ Format your response as a structured JSON object.
       reasoning: { effort: 'high' },
       text: { verbosity: 'high' },
       max_output_tokens: 4000,
-      webSearch: urls.length > 0
+      webSearch: urls.length > 0,
+      ...(live ? { live } : {})
     });
 
     const parsed = parseJsonLoose(response.output_text);
@@ -186,7 +191,8 @@ Format your response as a structured JSON object.
   async generateContent(
     analysis: any,
     contentType: 'email' | 'call_script' | 'sales_playbook' | 'proposal',
-    context?: string
+    context?: string,
+    live?: LiveOptions
   ): Promise<string> {
     const input = `
 Based on this analysis: ${JSON.stringify(analysis)}
@@ -202,7 +208,8 @@ Use high reasoning effort to create compelling, personalized content.
       input,
       reasoning: { effort: 'high' },
       text: { verbosity: 'high' },
-      max_output_tokens: 2000
+      max_output_tokens: 2000,
+      ...(live ? { live } : {})
     });
 
     return response.output_text;

@@ -102,6 +102,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [pendingVariants, setPendingVariants] = useState<number[]>([]);
+  const [variantPreviews, setVariantPreviews] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -260,6 +261,11 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
           signal,
           onVariant: (u) => {
             if (u.status === 'pending') return;
+            if (u.status === 'preview') {
+              if (u.image) setVariantPreviews((prev) => ({ ...prev, [u.index]: u.image as string }));
+              return;
+            }
+            setVariantPreviews((prev) => { const { [u.index]: _gone, ...rest } = prev; return rest; });
             finished += 1;
             setPendingVariants((prev) => prev.filter((v) => v !== u.index));
             const pct = (finished / count) * 100;
@@ -311,6 +317,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
     } finally {
       setLoading(false);
       setPendingVariants([]);
+      setVariantPreviews({});
       setStreamingProgress(0);
       streamingControllerRef.current = null;
     }
@@ -801,11 +808,15 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
               ))}
               {pendingVariants.map((v) => (
                 <div key={`pending-${v}`} className="rounded-xl border bg-gray-50 flex flex-col">
-                  <div className="w-full aspect-square flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                  </div>
+                  {variantPreviews[v] ? (
+                    <img src={variantPreviews[v]} alt={`variant ${v + 1} preview`} data-testid={`image-preview-${v}`} className="w-full object-contain" />
+                  ) : (
+                    <div className="w-full aspect-square flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between p-2 gap-2">
-                    <span className="text-xs text-gray-600">Variant {v + 1} generating…</span>
+                    <span className="text-xs text-gray-600">Variant {v + 1} {variantPreviews[v] ? 'sharpening…' : 'generating…'}</span>
                   </div>
                 </div>
               ))}

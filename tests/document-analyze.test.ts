@@ -6,6 +6,7 @@ import zlib from 'zlib';
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost';
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test';
 const require = createRequire(import.meta.url);
+(globalThis as any).awslambda ||= { streamifyResponse: (f: unknown) => f, HttpResponseStream: { from: (s: unknown) => s } };
 const d = require('../netlify/functions/document-analyze.js');
 
 function crc32(buf: Buffer) {
@@ -154,5 +155,44 @@ describe('storage-path flow', () => {
     const res = await send(m.handler, { fileName: 'a.txt', dataBase64: Buffer.from('hi there').toString('base64') });
     expect(res.statusCode).toBe(200);
     expect(m.from).not.toHaveBeenCalled();
+  });
+
+  describe('stream mode', () => {
+    const sendStream = (handler: any, body: unknown) =>
+      handler({ httpMethod: 'POST', headers: { accept: 'text/event-stream' }, body: JSON.stringify(body) }, { id: UID });
+    const wire = async (res: any) => { let w = ''; for await (const c of res.body) w += c.toString(); return w; };
+    const dual = (remove?: any) => ({
+      streamResponse: async function* () {
+        yield { type: 'status', phase: 'started', label: 'Thinking…' };
+        yield { type: 'partial', json: { documentType: 'note' } };
+        yield { type: 'partial', json: { documentType: 'note', summary: 'Hel' } };
+        yield { type: 'done', id: 'r', text: '{"documentType":"note","summary":"Hello","keyPoints":["a"],"actionItems":[],"sentiment":"positive","confidence":90}', json: { documentType: 'note', summary: 'Hello', keyPoints: ['a'], actionItems: [], sentiment: 'positive', confidence: 90 } };
+      },
+    });
+
+    it('streams partial events, a result event equal to the JSON payload, and deletes the object once after the stream', async () => {
+      const m = mk({ dual: dual() });
+      const path = `${UID}/abc/report.pdf`;
+      const res = await sendStream(m.handler, { storagePath: path, filename: 'report.pdf', mimeType: 'application/pdf' });
+      expect(res.headers['Content-Type']).toContain('text/event-stream');
+      expect(m.remove).not.toHaveBeenCalled(); // must outlive the model call
+      const w = await wire(res);
+      const types = [...w.matchAll(/"type":"(\w+)"/g)].map((x) => x[1]);
+      expect(types).toEqual(['status', 'partial', 'partial', 'result', 'done']);
+      const result = JSON.parse(w.split('\n').find((l) => l.includes('"type":"result"'))!.slice(6));
+      expect(result.data.success).toBe(true);
+      expect(result.data.data).toMatchObject({ documentType: 'note', summary: 'Hello', sentiment: 'positive', confidence: 90, extraction: 'openai-input-file' });
+      expect(m.remove).toHaveBeenCalledTimes(1);
+      expect(m.remove).toHaveBeenCalledWith([path]);
+      expect(m.createResponse).not.toHaveBeenCalled();
+    });
+
+    it('does not delete early for validation failures twice', async () => {
+      const m = mk({ dual: dual() });
+      m.createSignedUrl.mockResolvedValueOnce({ data: null, error: { message: 'nf' } } as any);
+      const res = await sendStream(m.handler, { storagePath: `${UID}/abc/report.pdf`, filename: 'report.pdf' });
+      expect(res.statusCode).toBe(404);
+      expect(m.remove).toHaveBeenCalledTimes(1);
+    });
   });
 });

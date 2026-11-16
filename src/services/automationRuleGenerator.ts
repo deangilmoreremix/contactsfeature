@@ -4,6 +4,7 @@
  * answer is rejected instead of being saved.
  */
 import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 import type { AutomationAction, AutomationCondition, AutomationTrigger } from '../types/automation';
 
 export interface GeneratedRule {
@@ -75,7 +76,7 @@ export function normalizeGeneratedRule(raw: any): GeneratedRule {
   return { name: raw.name.trim().slice(0, 120), description: String(raw.description || ''), trigger, conditions, actions };
 }
 
-export async function generateAutomationRule(prompt: string): Promise<GeneratedRule> {
+export async function generateAutomationRule(prompt: string, live?: LiveOptions): Promise<GeneratedRule> {
   const raw = await aiJson<unknown>({
     role: 'default',
     schemaName: 'automation_rule',
@@ -86,6 +87,6 @@ export async function generateAutomationRule(prompt: string): Promise<GeneratedR
       'Email text may use {{firstName}} and {{company}}. Return exactly one rule; fields not relevant to an action must be null.',
     input: prompt,
     effort: 'low',
-  });
+  }, live);
   return normalizeGeneratedRule(raw);
 }

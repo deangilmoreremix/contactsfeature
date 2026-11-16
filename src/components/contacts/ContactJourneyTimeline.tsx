@@ -124,6 +124,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     const [summarizingFileId, setSummarizingFileId] = useState<string | null>(null);
     const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const isSummarizingFile = (id: string) => summarizingFileId === id;
 
     // Research state management
     const researchThinking = useResearchThinking();
@@ -138,6 +139,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       processAndSummarizeFile,
       processAndSummarizeUrl,
       getSummary,
+      getLive,
       getError,
       clearError
     } = useDocumentSummarization();
@@ -617,6 +619,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
               {uploadedFiles.map((file) => {
                 const FileIcon = getFileIcon(file.type);
                 const summary = getSummary(file.id);
+                const live = isSummarizingFile(file.id) ? getLive(file.id) : null;
                 const isExpanded = expandedSummaries.has(file.id);
                 const isCurrentlySummarizing = summarizingFileId === file.id;
                 const isDocument = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'].includes(file.type);
@@ -729,6 +732,50 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                             }`}>{summary.sentiment}</span></span>
                             <span>Model: {summary.model}</span>
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live AI summary (streams in while the model writes it) */}
+                    {live && !summary && (
+                      <div className="border-t border-gray-200 dark:border-gray-700 bg-white p-4" data-testid="live-summary">
+                        <div className="space-y-3">
+                          <h5 className="font-medium text-gray-900 dark:text-white flex items-center">
+                            <Brain className="w-4 h-4 mr-2 text-purple-600" />
+                            AI Summary
+                            {live.documentType && <span className="ml-2 text-xs font-normal text-gray-500">({live.documentType})</span>}
+                          </h5>
+                          {live.summary && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                              <p className="text-sm text-gray-800 leading-relaxed">{live.summary}</p>
+                            </div>
+                          )}
+                          {!!live.keyPoints?.length && (
+                            <div>
+                              <h6 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Key Points:</h6>
+                              <ul className="space-y-1">
+                                {live.keyPoints.map((point, index) => (
+                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <span className="text-purple-600 mt-1">•</span>
+                                    <span>{point}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {!!live.actionItems?.length && (
+                            <div>
+                              <h6 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Action Items:</h6>
+                              <ul className="space-y-1">
+                                {live.actionItems.map((item, index) => (
+                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <span className="text-purple-600 mt-1">•</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

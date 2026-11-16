@@ -1,9 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { AvatarUpload } from '../ui/AvatarUpload';
 import { Contact } from '../../types/contact';
 import { useResearchStatus } from '../ui/ResearchStatusOverlay';
 import type { ContactEnrichmentData } from '../../services/aiEnrichmentService';
-import { enrichContactWithWebSearch, type EnrichmentOutcome } from '../../services/contactEnrichment';
+import { enrichContactWithWebSearch, type EnrichmentOutcome, type EnrichmentResult } from '../../services/contactEnrichment';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { enrichmentPreview, enrichmentSources } from '../../lib/streaming/previews';
 import { useContactEditing } from '../../hooks/useContactEditing';
 import { EditableTitle } from './fields/EditableTitle';
 import { EmailsField } from './fields/EmailsField';
@@ -95,6 +97,9 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
   const [enrichmentOutcome, setEnrichmentOutcome] = useState<EnrichmentOutcome | null>(null);
   const [addingEmail, setAddingEmail] = useState(false);
   const [addingPhone, setAddingPhone] = useState(false);
+  // Live research run: status line, findings so far (partial JSON), Stop.
+  const [live, setLive] = useState<{ status: 'idle' | 'streaming'; label: string; steps: string[]; partial: Partial<EnrichmentResult> | null }>({ status: 'idle', label: '', steps: [], partial: null });
+  const enrichAbort = useRef<AbortController | null>(null);
 
   /**
    * Optimistically apply a partial update and persist it through the existing update path
@@ -133,8 +138,17 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
 
     setIsEnriching(true);
     researchStatus.startResearch('🔍 Searching the web for public information...');
+    const ac = new AbortController();
+    enrichAbort.current = ac;
+    setEnrichmentOutcome(null);
+    setLive({ status: 'streaming', label: 'Starting…', steps: [], partial: null });
     try {
       const outcome = await enrichContactWithWebSearch(editedContact, {
+        signal: ac.signal,
+        live: {
+          onStatus: (label) => { researchStatus.updateStatus({ message: label }); setLive((l) => ({ ...l, label, steps: l.steps[l.steps.length - 1] === label ? l.steps : [...l.steps, label] })); },
+          onPartial: (partial) => setLive((l) => ({ ...l, partial: partial as Partial<EnrichmentResult> })),
+        },
         onProgress: (stage) => {
           if (stage === 'searching') {
             researchStatus.updateStatus({ stage: 'researching', message: '🌐 Searching public sources (this can take up to a minute)...' });
@@ -168,9 +182,15 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
             : '✅ Research complete. No empty fields to fill.'
       );
     } catch (error) {
-      console.error('Web enrichment failed:', error);
-      researchStatus.setError(error instanceof Error ? error.message : 'Enrichment failed. Please try again.');
+      if (ac.signal.aborted) {
+        researchStatus.complete('Research stopped. Nothing was changed.');
+      } else {
+        console.error('Web enrichment failed:', error);
+        researchStatus.setError(error instanceof Error ? error.message : 'Enrichment failed. Please try again.');
+      }
     } finally {
+      setLive({ status: 'idle', label: '', steps: [], partial: null });
+      enrichAbort.current = null;
       setIsEnriching(false);
     }
   };
@@ -305,6 +325,28 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
                   Enhanced with AI ({lastEnrichment.confidence}% confidence)
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Live web research: status line, findings as they arrive, sources found so far */}
+          {live.status === 'streaming' && (
+            <div className="mt-3 text-left" data-testid="enrich-live">
+              <StreamingOutput
+                state={{ status: 'streaming', text: '', label: live.label, steps: live.steps, reasoning: '' }}
+                display={enrichmentPreview(live.partial)}
+                placeholder="Researching public sources…"
+                onStop={() => enrichAbort.current?.abort()}
+              />
+              {enrichmentSources(live.partial).length > 0 && (
+                <div className="mt-2 px-1">
+                  <p className="text-xs font-medium text-gray-900 dark:text-white">Sources</p>
+                  {enrichmentSources(live.partial).slice(0, 6).map((c) => (
+                    <a key={c.url} href={c.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 hover:underline truncate">
+                      {c.title}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

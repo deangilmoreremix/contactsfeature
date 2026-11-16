@@ -7,6 +7,9 @@ import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchTh
 import { CitationBadge } from '../ui/CitationBadge';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { webSearchService } from '../../services/webSearchService';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { insightsFromPartial, recommendationsFromPartial } from '../../lib/streaming/previews';
 import { Contact } from '../../types';
 import { AIErrorBoundary } from '../ui/ErrorBoundary';
 import { ContactCardSkeleton } from '../ui/LoadingSkeleton';
@@ -444,6 +447,8 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
   const researchThinking = useResearchThinking();
   const researchStatus = useResearchStatus();
   const [researchSources, setResearchSources] = useState<any[]>([]);
+  // Live run: web-search status line, then insights / recommendations appear card by card
+  const live = useLiveCall();
   
   // Connect to AI services
   const { 
@@ -487,35 +492,40 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       const userPrompt = `Analyze ${contact.firstName} ${contact.lastName} at ${contact.company}. Provide insights on company performance, industry trends, leadership changes, competitive landscape, and sales opportunities. Generate specific, actionable insights for sales qualification.`;
 
       console.log('AIInsightsPanel: Calling webSearchService.searchWithAI with query:', searchQuery);
-      const searchResults = await webSearchService.searchWithAI(
-        searchQuery,
-        systemPrompt,
-        userPrompt,
-        {
-          includeSources: true,
-          searchContextSize: 'high'
-        }
-      );
-      console.log('AIInsightsPanel: Web search completed, results:', searchResults);
+      const done = await live.run(async (opts) => {
+        const searchResults = await webSearchService.searchWithAI(
+          searchQuery,
+          systemPrompt,
+          userPrompt,
+          {
+            includeSources: true,
+            searchContextSize: 'high'
+          },
+          opts
+        );
+        console.log('AIInsightsPanel: Web search completed, results:', searchResults);
 
-      researchThinking.moveToSynthesizing('🧠 Synthesizing web research into insights...');
+        researchThinking.moveToSynthesizing('🧠 Synthesizing web research into insights...');
 
-      // Convert search results to citations
-      const sources = searchResults.sources.map(source => ({
-        url: source.url,
-        title: source.title,
-        domain: source.domain,
-        type: 'company' as const,
-        confidence: 85,
-        timestamp: new Date(),
-        snippet: searchResults.content.substring(0, 200) + '...'
-      }));
+        // Convert search results to citations
+        const sources = searchResults.sources.map(source => ({
+          url: source.url,
+          title: source.title,
+          domain: source.domain,
+          type: 'company' as const,
+          confidence: 85,
+          timestamp: new Date(),
+          snippet: searchResults.content.substring(0, 200) + '...'
+        }));
 
-      setResearchSources(sources);
+        setResearchSources(sources);
 
-      console.log('AIInsightsPanel: Generating insights with AI context');
-      // Generate insights with enhanced context from web research
-      await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction']);
+        console.log('AIInsightsPanel: Generating insights with AI context');
+        // Generate insights with enhanced context from web research (streams card by card)
+        await generateInsights(contact, ['opportunity', 'recommendation', 'risk', 'prediction'], opts);
+        return true;
+      });
+      if (!done) { researchThinking.complete('Insight generation stopped'); return; }
       console.log('AIInsightsPanel: Insights generated successfully');
 
       researchThinking.complete('✅ Web-enhanced insights generated successfully!');
@@ -545,7 +555,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       console.log('AIInsightsPanel: Generating correlation');
       await generateCorrelation(contact, true);
       console.log('AIInsightsPanel: Generating recommendations');
-      await generateRecommendations(contact);
+      await live.run((opts) => generateRecommendations(contact, undefined, opts));
       console.log('AIInsightsPanel: Intelligence generated successfully');
     } catch (error) {
       console.error('AIInsightsPanel: Failed to generate intelligence:', error);
@@ -573,6 +583,12 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
   const avgConfidence = insights.length > 0 
     ? Math.round(insights.reduce((sum, insight) => sum + insight.confidence, 0) / insights.length)
     : 0;
+
+  // While a run streams, show the cards that have arrived so far (same card layout as the final list)
+  const liveInsights = live.state.active && activeView === 'insights' ? insightsFromPartial(live.state.partial) : [];
+  const shownInsights = liveInsights.length > 0 ? liveInsights : filteredInsights;
+  const liveRecs = live.state.active && activeView === 'recommendations' ? recommendationsFromPartial(live.state.partial) : [];
+  const shownRecs = liveRecs.length > 0 ? liveRecs : recommendations;
 
   const views = [
     { id: 'insights', label: 'AI Insights', icon: Lightbulb },
@@ -736,7 +752,8 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       {/* Content Based on Active View */}
       {activeView === 'insights' && (
       <div className="space-y-4">
-          {isContactProcessing ? (
+          <LiveRunStatus live={live} />
+          {(isContactProcessing || live.state.active) && liveInsights.length === 0 ? (
           <GlassCard className="p-8">
             <div className="flex items-center justify-center">
               <div className="text-center">
@@ -745,7 +762,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
               </div>
             </div>
           </GlassCard>
-          ) : insights.length === 0 ? (
+          ) : insights.length === 0 && liveInsights.length === 0 ? (
           <GlassCard className="p-8">
             <div className="flex items-center justify-center">
               <div className="text-center">
@@ -766,7 +783,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
             </div>
           </GlassCard>
           ) : (
-            filteredInsights.map((insight) => {
+            shownInsights.map((insight) => {
               const Icon = insightIcons[insight.type];
               const iconColor = insightColors[insight.type];
               const impactColor = impactColors[insight.impact];
@@ -965,7 +982,8 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
       {/* Smart Recommendations View */}
       {activeView === 'recommendations' && (
         <div className="space-y-4">
-          {recommendations.length === 0 ? (
+          <LiveRunStatus live={live} />
+          {shownRecs.length === 0 ? (
             <GlassCard className="p-8">
               <div className="flex items-center justify-center">
                 <div className="text-center">
@@ -973,7 +991,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                   <p className="text-gray-600 dark:text-gray-400 mb-4">No smart recommendations available</p>
                   <ModernButton size="toolbar"
                     variant="primary"
-                    onClick={() => generateRecommendations(contact)}
+                    onClick={() => { void live.run((opts) => generateRecommendations(contact, undefined, opts)); }}
                     className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-blue-600"
                   >
                     <Sparkles className="w-4 h-4" />
@@ -983,7 +1001,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
               </div>
             </GlassCard>
           ) : (
-            recommendations.map((rec) => (
+            shownRecs.map((rec) => (
               <GlassCard key={rec.id} className="p-6 bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
                 <div className="flex items-start space-x-4">
                   <div className={`p-3 rounded-lg ${

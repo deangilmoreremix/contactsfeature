@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 import { logger } from './logger.service';
 import { mcpAdapter } from './mcpAdapter';
 import { aiJson, type AIRole } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 import type {
   AgentConfig,
   AgentRun,
@@ -19,6 +20,8 @@ export interface AgentExecutionRequest {
   input?: Record<string, any>;
   context?: AgentContext;
   instructions?: string;
+  /** Live progress for the planning turn (the agent's reply types in via onPartial: {response}). */
+  live?: LiveOptions;
 }
 
 /** Function-tool definition offered to the agent planner (executed client-side via Netlify functions / MCP). */
@@ -95,7 +98,8 @@ class AgentFramework {
           instructions: systemPrompt,
           input: JSON.stringify(request.input || {}),
           tools: tools || [],
-          maxOutputTokens: agentConfig.max_output_tokens || 4000
+          maxOutputTokens: agentConfig.max_output_tokens || 4000,
+          ...(request.live ? { live: request.live } : {})
         });
 
         // Process tool calls and responses
@@ -491,6 +495,7 @@ class AgentFramework {
     input: string;
     tools: AgentToolDefinition[];
     maxOutputTokens: number;
+    live?: LiveOptions;
   }): Promise<AgentModelResult> {
     const toolNames = params.tools.map(t => t.function.name);
     const toolCatalog = params.tools.length
@@ -525,7 +530,7 @@ class AgentFramework {
       schema,
       schemaName: 'agent_turn',
       maxOutputTokens: params.maxOutputTokens
-    });
+    }, params.live);
 
     return {
       content: result.response || '',

@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createResponse } from "../_shared/openai.ts";
+import { respondDual } from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,7 +13,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { task, dealId, workspaceId: _workspaceId, options = {} } = await req.json();
+    const body = await req.json();
+    const { task, dealId, workspaceId: _workspaceId, options = {} } = body;
 
     if (!task || typeof task !== "string") {
       return new Response(JSON.stringify({ error: "task is required" }), {
@@ -22,15 +23,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const ai = await createResponse({
-      role: "fast",
-      instructions: "You are a sales deal assistant. Complete the requested task concisely and concretely.",
-      input: `Perform task ${task} for deal ${dealId ?? "(none)"}. Options: ${JSON.stringify(options)}`,
-      maxOutputTokens: 2000,
-    });
+    return await respondDual({
+      req, body, headers: corsHeaders,
+      options: {
+        role: "fast",
+        instructions: "You are a sales deal assistant. Complete the requested task concisely and concretely.",
+        input: `Perform task ${task} for deal ${dealId ?? "(none)"}. Options: ${JSON.stringify(options)}`,
+        maxOutputTokens: 2000,
+      },
+      finalize: async (ai) => {
 
-    return new Response(JSON.stringify({ result: ai.text }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return { result: ai.text };
+      },
     });
   } catch (error) {
     console.error("execute-deal-ai failed:", error);
