@@ -238,38 +238,122 @@ async function createResponse(opts = {}) {
   };
 }
 
+const { parsePartialJson } = require('./_stream/partialJson');
+
+const TOOL_LABELS = {
+  web_search: { in_progress: 'Starting web search…', searching: 'Searching the web…', completed: 'Finished searching the web' },
+  file_search: { in_progress: 'Searching documents…', searching: 'Searching documents…', completed: 'Finished searching documents' },
+  image_generation: { in_progress: 'Starting image generation…', generating: 'Generating image…', completed: 'Image ready' },
+};
+
 /**
- * Streaming call. Async generator yielding
- *   { type: 'delta', text } | { type: 'done', id, text, usage, citations } | { type: 'error', message }
+ * Pure mapper: Responses stream events -> our UI events (see docs/STREAMING.md).
+ *   { type:'status', tool?, phase, label } | { type:'delta', text } | { type:'partial', json }
+ *   { type:'reasoning', text } | { type:'image', index, b64, partial } | { type:'done', ... } | { type:'error', message }
+ * Every emitted event carries `seq` (the Responses sequence_number) so a client can resume
+ * with `starting_after`. State lives in the returned closure.
+ */
+function createStreamMapper(opts = {}) {
+  let full = '';
+  let started = false;
+  let lastPartial = '';
+
+  function map(event) {
+    const out = [];
+    const seq = typeof event.sequence_number === 'number' ? event.sequence_number : undefined;
+    const emit = (e) => out.push(seq === undefined ? e : { ...e, seq });
+    const type = event.type || '';
+
+    switch (type) {
+      case 'response.created':
+      case 'response.queued':
+      case 'response.in_progress':
+        if (!started) {
+          started = true;
+          emit({ type: 'status', phase: 'started', label: 'Thinking…', id: event.response && event.response.id });
+        }
+        break;
+      case 'response.output_text.delta':
+        full += event.delta || '';
+        emit({ type: 'delta', text: event.delta || '' });
+        if (opts.schema) {
+          const json = parsePartialJson(full);
+          const key = json === undefined ? '' : JSON.stringify(json);
+          if (key && key !== lastPartial) { lastPartial = key; emit({ type: 'partial', json }); }
+        }
+        break;
+      case 'response.reasoning_summary_text.delta':
+        if (opts.reasoningSummary && event.delta) emit({ type: 'reasoning', text: event.delta });
+        break;
+      case 'response.output_item.added': {
+        const item = event.item || {};
+        if (item.type === 'reasoning') emit({ type: 'status', phase: 'reasoning', label: 'Thinking it through…' });
+        else if (item.type === 'function_call') emit({ type: 'status', tool: item.name, phase: 'calling', label: `Running ${item.name}…` });
+        else if (item.type === 'mcp_call') emit({ type: 'status', tool: item.name, phase: 'calling', label: `Running ${item.name}…` });
+        break;
+      }
+      case 'response.image_generation_call.partial_image':
+        emit({ type: 'image', index: event.partial_image_index || 0, b64: event.partial_image_b64, partial: true });
+        break;
+      default: {
+        const m = /^response\.(web_search|file_search|image_generation)_call\.(in_progress|searching|generating|completed)$/.exec(type);
+        if (m) emit({ type: 'status', tool: m[1], phase: m[2], label: (TOOL_LABELS[m[1]] || {})[m[2]] || `${m[1]} ${m[2]}` });
+        break;
+      }
+      case 'response.completed':
+      case 'response.incomplete': {
+        const r = event.response || {};
+        const { citations } = extractCitations(r);
+        const text = full || extractText(r);
+        emit({
+          type: 'done', id: r.id || null, text, usage: r.usage || null, citations,
+          json: opts.schema ? parseJson(text) : null,
+          ...(type === 'response.incomplete' ? { incomplete: (r.incomplete_details && r.incomplete_details.reason) || true } : {}),
+        });
+        break;
+      }
+      case 'response.failed':
+        emit({ type: 'error', message: (event.response && event.response.error && event.response.error.message) || 'Response failed' });
+        break;
+      case 'error':
+        emit({ type: 'error', message: event.message || 'Stream error' });
+        break;
+    }
+    return out;
+  }
+  return { map, get text() { return full; } };
+}
+
+/**
+ * Streaming call. Async generator of the UI events above.
+ * opts: everything buildParams() takes, plus
+ *   reasoningSummary: true            -> request reasoning summaries ('reasoning' events)
+ *   resume: { responseId, startingAfter } -> re-attach to a background response stream
  */
 async function* streamResponse(opts = {}) {
   const client = opts.client || getClient();
-  const params = buildParams({ ...opts, stream: true });
-  let full = '';
+  const mapper = createStreamMapper(opts);
+  let sawTerminal = false;
   try {
-    const stream = await withRetry(() => client.responses.create(params), { retries: 1 });
-    for await (const event of stream) {
-      switch (event.type) {
-        case 'response.output_text.delta':
-          full += event.delta;
-          yield { type: 'delta', text: event.delta };
-          break;
-        case 'response.completed': {
-          const { citations } = extractCitations(event.response);
-          yield { type: 'done', id: event.response.id, text: full || extractText(event.response), usage: event.response.usage || null, citations };
-          return;
-        }
-        case 'response.failed':
-          yield { type: 'error', message: (event.response && event.response.error && event.response.error.message) || 'Response failed' };
-          return;
-        case 'error':
-          yield { type: 'error', message: event.message || 'Stream error' };
-          return;
-        default:
-          break;
-      }
+    let stream;
+    if (opts.resume && opts.resume.responseId) {
+      stream = await withRetry(() => client.responses.retrieve(opts.resume.responseId, {
+        stream: true,
+        ...(Number.isInteger(opts.resume.startingAfter) ? { starting_after: opts.resume.startingAfter } : {}),
+      }), { retries: 1 });
+    } else {
+      const params = buildParams({ ...opts, stream: true });
+      if (opts.reasoningSummary && params.reasoning) params.reasoning = { ...params.reasoning, summary: 'auto' };
+      stream = await withRetry(() => client.responses.create(params), { retries: 1 });
     }
-    yield { type: 'done', id: null, text: full, usage: null, citations: [] };
+    for await (const event of stream) {
+      for (const e of mapper.map(event)) {
+        if (e.type === 'done' || e.type === 'error') sawTerminal = true;
+        yield e;
+      }
+      if (sawTerminal) return;
+    }
+    if (!sawTerminal) yield { type: 'done', id: null, text: mapper.text, usage: null, citations: [], json: opts.schema ? parseJson(mapper.text) : null };
   } catch (err) {
     yield { type: 'error', message: (err && err.message) || 'Stream failed' };
   }
@@ -548,6 +632,7 @@ async function cancelResponse(id, opts = {}) {
 
 
 module.exports = {
+  createStreamMapper,
   createConversation,
   deleteConversation,
   uploadFile,

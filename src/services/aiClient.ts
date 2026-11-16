@@ -5,6 +5,7 @@
  * Supabase session, restricted to configured model roles, and rate limited server-side.
  */
 import { supabase } from '../lib/supabase';
+import { newOutcome, streamSse, type StreamHandlers } from '../lib/streaming/streamClient';
 
 export type AIRole = 'default' | 'thinking' | 'fast' | 'pro';
 export type AIEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high';
@@ -77,59 +78,73 @@ export async function aiRespond<T = unknown>(req: AIRequest): Promise<AIResponse
   return body as AIResponse<T>;
 }
 
-export interface AIStreamHandlers {
-  onDelta?: (text: string) => void;
-  signal?: AbortSignal;
+export interface AIStreamHandlers extends StreamHandlers {
+  /** Legacy shorthand: called with each text chunk. */
+  onDelta?: (text: string, fullText: string) => void;
+  /** Keep the run alive past the serverless time limit and resume if the connection drops. */
+  background?: boolean;
+  /** Ask for reasoning-summary events (shown as an optional "Thinking" panel). */
+  reasoningSummary?: boolean;
 }
 
-/** Streaming request (SSE). Resolves with the final text once the stream completes. */
+const MAX_RESUMES = 6;
+
+/**
+ * Streaming request (SSE). Fires status / delta / partial-JSON / reasoning / image callbacks while the
+ * answer is produced and resolves with the final text (+ parsed `json` for structured output).
+ * With `background: true` the run survives Netlify's function time limit: if the connection ends
+ * before `done`, the stream is re-attached with `starting_after` (up to 6 times).
+ */
 export async function aiStream(req: AIRequest, handlers: AIStreamHandlers = {}): Promise<AIResponse> {
-  const res = await fetch('/.netlify/functions/ai-stream', {
-    method: 'POST',
-    headers: await authHeader(),
-    body: JSON.stringify(req),
-    signal: handlers.signal ?? null,
-  });
-  if (!res.ok || !res.body) {
-    const body = await res.json().catch(() => ({}));
-    throw new AIError(body.error || `AI stream failed (${res.status})`, res.status);
+  const headers = await authHeader();
+  const outcome = newOutcome();
+  const makeError = (m: string, status: number) => new AIError(m, status);
+  const payload: Record<string, unknown> = { ...req, ...(handlers.background ? { background: true } : {}), ...(handlers.reasoningSummary ? { reasoningSummary: true } : {}) };
+
+  await streamSse('/.netlify/functions/ai-stream', { headers, body: payload }, handlers, outcome, makeError);
+
+  let resumes = 0;
+  while (!outcome.done && !outcome.error && handlers.background && outcome.responseId && resumes < MAX_RESUMES && !handlers.signal?.aborted) {
+    resumes += 1;
+    await new Promise((r) => setTimeout(r, Math.min(500 * resumes, 3000)));
+    await streamSse(
+      '/.netlify/functions/ai-stream',
+      { headers, body: { ...payload, resume: { responseId: outcome.responseId, startingAfter: outcome.lastSeq ?? undefined } } },
+      handlers,
+      outcome,
+      makeError
+    );
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let full = '';
-  let final: AIResponse | null = null;
+  if (outcome.error) throw new AIError(outcome.error, 502);
+  const d = outcome.done;
+  return {
+    id: d?.id ?? outcome.responseId ?? '',
+    text: d?.text ?? outcome.text,
+    json: (d?.json as AIResponse['json']) ?? null,
+    citations: d?.citations ?? [],
+    usage: d?.usage ?? null,
+  };
+}
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf('\n\n')) !== -1) {
-      const frame = buffer.slice(0, idx).trim();
-      buffer = buffer.slice(idx + 2);
-      if (!frame.startsWith('data:')) continue;
-      const payload = frame.slice(5).trim();
-      if (payload === '[DONE]') continue;
-      let ev: { type: string; text?: string; id?: string; message?: string; citations?: AICitation[]; usage?: AIResponse['usage'] };
-      try { ev = JSON.parse(payload); } catch { continue; }
-      if (ev.type === 'delta' && ev.text) {
-        full += ev.text;
-        handlers.onDelta?.(ev.text);
-      } else if (ev.type === 'done') {
-        final = { id: ev.id ?? '', text: ev.text ?? full, json: null, citations: ev.citations ?? [], usage: ev.usage ?? null };
-      } else if (ev.type === 'error') {
-        throw new AIError(ev.message || 'AI stream error', 502);
-      }
+/**
+ * Ask for JSON matching `schema` and get the typed object back.
+ * Pass stream handlers (onPartial / onStatus / onDelta …) to watch the object fill in live — the call then
+ * runs over the streaming endpoint. Without handlers it is a plain request (for non-visible pipelines).
+ */
+export async function aiJson<T>(
+  req: Omit<AIRequest, 'schema'> & { schema: Record<string, unknown> },
+  handlers?: AIStreamHandlers
+): Promise<T> {
+  const live = handlers && Object.keys(handlers).some((k) => k !== 'signal' && handlers[k as keyof AIStreamHandlers] !== undefined);
+  const r = live || handlers?.signal ? await aiStream(req, handlers) : await aiRespond<T>(req);
+  if (r.json == null) {
+    // Fallback: some models return the JSON only as text
+    try {
+      return JSON.parse(r.text) as T;
+    } catch {
+      throw new AIError('AI did not return valid JSON', 502);
     }
   }
-  return final ?? { id: '', text: full, json: null, citations: [], usage: null };
-}
-
-/** Convenience: ask for JSON matching `schema` and get the typed object back. */
-export async function aiJson<T>(req: Omit<AIRequest, 'schema'> & { schema: Record<string, unknown> }): Promise<T> {
-  const r = await aiRespond<T>(req);
-  if (r.json == null) throw new AIError('AI did not return valid JSON', 502);
-  return r.json;
+  return r.json as T;
 }
