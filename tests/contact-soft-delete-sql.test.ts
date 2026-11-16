@@ -1,7 +1,10 @@
 // @vitest-environment node
 // Runs the soft-delete migration against an in-process Postgres (PGlite).
 // match_contacts needs pgvector, which PGlite does not have here, so only the part before it is executed.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+
+// PGlite boot is slow when the whole suite runs in parallel.
+vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
