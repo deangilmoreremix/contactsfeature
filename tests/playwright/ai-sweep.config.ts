@@ -11,7 +11,7 @@ const DIST = process.env.AI_SWEEP_DIST || path.join(os.tmpdir(), 'smartcrm-ai-sw
  */
 export default defineConfig({
   testDir: './',
-  testMatch: /ai-sweep\.spec\.ts/,
+  testMatch: /ai-sweep(-recon)?\.spec\.ts/,
   reporter: 'list',
   workers: 1,
   timeout: 10 * 60_000,
