@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger.service';
+import { cleanConfidence } from './aiNormalize';
 import { cacheService } from './cache.service';
 import { rateLimiter } from './rate-limiter.service';
 import { httpClient } from './http-client.service';
@@ -39,7 +40,8 @@ export interface AIResponse {
     provider: string;
     model: string;
     processingTime: number;
-    confidence: number;
+    /** 0-100 evidence-based confidence reported by the model, or null when none was given. */
+    confidence: number | null;
     cached: boolean;
     timestamp: string;
     cost?: number;
@@ -235,7 +237,7 @@ class AIOrchestrator {
         provider: provider.name,
         model: response.model || 'default',
         processingTime: Date.now() - startTime,
-        confidence: response.confidence || 85,
+        confidence: response.confidence ?? null,
         cached: false,
         timestamp: new Date().toISOString(),
         cost: response.cost
@@ -520,19 +522,19 @@ class AIOrchestrator {
       case 'contact_scoring':
         return {
           result: {
-            score: data.score || data.overall || 0,
+            score: data.score ?? data.overall ?? null,
             breakdown: data.breakdown || {
-              fitScore: 0,
-              engagementScore: 0,
-              conversionProbability: 0,
-              urgencyScore: 0
+              fitScore: null,
+              engagementScore: null,
+              conversionProbability: null,
+              urgencyScore: null
             },
             reasoning: data.reasoning || [],
             recommendations: data.recommendations || [],
             nextBestActions: data.nextBestActions || []
           },
           model: 'supabase-edge-function',
-          confidence: data.confidence || 70
+          confidence: cleanConfidence(data.confidence)
         };
 
       case 'insights_generation':
@@ -543,7 +545,7 @@ class AIOrchestrator {
               type: insight.type || 'recommendation',
               title: insight.title || 'AI Insight',
               description: insight.description || '',
-              confidence: insight.confidence || 75,
+              confidence: cleanConfidence(insight.confidence),
               impact: insight.impact || 'medium',
               category: insight.category || 'General',
               actionable: insight.actionable || false,
@@ -552,21 +554,21 @@ class AIOrchestrator {
             }))
           },
           model: 'supabase-edge-function',
-          confidence: 70
+          confidence: null
         };
 
       case 'contact_enrichment':
         return {
           result: data,
           model: 'supabase-edge-function',
-          confidence: 65
+          confidence: cleanConfidence(data?.confidence)
         };
 
       default:
         return {
           result: data,
           model: 'supabase-edge-function',
-          confidence: 60
+          confidence: cleanConfidence(data?.confidence)
         };
     }
   }
@@ -597,6 +599,7 @@ class AIOrchestrator {
       required: Object.keys(properties)
     });
 
+    const confidence = { type: ['integer', 'null'], description: '0-100 integer justified by the evidence in the input, or null' };
     switch (type) {
       case 'contact_scoring':
         return {
@@ -611,7 +614,8 @@ class AIOrchestrator {
             }),
             reasoning: strList,
             recommendations: strList,
-            nextBestActions: strList
+            nextBestActions: strList,
+            confidence
           })
         };
       case 'insights_generation':
@@ -624,7 +628,7 @@ class AIOrchestrator {
                 type: str,
                 title: str,
                 description: str,
-                confidence: { type: 'number' },
+                confidence,
                 impact: { type: 'string', enum: ['low', 'medium', 'high'] },
                 category: str,
                 actionable: { type: 'boolean' },
@@ -643,18 +647,19 @@ class AIOrchestrator {
             industry: nullableStr,
             location: obj({ city: nullableStr, state: nullableStr, country: nullableStr }),
             bio: nullableStr,
-            notes: nullableStr
+            notes: nullableStr,
+            confidence
           })
         };
       case 'email_generation':
         return {
           name: 'email_generation',
-          schema: obj({ subject: str, body: str, tone: str, alternatives: strList })
+          schema: obj({ subject: str, body: str, tone: str, alternatives: strList, confidence })
         };
       default:
         return {
           name: 'analysis',
-          schema: obj({ summary: str, analysis: str, recommendations: strList, nextSteps: strList })
+          schema: obj({ summary: str, analysis: str, recommendations: strList, nextSteps: strList, confidence })
         };
     }
   }
@@ -681,10 +686,11 @@ class AIOrchestrator {
         throw new Error('AI did not return structured JSON');
       }
 
+      const { confidence: modelConfidence, ...result } = response.json as Record<string, any>;
       return {
-        result: response.json,
+        result: request.type === 'insights_generation' ? response.json : result,
         model: role,
-        confidence: 85
+        confidence: cleanConfidence(modelConfidence)
       };
     } catch (error) {
       logger.error('AI proxy call failed', error as Error, undefined, {
@@ -1112,14 +1118,15 @@ Provide a summary, analysis, recommendations and next steps.`
 
     // Extract field suggestions from enrichment data
     const suggestions = [];
+    const confidence = response.metadata.confidence;
     if (response.result.phone && !contactData.phone) {
-      suggestions.push({ field: 'phone', value: response.result.phone, confidence: 80 });
+      suggestions.push({ field: 'phone', value: response.result.phone, confidence });
     }
     if (response.result.location && !contactData.location) {
-      suggestions.push({ field: 'location', value: response.result.location, confidence: 75 });
+      suggestions.push({ field: 'location', value: response.result.location, confidence });
     }
     if (response.result.bio && !contactData.bio) {
-      suggestions.push({ field: 'bio', value: response.result.bio, confidence: 70 });
+      suggestions.push({ field: 'bio', value: response.result.bio, confidence });
     }
 
     return {

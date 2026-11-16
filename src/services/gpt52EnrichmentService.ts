@@ -111,7 +111,7 @@ class GPT52EnrichmentService {
         schemaName: 'contact_enrichment',
         tools: [{ type: 'web_search' }],
         maxOutputTokens: 6000,
-        previousResponseId: options.useContext ? options.previousResponseId : undefined,
+        ...(options.useContext && options.previousResponseId ? { previousResponseId: options.previousResponseId } : {}),
       });
       if (ai.json == null) throw new AIError('Enrichment returned no structured result', 502);
 

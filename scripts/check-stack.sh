@@ -20,6 +20,7 @@ check "Gemini / Gemma"               'gemini|gemma|generativelanguage'          
 check "Zapier / Zoom / Unipile"      'zapier|unipile|zoom\.us'                     $SRC
 check "Vercel AI SDK"                '@ai-sdk|from .ai.'                           src lib netlify
 # Direct OpenAI HTTP calls are only allowed in the shared helpers (everything else goes through them).
-direct=$(grep -rnE "api\.openai\.com" src lib netlify supabase/functions scripts --include=*.ts --include=*.tsx --include=*.js --include=*.cjs 2>/dev/null | grep -vE "^(lib/core/openaiClient\.ts|supabase/functions/_shared/openai\.ts|netlify/functions/_responses\.js|scripts/check-stack\.sh|src/tests/|lib/core/callOpenAI\.ts|lib/core/responsesClient\.ts|lib/core/streaming\.ts)" || true)
+# Exception: conversational-ai.service.ts posts its WebRTC SDP offer to /v1/realtime/calls using ONLY an ephemeral client secret minted by netlify/functions/realtime-token.js (never an API key).
+direct=$(grep -rnE "api\.openai\.com" src lib netlify supabase/functions scripts --include=*.ts --include=*.tsx --include=*.js --include=*.cjs 2>/dev/null | grep -vE "^(lib/core/openaiClient\.ts|supabase/functions/_shared/openai\.ts|netlify/functions/_responses\.js|scripts/check-stack\.sh|src/tests/|lib/core/callOpenAI\.ts|lib/core/responsesClient\.ts|lib/core/streaming\.ts|src/services/conversational-ai\.service\.ts)" || true)
 if [ -n "$direct" ]; then echo "✗ direct api.openai.com calls outside shared helpers"; echo "$direct" | head -8; FAIL=1; else echo "✓ direct api.openai.com calls"; fi
 exit $FAIL

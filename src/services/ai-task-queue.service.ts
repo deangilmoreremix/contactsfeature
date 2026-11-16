@@ -5,6 +5,11 @@
 
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
+import { aiJson, AIError } from './aiClient';
+import {
+  SCORE_SCHEMA, TASK_ENRICHMENT_SCHEMA, TASK_INSIGHTS_SCHEMA, TASK_EMAIL_SCHEMA, TASK_ANALYSIS_SCHEMA,
+  normalizeScore, normalizeTaskEnrichment, normalizeTaskInsights, normalizeTaskEmail, normalizeTaskAnalysis,
+} from './taskQueueSchemas';
 
 export interface QueuedTask {
   id: string;
@@ -272,11 +277,9 @@ class AITaskQueueService {
       updateProgress(i, 25);
       
       try {
-        // Simulate AI scoring API call
-        await this.sleep(1000 + Math.random() * 1000);
         updateProgress(i, 75);
         
-        const score = this.generateMockScore(task.data.contact);
+        const score = await this.runScoring(task.data.contact);
         updateProgress(i, 100);
         
         results.push({ success: true, data: score });
@@ -302,11 +305,9 @@ class AITaskQueueService {
       updateProgress(i, 30);
       
       try {
-        // Simulate AI enrichment API call
-        await this.sleep(1500 + Math.random() * 1000);
         updateProgress(i, 80);
         
-        const enrichment = this.generateMockEnrichment(task.data.contact);
+        const enrichment = await this.runEnrichment(task.data.contact);
         updateProgress(i, 100);
         
         results.push({ success: true, data: enrichment });
@@ -332,11 +333,9 @@ class AITaskQueueService {
       updateProgress(i, 20);
       
       try {
-        // Simulate AI insights generation
-        await this.sleep(2000 + Math.random() * 1500);
         updateProgress(i, 90);
         
-        const insights = this.generateMockInsights(task.data.contact);
+        const insights = await this.runInsights(task.data.contact);
         updateProgress(i, 100);
         
         results.push({ success: true, data: insights });
@@ -362,11 +361,9 @@ class AITaskQueueService {
       updateProgress(i, 15);
       
       try {
-        // Simulate email generation
-        await this.sleep(1800 + Math.random() * 1200);
         updateProgress(i, 85);
         
-        const email = this.generateMockEmail(task.data.contact, task.data.purpose);
+        const email = await this.runEmail(task.data.contact, task.data.purpose);
         updateProgress(i, 100);
         
         results.push({ success: true, data: email });
@@ -392,11 +389,9 @@ class AITaskQueueService {
       updateProgress(i, 35);
       
       try {
-        // Simulate analysis
-        await this.sleep(1200 + Math.random() * 800);
         updateProgress(i, 95);
         
-        const analysis = this.generateMockAnalysis(task.data);
+        const analysis = await this.runAnalysis(task.data);
         updateProgress(i, 100);
         
         results.push({ success: true, data: analysis });
@@ -509,73 +504,61 @@ class AITaskQueueService {
     });
   }
 
-  // Mock data generators for development
-  private generateMockScore(contact: any): any {
-    return {
-      overall: Math.floor(Math.random() * 40) + 60,
-      breakdown: {
-        fitScore: Math.floor(Math.random() * 30) + 70,
-        engagementScore: Math.floor(Math.random() * 40) + 60,
-        conversionProbability: Math.floor(Math.random() * 50) + 50,
-        urgencyScore: Math.floor(Math.random() * 30) + 40
-      },
-      reasoning: [`Strong profile at ${contact.company}`, 'Good engagement indicators'],
-      recommendations: ['Schedule follow-up call', 'Share case studies'],
-      nextBestActions: ['Email outreach', 'LinkedIn connection']
-    };
+  // Real AI calls (Responses API via the server proxy). Failures reject and flow into the task's retry/error handling.
+  private static readonly GROUND =
+    'Use ONLY the supplied data. Never invent values; use null / empty lists when the data does not support a field. ' +
+    'Confidence values are 0-100 integers justified by the supplied evidence, or null.';
+
+  private contactJson(contact: any): string {
+    return JSON.stringify({ today: new Date().toISOString().slice(0, 10), contact });
   }
 
-  private generateMockEnrichment(contact: any): any {
-    return {
-      socialProfiles: {
-        linkedin: `https://linkedin.com/in/${contact.firstName?.toLowerCase()}${contact.lastName?.toLowerCase()}`,
-        twitter: `https://twitter.com/${contact.firstName?.toLowerCase()}`
-      },
-      additionalInfo: {
-        jobLevel: 'Senior',
-        departmentSize: '50-100',
-        decisionMakingPower: 'High'
-      },
-      confidence: 85
-    };
+  private async runScoring(contact: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: `Score ONE sales lead. ${AITaskQueueService.GROUND}`,
+      input: this.contactJson(contact), schema: SCORE_SCHEMA, schemaName: 'lead_score', maxOutputTokens: 1500,
+    });
+    return normalizeScore(raw);
   }
 
-  private generateMockInsights(contact: any): any {
-    return [
-      {
-        type: 'opportunity',
-        title: 'High Conversion Potential',
-        description: `${contact.name} shows strong indicators for conversion`,
-        confidence: 85,
-        impact: 'high'
-      },
-      {
-        type: 'recommendation',
-        title: 'Optimal Outreach Timing',
-        description: 'Best contacted on Tuesday-Thursday, 2-4 PM',
-        confidence: 75,
-        impact: 'medium'
-      }
-    ];
+  private async runEnrichment(contact: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'thinking', effort: 'low',
+      instructions: `Enrich ONE contact using web_search. ${AITaskQueueService.GROUND} Profile URLs must come from search results.`,
+      input: this.contactJson(contact), schema: TASK_ENRICHMENT_SCHEMA, schemaName: 'task_enrichment',
+      tools: [{ type: 'web_search' }], maxOutputTokens: 2500,
+    });
+    return normalizeTaskEnrichment(raw);
   }
 
-  private generateMockEmail(contact: any, purpose: string): any {
-    return {
-      subject: `${purpose} - ${contact.company}`,
-      body: `Hi ${contact.firstName},\n\nI hope this email finds you well...`,
-      personalization: {
-        elements: ['company_name', 'industry', 'recent_news'],
-        confidence: 80
-      }
-    };
+  private async runInsights(contact: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: `Give insights about ONE contact. ${AITaskQueueService.GROUND} Return an empty list if nothing is supported.`,
+      input: this.contactJson(contact), schema: TASK_INSIGHTS_SCHEMA, schemaName: 'task_insights', maxOutputTokens: 2000,
+    });
+    return normalizeTaskInsights(raw);
   }
 
-  private generateMockAnalysis(data: any): any {
-    return {
-      score: Math.floor(Math.random() * 30) + 70,
-      insights: ['Good structure', 'Clear call to action'],
-      suggestions: ['Consider shorter subject line', 'Add more personalization']
-    };
+  private async runEmail(contact: any, purpose: string): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: 'Write a concise, personalised outreach email. Use only facts from the supplied contact; do not invent news, mutual connections or statistics.',
+      input: JSON.stringify({ purpose, contact }), schema: TASK_EMAIL_SCHEMA, schemaName: 'task_email', maxOutputTokens: 1500,
+    });
+    const email = normalizeTaskEmail(raw);
+    if (!email) throw new AIError('The model returned an empty email', 502);
+    return email;
+  }
+
+  private async runAnalysis(data: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: `Analyse the supplied content. ${AITaskQueueService.GROUND}`,
+      input: JSON.stringify(data ?? {}), schema: TASK_ANALYSIS_SCHEMA, schemaName: 'task_analysis', maxOutputTokens: 1500,
+    });
+    return normalizeTaskAnalysis(raw);
   }
 
   // Public API

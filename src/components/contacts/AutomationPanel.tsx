@@ -1654,7 +1654,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <span className="text-gray-600">Efficiency:</span>
-                          <span className="font-medium text-green-600 ml-1">+{suggestion.estimatedImpact.efficiency}%</span>
+                          <span className="font-medium text-green-600 ml-1">{suggestion.estimatedImpact.efficiency != null ? `+${suggestion.estimatedImpact.efficiency}%` : 'No data'}</span>
                         </div>
                         <div>
                           <span className="text-gray-600">Coverage:</span>
@@ -1662,7 +1662,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
                         </div>
                         <div>
                           <span className="text-gray-600">Time Saved:</span>
-                          <span className="font-medium text-purple-600 ml-1">{suggestion.estimatedImpact.timesSaved}h/week</span>
+                          <span className="font-medium text-purple-600 ml-1">{suggestion.estimatedImpact.timesSaved != null ? `${suggestion.estimatedImpact.timesSaved}h/week` : 'No data'}</span>
                         </div>
                       </div>
                     </div>
