@@ -1,0 +1,33 @@
+{
+  "generated": "scripts/ai-census.cjs",
+  "endpoints": [
+    "ai-insights",
+    "ai-stream",
+    "ai-task",
+    "cold-email-sdr",
+    "competitive-intelligence-agent",
+    "contact-enrich",
+    "content-creation-agent",
+    "deal-health-analysis",
+    "discovery-sdr",
+    "document-analyze",
+    "email-analyzer",
+    "email-composer",
+    "email-personalization-agent",
+    "email-templates",
+    "execute-deal-ai",
+    "follow-up-sdr",
+    "generate-image-stream",
+    "generate-with-prompt",
+    "lead-nurturing",
+    "negotiation-coach-agent",
+    "objection-handler-sdr",
+    "reactivation-sdr",
+    "revenue-intelligence-agent",
+    "run-ae-agent",
+    "run-agent",
+    "sales-forecasting",
+    "social-selling-agent",
+    "win-back-sdr"
+  ]
+}

@@ -97,6 +97,10 @@ for (const c of ['PENDING_AI', 'MISSING', 'STREAM', 'NON_AI']) {
 fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
 fs.writeFileSync(path.join(root, 'docs/AI_CENSUS.md'), md);
 
+// Generative endpoints (STREAM class) for the runtime stream guard (src/lib/streaming/streamGuard.ts).
+const endpoints = [...new Set(by('STREAM').map((r) => r.name))].sort();
+fs.writeFileSync(path.join(root, 'src/lib/streaming/aiEndpoints.json'), JSON.stringify({ generated: 'scripts/ai-census.cjs', endpoints }, null, 2) + '\n');
+
 console.log(`census: ${rows.length} touchpoints | STREAM ${by('STREAM').length} | NON_AI ${by('NON_AI').length} | PENDING_AI ${by('PENDING_AI').length} | MISSING ${by('MISSING').length}`);
 if (process.argv.includes('--check') && bad.length) {
   for (const r of bad) console.log(`  ✗ ${r.cls.padEnd(10)} ${r.name} (${r.where}) <- ${r.files[0]}`);

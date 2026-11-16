@@ -11,6 +11,7 @@ export { default } from './SmartCRMApp';
 
 // Mount app
 import SmartCRMApp from './SmartCRMApp';
+import { installStreamGuard } from './lib/streaming/streamGuard';
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
@@ -32,6 +33,8 @@ if (rootElement) {
   
   window.addEventListener('error', handleError as any);
   window.addEventListener('unhandledrejection', handleError as any);
+
+  installStreamGuard(); // dev/test only: flags AI requests made without streaming
 
   const root = createRoot(rootElement);
   root.render(
