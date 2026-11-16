@@ -21,6 +21,7 @@ import { ContactShortcutsHelp } from '../contacts/ContactShortcutsHelp';
 import { ContactMergePicker } from '../contacts/ContactMergePicker';
 import { MergeContactsModal } from '../contacts/MergeContactsModal';
 import { DeleteContactDialog, DestroyContactDialog } from '../contacts/ContactDeleteDialogs';
+import { useOverlayEscape } from '../../hooks/useOverlayEscape';
 import { buildContactCommands, type ContactCommandId } from '../../lib/commands/contactCommands';
 import { resolveContactShortcut } from '../../lib/commands/contactShortcuts';
 import { adjacentContactId, recordPosition } from '../../lib/contacts/recordNavigation';
@@ -113,6 +114,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     statusTimer.current = setTimeout(() => setStatus(null), 2500);
   }, []);
   useEffect(() => () => { if (statusTimer.current) clearTimeout(statusTimer.current); }, []);
+
+  // The merge preview modal has no Esc handling of its own; keep Esc from closing the record underneath
+  useOverlayEscape(!!mergePair, () => setMergePair(null));
 
   const prevId = adjacentContactId(navIds, contact.id, 'prev');
   const nextId = adjacentContactId(navIds, contact.id, 'next');

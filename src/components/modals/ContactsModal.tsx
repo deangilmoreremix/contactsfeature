@@ -104,7 +104,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [initialDetailTab, setInitialDetailTab] = useState<string | undefined>(undefined);
+  // Tab requested by a deep link; only applies to the contact the link named
+  const [deepLinkTab, setDeepLinkTab] = useState<{ contactId: string; tab: string } | null>(null);
   const [showTrash, setShowTrash] = useState(false);
   const selectedSet = useContactSelectionStore((s) => s.selected);
   const selectedContacts = useMemo(() => Array.from(selectedSet), [selectedSet]);
@@ -170,7 +171,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     const found = contacts.find((c) => c.id === contactId) ?? trashedContacts.find((c) => c.id === contactId);
     if (found) {
       deepLinkHandled.current = true;
-      setInitialDetailTab(tab ?? undefined);
+      setDeepLinkTab(tab ? { contactId, tab } : null);
       setSelectedContact(found);
     }
   }, [isOpen, contacts, trashedContacts]);
@@ -483,7 +484,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
   const handleContactDetailClose = () => {
     setSelectedContact(null);
-    setInitialDetailTab(undefined);
   };
 
   const handleEditContact = (contact: Contact) => {
@@ -1226,7 +1226,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       isOpen={!!selectedContact}
                       onClose={handleContactDetailClose}
                       onUpdate={updateContact}
-                      initialTab={initialDetailTab}
+                      initialTab={deepLinkTab && deepLinkTab.contactId === selectedContact.id ? deepLinkTab.tab : undefined}
                       onOpenContact={setSelectedContact}
                     />
                   </div>

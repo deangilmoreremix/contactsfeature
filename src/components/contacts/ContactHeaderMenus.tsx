@@ -53,9 +53,9 @@ export const TabCustomizer: React.FC<TabCustomizerProps> = ({ tabs, hiddenIds, o
         <Settings2 className="w-4 h-4" />
       </button>
       {open && (
-        <div role="group" aria-label="Customize tabs" className={`${POPOVER} left-0 w-72 max-w-[calc(100vw-2rem)] p-2`}>
+        <div role="group" aria-label="Customize tabs" className={`${POPOVER} right-0 w-72 max-w-[calc(100vw-2rem)] p-2`}>
           <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Tabs</div>
-          <ul className="max-h-80 overflow-y-auto">
+          <ul className="max-h-96 overflow-y-auto">
             {tabs.map((tab, i) => {
               const Icon = tab.icon;
               const locked = LOCKED_TAB_IDS.includes(tab.id);

@@ -79,6 +79,18 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
     editingField
   } = useContactEditing({ contact, onUpdate });
 
+  // Header "Edit" button / E shortcut (ContactDetailView) asks the sidebar to enter edit mode.
+  React.useEffect(() => {
+    const onEdit = (e: Event) => {
+      const id = (e as CustomEvent<{ contactId?: string }>).detail?.contactId;
+      if (id && id !== contact.id) return;
+      e.preventDefault();
+      setIsEditing(true);
+    };
+    window.addEventListener('smartcrm:contact-edit', onEdit);
+    return () => window.removeEventListener('smartcrm:contact-edit', onEdit);
+  }, [contact.id, setIsEditing]);
+
   const researchStatus = useResearchStatus();
   const [enrichmentOutcome, setEnrichmentOutcome] = useState<EnrichmentOutcome | null>(null);
   const [addingEmail, setAddingEmail] = useState(false);
