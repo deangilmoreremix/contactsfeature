@@ -1,4 +1,6 @@
 const { supabase } = require('./_supabaseClient');
+const { withAuth } = require('./_auth');
+const { isValidUUID } = require('./_validation');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,19 +9,7 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
+exports.handler = withAuth(async (event, user) => {
   try {
     const { contactId } = JSON.parse(event.body || '{}');
 
@@ -31,10 +21,16 @@ exports.handler = async (event) => {
       };
     }
 
+    if (!isValidUUID(contactId)) {
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'contactId must be a valid UUID' }) };
+    }
+
+    // Own contacts only: foreign ids are indistinguishable from missing ones.
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('id, name, email, company, lead_status, pipeline_stage')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (contactError || !contact) {
@@ -109,4 +105,4 @@ exports.handler = async (event) => {
       })
     };
   }
-};
+});

@@ -3,6 +3,7 @@
  * contact whose `next_action_at` is due, across all users. The step itself queues the email
  * (status 'queued'); process-email-queue-scheduled delivers it through the user's own provider.
  */
+const { scheduledOnly } = require('./_scheduled');
 const { supabase } = require('./_supabaseClient');
 const { runAutopilotStep } = require('./trigger-autopilot');
 const { createLogger, generateCorrelationId } = require('./_logger');
@@ -10,7 +11,7 @@ const { createLogger, generateCorrelationId } = require('./_logger');
 const log = createLogger('autopilot-scheduled');
 const BATCH_SIZE = 20;
 
-exports.handler = async () => {
+exports.handler = scheduledOnly(async () => {
   log.setCorrelationId(generateCorrelationId());
   const now = new Date().toISOString();
   try {
@@ -46,4 +47,4 @@ exports.handler = async () => {
     log.error('Scheduled autopilot failed', { error: err.message });
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
-};
+});

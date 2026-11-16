@@ -23,16 +23,19 @@ async function sendEmailViaProvider(email) {
   return { provider: result.provider, messageId: result.messageId };
 }
 
-async function processQueue() {
+/** opts.userId scopes the run to one user's queue (manual trigger); omitted = every user (scheduler). */
+async function processQueue(opts = {}) {
   log.setCorrelationId(generateCorrelationId());
 
   try {
     const now = new Date().toISOString();
 
-    const { data: queuedEmails, error: queueError } = await supabase
+    let query = supabase
       .from('emails')
       .select('*, contacts!emails_contact_id_fkey(firstname, name, email, company)')
-      .eq('status', 'queued')
+      .eq('status', 'queued');
+    if (opts.userId) query = query.eq('user_id', opts.userId);
+    const { data: queuedEmails, error: queueError } = await query
       .or(`scheduled_for.is.null,scheduled_for.lte.${now}`)
       .lt('send_attempts', MAX_RETRIES)
       .order('created_at', { ascending: true })
@@ -133,9 +136,9 @@ async function processQueue() {
 }
 
 // Manual trigger (authenticated). Scheduled runs use process-email-queue-scheduled.js.
-exports.handler = withAuth(async () => {
+exports.handler = withAuth(async (_event, user) => {
   try {
-    const out = await processQueue();
+    const out = await processQueue({ userId: user.id });
     return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(out) };
   } catch {
     return errorResponse(500, 'Email queue processing failed');

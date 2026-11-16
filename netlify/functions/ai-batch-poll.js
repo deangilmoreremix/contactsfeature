@@ -2,6 +2,7 @@
  * Scheduled (every 15 minutes, netlify.toml): advances open OpenAI batches and applies finished
  * results exactly once. Failed/expired/cancelled batches are just marked.
  */
+const { scheduledOnly } = require('./_scheduled');
 const { supabase } = require('./_supabaseClient');
 const { getBatch } = require('./_responses');
 const { applyResults } = require('./_batch');
@@ -10,7 +11,7 @@ const { createLogger } = require('./_logger');
 const log = createLogger('ai-batch-poll');
 const TERMINAL_BAD = new Set(['failed', 'expired', 'cancelled']);
 
-exports.handler = async () => {
+exports.handler = scheduledOnly(async () => {
   try {
     const { data: open, error } = await supabase
       .from('ai_batches').select('*').is('applied_at', null).not('status', 'in', '(failed,expired,cancelled)').limit(25);
@@ -47,4 +48,4 @@ exports.handler = async () => {
     log.error('Batch poll error', { error: err.message });
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
-};
+});

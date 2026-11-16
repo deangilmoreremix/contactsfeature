@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { StreamingOutput } from "./ui/StreamingOutput";
 import { useAIStream } from "../hooks/useAIStream";
 import { liveDisplay } from "../lib/streaming/previewText";
+import { authJsonHeaders } from "../services/liveFunction";
 
 interface AutopilotStatus {
   contact?: {
@@ -66,7 +67,7 @@ export const AutopilotControlPanel: React.FC = () => {
         // Real API call for actual contacts
         const res = await fetch("/.netlify/functions/get-autopilot-status", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await authJsonHeaders(),
           body: JSON.stringify({ contactId }),
         });
         const json = await res.json();

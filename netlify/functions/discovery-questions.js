@@ -1,13 +1,10 @@
 const { stream } = require('@netlify/functions');
 const { runDual } = require('./_stream/dual');
-const { createClient } = require('@supabase/supabase-js');
+const { supabase } = require('./_supabaseClient');
+const { withAuth, errorResponse } = require('./_auth');
+const { getOwnedContact } = require('./_ownership');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
-exports.handler = stream(async (event) => {
+exports.handler = stream(withAuth(async (event, user) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -23,6 +20,8 @@ exports.handler = stream(async (event) => {
       questionType = 'comprehensive',
       aiProvider = 'openai'
     } = reqBody;
+
+    if (!(await getOwnedContact(user.id, contact?.id))) return errorResponse(404, 'Contact not found');
 
     console.log('Discovery questions request:', {
       contactId: contact.id,
@@ -69,7 +68,7 @@ exports.handler = stream(async (event) => {
       })
     };
   }
-});
+}));
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

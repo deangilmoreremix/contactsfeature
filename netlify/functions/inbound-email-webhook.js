@@ -2,6 +2,7 @@ const { supabase } = require('./_supabaseClient');
 const { CORS_HEADERS, errorResponse } = require('./_auth');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { verifyInboundEmail } = require('./_inboundAuth');
 
 const log = createLogger('inbound-email-webhook');
 
@@ -74,7 +75,16 @@ exports.handler = async (event) => {
   log.setCorrelationId(generateCorrelationId());
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try { body = JSON.parse(event.body || '{}'); } catch { return errorResponse(400, 'Invalid JSON body'); }
+
+    // No user session on this path: authenticity comes from the provider signature / shared secret (fails closed).
+    const verdict = verifyInboundEmail(event, body);
+    if (!verdict.ok) {
+      log.warn('Inbound email rejected', { reason: verdict.reason });
+      return errorResponse(verdict.status, verdict.reason);
+    }
+
     const { from, to, subject, text, html, messageId, inReplyTo } = body;
 
     if (!from) {

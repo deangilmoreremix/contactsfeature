@@ -2,8 +2,10 @@ const { runDual } = require('./_stream/dual');
 const { callOptions } = require('./_stream/helpers');
 const { stream } = require('@netlify/functions');
 const { supabase } = require('./_supabaseClient');
+const { withAuth } = require('./_auth');
+const { isValidUUID } = require('./_validation');
 
-exports.handler = stream(async (event, context) => {
+exports.handler = stream(withAuth(async (event, user) => {
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -29,6 +31,7 @@ exports.handler = stream(async (event, context) => {
     };
   }
 
+  let contactOwned = false; // only log failures against contacts the caller owns
   try {
     const reqBody = JSON.parse(event.body || '{}');
     const { contactId } = reqBody;
@@ -41,11 +44,16 @@ exports.handler = stream(async (event, context) => {
       };
     }
 
-    // Get contact and deal data
+    if (!isValidUUID(contactId)) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'contactId must be a valid UUID' }) };
+    }
+
+    // Get contact and deal data (own contacts only; foreign ids look like missing ones)
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (contactError || !contact) {
@@ -55,6 +63,8 @@ exports.handler = stream(async (event, context) => {
         body: JSON.stringify({ error: 'Contact not found' })
       };
     }
+
+    contactOwned = true;
 
     // Get associated deal if exists
     const { data: deal } = await supabase
@@ -146,7 +156,7 @@ exports.handler = stream(async (event, context) => {
         // Stream mode: a model failure never reaches the catch below, so record it here (once).
         if (ev.type === 'error' && !failureLogged) {
           failureLogged = true;
-          logFailedRun(contactId, ev.message);
+          logFailedRun(contactId, ev.message, user.id);
         }
       },
       finalize: async (text) => {
@@ -156,7 +166,7 @@ exports.handler = stream(async (event, context) => {
           await supabase.from('agent_runs').insert({
             agent_id: 'ae-agent',
             contact_id: contactId,
-            user_id: contact.user_id || null,
+            user_id: user.id,
             status: 'completed',
             output_data: { summary: response.substring(0, 500) },
             completed_at: new Date().toISOString()
@@ -171,7 +181,8 @@ exports.handler = stream(async (event, context) => {
             pipeline_stage: 'relationship_building',
             updated_at: new Date().toISOString()
           })
-          .eq('id', contactId);
+          .eq('id', contactId)
+          .eq('user_id', user.id);
 
         return {
           success: true,
@@ -187,7 +198,7 @@ exports.handler = stream(async (event, context) => {
 
     try {
       const parsedBody = JSON.parse(event.body || '{}');
-      if (parsedBody.contactId) await logFailedRun(parsedBody.contactId, error.message);
+      if (isValidUUID(parsedBody.contactId) && contactOwned) await logFailedRun(parsedBody.contactId, error.message, user.id);
     } catch (_logErr) {
       console.warn('Failed to log AE agent error:', _logErr);
     }
@@ -201,13 +212,14 @@ exports.handler = stream(async (event, context) => {
       })
     };
   }
-});
+}));
 
-async function logFailedRun(contactId, message) {
+async function logFailedRun(contactId, message, userId) {
   try {
     await supabase.from('agent_runs').insert({
       agent_id: 'ae-agent',
       contact_id: contactId,
+      user_id: userId,
       status: 'failed',
       error_message: message,
       completed_at: new Date().toISOString()
