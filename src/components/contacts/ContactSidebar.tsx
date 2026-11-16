@@ -34,6 +34,8 @@ interface ContactSidebarProps {
   setLastEnrichment: (enrichment: ContactEnrichmentData | null) => void;
   isEnriching: boolean;
   setIsEnriching: (enriching: boolean) => void;
+  /** Opens the company drawer; when given, the company name in Contact Info becomes clickable. */
+  onOpenCompany?: (company: string) => void;
 }
 
 export const ContactSidebar: React.FC<ContactSidebarProps> = ({
@@ -43,7 +45,8 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
   lastEnrichment,
   setLastEnrichment,
   isEnriching,
-  setIsEnriching
+  setIsEnriching,
+  onOpenCompany
 }) => {
   const {
     isEditing,
@@ -669,7 +672,19 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
                       autoFocus
                     />
                   ) : (
-                    <p className="text-sm font-medium text-gray-900">{editedContact.company}</p>
+                    onOpenCompany && editedContact.company?.trim() ? (
+                      <button
+                        type="button"
+                        data-testid="company-link"
+                        onClick={() => onOpenCompany(editedContact.company.trim())}
+                        title={`Open ${editedContact.company.trim()}`}
+                        className="text-sm font-medium text-gray-900 text-left hover:underline"
+                      >
+                        {editedContact.company}
+                      </button>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900">{editedContact.company}</p>
+                    )
                   )}
                 </div>
               </div>

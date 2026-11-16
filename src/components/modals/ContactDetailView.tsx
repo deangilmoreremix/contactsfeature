@@ -378,6 +378,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
             setLastEnrichment={setLastEnrichment}
             isEnriching={isEnriching}
             setIsEnriching={setIsEnriching}
+            onOpenCompany={() => setShowCompany(true)}
           />
 
           {/* Main Content Area */}
