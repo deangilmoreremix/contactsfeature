@@ -233,7 +233,7 @@ Best regards,
           researchThinking.complete('✅ Communication optimized successfully!');
 
           // End analytics tracking - success
-          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'default');
         } else {
           throw new Error('No optimization data received');
         }

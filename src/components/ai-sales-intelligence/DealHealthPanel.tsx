@@ -164,7 +164,7 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({
           setHealthScore(transformedHealth);
 
           // End analytics tracking - success
-          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'default');
         } else {
           throw new Error('No health analysis data received');
         }

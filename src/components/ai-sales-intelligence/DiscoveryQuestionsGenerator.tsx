@@ -199,7 +199,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
           setQuestions(transformedQuestions);
 
           // End analytics tracking - success
-          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'default');
         } else {
           throw new Error('No questions data received');
         }

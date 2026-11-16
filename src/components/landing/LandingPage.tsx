@@ -462,8 +462,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                   Advanced reasoning and analysis for complex tasks like relationship mapping and detailed insights.
                 </p>
                 <div className="flex justify-center space-x-2">
-                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs">GPT-4o</span>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">GPT-4o Mini</span>
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs">GPT-6</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">GPT-6 Fast</span>
                 </div>
               </div>
             </div>

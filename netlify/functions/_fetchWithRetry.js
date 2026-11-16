@@ -71,7 +71,7 @@ function sleep(ms) {
 
 /**
  * Compatibility wrapper kept so existing functions keep their call shape, but it now goes through
- * the shared Responses API helper (_responses.js) — never chat/completions.
+ * the shared Responses API helper (_responses.js) — Responses API only.
  *
  * messages: [{ role: 'system'|'user'|'assistant', content }]
  * config:   { role?, model?, effort?, maxTokens?, schema?, schemaName?, tools? }

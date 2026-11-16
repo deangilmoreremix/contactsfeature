@@ -1,12 +1,12 @@
 /**
  * SmartCRM AI Model Router
- * Intelligently routes AI tasks to appropriate GPT-5.2 variants
+ * Intelligently routes AI tasks to appropriate model roles (default | thinking | fast | pro; ids in src/config/models.json)
  */
 
 import type { AiTask } from './types';
 
 /**
- * Routes AI tasks to the most appropriate GPT-5.2 model variant
+ * Routes AI tasks to the most appropriate model role
  * based on task complexity and requirements
  */
 export function pickModelForTask(task: AiTask): string {
@@ -18,7 +18,7 @@ export function pickModelForTask(task: AiTask): string {
     case "ai_insights_generation":
     case "intelligence_engine":
     case "smart_recommendations":
-      return "gpt-5.2-pro";
+      return "pro";
 
     // Deep reasoning / multi-step logic
     case "contact_analyze":
@@ -30,7 +30,7 @@ export function pickModelForTask(task: AiTask): string {
     case "automation_optimization":
     case "ai_auto_enrich":
     case "sdr_persona_suggestion":
-      return "gpt-5.2-thinking";
+      return "thinking";
 
     // Fast, focused tasks (email, insights, communication)
     case "ai_web_research":
@@ -48,7 +48,7 @@ export function pickModelForTask(task: AiTask): string {
     case "comm_ai_proposal_email":
     case "lead_score_feedback":
     default:
-      return "gpt-5.2-instant";
+      return "fast";
   }
 }
 
@@ -57,19 +57,19 @@ export function pickModelForTask(task: AiTask): string {
  */
 export function getModelConfig(model: string) {
   const configs = {
-    "gpt-5.2-instant": {
+    "fast": {
       maxTokens: 4096,
       contextWindow: 8192,
       costPerToken: 0.0015,
       typicalLatency: "fast"
     },
-    "gpt-5.2-thinking": {
+    "thinking": {
       maxTokens: 8192,
       contextWindow: 32768,
       costPerToken: 0.003,
       typicalLatency: "medium"
     },
-    "gpt-5.2-pro": {
+    "pro": {
       maxTokens: 16384,
       contextWindow: 131072,
       costPerToken: 0.006,
@@ -77,7 +77,7 @@ export function getModelConfig(model: string) {
     }
   };
 
-  return configs[model as keyof typeof configs] || configs["gpt-5.2-instant"];
+  return configs[model as keyof typeof configs] || configs["fast"];
 }
 
 /**

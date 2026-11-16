@@ -705,7 +705,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                           <div className="flex items-center justify-between">
                             <h5 className="font-medium text-gray-900 dark:text-white flex items-center">
                               <Brain className="w-4 h-4 mr-2 text-purple-600" />
-                              AI Summary (GPT-4o-mini)
+                              AI Summary
                             </h5>
                             <div className="flex items-center space-x-2 text-xs text-gray-500">
                               <span>Confidence: {summary.confidence}%</span>

@@ -1,6 +1,7 @@
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { sendEmail } = require('./_messaging');
+const { injectTracking } = require('./_messaging/tracking');
 const { createLogger, generateCorrelationId } = require('./_logger');
 
 const log = createLogger('process-email-queue');
@@ -14,7 +15,7 @@ async function sendEmailViaProvider(email) {
   const result = await sendEmail(email.user_id, {
     to: email.to_email,
     subject: email.subject,
-    html: email.body_html,
+    html: injectTracking(email.body_html, { emailId: email.id, baseUrl: process.env.URL }),
     text: email.body_text,
     fromEmail: email.from_email || undefined,
   });
@@ -60,6 +61,7 @@ async function processQueue() {
         await supabase.from('emails').update({
           status: 'sent',
           sent_at: new Date().toISOString(),
+          provider: sendResult.provider,
           message_id: sendResult.messageId || null,
           error_message: null,
           updated_at: new Date().toISOString(),

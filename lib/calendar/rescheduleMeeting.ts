@@ -1,11 +1,13 @@
 import { supabase } from "../core/supabaseClient";
 import { sendEmail } from "../messaging/sendEmail";
 
-export async function rescheduleMeeting(eventId: string, newDatetime: string) {
-  const { data: event } = await supabase
+export async function rescheduleMeeting(eventId: string, newDatetime: string, userId?: string) {
+  let q = supabase
     .from("calendar_events")
-    .update({ scheduled_for: newDatetime })
-    .eq("id", eventId)
+    .update({ scheduled_for: newDatetime, status: "scheduled" })
+    .eq("id", eventId);
+  if (userId) q = q.eq("user_id", userId);
+  const { data: event } = await q
     .select("contact_id")
     .maybeSingle();
 

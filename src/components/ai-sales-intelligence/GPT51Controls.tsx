@@ -38,7 +38,7 @@ export const GPT51Controls: React.FC<GPT51ControlsProps> = ({
     setIsProcessing(true);
     try {
       const response = await gpt51ResponsesService.createResponse({
-        model: 'gpt-5.1',
+        model: 'default',
         input: input.trim(),
         reasoning: { effort: reasoningEffort },
         text: { verbosity },
