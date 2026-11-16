@@ -1,7 +1,8 @@
-import { openai } from "./openaiClient";
+import { createResponse, ModelRole, Effort } from "./openaiClient";
 import { openaiFunctionRouter } from "./openaiFunctionRouter";
 import { logger } from "./logger";
 
+/** Chat-style tool definition accepted for backwards compatibility; converted to the flat Responses shape. */
 export interface ToolDefinition {
   type: "function";
   function: {
@@ -12,69 +13,69 @@ export interface ToolDefinition {
 }
 
 interface CallOpenAIOptions {
+  /** Model role (default | thinking | fast | pro) or an explicit model id. */
+  role?: ModelRole;
   model?: string;
+  effort?: Effort;
+  /** Only honoured by the Responses API when effort is "none" (non-reasoning mode). */
   temperature?: number;
   tools?: ToolDefinition[];
   systemPrompt?: string;
+  schema?: any;
+  schemaName?: string;
+  maxOutputTokens?: number;
+}
+
+function toResponsesTools(tools: ToolDefinition[]) {
+  return tools.map((t) => ({
+    type: "function" as const,
+    name: t.function.name,
+    description: t.function.description,
+    parameters: t.function.parameters,
+    strict: false,
+  }));
 }
 
 /**
- * Generic helper for calling OpenAI with optional tools.
+ * Generic helper for calling OpenAI (Responses API) with optional tools.
  * If a tool call is returned, we route it via openaiFunctionRouter.
+ * With `schema`, returns the parsed JSON object; otherwise the text.
  */
 export async function callOpenAI(
   userPrompt: string,
   options: CallOpenAIOptions = {}
 ): Promise<string | any> {
-  const {
-    model = "gpt-5.2",
-    temperature = 0.7,
-    tools = [],
-    systemPrompt
-  } = options;
+  const { tools = [], systemPrompt } = options;
 
-  const messages: any[] = [];
-
-  if (systemPrompt) {
-    messages.push({ role: "system", content: systemPrompt });
-  }
-
-  messages.push({
-    role: "user",
-    content: userPrompt
+  logger.debug("Calling OpenAI Responses API", {
+    role: options.role || options.model || "default",
+    hasTools: !!tools.length
   });
 
-  logger.debug("Calling OpenAI", { model, hasTools: !!tools.length });
-
-  const resp = await openai.chat.completions.create({
-    model,
-    messages,
-    temperature,
-    tools: tools.length ? tools : undefined,
-    tool_choice: tools.length ? "auto" : undefined
+  const result = await createResponse({
+    role: options.role,
+    model: options.model,
+    effort: options.effort,
+    temperature: options.temperature,
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: options.schema,
+    schemaName: options.schemaName,
+    maxOutputTokens: options.maxOutputTokens,
+    tools: tools.length ? toResponsesTools(tools) : undefined,
+    toolChoice: tools.length ? "auto" : undefined
   });
 
-  const choice = resp.choices[0];
-
-  // Tool call
-  if (choice.finish_reason === "tool_calls" && choice.message.tool_calls?.length) {
-    const toolCall = choice.message.tool_calls[0];
-    const fnName = toolCall.function.name;
-    const args = JSON.parse(toolCall.function.arguments || "{}");
-
-    logger.info("OpenAI requested tool call", { fnName, args });
-
-    return openaiFunctionRouter(fnName, args);
+  if (result.functionCalls.length) {
+    const call = result.functionCalls[0];
+    logger.info("OpenAI requested tool call", { fnName: call.name, args: call.arguments });
+    return openaiFunctionRouter(call.name, call.arguments);
   }
 
-  // Normal text response
-  const content = choice.message.content;
-  if (typeof content === "string") return content;
-
-  // If content is an array of parts
-  if (Array.isArray(content)) {
-    return content.map((c: any) => c.text || "").join("");
+  if (options.schema) {
+    if (result.json === null) throw new Error("OpenAI returned no parseable JSON for the requested schema");
+    return result.json;
   }
 
-  return "";
+  return result.text;
 }

@@ -56,7 +56,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
     {
       id: 'ai-contact-scoring',
       title: 'AI Contact Scoring',
-      description: 'Advanced AI-powered contact scoring with visual indicators, interest level tracking, and predictive lead qualification using OpenAI and Google Gemini.',
+      description: 'Advanced AI-powered contact scoring with visual indicators, interest level tracking, and predictive lead qualification using OpenAI.',
       image: 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       icon: Brain,
       color: 'from-purple-500 to-blue-500',
@@ -447,11 +447,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 Powered by Advanced AI Models
               </h3>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Our Contact Management Platform integrates with the latest AI models from OpenAI, Google, and more for optimal performance, accuracy, and cost efficiency across all contact features.
+                Our Contact Management Platform integrates with the latest AI models from OpenAI for optimal performance, accuracy, and cost efficiency across all contact features.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 gap-8 max-w-md mx-auto">
               {/* OpenAI */}
               <div className="text-center p-6 bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border border-green-200">
                 <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -464,36 +464,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 <div className="flex justify-center space-x-2">
                   <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs">GPT-4o</span>
                   <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">GPT-4o Mini</span>
-                </div>
-              </div>
-
-              {/* Google Gemini */}
-              <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-                <h4 className="text-xl font-semibold text-gray-900 mb-2">Google Gemini</h4>
-                <p className="text-gray-600 text-sm mb-4">
-                  Lightning-fast processing for real-time scoring, categorization, and bulk operations.
-                </p>
-                <div className="flex justify-center space-x-2">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">Gemini 2.0 Flash</span>
-                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs">Gemini 1.5 Pro</span>
-                </div>
-              </div>
-
-              {/* Gemma Models */}
-              <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Zap className="w-8 h-8 text-white" />
-                </div>
-                <h4 className="text-xl font-semibold text-gray-900 mb-2">Gemma Models</h4>
-                <p className="text-gray-600 text-sm mb-4">
-                  Cost-effective AI for high-volume tasks like tagging, categorization, and simple analysis.
-                </p>
-                <div className="flex justify-center space-x-2">
-                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs">Gemma 2-27B</span>
-                  <span className="px-2 py-1 bg-pink-100 text-pink-800 rounded-md text-xs">Gemma 2-9B</span>
                 </div>
               </div>
             </div>

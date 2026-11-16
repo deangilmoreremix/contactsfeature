@@ -351,7 +351,7 @@ export const InteractiveContactScorer: React.FC = () => {
           <span className="text-sm font-medium text-blue-900">Interactive Demo</span>
         </div>
         <p className="text-sm text-blue-800 mt-1">
-          This is a simplified version of our AI scoring engine. The real application uses advanced machine learning models from OpenAI and Google Gemini for even more accurate predictions, with detailed breakdown scores and confidence levels.
+          This is a simplified version of our AI scoring engine. The real application uses advanced machine learning models from OpenAI for even more accurate predictions, with detailed breakdown scores and confidence levels.
         </p>
       </div>
     </GlassCard>

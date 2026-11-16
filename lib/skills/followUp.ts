@@ -28,8 +28,7 @@ Return your follow-up message only.
     `;
 
     const res = await callOpenAI(prompt, {
-      model: "gpt-4.1-mini",
-      temperature: 0.7
+      role: "default"
     });
 
     return res;

@@ -25,8 +25,7 @@ Return your reply email/message only.
     `;
 
     const res = await callOpenAI(prompt, {
-      model: "gpt-4.1-mini",
-      temperature: 0.65
+      role: "default"
     });
 
     return res;

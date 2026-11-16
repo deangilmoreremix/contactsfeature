@@ -33,19 +33,18 @@ Return JSON only in this format:
 }
     `;
 
-    const res = await callOpenAI(prompt, {
-      model: "gpt-4.1",
-      temperature: 0.3
-    });
-
-    if (typeof res === "string") {
-      try {
-        return JSON.parse(res);
-      } catch (e) {
-        return { risk_score: 50, reason: "Could not parse.", next_move: "" };
+    // Structured output: callOpenAI returns the parsed object or throws if the model returned no valid JSON.
+    return callOpenAI(prompt, {
+      role: "thinking",
+      schemaName: "risk_analysis",
+      schema: {
+        type: "object",
+        properties: {
+          risk_score: { type: "number" },
+          reason: { type: "string" },
+          next_move: { type: "string" }
+        }
       }
-    }
-
-    return res;
+    });
   }
 };

@@ -95,7 +95,7 @@ class NetlifyAdapter {
     const functionMetadata: Record<string, any> = {
       'ai-enrichment': {
         name: 'ai-enrichment',
-        description: 'AI contact scoring and lead qualification using GPT-4 and Gemini',
+        description: 'AI contact scoring and lead qualification using OpenAI',
         parameters: {
           type: 'object',
           properties: {
@@ -224,7 +224,7 @@ class NetlifyAdapter {
       },
       'generate-demo-visuals': {
         name: 'generate-demo-visuals',
-        description: 'Generate presentation visuals using Gemini 2.5 Flash',
+        description: 'Generate presentation visuals using OpenAI Images',
         parameters: {
           type: 'object',
           properties: {

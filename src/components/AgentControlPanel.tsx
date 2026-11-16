@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { sdrAuthHeaders } from "../services/sdrClient";
 
 interface Agent {
   id: string;
@@ -65,7 +66,7 @@ export const AgentControlPanel = () => {
 
   const loadAgents = async () => {
     try {
-      const res = await fetch("/.netlify/functions/get-agents");
+      const res = await fetch("/.netlify/functions/get-agents", { headers: await sdrAuthHeaders() });
       const json = await res.json();
       setAgents(json.agents || []);
     } catch (error) {
@@ -76,7 +77,7 @@ export const AgentControlPanel = () => {
 
   const loadPersonas = async () => {
     try {
-      const res = await fetch("/.netlify/functions/get-personas");
+      const res = await fetch("/.netlify/functions/get-personas", { headers: await sdrAuthHeaders() });
       const json = await res.json();
       setPersonas(json.personas || []);
     } catch (error) {
@@ -89,11 +90,9 @@ export const AgentControlPanel = () => {
     setLoading(true);
 
     try {
-      await fetch("/.netlify/functions/save-agent-settings", {
+      const saved = await fetch("/.netlify/functions/save-agent-settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: await sdrAuthHeaders(),
         body: JSON.stringify({
           contactId,
           autopilotEnabled,
@@ -107,6 +106,7 @@ export const AgentControlPanel = () => {
         }),
       });
 
+      if (!saved.ok) throw new Error((await saved.json().catch(() => ({}))).error || "Save failed");
       alert("Settings saved!");
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -119,7 +119,8 @@ export const AgentControlPanel = () => {
   const loadLogs = async () => {
     try {
       const res = await fetch(
-        `/.netlify/functions/get-agent-logs?contactId=${contactId}`
+        `/.netlify/functions/get-agent-logs?contactId=${encodeURIComponent(contactId)}`,
+        { headers: await sdrAuthHeaders() }
       );
       const json = await res.json();
       setLogs(json.logs || []);

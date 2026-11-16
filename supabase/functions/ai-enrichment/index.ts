@@ -1,115 +1,13 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createResponse } from '../_shared/openai.ts'
 
-// AI API helper functions
-const OPENAI_API_KEY = Deno.env.get('VITE_OPENAI_API_KEY');
-const GEMINI_API_KEY = Deno.env.get('VITE_GEMINI_API_KEY');
-
-async function callOpenAI(prompt: string, model: string = 'gpt-4o'): Promise<string | null> {
-  if (!OPENAI_API_KEY) return null;
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: model,
-        input: prompt,
-        max_output_tokens: 500,
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('OpenAI API error:', response.status, response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.output?.[0]?.content?.[0]?.text || null;
-  } catch (error) {
-    console.error('OpenAI API call failed:', error);
-    return null;
-  }
-}
-
-async function callGemini(prompt: string, model: string = 'gemini-1.5-flash'): Promise<string | null> {
-  if (!GEMINI_API_KEY) return null;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          maxOutputTokens: 500,
-          temperature: 0.7,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('Gemini API error:', response.status, response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch (error) {
-    console.error('Gemini API call failed:', error);
-    return null;
-  }
-}
-
-async function generateImageWithDalle(prompt: string): Promise<string | null> {
-  if (!OPENAI_API_KEY) return null;
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        n: 1,
-        size: '256x256',
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('DALL-E API error:', response.status, response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.data?.[0]?.url || null;
-  } catch (error) {
-    console.error('DALL-E API call failed:', error);
-    return null;
-  }
-}
-
-async function getAIResponse(prompt: string): Promise<string | null> {
-  // Try OpenAI first
-  let response = await callOpenAI(prompt);
-  if (response) return response;
-
-  // Fallback to Gemini
-  response = await callGemini(prompt);
-  if (response) return response;
-
-  return null;
-}
+/**
+ * AI Enrichment Edge Function (OpenAI Responses API + hosted web_search tool).
+ *
+ * Honest results: every AI-derived field comes from web research with cited sources.
+ * When nothing can be verified the field is null and `found: false` -- no guessed handles,
+ * no generated headshots, no mock data.
+ */
 
 const corsHeaders = {
   "Access-Control-Allow-Origin":
@@ -119,25 +17,57 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-serve(async (req) => {
+interface Source { url: string; title: string }
+
+const nullableString = { type: ['string', 'null'] }
+
+/** Research a question with the hosted web_search tool and return structured JSON + sources. */
+async function research(instructions: string, input: string, schemaName: string, schema: Record<string, unknown>) {
+  const ai = await createResponse({
+    role: 'thinking',
+    effort: 'low',
+    instructions: `${instructions}
+Rules: use web search and report only facts supported by sources you found. If you cannot find or verify something, return null for it. Never guess, infer usernames, or fabricate URLs.`,
+    input,
+    schemaName,
+    schema,
+    tools: [{ type: 'web_search' }],
+    maxOutputTokens: 4000
+  })
+  if (!ai.json) throw new Error('AI returned no structured research result')
+  return { data: ai.json, sources: ai.citations as Source[] }
+}
+
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized', success: false }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      { global: { headers: { Authorization: authHeader } } }
     )
+    const { data: userData } = await supabaseClient.auth.getUser(authHeader.replace('Bearer', '').trim())
+    if (!userData?.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized', success: false }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const requestBody = await req.json()
-    const { type, contactData, enrichmentType, email, name, linkedin, contacts, enrichmentRequest, contactId } = requestBody
+    const { type, contactData, enrichmentType, email, name, linkedin, contacts, enrichmentRequest } = requestBody
 
     let enrichedData
 
@@ -148,7 +78,6 @@ serve(async (req) => {
     let processedData = contactData || requestBody
     if (enrichmentRequest) {
       processedData = enrichmentRequest
-      // Extract email from nested structure if present
       if (enrichmentRequest.email) {
         processedData.email = enrichmentRequest.email
       }
@@ -183,7 +112,7 @@ serve(async (req) => {
         enrichedData = await comprehensiveEnrichment(processedData)
         break
       default:
-        enrichedData = await basicEnrichment(processedData)
+        enrichedData = { success: true, data: await basicEnrichment(processedData) }
     }
 
     return new Response(JSON.stringify(enrichedData), {
@@ -193,18 +122,9 @@ serve(async (req) => {
   } catch (error) {
     console.error('AI Enrichment Error:', error)
 
-    // Check if API keys are available
-    const hasOpenAI = !!OPENAI_API_KEY
-    const hasGemini = !!GEMINI_API_KEY
-
-    if (!hasOpenAI && !hasGemini) {
-      console.warn('No AI API keys configured - using mock data fallback')
-    }
-
     return new Response(JSON.stringify({
-      error: error.message || 'An unexpected error occurred',
-      success: false,
-      fallback: !hasOpenAI && !hasGemini ? 'No AI API keys configured' : null
+      error: error instanceof Error ? error.message : 'An unexpected error occurred',
+      success: false
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -212,82 +132,35 @@ serve(async (req) => {
   }
 })
 
-// Helper functions for enrichment
-async function findContactImage(data: any) {
-  const contact = data.contact || data
-  const name = contact.name || contact.firstName + ' ' + contact.lastName || 'professional person'
-  const company = contact.company || contact.organization || ''
+// deno-lint-ignore no-explicit-any
+type AnyData = Record<string, any>
 
-  // Try to generate image with DALL-E
-  const prompt = `Generate a professional headshot photo of ${name}${company ? ` working at ${company}` : ''}. Business attire, neutral background, professional appearance.`
-  const aiImageUrl = await generateImageWithDalle(prompt)
-
-  if (aiImageUrl) {
-    return {
-      success: true,
-      imageUrl: aiImageUrl,
-      confidence: 0.85,
-      source: 'AI Generated (DALL-E)',
-      enrichedAt: new Date().toISOString(),
-      contact: contact
-    }
-  }
-
-  // Fallback to mock images if AI fails
-  const mockImages = [
-    'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
-    'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2'
-  ]
-
-  const randomImage = mockImages[Math.floor(Math.random() * mockImages.length)]
-
+async function findContactImage(data: AnyData) {
+  // We do not generate synthetic headshots of real people or return stock photos.
   return {
-    success: true,
-    imageUrl: randomImage,
-    confidence: 0.75,
-    source: 'Fallback (Mock Data)',
+    success: false,
+    imageUrl: null,
+    found: false,
+    error: 'No verified image source is available for this contact. Upload a photo instead.',
     enrichedAt: new Date().toISOString(),
-    contact: contact
+    contact: data.contact || data
   }
 }
 
-async function enrichByEmail(email: string, data: any) {
+const FREE_EMAIL_DOMAINS = new Set(['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'proton.me', 'protonmail.com'])
+
+async function enrichByEmail(email: string, data: AnyData) {
   const enriched = await basicEnrichment({ email, ...data })
 
-  if (email) {
-    const domain = email.split('@')[1]
+  if (email && email.includes('@')) {
+    const domain = email.split('@')[1].toLowerCase()
     enriched.emailDomain = domain
     enriched.emailProvider = getEmailProvider(email)
 
-    // Try to get company info using AI
-    const aiResponse = await getAIResponse(`Based on the email domain "${domain}", provide information about the company in JSON format: {"name": "Company Name", "industry": "Industry", "size": "Company Size (e.g., Small, Medium, Large, Enterprise)", "description": "Brief description"}. If you don't know the company, use generic information based on the domain type.`)
-
-    if (aiResponse) {
-      try {
-        const companyData = JSON.parse(aiResponse)
-        enriched.companyInfo = {
-          domain: domain,
-          name: companyData.name || 'Unknown',
-          industry: companyData.industry || 'Unknown',
-          size: companyData.size || 'Unknown',
-          description: companyData.description || ''
-        }
-      } catch (parseError) {
-        console.error('Failed to parse AI company response:', parseError)
-        enriched.companyInfo = {
-          domain: domain,
-          industry: 'Unknown',
-          size: 'Unknown'
-        }
-      }
+    if (FREE_EMAIL_DOMAINS.has(domain)) {
+      enriched.companyInfo = { domain, found: false, reason: 'Personal email provider; no company can be inferred' }
     } else {
-      enriched.companyInfo = {
-        domain: domain,
-        industry: 'Unknown',
-        size: 'Unknown'
-      }
+      enriched.companyInfo = await lookupCompany(data.company || data.organization || '', domain)
     }
   }
 
@@ -295,49 +168,57 @@ async function enrichByEmail(email: string, data: any) {
   return { success: true, data: enriched }
 }
 
-async function enrichByName(name: string, data: any) {
+async function lookupCompany(companyName: string, domain: string) {
+  const { data, sources } = await research(
+    'You are a B2B company researcher.',
+    `Find factual information about the company${companyName ? ` "${companyName}"` : ''}${domain ? ` with website domain "${domain}"` : ''}.`,
+    'company_info',
+    {
+      type: 'object',
+      properties: {
+        found: { type: 'boolean' },
+        name: nullableString,
+        industry: nullableString,
+        size: nullableString,
+        description: nullableString,
+        headquarters: nullableString,
+        founded: nullableString,
+        website: nullableString
+      }
+    }
+  )
+
+  return {
+    found: !!data.found,
+    domain: domain || (data.website ? String(data.website).replace(/^https?:\/\//, '').split('/')[0] : null),
+    name: data.name || companyName || null,
+    industry: data.industry,
+    size: data.size,
+    description: data.description,
+    headquarters: data.headquarters,
+    founded: data.founded,
+    website: data.website,
+    sources
+  }
+}
+
+async function enrichByName(name: string, data: AnyData) {
   const enriched = await basicEnrichment({ name, ...data })
 
   if (name) {
     enriched.nameParts = parseName(name)
-
-    // Try to get social profiles using AI
-    const aiResponse = await getAIResponse(`For the person named "${name}", suggest likely social media profiles in JSON format: {"linkedin": "https://linkedin.com/in/username", "twitter": "https://twitter.com/username", "facebook": "https://facebook.com/username"}. Use realistic usernames based on the name. If company info is available (${data.company || 'none'}), incorporate it into LinkedIn URL.`)
-
-    if (aiResponse) {
-      try {
-        const socialData = JSON.parse(aiResponse)
-        enriched.socialProfiles = {
-          linkedin: socialData.linkedin || null,
-          twitter: socialData.twitter || null,
-          facebook: socialData.facebook || null
-        }
-      } catch (parseError) {
-        console.error('Failed to parse AI social profiles response:', parseError)
-        enriched.socialProfiles = {
-          linkedin: null,
-          twitter: null,
-          facebook: null
-        }
-      }
-    } else {
-      enriched.socialProfiles = {
-        linkedin: null,
-        twitter: null,
-        facebook: null
-      }
-    }
+    enriched.socialProfiles = await discoverSocialProfiles(name, data.company || data.organization || '', data.email)
   }
 
   enriched.enrichmentLevel = 'name'
   return { success: true, data: enriched }
 }
 
-async function enrichByLinkedIn(linkedin: string, data: any) {
+async function enrichByLinkedIn(linkedin: string, data: AnyData) {
   const enriched = await basicEnrichment({ linkedin, ...data })
 
   enriched.socialProfiles = {
-    linkedin: linkedin,
+    linkedin: linkedin ? { url: linkedin, verificationStatus: 'provided_by_user' } : null,
     twitter: null,
     facebook: null
   }
@@ -346,16 +227,13 @@ async function enrichByLinkedIn(linkedin: string, data: any) {
   return { success: true, data: enriched }
 }
 
-async function enrichBulkContacts(contacts: any[]) {
+async function enrichBulkContacts(contacts: AnyData[]) {
   if (!Array.isArray(contacts)) {
     return { success: false, error: 'Contacts must be an array' }
   }
 
-  const enrichedContacts = await Promise.all(
-    contacts.map(async (contact) => {
-      return await basicEnrichment(contact)
-    })
-  )
+  // Bulk mode is deterministic normalisation only (no per-contact web research).
+  const enrichedContacts = await Promise.all(contacts.map((contact) => basicEnrichment(contact)))
 
   return {
     success: true,
@@ -365,11 +243,11 @@ async function enrichBulkContacts(contacts: any[]) {
   }
 }
 
-async function basicEnrichment(data: any) {
-  // Basic enrichment without AI
-  const enriched = { ...data }
+/** Deterministic normalisation only; no AI involved and no confidence claimed. */
+async function basicEnrichment(data: AnyData) {
+  const enriched: AnyData = { ...data }
 
-  if (data.email) {
+  if (data.email && String(data.email).includes('@')) {
     enriched.emailDomain = data.email.split('@')[1]
     enriched.emailProvider = getEmailProvider(data.email)
   }
@@ -384,94 +262,114 @@ async function basicEnrichment(data: any) {
 
   enriched.enrichedAt = new Date().toISOString()
   enriched.enrichmentLevel = 'basic'
-  enriched.confidence = 75
 
   return enriched
 }
 
-async function enrichCompanyInfo(data: any) {
+async function enrichCompanyInfo(data: AnyData) {
   const enriched = await basicEnrichment(data)
 
   const companyName = data.company || data.organization || ''
-  const domain = data.email ? data.email.split('@')[1] : ''
+  const domain = data.email && String(data.email).includes('@') ? data.email.split('@')[1].toLowerCase() : ''
 
-  if (companyName || domain) {
-    // Try to get detailed company info using AI
-    const prompt = `Provide detailed information about the company${companyName ? ` "${companyName}"` : ''}${domain ? ` with domain "${domain}"` : ''} in JSON format: {"name": "Full Company Name", "industry": "Primary Industry", "size": "Company Size (Startup/Small/Medium/Large/Enterprise)", "description": "Brief company description", "headquarters": "Location", "founded": "Founded year", "website": "Company website URL"}`
-
-    const aiResponse = await getAIResponse(prompt)
-
-    if (aiResponse) {
-      try {
-        const companyData = JSON.parse(aiResponse)
-        enriched.companyInfo = {
-          name: companyData.name || companyName || 'Unknown',
-          domain: domain || companyData.website?.replace('https://', '').replace('http://', '').split('/')[0] || 'Unknown',
-          industry: companyData.industry || 'Unknown',
-          size: companyData.size || 'Unknown',
-          description: companyData.description || '',
-          headquarters: companyData.headquarters || 'Unknown',
-          founded: companyData.founded || 'Unknown',
-          website: companyData.website || `https://${domain}` || 'Unknown'
-        }
-      } catch (parseError) {
-        console.error('Failed to parse AI company info response:', parseError)
-        enriched.companyInfo = {
-          domain: domain || 'Unknown',
-          industry: 'Unknown',
-          size: 'Unknown'
-        }
-      }
-    } else {
-      enriched.companyInfo = {
-        domain: domain || 'Unknown',
-        industry: 'Unknown',
-        size: 'Unknown'
-      }
-    }
+  if (companyName || (domain && !FREE_EMAIL_DOMAINS.has(domain))) {
+    enriched.companyInfo = await lookupCompany(companyName, FREE_EMAIL_DOMAINS.has(domain) ? '' : domain)
+  } else {
+    enriched.companyInfo = { found: false, reason: 'No company name or business email domain provided' }
   }
 
   enriched.enrichmentLevel = 'company'
   return { success: true, data: enriched }
 }
 
-async function enrichSocialProfiles(data: any) {
-  // Comprehensive social media profile discovery
-  const enriched = await basicEnrichment(data)
+const PLATFORM_HOSTS: Record<string, string[]> = {
+  linkedin: ['linkedin.com'],
+  twitter: ['twitter.com', 'x.com'],
+  facebook: ['facebook.com'],
+  instagram: ['instagram.com']
+}
 
-  // Initialize social profiles structure
-  enriched.socialProfiles = {
+function hostMatches(url: string, hosts: string[]): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase()
+    return hosts.some((d) => h === d || h.endsWith(`.${d}`))
+  } catch {
+    return false
+  }
+}
+
+/** Find public profiles via web search; only URLs on the right platform that were actually found are returned. */
+async function discoverSocialProfiles(fullName: string, company: string, email?: string) {
+  const profiles: AnyData = {
     whatsapp: null,
     linkedin: null,
-    email: data.email || null,
+    email: email || null,
     twitter: null,
     facebook: null,
     instagram: null
   }
 
-  // Extract name for profile discovery
+  if (!fullName || fullName.trim().length < 2) return profiles
+
+  const { data, sources } = await research(
+    'You find the public professional social media profiles of a specific person.',
+    `Person: ${fullName}${company ? `\nCompany: ${company}` : ''}${email ? `\nEmail: ${email}` : ''}\nFind their LinkedIn, X/Twitter, Facebook and Instagram profile URLs. Only return a profile when you are confident it is the same person (name and company/email context match).`,
+    'social_profiles',
+    {
+      type: 'object',
+      properties: {
+        linkedin: nullableString,
+        twitter: nullableString,
+        facebook: nullableString,
+        instagram: nullableString
+      }
+    }
+  )
+
+  for (const platform of Object.keys(PLATFORM_HOSTS)) {
+    const url = data[platform]
+    if (typeof url === 'string' && hostMatches(url, PLATFORM_HOSTS[platform])) {
+      const handle = new URL(url).pathname.split('/').filter(Boolean).pop() || null
+      profiles[platform] = {
+        url,
+        handle,
+        verificationStatus: 'found_via_web_search',
+        lastChecked: new Date().toISOString(),
+        sources
+      }
+    }
+  }
+
+  return profiles
+}
+
+async function enrichSocialProfiles(data: AnyData) {
+  const enriched = await basicEnrichment(data)
+
   const fullName = data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim()
   const company = data.company || data.organization || ''
 
-  // Discover social profiles based on available data
-  if (fullName) {
-    enriched.socialProfiles = await discoverSocialProfiles(fullName, company, data.email)
+  enriched.socialProfiles = await discoverSocialProfiles(fullName, company, data.email)
+  if (enriched.socialProfiles.email) {
+    enriched.socialProfiles.emailValidation = {
+      isValid: isValidEmail(enriched.socialProfiles.email),
+      provider: getEmailProvider(enriched.socialProfiles.email)
+    }
   }
 
-  // Add confidence scores and verification status
-  enriched.socialProfiles = await validateSocialProfiles(enriched.socialProfiles)
-
+  const found = ['linkedin', 'twitter', 'facebook', 'instagram'].filter((p) => enriched.socialProfiles[p])
   enriched.enrichmentLevel = 'social'
   enriched.socialDiscovery = {
     discoveredAt: new Date().toISOString(),
-    confidence: calculateSocialDiscoveryConfidence(enriched.socialProfiles),
-    sources: ['AI-powered search', 'Pattern matching', 'Public data aggregation']
+    profilesFound: found.length,
+    platforms: found,
+    method: 'OpenAI web_search'
   }
 
   return { success: true, data: enriched }
 }
 
-async function enrichInterests(data: any) {
+async function enrichInterests(data: AnyData) {
   const enriched = await basicEnrichment(data)
 
   const name = data.name || ''
@@ -479,33 +377,33 @@ async function enrichInterests(data: any) {
   const jobTitle = data.jobTitle || data.position || ''
   const industry = data.industry || ''
 
-  // Try to generate interests using AI
-  const prompt = `Based on this person's information - Name: ${name}, Company: ${company}, Job Title: ${jobTitle}, Industry: ${industry} - suggest 5-8 professional interests or hobbies they might have. Return as JSON array of strings.`
-
-  const aiResponse = await getAIResponse(prompt)
-
-  if (aiResponse) {
-    try {
-      const interests = JSON.parse(aiResponse)
-      enriched.interests = Array.isArray(interests) ? interests : []
-    } catch (parseError) {
-      console.error('Failed to parse AI interests response:', parseError)
-      enriched.interests = []
-    }
-  } else {
+  if (!name) {
     enriched.interests = []
+    enriched.interestsSources = []
+    enriched.enrichmentLevel = 'interests'
+    return { success: true, data: enriched }
   }
 
+  const { data: result, sources } = await research(
+    'You research the publicly stated professional interests of a specific person.',
+    `Person: ${name}\nCompany: ${company || 'unknown'}\nJob title: ${jobTitle || 'unknown'}\nIndustry: ${industry || 'unknown'}\nList up to 8 professional interests or topics this person has publicly written or spoken about. Return an empty list if you cannot verify any.`,
+    'interests',
+    { type: 'object', properties: { interests: { type: 'array', items: { type: 'string' } } } }
+  )
+
+  enriched.interests = Array.isArray(result.interests) ? result.interests : []
+  enriched.interestsSources = sources
   enriched.enrichmentLevel = 'interests'
   return { success: true, data: enriched }
 }
 
-async function comprehensiveEnrichment(data: any) {
-  // Combine all enrichment types
+async function comprehensiveEnrichment(data: AnyData) {
   let enriched = await basicEnrichment(data)
-  const companyResult = await enrichCompanyInfo(enriched)
-  const socialResult = await enrichSocialProfiles(enriched)
-  const interestsResult = await enrichInterests(enriched)
+  const [companyResult, socialResult, interestsResult] = await Promise.all([
+    enrichCompanyInfo(enriched),
+    enrichSocialProfiles(enriched),
+    enrichInterests(enriched)
+  ])
 
   enriched = {
     ...enriched,
@@ -519,9 +417,9 @@ async function comprehensiveEnrichment(data: any) {
 }
 
 function getEmailProvider(email: string): string {
-  const domain = email.split('@')[1].toLowerCase()
+  const domain = (email.split('@')[1] || '').toLowerCase()
 
-  const providers = {
+  const providers: Record<string, string> = {
     'gmail.com': 'Gmail',
     'yahoo.com': 'Yahoo',
     'hotmail.com': 'Hotmail',
@@ -542,7 +440,6 @@ function parseName(name: string) {
 }
 
 function formatPhoneNumber(phone: string): string {
-  // Basic formatting - would use a proper library in production
   const cleaned = phone.replace(/\D/g, '')
   if (cleaned.length === 10) {
     return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
@@ -550,150 +447,6 @@ function formatPhoneNumber(phone: string): string {
   return phone
 }
 
-// Social Profile Discovery Functions
-async function discoverSocialProfiles(fullName: string, company: string, email?: string): Promise<any> {
-  const profiles = {
-    whatsapp: null,
-    linkedin: null,
-    email: email || null,
-    twitter: null,
-    facebook: null,
-    instagram: null
-  }
-
-  if (!fullName || fullName.trim().length < 2) {
-    return profiles
-  }
-
-  // Generate potential social media handles
-  const nameParts = fullName.toLowerCase().split(' ')
-  const firstName = nameParts[0]
-  const lastName = nameParts[nameParts.length - 1]
-  const companySlug = company ? company.toLowerCase().replace(/[^a-z0-9]/g, '') : ''
-
-  // LinkedIn profile discovery
-  profiles.linkedin = await discoverLinkedInProfile(fullName, company)
-
-  // Twitter/X profile discovery
-  profiles.twitter = await discoverTwitterProfile(firstName, lastName, company)
-
-  // Facebook profile discovery
-  profiles.facebook = await discoverFacebookProfile(fullName, company)
-
-  // Instagram profile discovery
-  profiles.instagram = await discoverInstagramProfile(firstName, lastName, company)
-
-  // WhatsApp (based on phone if available - would need phone data)
-  profiles.whatsapp = null // Would require phone number data
-
-  return profiles
-}
-
-async function discoverLinkedInProfile(fullName: string, company: string): Promise<any> {
-  // In production, this would use LinkedIn API or web scraping
-  // For now, return a structured placeholder
-  const nameSlug = fullName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-  const companySlug = company ? company.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : ''
-
-  return {
-    url: `https://linkedin.com/in/${nameSlug}`,
-    handle: nameSlug,
-    verified: false,
-    confidence: 0.6,
-    company: companySlug,
-    lastUpdated: new Date().toISOString()
-  }
-}
-
-async function discoverTwitterProfile(firstName: string, lastName: string, company: string): Promise<any> {
-  // Generate potential Twitter handles
-  const handle1 = `${firstName}${lastName}`
-  const handle2 = `${firstName}_${lastName}`
-  const handle3 = `${firstName[0]}${lastName}`
-
-  // In production, would check which handle exists
-  return {
-    url: `https://twitter.com/${handle1}`,
-    handle: handle1,
-    username: handle1,
-    verified: false,
-    confidence: 0.5,
-    followers: null,
-    lastUpdated: new Date().toISOString()
-  }
-}
-
-async function discoverFacebookProfile(fullName: string, company: string): Promise<any> {
-  const nameSlug = fullName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '')
-
-  return {
-    url: `https://facebook.com/${nameSlug}`,
-    handle: nameSlug,
-    verified: false,
-    confidence: 0.4,
-    lastUpdated: new Date().toISOString()
-  }
-}
-
-async function discoverInstagramProfile(firstName: string, lastName: string, company: string): Promise<any> {
-  const handle1 = `${firstName}${lastName}`
-  const handle2 = `${firstName}_${lastName}`
-  const handle3 = `${firstName}.${lastName}`
-
-  return {
-    url: `https://instagram.com/${handle1}`,
-    handle: handle1,
-    username: handle1,
-    verified: false,
-    confidence: 0.5,
-    followers: null,
-    lastUpdated: new Date().toISOString()
-  }
-}
-
-async function validateSocialProfiles(profiles: any): Promise<any> {
-  // Add validation status and confidence scores
-  const validatedProfiles = { ...profiles }
-
-  // Validate email format if present
-  if (validatedProfiles.email) {
-    validatedProfiles.emailValidation = {
-      isValid: isValidEmail(validatedProfiles.email),
-      confidence: 0.9,
-      provider: getEmailProvider(validatedProfiles.email)
-    }
-  }
-
-  // Add verification status for each social profile
-  Object.keys(validatedProfiles).forEach(platform => {
-    if (validatedProfiles[platform] && typeof validatedProfiles[platform] === 'object') {
-      validatedProfiles[platform] = {
-        ...validatedProfiles[platform],
-        verificationStatus: 'unverified', // In production, would check if profile exists
-        lastChecked: new Date().toISOString(),
-        isActive: true // Placeholder
-      }
-    }
-  })
-
-  return validatedProfiles
-}
-
-function calculateSocialDiscoveryConfidence(profiles: any): number {
-  let totalConfidence = 0
-  let profileCount = 0
-
-  Object.values(profiles).forEach((profile: any) => {
-    if (profile && typeof profile === 'object' && profile.confidence) {
-      totalConfidence += profile.confidence
-      profileCount++
-    }
-  })
-
-  return profileCount > 0 ? totalConfidence / profileCount : 0
-}
-
 function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }

@@ -9,7 +9,9 @@ const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTe
 const log = createLogger('cold-email-sdr');
 
 // Main handler - supports both streaming and non-streaming
-exports.handler = withAuth(async (event, user) => {
+const { stream } = require('@netlify/functions');
+
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   // Check if streaming is requested
@@ -188,7 +190,7 @@ Return ONLY valid JSON with "subject" and "body" fields. Example: {"subject": "Q
         contactId,
         subject: parsed.subject,
         body: parsed.body,
-        sent: true,
+        sent: false, // drafts only: nothing is emailed until the user saves or sends it
         gtmPromptUsed: !!gtmPrompt,
         model: sdrModel,
       }),
@@ -197,4 +199,4 @@ Return ONLY valid JSON with "subject" and "body" fields. Example: {"subject": "Q
     log.error('Cold email generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Cold email generation failed');
   }
-});
+}));

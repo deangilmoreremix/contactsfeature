@@ -5,6 +5,7 @@
 
 import { aiOrchestrator } from './ai-orchestrator.service';
 import { logger } from './logger.service';
+import { aiStream } from './aiClient';
 
 export interface ConversationMessage {
   id: string;
@@ -33,8 +34,8 @@ export interface ConversationContext {
 }
 
 export interface RealtimeAIConfig {
-  apiKey: string;
-  model: string;
+  // No API key or model id here: text chat goes through the server-side AI proxy (aiClient.ts),
+  // which resolves model ids from roles. Realtime voice needs an ephemeral-token endpoint (see connectRealtime).
   voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
   temperature?: number;
   maxTokens?: number;
@@ -53,69 +54,12 @@ class ConversationalAIService {
     this.initializeAudioContext();
   }
 
-  // Initialize WebSocket connection for real-time communication
-  async connectRealtime(sessionId: string): Promise<void> {
-    const wsUrl = `wss://api.openai.com/v1/realtime?model=${this.config.model}`;
-
-    this.websocket = new WebSocket(wsUrl, [], {
-      headers: {
-        'Authorization': `Bearer ${this.config.apiKey}`,
-        'OpenAI-Beta': 'realtime=v1'
-      }
-    });
-
-    this.websocket.onopen = () => {
-      logger.info('Real-time AI connection established', undefined, {
-        service: 'conversational-ai',
-        operation: 'websocket_connected',
-        sessionId
-      });
-
-      // Send session configuration
-      this.sendMessage({
-        type: 'session.update',
-        session: {
-          modalities: ['text', 'audio'],
-          instructions: this.getSystemInstructions(),
-          voice: this.config.voice || 'alloy',
-          input_audio_format: 'pcm16',
-          output_audio_format: 'pcm16',
-          input_audio_transcription: {
-            model: 'whisper-1'
-          },
-          turn_detection: {
-            type: 'server_vad',
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 500
-          },
-          tools: this.getAllFunctionDefinitions(),
-          tool_choice: 'auto',
-          temperature: this.config.temperature || 0.8,
-          max_response_output_tokens: this.config.maxTokens || 4096
-        }
-      });
-    };
-
-    this.websocket.onmessage = (event) => {
-      this.handleRealtimeMessage(event.data, sessionId);
-    };
-
-    this.websocket.onerror = (error) => {
-      logger.error('Real-time AI connection error', error as Error, undefined, {
-        service: 'conversational-ai',
-        operation: 'websocket_error',
-        sessionId
-      });
-    };
-
-    this.websocket.onclose = () => {
-      logger.info('Real-time AI connection closed', undefined, {
-        service: 'conversational-ai',
-        operation: 'websocket_closed',
-        sessionId
-      });
-    };
+  // Realtime voice (WebSocket) connection.
+  // TODO(realtime-voice): browsers must never hold the OpenAI API key. Implement a server endpoint that mints
+  // a short-lived ephemeral realtime token (authenticated with the Supabase session), then connect with that
+  // token here. Until that endpoint exists this deliberately fails instead of using a browser key.
+  async connectRealtime(_sessionId: string): Promise<void> {
+    throw new Error('Realtime voice requires an ephemeral-token endpoint');
   }
 
   // Handle incoming real-time messages
@@ -919,32 +863,45 @@ class ConversationalAIService {
       timestamp: new Date().toISOString()
     });
 
-    // Send to real-time API
     if (audioData) {
-      // Handle audio input
-      this.sendMessage({
-        type: 'input_audio_buffer.append',
-        audio: await this.blobToBase64(audioData)
-      });
-    } else {
-      // Handle text input
-      this.sendMessage({
-        type: 'conversation.item.create',
-        item: {
-          type: 'message',
-          role: 'user',
-          content: [{
-            type: 'input_text',
-            text: message
-          }]
-        }
-      });
+      // TODO(realtime-voice): audio input needs the realtime ephemeral-token endpoint (see connectRealtime).
+      throw new Error('Realtime voice requires an ephemeral-token endpoint');
     }
 
-    // Trigger response
-    this.sendMessage({
-      type: 'response.create'
-    });
+    // Text chat: stream from the server-side AI proxy, chaining the conversation history.
+    const history = context.conversationHistory
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content)
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    const assistantMessage: ConversationMessage = {
+      id: `assistant_${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString()
+    };
+    context.conversationHistory.push(assistantMessage);
+
+    try {
+      const final = await aiStream(
+        {
+          role: 'default',
+          instructions: this.getSystemInstructions(),
+          input: history
+        },
+        { onDelta: (text) => { assistantMessage.content += text; } }
+      );
+      assistantMessage.content = final.text || assistantMessage.content;
+    } catch (error) {
+      // Remove the empty placeholder and surface the real error; never fabricate a reply.
+      const idx = context.conversationHistory.indexOf(assistantMessage);
+      if (idx !== -1 && !assistantMessage.content) context.conversationHistory.splice(idx, 1);
+      logger.error('Conversational AI request failed', error as Error, undefined, {
+        service: 'conversational-ai',
+        operation: 'text_chat_error',
+        sessionId
+      });
+      throw error;
+    }
   }
 
   // Get conversation history
@@ -1368,8 +1325,6 @@ When using functions, provide clear explanations of what you're doing and why. I
 
 // Export the service instance
 export const conversationalAIService = new ConversationalAIService({
-  apiKey: import.meta.env['VITE_OPENAI_API_KEY'] || '',
-  model: import.meta.env['VITE_OPENAI_MODEL'] || 'gpt-4o-mini',
   voice: 'alloy',
   temperature: 0.7,
   maxTokens: 4096

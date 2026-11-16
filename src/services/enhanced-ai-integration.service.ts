@@ -1,6 +1,6 @@
 /**
  * Enhanced AI Integration Service
- * Utilizes task router for intelligent model selection between Gemma and OpenAI
+ * Utilizes task router for intelligent model selection between OpenAI model tiers
  */
 
 import { aiIntegration as baseAIIntegration } from './ai-integration.service';
@@ -318,11 +318,7 @@ class EnhancedAIIntegrationService {
 
   private getOptimalBatchSize(provider: string, totalContacts: number): number {
     // Optimize batch size based on provider and total volume
-    if (provider === 'gemini') {
-      return Math.min(20, Math.ceil(totalContacts / 5)); // Gemini handles larger batches well
-    } else {
-      return Math.min(10, Math.ceil(totalContacts / 10)); // OpenAI more conservative
-    }
+    return Math.min(10, Math.ceil(totalContacts / 10)); // conservative OpenAI batches
   }
 
   private estimateAccuracy(result: any): number {

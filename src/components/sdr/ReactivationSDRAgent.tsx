@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Settings, RotateCcw, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { sdrAuthHeaders } from "../../services/sdrClient";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
@@ -10,7 +11,7 @@ interface ReactivationResponse {
   subject: string;
   body: string;
   sent: boolean;
-  daysSinceLastContact: number;
+  daysSinceLastActivity: number;
   debug?: any;
 }
 
@@ -65,7 +66,7 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
     try {
       const res = await fetch("/.netlify/functions/reactivation-sdr", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await sdrAuthHeaders(),
         body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
@@ -224,7 +225,7 @@ export const ReactivationSDRAgent: React.FC<ReactivationSDRAgentProps> = ({ cont
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <strong>Days Since Last Contact:</strong> {result.daysSinceLastContact}
+            <strong>Days Since Last Contact:</strong> {result.daysSinceLastActivity}
           </div>
 
           <div style={{ marginBottom: 8 }}>

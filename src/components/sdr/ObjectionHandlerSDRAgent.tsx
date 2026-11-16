@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Settings, Shield } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { sdrAuthHeaders } from "../../services/sdrClient";
 import { Contact } from "../../types/contact";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface ObjectionResponse {
   contactId: string;
   objection: string;
-  response: string;
+  subject: string;
+  body: string;
   sent: boolean;
-  confidence: number;
+  objectionType?: string;
   debug?: any;
 }
 
@@ -49,7 +51,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
     try {
       const res = await fetch("/.netlify/functions/objection-handler-sdr", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await sdrAuthHeaders(),
         body: JSON.stringify({ contactId, objection, preferences: apiPreferences })
       });
 
@@ -236,19 +238,15 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <strong>Confidence:</strong> {Math.round(result.confidence * 100)}%
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
             <strong>Original Objection:</strong> {result.objection}
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <strong>Status:</strong> {result.sent ? "✅ Response Sent" : "❌ Failed"}
+            <strong>Status:</strong> Draft ready — copy it or save it as a draft
           </div>
 
           <div>
-            <strong>Response:</strong>
+            <strong>{result.subject || "Response"}:</strong>
             <pre
               style={{
                 whiteSpace: "pre-wrap",
@@ -259,7 +257,7 @@ export const ObjectionHandlerSDRAgent: React.FC<ObjectionHandlerSDRAgentProps> =
                 borderRadius: 6
               }}
             >
-              {result.response}
+              {result.body}
             </pre>
           </div>
         </div>

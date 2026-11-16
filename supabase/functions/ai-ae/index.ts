@@ -1,4 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createResponse, resolveModel } from "../_shared/openai.ts";
+import { generateImages } from "../_shared/images.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,11 +25,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key not configured");
-    }
-
     const {
       deal_id,
       contact_id,
@@ -72,14 +69,7 @@ Your capabilities include:
 
 Always provide actionable, specific recommendations based on sales best practices. Be confident but realistic in your assessments. Focus on value creation for both the customer and the sales organization.
 
-Return responses in this JSON format:
-{
-  "recommendations": ["array of specific, actionable recommendations"],
-  "next_steps": ["immediate next steps to take"],
-  "risks": ["potential risks to be aware of"],
-  "confidence": "high|medium|low",
-  "deal_health_score": 1-100
-}`;
+Return recommendations, next steps, risks, a confidence level (high|medium|low) and a deal_health_score from 1 to 100. Base the assessment only on the information provided; do not invent deal facts.`;
 
     const userPrompt = `Action requested: ${action}
 
@@ -96,76 +86,48 @@ Please provide comprehensive recommendations for this sales scenario. Focus on:
 
 Be specific and actionable in your response.`;
 
-    const openaiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
+    const ai = await createResponse({
+      role: "thinking",
+      effort: "medium",
+      instructions: systemPrompt,
+      input: userPrompt,
+      schemaName: "ai_ae_recommendations",
+      maxOutputTokens: 4000,
+      schema: {
+        type: "object",
+        properties: {
+          recommendations: { type: "array", items: { type: "string" } },
+          next_steps: { type: "array", items: { type: "string" } },
+          risks: { type: "array", items: { type: "string" } },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          deal_health_score: { type: "number" },
         },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 1000,
-          response_format: { type: "json_object" },
-        }),
-      }
-    );
+      },
+    });
+    if (!ai.json) throw new Error("AI returned no structured result");
+    const content = ai.json;
 
-    if (!openaiResponse.ok) {
-      const errorData = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${errorData}`);
-    }
+    let generatedImages: { url: string; mime_type: string }[] = [];
+    let imageError: string | null = null;
 
-    const openaiData = await openaiResponse.json();
-    const content = JSON.parse(openaiData.choices[0].message.content);
-
-    let generatedImages: any[] = [];
-
-    // Generate demo visuals if requested
+    // Generate demo visuals if requested (failure does not fail the whole request)
     if (generate_images) {
-      try {
-        const imageResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/gemini-image-generator`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': req.headers.get('Authorization') || '',
-          },
-          body: JSON.stringify({
-            prompt: custom_prompt || `Create professional demo visuals for ${action}. Business presentation style, modern design, suitable for sales demos.`,
-            variants: 3,
-            aspect_ratio: '16:9',
-            deal_id,
-            contact_id,
-            agent_id: 'ai-ae-agent',
-            feature: 'demo-visuals',
-            format: 'presentation'
-          })
-        });
-
-        if (imageResponse.ok) {
-          const imageResult = await imageResponse.json();
-          if (imageResult.success) {
-            generatedImages = imageResult.images;
-          }
-        }
-      } catch (imageError) {
-        console.warn('Demo visual generation failed:', imageError);
-        // Continue without images - don't fail the whole request
-      }
+      const gen = await generateImages(
+        req.headers.get("Authorization"),
+        custom_prompt || `Create professional demo visuals for ${action}. Business presentation style, modern design, suitable for sales demos.`,
+        3,
+      );
+      generatedImages = gen.images;
+      imageError = gen.error;
     }
 
     const result = {
       ...content,
       images: generatedImages,
+      image_error: imageError,
       demo_visual_url: generatedImages.length > 0 ? generatedImages[0].url : null,
       action_performed: action,
-      model: "gpt-4o",
+      model: resolveModel("thinking").model,
       timestamp: new Date().toISOString(),
     };
 

@@ -453,10 +453,8 @@ describe('SmartCRM Dashboard - Comprehensive Production Tests', () => {
       const services = [
         'supabase',
         'openai',
-        'gemini',
         'sendgrid',
-        'twilio',
-        'zapier'
+        'twilio'
       ];
 
       services.forEach(service => {

@@ -99,7 +99,7 @@ describe('SmartCRM Agent System', () => {
   });
 
   describe('Tool Integration', () => {
-    it('should integrate with Gemini image generation', async () => {
+    it('should integrate with OpenAI image generation', async () => {
       const metadata = netlifyAdapter.getFunctionMetadata('generate-demo-visuals');
 
       expect(metadata).toBeDefined();

@@ -34,8 +34,7 @@ Return ONLY the script text, ready for narration.
   const finalPrompt = applyMood(basePrompt, mood);
 
   const script = await callOpenAI(finalPrompt, {
-    model: "gpt-4.1-mini",
-    temperature: 0.8
+    role: "default"
   });
 
   const scriptText = typeof script === "string" ? script.trim() : JSON.stringify(script);

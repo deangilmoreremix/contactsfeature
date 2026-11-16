@@ -25,8 +25,7 @@ Return your suggested reply in natural language.
     `;
 
     const res = await callOpenAI(prompt, {
-      model: "gpt-4.1-mini",
-      temperature: 0.6
+      role: "default"
     });
 
     return res;

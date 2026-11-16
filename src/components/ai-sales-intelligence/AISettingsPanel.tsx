@@ -5,7 +5,7 @@ import { ModernButton } from '../ui/ModernButton';
 import { Settings, Brain, Zap, Clock, Target, Save, RotateCcw } from 'lucide-react';
 
 interface AISettings {
-  model: 'gpt-4o' | 'gpt-4' | 'gpt-3.5-turbo' | 'gemini-1.5-flash' | 'gemini-1.5-pro' | 'gpt-5.2';
+  model: 'gpt-4o' | 'gpt-4' | 'gpt-3.5-turbo' | 'gpt-5.2';
   temperature: number;
   maxTokens: number;
   responseStyle: 'concise' | 'detailed' | 'comprehensive';
@@ -164,8 +164,6 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
                 <option value="gpt-4o">GPT-4o (Recommended)</option>
                 <option value="gpt-4">GPT-4</option>
                 <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
               </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Choose the AI model for generating content

@@ -71,15 +71,6 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
                           (searchQuery.firstName && searchQuery.company) ||
                           (searchQuery.socialProfiles && Object.keys(searchQuery.socialProfiles).length > 0);
 
-  // Log available API keys for debugging
-  React.useEffect(() => {
-    if (disabled) return;
-    
-    console.log("AI Research Button - Environment variables check:");
-    console.log("- VITE_OPENAI_API_KEY present:", !!import.meta.env['VITE_OPENAI_API_KEY']);
-    console.log("- VITE_GEMINI_API_KEY present:", !!import.meta.env['VITE_GEMINI_API_KEY']);
-  }, [disabled]);
-
   const handleSearch = async () => {
     setIsSearching(true);
     setError(null);
@@ -259,12 +250,6 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
 
   const ButtonIcon = getButtonIcon();
 
-  // Check if any API keys are configured
-  const noApiKeysConfigured = !import.meta.env['VITE_OPENAI_API_KEY'] && !import.meta.env['VITE_GEMINI_API_KEY'];
-
-  // Only show warning in development mode
-  const showApiWarning = noApiKeysConfigured && import.meta.env.DEV;
-
   return (
     <div className="relative">
       {/* Main Research Button with Tooltip */}
@@ -278,7 +263,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
           variant={variant}
           size={size}
           onClick={handleSearch}
-          disabled={isSearching || disabled || !hasMinimumData || noApiKeysConfigured}
+          disabled={isSearching || disabled || !hasMinimumData}
           className={`flex items-center space-x-2 ${className}`}
         >
           <ButtonIcon className={`w-4 h-4 ${isSearching ? 'animate-spin' : ''}`} />
@@ -287,14 +272,7 @@ export const AIResearchButton: React.FC<AIResearchButtonProps> = ({
         </ModernButton>
       </SmartTooltip>
 
-      {/* API Key Configuration Warning */}
-      {showApiWarning && (
-        <div className="mt-1 text-xs text-yellow-600">
-          No AI API keys configured. Set up OpenAI or Gemini keys for full functionality.
-        </div>
-      )}
-
-      {!hasMinimumData && !disabled && !noApiKeysConfigured && (
+      {!hasMinimumData && !disabled && (
         <div className="mt-1 text-xs text-gray-500">
           Enter email, name, or LinkedIn URL
         </div>

@@ -1,6 +1,78 @@
 // Communication-specific types for the unified interface
 
-import { Platform, MessageData, UnifiedConversation, ConversationFilter } from './unipile';
+// Core messaging types (provider-agnostic; conversations are stored in Supabase)
+
+export type Platform =
+  | 'gmail'
+  | 'outlook'
+  | 'yahoo'
+  | 'linkedin'
+  | 'whatsapp'
+  | 'telegram'
+  | 'sms'
+  | 'phone';
+
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed' | 'scheduled';
+
+export interface ContactInfo {
+  id?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  platformId?: string;
+  avatar?: string;
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url?: string;
+  data?: Blob;
+  thumbnail?: string;
+}
+
+export interface MessageData {
+  id?: string;
+  platform: Platform;
+  accountId: string;
+  direction: 'inbound' | 'outbound';
+  sender: ContactInfo;
+  recipient: ContactInfo;
+  subject?: string;
+  content: string;
+  attachments?: Attachment[];
+  metadata?: Record<string, any>;
+  sentAt?: Date;
+  deliveredAt?: Date;
+  readAt?: Date;
+  status: MessageStatus;
+}
+
+export interface UnifiedConversation {
+  id: string;
+  contactId: string;
+  contact: ContactInfo;
+  platforms: Platform[];
+  lastMessage: MessageData;
+  unreadCount: number;
+  priority: number;
+  tags: string[];
+  lastActivity: Date;
+  messages: MessageData[];
+}
+
+export interface ConversationFilter {
+  platform?: Platform;
+  status?: 'unread' | 'read' | 'all';
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  searchQuery?: string;
+  contactId?: string;
+}
 
 export interface CommunicationFilters extends ConversationFilter {
   priority?: 'high' | 'medium' | 'low' | 'all';

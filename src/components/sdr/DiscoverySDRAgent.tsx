@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Search, Users, Building } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { sdrAuthHeaders } from "../../services/sdrClient";
 import { Contact } from "../../types/contact";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
 
 interface DiscoveryResponse {
   contactId: string;
-  research: {
-    linkedin: string;
-    company: string;
-    triggers: string[];
-  };
-  qualification: {
-    score: number;
-    reasons: string[];
-  };
-  nextActions: string[];
+  subject: string;
+  body: string;
+  discoveryQuestions: string[];
+  sent: boolean;
 }
 
 interface DiscoverySDRAgentProps {
@@ -49,7 +44,7 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
     try {
       const res = await fetch("/.netlify/functions/discovery-sdr", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await sdrAuthHeaders(),
         body: JSON.stringify({ contactId, preferences: apiPreferences })
       });
 
@@ -210,49 +205,19 @@ export const DiscoverySDRAgent: React.FC<DiscoverySDRAgentProps> = ({ contact })
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 8 }}>
               <Users size={16} />
-              <strong>LinkedIn Profile:</strong>
+              <strong>{result.subject}</strong>
             </div>
-            <p style={{ fontSize: 12, margin: 0, paddingLeft: 24 }}>{result.research.linkedin}</p>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 8 }}>
-              <Building size={16} />
-              <strong>Company Intelligence:</strong>
-            </div>
-            <p style={{ fontSize: 12, margin: 0, paddingLeft: 24 }}>{result.research.company}</p>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <strong>Trigger Events:</strong>
-            <ul style={{ fontSize: 12, margin: 4, paddingLeft: 20 }}>
-              {result.research.triggers.map((trigger, i) => (
-                <li key={i}>{trigger}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <strong>Qualification Score:</strong>
-            <div style={{
-              display: 'inline-block',
-              padding: '2px 8px',
-              borderRadius: 12,
-              background: result.qualification.score > 7 ? 'var(--sdr-c6f6d5)' : result.qualification.score > 4 ? 'var(--sdr-fef5e7)' : 'var(--sdr-fed7d7)',
-              color: result.qualification.score > 7 ? 'var(--sdr-22543d)' : result.qualification.score > 4 ? 'var(--sdr-744210)' : 'var(--sdr-742a2a)',
-              fontSize: 11,
-              fontWeight: 600,
-              marginLeft: 8
-            }}>
-              {result.qualification.score}/10
-            </div>
+            <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, paddingLeft: 24, fontFamily: "inherit" }}>{result.body}</pre>
           </div>
 
           <div>
-            <strong>Recommended Actions:</strong>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 4 }}>
+              <Building size={16} />
+              <strong>Key discovery questions:</strong>
+            </div>
             <ul style={{ fontSize: 12, margin: 4, paddingLeft: 20 }}>
-              {result.nextActions.map((action, i) => (
-                <li key={i}>{action}</li>
+              {(result.discoveryQuestions || []).map((q, i) => (
+                <li key={i}>{q}</li>
               ))}
             </ul>
           </div>

@@ -187,7 +187,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         includeSources: true,
         searchContextSize: 'high' as const,
         // Force mock mode for demo contacts to ensure citations show
-        useMockData: isMockContact || !import.meta.env['VITE_OPENAI_API_KEY']
+        useMockData: isMockContact
       };
 
       const searchResults = await webSearchService.searchWithAI(

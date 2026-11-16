@@ -28,7 +28,9 @@ Reactivation Strategies:
 4. Offer a fresh start or new conversation
 5. Provide an easy "out" if they're not interested`;
 
-exports.handler = withAuth(async (event, user) => {
+const { stream } = require('@netlify/functions');
+
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   // Check if streaming is requested
@@ -232,7 +234,7 @@ Return ONLY valid JSON with "subject" and "body" fields.`;
         contactId,
         subject: parsed.subject,
         body: parsed.body,
-        sent: true,
+        sent: false, // drafts only: nothing is emailed until the user saves or sends it
         daysSinceLastActivity,
         model,
       }),
@@ -241,4 +243,4 @@ Return ONLY valid JSON with "subject" and "body" fields.`;
     log.error('Reactivation generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Reactivation generation failed');
   }
-});
+}));

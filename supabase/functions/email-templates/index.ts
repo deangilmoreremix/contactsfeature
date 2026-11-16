@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createResponse, resolveModel } from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,9 +27,14 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-    if (req.method === "GET") {
+    // Listing is supported via GET ?category= and, for supabase.functions.invoke clients, POST { category } with no action.
+    let postBody: any = null;
+    if (req.method === "POST") postBody = await req.json().catch(() => ({}));
+    const isListPost = req.method === "POST" && postBody && !postBody.action && !postBody.templateData && !postBody.aiGenerate;
+
+    if (req.method === "GET" || isListPost) {
       const url = new URL(req.url);
-      const category = url.searchParams.get("category");
+      const category = req.method === "GET" ? url.searchParams.get("category") : postBody.category;
 
       let query = supabaseClient
         .from("email_templates")
@@ -57,16 +63,15 @@ Deno.serve(async (req: Request) => {
     }
 
     if (req.method === "POST") {
-      const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
       const {
         action,
         templateData,
         aiGenerate,
         category,
         purpose,
-      } = await req.json();
+      } = postBody;
 
-      if (action === "generate" && aiGenerate && openaiApiKey) {
+      if (action === "generate" && aiGenerate) {
         const systemPrompt = `You are an expert email template designer for B2B sales. Create professional, reusable email templates with:
 - Clear, engaging subject lines
 - Proper variable placeholders (use {{variable_name}} format)
@@ -74,15 +79,7 @@ Deno.serve(async (req: Request) => {
 - Flexibility for personalization
 - Industry best practices
 
-Return ONLY valid JSON with this exact structure:
-{
-  "name": "template name",
-  "description": "brief template description",
-  "category": "${category || "general"}",
-  "subject": "subject with {{variables}}",
-  "body": "body content with {{variables}} and proper formatting",
-  "variables": ["array", "of", "variable", "names"]
-}`;
+Return the template name, a brief description, the category "${category || "general"}", a subject with {{variables}}, a body with {{variables}} and proper formatting, and the list of variable names used.`;
 
         const userPrompt = `Create a professional email template for: ${purpose || category || "general business communication"}
 
@@ -93,40 +90,29 @@ Template should:
 4. Include common variables like {{first_name}}, {{company_name}}, {{sender_name}}
 5. Be professional yet approachable
 6. Include a clear call-to-action
-7. List all variables used in the "variables" array
+7. List all variables used in the "variables" array`;
 
-Return ONLY valid JSON, no other text.`;
-
-        const openaiResponse = await fetch(
-          "https://api.openai.com/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              "Content-Type": "application/json",
+        const ai = await createResponse({
+          role: "default",
+          effort: "low",
+          instructions: systemPrompt,
+          input: userPrompt,
+          schemaName: "email_template",
+          maxOutputTokens: 3000,
+          schema: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              category: { type: "string" },
+              subject: { type: "string" },
+              body: { type: "string" },
+              variables: { type: "array", items: { type: "string" } },
             },
-            body: JSON.stringify({
-              model: "gpt-4o-mini",
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-              ],
-              temperature: 0.7,
-              max_tokens: 800,
-              response_format: { type: "json_object" },
-            }),
-          }
-        );
-
-        if (!openaiResponse.ok) {
-          const errorData = await openaiResponse.text();
-          throw new Error(`OpenAI API error: ${errorData}`);
-        }
-
-        const openaiData = await openaiResponse.json();
-        const generatedTemplate = JSON.parse(
-          openaiData.choices[0].message.content
-        );
+          },
+        });
+        if (!ai.json) throw new Error("AI returned no structured template");
+        const generatedTemplate = ai.json;
 
         const { data: user } = await supabaseClient.auth.getUser();
 
@@ -142,7 +128,7 @@ Return ONLY valid JSON, no other text.`;
             variables: generatedTemplate.variables,
             is_default: false,
             is_ai_generated: true,
-            model: "gpt-4o-mini",
+            model: resolveModel("default").model,
           })
           .select()
           .single();
@@ -271,7 +257,7 @@ Return ONLY valid JSON, no other text.`;
     return new Response(
       JSON.stringify({
         error: "Operation failed",
-        details: error.message,
+        details: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,

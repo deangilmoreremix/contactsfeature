@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// Google Generative AI is optional - imported dynamically to prevent crashes
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ModernButton } from './ui/ModernButton';
 import { GlassCard } from './ui/GlassCard';
 import {
@@ -20,6 +19,7 @@ import {
 } from "../lib/history";
 import { imageStorageService, type SavedImage } from "../services/imageStorage.service";
 import { SavedImagesGallery } from "./SavedImagesGallery";
+import { aspectToSize, generateImages } from "../services/imageGenerationService";
 import {
   X,
   Wand2,
@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 
 /** --- CONFIG --- */
-const MODEL = "gemini-2.5-flash-image-preview";
+const DEFAULT_MODEL_LABEL = "openai-image";
 
 interface StreamingUpdate {
   type: 'progress' | 'image' | 'complete' | 'error';
@@ -72,20 +72,6 @@ async function fileToDataUrl(file: File): Promise<string> {
   return `data:${file.type || "image/png"};base64,${base64}`;
 }
 
-/** Utility: convert dataURL -> inlineData parts */
-async function dataUrlToInlineData(dataUrl: string) {
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  const ab = await blob.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
-  return {
-    inlineData: {
-      mimeType: blob.type || "image/png",
-      data: base64,
-    },
-  };
-}
-
 /** Utility: trigger download of data URL as file */
 function downloadDataUrl(dataUrl: string, filename: string) {
   const a = document.createElement("a");
@@ -102,7 +88,7 @@ type Props = {
   contactData?: any; // Optional contact context
 };
 
-export default function GeminiImageModal({ open, onClose, contactData }: Props) {
+export default function ImageGenerationModal({ open, onClose, contactData }: Props) {
   const [feature, setFeature] = useState<FeatureKey>("Enhanced Contacts");
   const [format, setFormat] = useState<FormatKey>("Poster");
   const [benefit, setBenefit] = useState(FEATURE_BENEFITS["Enhanced Contacts"]);
@@ -134,27 +120,7 @@ export default function GeminiImageModal({ open, onClose, contactData }: Props) 
   const dropRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamingControllerRef = useRef<AbortController | null>(null);
-
-  // Cached AI client for image generation - lazily initialized
-let aiClient: any = null;
-const getAIClient = async () => {
-  if (aiClient) return aiClient;
-  try {
-    const key = import.meta.env['VITE_GEMINI_API_KEY'];
-    if (!key) {
-      console.warn('VITE_GEMINI_API_KEY not configured - image generation disabled');
-      return null;
-    }
-    const { GoogleGenerativeAI } = await import("@google/generative-ai");
-    aiClient = new GoogleGenerativeAI(key);
-    return aiClient;
-  } catch (e) {
-    console.warn('Google Generative AI not available - image generation disabled', e);
-    return null;
-  }
-};
-
-const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
+  const modelRef = useRef<string>(DEFAULT_MODEL_LABEL);
 
   // init / reset
   useEffect(() => {
@@ -238,15 +204,6 @@ const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
 
   // Enhanced streaming generation with collaborative features
   async function generate(runFromHistoryId?: string, onProgress?: (update: StreamingUpdate) => void) {
-    // Lazily get AI client
-    const ai = await getAIClient();
-    if (!ai) {
-      setError('Google Generative AI is not available. Please configure VITE_GEMINI_API_KEY.');
-      setLoading(false);
-      onProgress?.({ type: 'error', error: 'Google Generative AI not configured' });
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setImages([]);
@@ -281,71 +238,49 @@ const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
     }
 
     try {
-      const contents: any[] = [{ text: promptText }];
-      if (seeds.length) {
-        const inlines = await Promise.all(seeds.map(dataUrlToInlineData));
-        contents.push(...inlines);
-      }
-
       const outs: string[] = [];
-      const model = ai.getGenerativeModel({ model: MODEL });
+      const count = Math.max(1, Math.min(6, variants));
+      const size = aspectToSize(aspect);
+      const signal = streamingControllerRef.current?.signal;
+      const streamId = `generation-${Date.now()}`;
+      if (isStreamingMode) setActiveStreams(prev => new Set([...prev, streamId]));
+
+      // One request per variant so each image can appear (and fail) independently.
+      let lastError: unknown = null;
+      for (let i = 0; i < count; i++) {
+        if (signal?.aborted) break;
+        setStreamingProgress(((i + 1) / count) * 100);
+        onProgress?.({ type: 'progress', progress: ((i + 1) / count) * 100 });
+        try {
+          const res = await generateImages({
+            prompt: promptText,
+            size,
+            quality: 'medium',
+            ...(seeds.length ? { referenceImages: seeds.slice(0, 4) } : {}),
+            signal,
+          });
+          if (res.model) modelRef.current = res.model;
+          for (const imageData of res.images) {
+            outs.push(imageData);
+            onProgress?.({ type: 'image', imageData, variantIndex: i });
+            if (isStreamingMode) setImages([...outs]);
+          }
+        } catch (variantError) {
+          lastError = variantError;
+          console.warn(`Variant ${i + 1} failed:`, variantError);
+          if (signal?.aborted) break;
+        }
+      }
 
       if (isStreamingMode) {
-        // Streaming generation with progress updates
-        const streamId = `generation-${Date.now()}`;
-        setActiveStreams(prev => new Set([...prev, streamId]));
-
-        for (let i = 0; i < Math.max(1, Math.min(6, variants)); i++) {
-          if (streamingControllerRef.current?.signal.aborted) break;
-
-          const progress = ((i + 1) / variants) * 100;
-          setStreamingProgress(progress);
-          onProgress?.({ type: 'progress', progress });
-
-          try {
-            const res = await model.generateContent(contents);
-            const parts = res?.response?.candidates?.[0]?.content?.parts || [];
-
-            for (const p of parts) {
-              if (p?.inlineData?.data) {
-                const mime = p.inlineData.mimeType || "image/png";
-                const imageData = `data:${mime};base64,${p.inlineData.data}`;
-                outs.push(imageData);
-
-                // Stream individual image completion
-                onProgress?.({
-                  type: 'image',
-                  imageData,
-                  variantIndex: i
-                });
-              }
-            }
-          } catch (variantError) {
-            console.warn(`Variant ${i + 1} failed:`, variantError);
-            // Continue with other variants
-          }
-        }
-
         setActiveStreams(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(streamId);
-          return newSet;
+          const next = new Set(prev);
+          next.delete(streamId);
+          return next;
         });
-
-      } else {
-        // Regular batch generation
-        for (let i = 0; i < Math.max(1, Math.min(6, variants)); i++) {
-          const res = await model.generateContent(contents);
-          const parts = res?.response?.candidates?.[0]?.content?.parts || [];
-          for (const p of parts) {
-            if (p?.inlineData?.data) {
-              const mime = p.inlineData.mimeType || "image/png";
-              outs.push(`data:${mime};base64,${p.inlineData.data}`);
-            }
-          }
-        }
       }
 
+      if (!outs.length && lastError instanceof Error) throw lastError;
       if (!outs.length) throw new Error("No image returned. Try adjusting the prompt or seeds.");
 
       setImages(outs);
@@ -404,7 +339,7 @@ const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
         aspect_ratio: aspect,
         seeds_used: seeds.length,
         variants_generated: variants,
-        gemini_model: MODEL,
+        model: modelRef.current,
         tags: [`${feature}`, `${format}`, 'generated']
       };
 
@@ -557,7 +492,7 @@ const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
         {/* Main Panel */}
         <main className="rounded-2xl bg-white p-4 shadow-xl">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-bold">Gemini (Nano Banana) Image Workspace</h2>
+            <h2 className="text-lg font-bold">AI Image Workspace</h2>
             <div className="flex items-center gap-2">
               {/* Streaming Mode Toggle */}
               <div className="flex items-center gap-2">
@@ -791,7 +726,7 @@ const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
                  <>
                    <button
                      onClick={() =>
-                       images.forEach((src, i) => downloadDataUrl(src, `gemini-image-${i + 1}.png`))
+                       images.forEach((src, i) => downloadDataUrl(src, `smartcrm-image-${i + 1}.png`))
                    }
                      className="rounded-lg bg-gray-900 px-4 py-2 text-white"
                    >
@@ -839,7 +774,7 @@ const ai = useMemo(() => null, []); // Will be lazily initialized in generate()
                     <span className="text-xs text-gray-600">Variant {i + 1}</span>
                     <div className="flex gap-1">
                       <button
-                        onClick={() => downloadDataUrl(src, `gemini-image-${i + 1}.png`)}
+                        onClick={() => downloadDataUrl(src, `smartcrm-image-${i + 1}.png`)}
                         className="rounded bg-gray-900 text-white text-xs px-2 py-1 hover:bg-gray-800"
                         title="Download to device"
                       >

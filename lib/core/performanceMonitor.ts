@@ -1,5 +1,5 @@
 /**
- * Performance Monitor for GPT-5.2
+ * Performance Monitor for OpenAI Responses calls
  * Tracks usage, costs, cache performance, and optimization metrics
  */
 
@@ -56,9 +56,10 @@ export class PerformanceMonitor {
 
   constructor(costConfig?: Partial<CostConfig>) {
     this.costConfig = {
-      "gpt-5.2-instant": { inputTokenCost: 0.0015, outputTokenCost: 0.0015, cachedInputTokenCost: 0.00075 },
-      "gpt-5.2-thinking": { inputTokenCost: 0.003, outputTokenCost: 0.003, cachedInputTokenCost: 0.0015 },
-      "gpt-5.2-pro": { inputTokenCost: 0.006, outputTokenCost: 0.006, cachedInputTokenCost: 0.003 },
+      // Estimated per-1K-token costs keyed by the model ids in src/config/models.json; override via constructor.
+      "gpt-6-luna": { inputTokenCost: 0.0015, outputTokenCost: 0.0015, cachedInputTokenCost: 0.00075 },
+      "gpt-6.1-sol": { inputTokenCost: 0.003, outputTokenCost: 0.003, cachedInputTokenCost: 0.0015 },
+      "gpt-6-astra": { inputTokenCost: 0.006, outputTokenCost: 0.006, cachedInputTokenCost: 0.003 },
       ...costConfig
     };
   }
@@ -204,9 +205,9 @@ export class PerformanceMonitor {
     }
 
     // Model optimization
-    const instantUsage = metrics.modelUsage['gpt-5.2-instant'] || 0;
-    const thinkingUsage = metrics.modelUsage['gpt-5.2-thinking'] || 0;
-    const proUsage = metrics.modelUsage['gpt-5.2-pro'] || 0;
+    const instantUsage = metrics.modelUsage['gpt-6-luna'] || 0;
+    const thinkingUsage = metrics.modelUsage['gpt-6.1-sol'] || 0;
+    const proUsage = metrics.modelUsage['gpt-6-astra'] || 0;
     const totalUsage = instantUsage + thinkingUsage + proUsage;
 
     if (totalUsage > 0) {
@@ -216,8 +217,8 @@ export class PerformanceMonitor {
           type: 'model',
           priority: 'medium',
           title: 'Optimize Model Selection',
-          description: `${Math.round(proPercentage * 100)}% of requests use gpt-5.2-pro. Consider using gpt-5.2-thinking for complex tasks.`,
-          potentialSavings: (metrics.costByModel['gpt-5.2-pro'] || 0) * 0.5
+          description: `${Math.round(proPercentage * 100)}% of requests use gpt-6-astra. Consider using gpt-6.1-sol for complex tasks.`,
+          potentialSavings: (metrics.costByModel['gpt-6-astra'] || 0) * 0.5
         });
       }
     }

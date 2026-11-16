@@ -1,4 +1,4 @@
-import { callGemini } from "../core/callGemini";
+import { createResponse } from "../core/openaiClient";
 import { Skill } from "./types";
 
 export const competitorIntelSkill: Skill = {
@@ -18,14 +18,21 @@ Task:
 - Identify typical competing solutions or categories.
 - Explain how our solution (SmartCRM-style AI OS) can be positioned competitively.
 - Focus on benefits like automation, AI assistance, and reduced tool sprawl.
+- Base claims on web sources; say plainly when information could not be found.
 
 Return a concise summary with bullet points.
     `;
 
-    const res = await callGemini(prompt, {
-      model: "gemini-1.5-pro"
+    const res = await createResponse({
+      role: "thinking",
+      effort: "low",
+      input: prompt,
+      tools: [{ type: "web_search" }]
     });
 
-    return res;
+    const sources = res.citations.length
+      ? `\n\nSources:\n${res.citations.map((c) => `- ${c.title}: ${c.url}`).join("\n")}`
+      : "";
+    return res.text + sources;
   }
 };

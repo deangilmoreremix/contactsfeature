@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Settings, MessageSquare, Copy, Check, Mail } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
+import { sdrAuthHeaders } from "../../services/sdrClient";
 import { Contact } from "../../types/contact";
 import { saveSdrDraft } from "../../utils/sdrDraftUtils";
 import { useSDRPreferences } from "../../hooks/useSDRPreferences";
@@ -66,7 +67,7 @@ export const FollowUpSDRAgent: React.FC<FollowUpSDRAgentProps> = ({ contact }) =
     try {
       const res = await fetch("/.netlify/functions/follow-up-sdr", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await sdrAuthHeaders(),
         body: JSON.stringify({ contactId, followUpNumber, preferences: apiPreferences })
       });
 

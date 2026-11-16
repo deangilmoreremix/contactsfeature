@@ -97,7 +97,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
             <div>
               <h4 className="font-semibold text-purple-900">Contact Enhanced with AI Research</h4>
               <p className="text-purple-700 text-sm">
-                This contact was enriched with additional information from OpenAI & Gemini research
+                This contact was enriched with additional information from OpenAI research
               </p>
             </div>
           </div>

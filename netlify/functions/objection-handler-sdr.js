@@ -30,7 +30,9 @@ const OBJECTION_TYPES = {
   default: 'General objection - acknowledge, empathize, and redirect to value',
 };
 
-exports.handler = withAuth(async (event, user) => {
+const { stream } = require('@netlify/functions');
+
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   // Check if streaming is requested
@@ -232,7 +234,7 @@ Return ONLY valid JSON with "subject" and "body" fields. Example: {"subject": "R
         contactId,
         subject: parsed.subject,
         body: parsed.body,
-        sent: true,
+        sent: false, // drafts only: nothing is emailed until the user saves or sends it
         objection,
         objectionType,
         model,
@@ -242,4 +244,4 @@ Return ONLY valid JSON with "subject" and "body" fields. Example: {"subject": "R
     log.error('Objection handling failed', { contactId, error: error.message });
     return errorResponse(500, 'Objection handling failed');
   }
-});
+}));

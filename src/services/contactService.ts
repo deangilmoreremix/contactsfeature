@@ -226,21 +226,24 @@ export class ContactService {
 
       if (error) throw error
 
-      // Update contact with enriched data
+      // The edge function responds with { success, data: {...} }
+      const enriched = (enrichedData && (enrichedData as any).data) || {}
+
+      // Update contact with enriched data (fills only empty fields)
       const updates: Partial<Contact> = {}
 
-      if (enrichedData.phone && !contact.phone) {
-        updates.phone = enrichedData.phone
+      if (enriched.phone && !contact.phone) {
+        updates.phone = enriched.phone
       }
 
-      if (enrichedData.industry && !contact.industry) {
-        updates.industry = enrichedData.industry
+      if (enriched.industry && !contact.industry) {
+        updates.industry = enriched.industry
       }
 
-      if (enrichedData.socialProfiles) {
+      if (enriched.socialProfiles) {
         updates.socialProfiles = {
           ...contact.socialProfiles,
-          ...enrichedData.socialProfiles
+          ...enriched.socialProfiles
         }
       }
 

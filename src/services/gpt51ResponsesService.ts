@@ -1,40 +1,34 @@
 /**
-import { getModelForTask, SMARTCRM_DEFAULT_MODEL } from '../config/ai';
- * GPT-5.1 Responses API Service
- * Advanced AI service using OpenAI's latest Responses API with GPT-5.1
- * Supports reasoning controls, verbosity, custom tools, and new tool types
+ * Responses API service (server-proxied).
+ * All calls go through src/services/aiClient.ts; the OpenAI key and real model ids live server-side.
+ * The class/export names are kept for backwards compatibility with existing importers.
  */
 
 import { logger } from './logger.service';
 import { aiCache } from '../utils/cache';
+import { aiRespond, AIError, type AIRole, type AIEffort } from './aiClient';
 
 export interface GPT51Request {
-  model?: 'gpt-5.1' | 'gpt-5-mini' | 'gpt-5-nano';
+  /** Preferred: model role resolved server-side. */
+  role?: AIRole;
+  /**
+   * Legacy hint. Real model ids are never used in the browser; names containing
+   * "thinking", "pro" or "instant"/"mini"/"nano" are mapped to a role, anything else is "default".
+   */
+  model?: string;
   input: string;
   reasoning?: {
-    effort: 'none' | 'low' | 'medium' | 'high';
+    effort: AIEffort;
   };
+  /** Accepted for compatibility; verbosity is controlled server-side. */
   text?: {
     verbosity: 'low' | 'medium' | 'high';
   };
   max_output_tokens?: number;
-  tools?: Tool[];
-  tool_choice?: ToolChoice;
   previous_response_id?: string | undefined;
   instructions?: string;
-}
-
-export interface Tool {
-  type: 'custom' | 'apply_patch' | 'shell' | 'function';
-  name?: string;
-  description?: string;
-  parameters?: any;
-}
-
-export interface ToolChoice {
-  type: 'allowed_tools';
-  mode: 'auto' | 'required';
-  tools: Array<{ type: string; name: string }>;
+  /** Hosted web search only (custom/shell/apply_patch tools are not available from the browser). */
+  webSearch?: boolean;
 }
 
 export interface GPT51Response {
@@ -42,6 +36,7 @@ export interface GPT51Response {
   output_text: string;
   reasoning?: string;
   tool_calls?: ToolCall[];
+  citations?: Array<{ url: string; title?: string }>;
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -57,12 +52,27 @@ export interface ToolCall {
   preamble?: string;
 }
 
+function resolveRole(request: GPT51Request): AIRole {
+  if (request.role) return request.role;
+  const m = (request.model || '').toLowerCase();
+  if (m.includes('thinking')) return 'thinking';
+  if (m.includes('pro')) return 'pro';
+  if (m.includes('instant') || m.includes('mini') || m.includes('nano')) return 'fast';
+  return 'default';
+}
+
+function parseJsonLoose(text: string): any | null {
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { /* fall through */ }
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) {
+    try { return JSON.parse(m[0]); } catch { /* ignore */ }
+  }
+  return null;
+}
+
 export class GPT51ResponsesService {
   private static instance: GPT51ResponsesService;
-  private readonly API_BASE_URL = 'https://api.openai.com/v1/responses';
-  private apiKey = import.meta.env['VITE_OPENAI_API_KEY'];
-  private maxRetries = 3;
-  private retryDelay = 1000;
 
   static getInstance(): GPT51ResponsesService {
     if (!GPT51ResponsesService.instance) {
@@ -71,97 +81,50 @@ export class GPT51ResponsesService {
     return GPT51ResponsesService.instance;
   }
 
-  constructor() {
-    logger.info('GPT-5.1 Responses Service initialized', {
-      hasApiKey: !!this.apiKey,
-      apiUrl: this.API_BASE_URL
-    });
-  }
-
   /**
-   * Create a response using GPT-5.1 Responses API
+   * Create a response through the server-side AI proxy (Responses API).
+   * Throws AIError on failure; no fabricated output is ever returned.
    */
   async createResponse(request: GPT51Request): Promise<GPT51Response> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
-
-    const cacheKey = aiCache.getGPT51CacheKey(request);
+    const cacheKey = aiCache.getGPT51CacheKey({ ...request, model: resolveRole(request) });
     const cachedResponse = aiCache.get(cacheKey);
 
     if (cachedResponse) {
-      logger.info('Returning cached GPT-5.1 response');
+      logger.info('Returning cached Responses API result');
       return cachedResponse;
     }
 
-    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
-      try {
-        logger.info(`GPT-5.1 API call attempt ${attempt}`, {
-          model: request.model || getModelForTask('sdr') || SMARTCRM_DEFAULT_MODEL,
-          reasoning: request.reasoning?.effort || 'none',
-          verbosity: request.text?.verbosity || 'medium',
-          hasTools: !!request.tools?.length
-        });
+    try {
+      const res = await aiRespond({
+        role: resolveRole(request),
+        ...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
+        input: request.input,
+        ...(request.instructions ? { instructions: request.instructions } : {}),
+        ...(request.max_output_tokens ? { maxOutputTokens: request.max_output_tokens } : {}),
+        ...(request.previous_response_id ? { previousResponseId: request.previous_response_id } : {}),
+        ...(request.webSearch ? { tools: [{ type: 'web_search' as const }] } : {})
+      });
 
-        const response = await fetch(this.API_BASE_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`
-          },
-          body: JSON.stringify({
-            model: request.model || getModelForTask('sdr') || SMARTCRM_DEFAULT_MODEL,
-            input: request.input,
-            reasoning: request.reasoning || { effort: 'none' },
-            text: request.text || { verbosity: 'medium' },
-            max_output_tokens: request.max_output_tokens,
-            tools: request.tools,
-            tool_choice: request.tool_choice,
-            previous_response_id: request.previous_response_id,
-            instructions: request.instructions
-          })
-        });
+      const result: GPT51Response = {
+        id: res.id,
+        output_text: res.text,
+        citations: res.citations,
+        ...(res.usage
+          ? { usage: { input_tokens: res.usage.input_tokens ?? 0, output_tokens: res.usage.output_tokens ?? 0 } }
+          : {})
+      };
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`GPT-5.1 API error: ${response.status} ${response.statusText}. ${errorData.error?.message || ''}`);
-        }
-
-        const data = await response.json();
-        const result: GPT51Response = {
-          id: data.id,
-          output_text: data.output_text,
-          reasoning: data.reasoning,
-          tool_calls: data.tool_calls,
-          usage: data.usage
-        };
-
-        // Cache successful responses
-        aiCache.set(cacheKey, result);
-
-        logger.info('GPT-5.1 response created successfully', {
-          responseId: result.id,
-          outputLength: result.output_text?.length || 0,
-          toolCalls: result.tool_calls?.length || 0,
-          usage: result.usage
-        });
-
-        return result;
-
-      } catch (error) {
-        logger.warn(`GPT-5.1 API attempt ${attempt} failed:`, error as Error);
-
-        if (attempt === this.maxRetries) {
-          logger.error('All GPT-5.1 API attempts failed');
-          throw new Error(`GPT-5.1 API call failed after ${this.maxRetries} attempts: ${(error as Error).message}`);
-        }
-
-        // Exponential backoff
-        await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, attempt - 1)));
-      }
+      aiCache.set(cacheKey, result);
+      logger.info('Responses API call succeeded', {
+        responseId: result.id,
+        outputLength: result.output_text?.length || 0
+      });
+      return result;
+    } catch (error) {
+      logger.error('Responses API call failed', error as Error);
+      if (error instanceof AIError) throw error;
+      throw new AIError((error as Error).message || 'AI request failed', 502);
     }
-
-    throw new Error('Unexpected error in GPT-5.1 API call');
   }
 
   /**
@@ -196,28 +159,25 @@ Format your response as a structured JSON object.
     `;
 
     const response = await this.createResponse({
-      model: SMARTCRM_DEFAULT_MODEL,
+      role: 'thinking',
       input,
       reasoning: { effort: 'high' },
       text: { verbosity: 'high' },
-      max_output_tokens: 4000
+      max_output_tokens: 4000,
+      webSearch: urls.length > 0
     });
 
-    try {
-      // Parse the JSON response
-      const parsed = JSON.parse(response.output_text);
-      return {
-        company: parsed.company || {},
-        product: parsed.product || {},
-        market: parsed.market || {},
-        contacts: parsed.contacts || [],
-        recommendations: parsed.recommendations || []
-      };
-    } catch (error) {
-      logger.warn('Failed to parse GPT-5.1 analysis response, using fallback');
-      // Fallback parsing for non-JSON responses
-      return this.parseFallbackAnalysis(response.output_text);
+    const parsed = parseJsonLoose(response.output_text);
+    if (!parsed) {
+      throw new AIError('AI returned an unparseable product analysis', 502);
     }
+    return {
+      company: parsed.company || {},
+      product: parsed.product || {},
+      market: parsed.market || {},
+      contacts: parsed.contacts || [],
+      recommendations: parsed.recommendations || []
+    };
   }
 
   /**
@@ -238,7 +198,7 @@ Use high reasoning effort to create compelling, personalized content.
     `;
 
     const response = await this.createResponse({
-      model: SMARTCRM_DEFAULT_MODEL,
+      role: 'thinking',
       input,
       reasoning: { effort: 'high' },
       text: { verbosity: 'high' },
@@ -249,146 +209,17 @@ Use high reasoning effort to create compelling, personalized content.
   }
 
   /**
-   * Use apply_patch tool for code generation/modification
-   */
-  async applyCodePatch(
-    task: string,
-    currentCode?: string,
-    previousResponseId?: string
-  ): Promise<{ patches: any[], explanation: string }> {
-    const tools: Tool[] = [
-      {
-        type: 'apply_patch',
-        name: 'apply_patch'
-      }
-    ];
-
-    const input = `
-${task}
-${currentCode ? `\nCurrent code:\n${currentCode}` : ''}
-
-Use the apply_patch tool to make the necessary code changes.
-Explain your reasoning before applying patches.
-    `;
-
-    const response = await this.createResponse({
-      model: SMARTCRM_DEFAULT_MODEL,
-      input,
-      reasoning: { effort: 'high' },
-      text: { verbosity: 'medium' },
-      tools,
-      previous_response_id: previousResponseId,
-      instructions: 'Before calling apply_patch, explain what changes you will make and why.'
-    });
-
-    return {
-      patches: response.tool_calls?.filter(call => call.type === 'apply_patch') || [],
-      explanation: response.output_text
-    };
-  }
-
-  /**
-   * Use shell tool for system interactions
-   */
-  async executeShellCommand(
-    command: string,
-    context?: string,
-    previousResponseId?: string
-  ): Promise<{ output: string, success: boolean }> {
-    const tools: Tool[] = [
-      {
-        type: 'shell',
-        name: 'shell'
-      }
-    ];
-
-    const input = `
-Execute this shell command: ${command}
-${context ? `Context: ${context}` : ''}
-
-Use the shell tool to run the command and analyze the results.
-    `;
-
-    const response = await this.createResponse({
-      model: SMARTCRM_DEFAULT_MODEL,
-      input,
-      reasoning: { effort: 'medium' },
-      text: { verbosity: 'low' },
-      tools,
-      previous_response_id: previousResponseId
-    });
-
-    // In a real implementation, you'd handle the shell tool execution
-    // For now, return the model's reasoning
-    return {
-      output: response.output_text,
-      success: !response.tool_calls?.some(call => call.type === 'error')
-    };
-  }
-
-  /**
-   * Use custom tools with freeform inputs
-   */
-  async useCustomTool(
-    toolName: string,
-    toolDescription: string,
-    task: string,
-    grammar?: string
-  ): Promise<{ result: string, toolCalls: ToolCall[] }> {
-    const tools: Tool[] = [
-      {
-        type: 'custom',
-        name: toolName,
-        description: toolDescription,
-        parameters: grammar ? { grammar } : undefined
-      }
-    ];
-
-    const response = await this.createResponse({
-      model: SMARTCRM_DEFAULT_MODEL,
-      input: task,
-      reasoning: { effort: 'medium' },
-      text: { verbosity: 'medium' },
-      tools,
-      tool_choice: {
-        type: 'allowed_tools',
-        mode: 'required',
-        tools: [{ type: 'custom', name: toolName }]
-      }
-    });
-
-    return {
-      result: response.output_text,
-      toolCalls: response.tool_calls || []
-    };
-  }
-
-  /**
-   * Fallback parser for non-JSON responses
-   */
-  private parseFallbackAnalysis(text: string): any {
-    // Simple fallback parsing - in production, you'd want more robust parsing
-    return {
-      company: { name: 'Unknown', description: text.substring(0, 200) },
-      product: { name: 'Unknown' },
-      market: { size: 'Unknown' },
-      contacts: [],
-      recommendations: ['Analysis completed - review full response for details']
-    };
-  }
-
-  /**
    * Get available models
    */
-  getAvailableModels(): string[] {
-    return ['gpt-5.2', 'gpt-5.2-thinking', 'gpt-5.2-instant', 'gpt-5-mini', 'gpt-5-nano'];
+  getAvailableModels(): AIRole[] {
+    return ['default', 'thinking', 'fast', 'pro'];
   }
 
   /**
    * Validate API configuration
    */
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return true; // the key is held server-side; auth is the user's Supabase session
   }
 }
 

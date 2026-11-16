@@ -19,7 +19,7 @@ export interface QueuedTask {
   options: {
     timeout: number;
     retries: number;
-    provider?: 'openai' | 'gemini' | 'auto';
+    provider?: 'openai' | 'auto';
   };
   callbacks: {
     onProgress?: (progress: number) => void;

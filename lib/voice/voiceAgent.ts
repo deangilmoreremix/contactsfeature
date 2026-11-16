@@ -45,8 +45,7 @@ Return ONLY the voicemail script text.
   const finalPrompt = applyMood(prompt, mood);
 
   const script = await callOpenAI(finalPrompt, {
-    model: "gpt-4.1-mini",
-    temperature: 0.8
+    role: "default"
   });
 
   const scriptText = typeof script === "string" ? script.trim() : JSON.stringify(script);

@@ -6,6 +6,14 @@ import { ObjectionHandlerSDRAgent } from '../sdr/ObjectionHandlerSDRAgent';
 import { ReactivationSDRAgent } from '../sdr/ReactivationSDRAgent';
 import { WinBackSDRAgent } from '../sdr/WinBackSDRAgent';
 import { DiscoverySDRAgent } from '../sdr/DiscoverySDRAgent';
+import { LinkedInSDRAgent } from '../sdr/LinkedInSDRAgent';
+import { WhatsAppSDRAgent } from '../sdr/WhatsAppSDRAgent';
+import { EventBasedSDRAgent } from '../sdr/EventBasedSDRAgent';
+import { ReferralSDRAgent } from '../sdr/ReferralSDRAgent';
+import { NewsletterSDRAgent } from '../sdr/NewsletterSDRAgent';
+import { HighIntentSDRAgent } from '../sdr/HighIntentSDRAgent';
+import { DataEnrichmentSDRAgent } from '../sdr/DataEnrichmentSDRAgent';
+import { CompetitorAwareSDRAgent } from '../sdr/CompetitorAwareSDRAgent';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentButton } from '../ai-sales-intelligence/AgentButton';
 import { OUTBOUND_PERSONAS, getPersonaById, OutboundPersonaId } from '../../agents/personas';
@@ -221,7 +229,15 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
     { id: 'objection-handler', component: ObjectionHandlerSDRAgent, icon: AlertTriangle, title: 'Objection Handler SDR', description: 'Handle common sales objections intelligently' },
     { id: 'reactivation', component: ReactivationSDRAgent, icon: RotateCcw, title: 'Re-Activation SDR', description: 'Re-engage dormant or inactive contacts' },
     { id: 'win-back', component: WinBackSDRAgent, icon: Trophy, title: 'Win-Back SDR', description: 'Recover lost deals and churned customers' },
-    { id: 'discovery', component: DiscoverySDRAgent, icon: Search, title: 'Discovery SDR', description: 'Research and qualify prospects with AI intelligence' }
+    { id: 'discovery', component: DiscoverySDRAgent, icon: Search, title: 'Discovery SDR', description: 'Research and qualify prospects with AI intelligence' },
+    { id: 'linkedin', component: LinkedInSDRAgent, icon: MessageCircle, title: 'LinkedIn SDR', description: 'Connection notes and follow-ups for LinkedIn' },
+    { id: 'whatsapp', component: WhatsAppSDRAgent, icon: MessageSquare, title: 'WhatsApp SDR', description: 'Short conversational WhatsApp messages' },
+    { id: 'event-based', component: EventBasedSDRAgent, icon: Zap, title: 'Event-Based SDR', description: 'Outreach triggered by real, recent events' },
+    { id: 'referral', component: ReferralSDRAgent, icon: Trophy, title: 'Referral SDR', description: 'Referral and warm-introduction requests' },
+    { id: 'newsletter', component: NewsletterSDRAgent, icon: Mail, title: 'Newsletter SDR', description: 'Newsletter-style invitations and teasers' },
+    { id: 'high-intent', component: HighIntentSDRAgent, icon: AlertTriangle, title: 'High-Intent SDR', description: 'Fast replies to buying-intent signals' },
+    { id: 'data-enrichment', component: DataEnrichmentSDRAgent, icon: Search, title: 'Data Enrichment SDR', description: 'Verify public details with web research' },
+    { id: 'competitor-aware', component: CompetitorAwareSDRAgent, icon: BarChart3, title: 'Competitor-Aware SDR', description: 'Position against a verified competitor' }
   ];
 
   const enhancedAgents = [

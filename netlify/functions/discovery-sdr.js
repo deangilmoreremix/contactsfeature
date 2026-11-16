@@ -28,7 +28,9 @@ Discovery Focus Areas:
 4. Goals & Success - What would success look like?
 5. Budget & Authority - Do they have budget? Who approves?`;
 
-exports.handler = withAuth(async (event, user) => {
+const { stream } = require('@netlify/functions');
+
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   // Check if streaming is requested
@@ -223,7 +225,7 @@ Return ONLY valid JSON with:
         subject: parsed.subject,
         body: parsed.body,
         discoveryQuestions: parsed.discoveryQuestions || [],
-        sent: true,
+        sent: false, // drafts only: nothing is emailed until the user saves or sends it
         model,
       }),
     };
@@ -231,4 +233,4 @@ Return ONLY valid JSON with:
     log.error('Discovery generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Discovery generation failed');
   }
-});
+}));

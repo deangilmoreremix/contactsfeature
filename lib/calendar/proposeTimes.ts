@@ -7,5 +7,5 @@ ${JSON.stringify(contact, null, 2)}
 
 Use friendly, professional tone.
   `;
-  return await callOpenAI(prompt, []);
+  return await callOpenAI(prompt, { role: "fast" });
 }

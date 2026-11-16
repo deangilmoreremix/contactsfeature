@@ -113,7 +113,7 @@ async function demonstrateCompleteAgentSystem() {
 
   console.log('   🤖 AI Enhancement:');
   console.log('      • OpenAI for content generation');
-  console.log('      • Gemini for image analysis');
+  console.log('      • OpenAI Images for image generation');
   console.log('      • Custom ML for scoring and forecasting');
 
   console.log('\n🎉 Demonstration Complete!');

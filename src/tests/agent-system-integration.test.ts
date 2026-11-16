@@ -12,7 +12,7 @@
  * =======================
  *
  * 1. Use a separate test database for integration tests
- * 2. Mock external APIs (OpenAI, Gemini) but test real Supabase operations
+ * 2. Mock external APIs (OpenAI) but test real Supabase operations
  * 3. Use test-specific environment variables
  * 4. Implement proper test isolation and cleanup
  */
@@ -53,13 +53,13 @@ describe('End-to-End Agent Execution Tests', () => {
      * TEST SCENARIO:
      * 1. Execute AI AE Agent with demo preparation request
      * 2. Verify agent calls generate-demo-visuals tool
-     * 3. Verify Gemini API integration works
+     * 3. Verify OpenAI Images integration works
      * 4. Verify images are stored in Supabase Storage
      * 5. Verify image metadata is saved to database
      * 6. Verify agent response includes image URLs
      *
      * IMPLEMENTATION APPROACH:
-     * - Mock Gemini API responses
+     * - Mock OpenAI Images responses
      * - Test real Supabase Storage operations
      * - Verify image metadata structure
      * - Check storage bucket contents
@@ -388,7 +388,7 @@ describe('Test Utilities and Helpers', () => {
      * ENVIRONMENT SETUP UTILITIES:
      * - setupTestDatabase(): Initialize clean test database
      * - seedTestData(): Populate test data
-     * - mockExternalAPIs(): Mock OpenAI, Gemini, Netlify functions
+     * - mockExternalAPIs(): Mock OpenAI, Netlify functions
      * - cleanupTestData(): Clean up after tests
      * - resetTestEnvironment(): Reset all test state
      *
@@ -806,7 +806,7 @@ describe('SmartCRM Agent System - Integration Test Guide', () => {
         })
       });
 
-      // Mock Gemini image generation response
+      // Mock image generation response
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue({
@@ -817,7 +817,7 @@ describe('SmartCRM Agent System - Integration Test Guide', () => {
             filename: 'demo-visual-1.png',
             metadata: { prompt: 'demo visuals' }
           }],
-          metadata: { total_generated: 1, model: 'gemini-2.5-flash' }
+          metadata: { total_generated: 1, model: 'gpt-image' }
         })
       });
 
@@ -841,7 +841,7 @@ describe('SmartCRM Agent System - Integration Test Guide', () => {
       expect(result).toBeDefined();
       expect(result.response.tool_calls).toBeDefined();
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/.netlify/functions/gemini-image-generator'),
+        expect.stringContaining('/.netlify/functions/generate-image'),
         expect.any(Object)
       );
     });

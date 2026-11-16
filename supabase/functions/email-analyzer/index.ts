@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createResponse, resolveModel } from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,11 +28,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key not configured");
-    }
-
     const {
       emailSubject,
       emailBody,
@@ -67,34 +63,7 @@ Deno.serve(async (req: Request) => {
 
 Provide detailed, actionable analysis that helps improve email performance.
 
-Return ONLY valid JSON with this exact structure:
-{
-  "metrics": {
-    "wordCount": number,
-    "sentenceCount": number,
-    "avgSentenceLength": number,
-    "paragraphCount": number,
-    "subjectLength": number
-  },
-  "toneAnalysis": {
-    "formal": number (0-100),
-    "friendly": number (0-100),
-    "persuasive": number (0-100),
-    "urgent": number (0-100),
-    "informative": number (0-100)
-  },
-  "dominantTone": "string (one of: formal, friendly, persuasive, urgent, informative)",
-  "qualityScore": number (0-100),
-  "responseLikelihood": number (0-100),
-  "improvements": [
-    {
-      "type": "string (issue, suggestion, structural, subject)",
-      "description": "specific actionable improvement"
-    }
-  ],
-  "assessment": "overall email assessment in 2-3 sentences",
-  "confidence": number (0-100)
-}`;
+Score tones and quality honestly from the email text alone; do not claim knowledge of the recipient's actual behavior.`;
 
     const userPrompt = `Analyze this email comprehensively:
 
@@ -106,7 +75,7 @@ ${recipientContext}
 ${additionalContext}
 
 Provide detailed analysis covering:
-1. **Metrics**: Calculate word count, sentence count, average sentence length, paragraph count, subject length
+1. (Metrics are computed separately; do not return them)
 2. **Tone Analysis**: Score the email on formal, friendly, persuasive, urgent, and informative tones (0-100 each, total should be ~100)
 3. **Dominant Tone**: Identify the primary tone
 4. **Quality Score**: Overall email quality (0-100) based on clarity, structure, personalization, and effectiveness
@@ -123,43 +92,63 @@ Consider:
 - Length appropriateness
 - Professionalism vs. approachability balance
 - Grammar and clarity
-- Likelihood to prompt response
+- Likelihood to prompt response`;
 
-Return ONLY valid JSON, no other text.`;
-
-    const openaiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
+    const ai = await createResponse({
+      role: "default",
+      effort: "low",
+      instructions: systemPrompt,
+      input: userPrompt,
+      schemaName: "email_analysis",
+      maxOutputTokens: 3000,
+      schema: {
+        type: "object",
+        properties: {
+          toneAnalysis: {
+            type: "object",
+            properties: {
+              formal: { type: "number" },
+              friendly: { type: "number" },
+              persuasive: { type: "number" },
+              urgent: { type: "number" },
+              informative: { type: "number" },
+            },
+          },
+          dominantTone: { type: "string", enum: ["formal", "friendly", "persuasive", "urgent", "informative"] },
+          qualityScore: { type: "number" },
+          responseLikelihood: { type: "number" },
+          improvements: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["issue", "suggestion", "structural", "subject"] },
+                description: { type: "string" },
+              },
+            },
+          },
+          assessment: { type: "string" },
+          confidence: { type: "number" },
         },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 1000,
-          response_format: { type: "json_object" },
-        }),
-      }
-    );
+      },
+    });
+    if (!ai.json) throw new Error("AI returned no structured analysis");
+    const analysis = ai.json;
 
-    if (!openaiResponse.ok) {
-      const errorData = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${errorData}`);
-    }
-
-    const openaiData = await openaiResponse.json();
-    const analysis = JSON.parse(
-      openaiData.choices[0].message.content
-    );
+    // Deterministic metrics (computed in code, not by the model)
+    const words = emailBody.trim().split(/\s+/).filter(Boolean);
+    const sentences = emailBody.split(/[.!?]+(?:\s|$)/).filter((s: string) => s.trim().length > 0);
+    const paragraphs = emailBody.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
+    const metrics = {
+      wordCount: words.length,
+      sentenceCount: sentences.length,
+      avgSentenceLength: sentences.length ? Math.round((words.length / sentences.length) * 10) / 10 : 0,
+      paragraphCount: paragraphs.length,
+      subjectLength: emailSubject.length,
+    };
 
     const result = {
-      metrics: analysis.metrics,
+      metrics,
       toneAnalysis: analysis.toneAnalysis,
       dominantTone: analysis.dominantTone,
       qualityScore: analysis.qualityScore,
@@ -167,7 +156,7 @@ Return ONLY valid JSON, no other text.`;
       improvements: analysis.improvements,
       assessment: analysis.assessment,
       confidence: analysis.confidence,
-      model: "gpt-4o",
+      model: resolveModel("default").model,
     };
 
     return new Response(JSON.stringify(result), {
@@ -181,7 +170,7 @@ Return ONLY valid JSON, no other text.`;
     return new Response(
       JSON.stringify({
         error: "Email analysis failed",
-        details: error.message,
+        details: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,

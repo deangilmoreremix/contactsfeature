@@ -180,12 +180,6 @@ describe('Performance and Load Testing', () => {
           burstLimit: 10,
           backoffStrategy: 'exponential'
         },
-        gemini: {
-          requestsPerMinute: 60,
-          requestsPerHour: 1200,
-          burstLimit: 15,
-          backoffStrategy: 'exponential'
-        },
         supabase: {
           requestsPerSecond: 100,
           burstLimit: 50,
@@ -195,7 +189,6 @@ describe('Performance and Load Testing', () => {
 
       // Validate rate limiting configuration
       expect(rateLimits.openai.requestsPerMinute).toBeLessThanOrEqual(50);
-      expect(rateLimits.gemini.requestsPerMinute).toBeLessThanOrEqual(60);
       expect(rateLimits.supabase.requestsPerSecond).toBeLessThanOrEqual(100);
     });
   });

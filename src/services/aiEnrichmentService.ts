@@ -1,6 +1,8 @@
-// AI Contact Enrichment Service - OpenAI & Gemini Integration
+// AI Contact Enrichment Service
+// All AI goes through the server-side proxy (aiClient -> hosted web_search). Failures are thrown;
+// no mock/estimated data is ever returned as if it were enrichment output.
 import { logger } from './logger.service';
-import { supabase } from './supabaseClient';
+import { aiRespond } from './aiClient';
 
 export interface ContactEnrichmentData {
   firstName?: string;
@@ -26,35 +28,89 @@ export interface ContactEnrichmentData {
   bio?: string;
   notes?: string;
   confidence?: number;
-  enrichmentType?: 'real' | 'mock' | 'gpt5' | 'real_time'; // NEW: Track enrichment type
-  isMockData?: boolean; // NEW: Flag for mock data
+  enrichmentType?: 'real' | 'mock' | 'gpt5' | 'real_time';
+  isMockData?: boolean;
+  sources?: Array<{ url: string; title?: string }>;
 }
 
-export interface AIProvider {
-  name: 'openai' | 'gemini' | 'gpt5';
-  enabled: boolean;
-  apiKey?: string;
-}
+const nullableString = { type: ['string', 'null'] };
+const PROFILE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    matched: { type: 'boolean' },
+    confidence: { type: 'number' },
+    firstName: nullableString,
+    lastName: nullableString,
+    email: nullableString,
+    phone: nullableString,
+    title: nullableString,
+    company: nullableString,
+    industry: nullableString,
+    city: nullableString,
+    state: nullableString,
+    country: nullableString,
+    linkedin: nullableString,
+    twitter: nullableString,
+    facebook: nullableString,
+    website: nullableString,
+    bio: nullableString,
+    notes: nullableString
+  },
+  required: ['matched', 'confidence', 'firstName', 'lastName', 'email', 'phone', 'title', 'company', 'industry', 'city', 'state', 'country', 'linkedin', 'twitter', 'facebook', 'website', 'bio', 'notes']
+} as const;
+
+type ProfileJson = {
+  matched: boolean;
+  confidence: number;
+  [k: string]: string | number | boolean | null;
+};
+
+const INSTRUCTIONS =
+  'You are a B2B contact research assistant. Use web search to find ONLY publicly available professional information about the person/company described. ' +
+  'Never guess or invent values: use null for anything you cannot verify from a source. If you cannot confidently identify the subject, set matched=false and confidence=0. ' +
+  'confidence is 0-100. Put short caveats in notes.';
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
 
 class AIEnrichmentService {
-  private openaiApiKey = import.meta.env['VITE_OPENAI_API_KEY'];
-  private geminiApiKey = import.meta.env['VITE_GEMINI_API_KEY'];
-  private gpt5ApiKey = import.meta.env['VITE_GPT5_API_KEY']; // NEW: GPT-5 support
+  /** Research a subject with hosted web search and map the result to ContactEnrichmentData. */
+  private async research(subject: string, hints: Partial<ContactEnrichmentData> = {}): Promise<ContactEnrichmentData> {
+    const res = await aiRespond<ProfileJson>({
+      role: 'default',
+      instructions: INSTRUCTIONS,
+      input: subject,
+      schema: PROFILE_SCHEMA as unknown as Record<string, unknown>,
+      schemaName: 'contact_profile',
+      tools: [{ type: 'web_search' }],
+      maxOutputTokens: 1500
+    });
+    const p = res.json;
+    if (!p) throw new Error('AI did not return a usable enrichment result');
 
-  constructor() {
-    // Log API keys for debugging (without revealing full keys)
-    console.log('🔍 AI Enrichment Service - Environment Check:');
-    console.log('OpenAI API Key:', this.openaiApiKey ? `${this.openaiApiKey.substring(0, 10)}...` : '❌ Not configured');
-    console.log('Gemini API Key:', this.geminiApiKey ? `${this.geminiApiKey.substring(0, 10)}...` : '❌ Not configured');
-    console.log('GPT-5 API Key:', this.gpt5ApiKey ? `${this.gpt5ApiKey.substring(0, 10)}...` : '❌ Not configured');
-    console.log('Using Supabase Edge Functions for AI enrichment with GPT-5 support');
+    const out: ContactEnrichmentData = { ...hints, enrichmentType: 'real', isMockData: false };
+    out.confidence = p.matched ? Math.max(0, Math.min(100, Number(p.confidence) || 0)) : 0;
+    const firstName = str(p.firstName), lastName = str(p.lastName);
+    if (firstName) out.firstName = firstName;
+    if (lastName) out.lastName = lastName;
+    if (firstName || lastName) out.name = [firstName, lastName].filter(Boolean).join(' ');
+    for (const k of ['email', 'phone', 'title', 'company', 'industry', 'bio', 'notes'] as const) {
+      const v = str(p[k]);
+      if (v) out[k] = v;
+    }
+    const city = str(p.city), state = str(p.state), country = str(p.country);
+    if (city || state || country) {
+      out.location = { ...(city ? { city } : {}), ...(state ? { state } : {}), ...(country ? { country } : {}) };
+    }
+    const social: NonNullable<ContactEnrichmentData['socialProfiles']> = { ...(hints.socialProfiles ?? {}) };
+    for (const k of ['linkedin', 'twitter', 'facebook', 'website'] as const) {
+      const v = str(p[k]);
+      if (v) social[k] = v;
+    }
+    if (Object.keys(social).length) out.socialProfiles = social;
+    if (res.citations?.length) out.sources = res.citations;
+    return out;
   }
-
-  private providers: AIProvider[] = [
-    { name: 'openai', enabled: !!this.openaiApiKey, apiKey: this.openaiApiKey },
-    { name: 'gemini', enabled: !!this.geminiApiKey, apiKey: this.geminiApiKey },
-    { name: 'gpt5', enabled: !!this.gpt5ApiKey, apiKey: this.gpt5ApiKey }, // NEW: GPT-5 provider
-  ];
 
   async enrichContactByEmail(
     email: string,
@@ -67,206 +123,48 @@ class AIEnrichmentService {
       skipIfMock?: boolean;
     } = {}
   ): Promise<ContactEnrichmentData> {
-    logger.info(`Enriching contact by email: ${email} (Mock: ${options.isMockData || false})`);
+    logger.info('Enriching contact by email');
 
-    // Determine enrichment strategy based on data classification
-    const shouldUseRealAI = this.shouldUseRealAI(options);
     const isDemoData = options.isExample || options.createdBy === 'demo';
-    const shouldSkipEnrichment = options.skipIfMock && (options.isMockData || isDemoData);
-
-    if (shouldSkipEnrichment) {
-      const skipReason = isDemoData ? 'demo data' : 'mock data';
-      logger.info(`Skipping enrichment for ${skipReason} contact: ${email}`);
+    if (options.skipIfMock && (options.isMockData || isDemoData)) {
+      // Explicit demo flag preserved for callers that rely on it; no AI result is claimed.
       return {
         email,
         confidence: 0,
-        notes: `Enrichment skipped for ${skipReason} to preserve demo experience`,
+        notes: `Enrichment skipped for ${isDemoData ? 'demo' : 'mock'} data`,
         enrichmentType: 'mock',
         isMockData: true
       };
     }
 
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for email enrichment: ${email}`);
-      return this.generateMockData({ email, isMockData: options.isMockData });
-    }
-
-    // TEMPORARY WORKAROUND: Use direct OpenAI API call instead of Supabase function
-    // This bypasses the Supabase environment variable issue for testing
-    try {
-      logger.info('Using direct OpenAI API call for testing (bypassing Supabase)');
-
-      const emailParts = email.split('@');
-      if (emailParts.length !== 2) {
-        throw new Error('Invalid email format');
-      }
-
-      const domain = emailParts[1]!;
-      const prompt = `Based on the email domain "${domain}", provide information about the company in JSON format: {"name": "Company Name", "industry": "Industry", "size": "Company Size (e.g., Small, Medium, Large, Enterprise)", "description": "Brief description"}. If you don't know the company, use generic information based on the domain type.`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.openaiApiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 300,
-          temperature: 0.3
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content;
-
-      const enrichedData: ContactEnrichmentData = {
-        email,
-        confidence: 75,
-        enrichmentType: 'real',
-        isMockData: false
-      };
-
-      if (aiResponse) {
-        try {
-          const companyData = JSON.parse(aiResponse);
-          enrichedData.company = companyData.name || domain.split('.')[0];
-          enrichedData.industry = companyData.industry || 'Unknown';
-          enrichedData.notes = `AI Enrichment: ${companyData.description || 'Company information retrieved from domain analysis'}`;
-        } catch (parseError) {
-          logger.warn('Failed to parse AI response, using basic enrichment');
-          enrichedData.notes = 'AI enrichment completed with basic analysis';
-        }
-      }
-
-      logger.info('Contact enriched successfully using direct OpenAI API');
-      return enrichedData;
-
-    } catch (error) {
-      logger.error('Direct OpenAI API call failed, falling back to mock data', error as Error);
-      return this.generateMockData({ email, isMockData: options.isMockData });
-    }
-  }
-
-  private shouldUseRealAI(options: {
-    isMockData?: boolean;
-    forceRealAI?: boolean;
-    skipIfMock?: boolean;
-  }): boolean {
-    // Always use real AI if explicitly requested
-    if (options.forceRealAI) return true;
-
-    // Don't use real AI for mock data unless forced
-    if (options.isMockData) return false;
-
-    // Use real AI for real data if providers are available
-    return this.hasConfiguredProviders();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Invalid email format');
+    return this.research(`Find public professional information for the person with this email address: ${email}. Also identify their company from the email domain if it is a business domain.`, { email });
   }
 
   async enrichContactByName(firstName: string, lastName: string, company?: string): Promise<ContactEnrichmentData> {
-    logger.info(`Enriching contact by name: ${firstName} ${lastName} ${company ? `at ${company}` : ''}`);
-
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for name enrichment: ${firstName} ${lastName}`);
-      return this.generateMockData({ firstName, lastName, company });
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'name',
-          name: `${firstName} ${lastName}`,
-          firstName,
-          lastName,
-          company,
-          contactId: 'client-enrichment-request'
-        },
-        headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-      logger.info(`Contact enriched successfully by name`);
-      return data.success ? data.data || data : data;
-    } catch (error) {
-      logger.error('Contact enrichment by name failed', error as Error);
-      // Return graceful fallback data instead of throwing error
-      return this.generateMockData({ firstName, lastName, company });
-    }
+    logger.info('Enriching contact by name');
+    return this.research(`Find public professional information for ${firstName} ${lastName}${company ? ` who works at or is associated with ${company}` : ''}.`, {
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`.trim(),
+      ...(company ? { company } : {})
+    });
   }
 
   async enrichContactByLinkedIn(linkedinUrl: string): Promise<ContactEnrichmentData> {
-    logger.info(`Enriching contact by LinkedIn URL: ${linkedinUrl}`);
-
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for LinkedIn enrichment: ${linkedinUrl}`);
-      return this.generateMockData({ linkedinUrl });
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'linkedin',
-          linkedin: linkedinUrl,
-          contactId: 'client-enrichment-request'
-        },
-        headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-      logger.info(`Contact enriched successfully by LinkedIn`);
-      return data.success ? data.data || data : data;
-    } catch (error) {
-      logger.error('Contact enrichment by LinkedIn failed', error as Error);
-      // Return graceful fallback data instead of throwing error
-      return this.generateMockData({ linkedinUrl });
-    }
+    logger.info('Enriching contact by LinkedIn URL');
+    return this.research(`Find public professional information for the person with this LinkedIn profile: ${linkedinUrl}`, {
+      socialProfiles: { linkedin: linkedinUrl }
+    });
   }
 
   async enrichContactBySocialNetwork(platform: string, profileUrl: string): Promise<ContactEnrichmentData> {
-    logger.info(`Enriching contact by ${platform} URL: ${profileUrl}`);
-
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for ${platform} enrichment: ${profileUrl}`);
-      return this.generateMockData({ [`${platform}Url`]: profileUrl });
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'social_network',
-          platform: platform,
-          profileUrl: profileUrl,
-          contactId: 'client-enrichment-request'
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-      logger.info(`Contact enriched successfully by ${platform}`);
-      return data.success ? data.data || data : data;
-    } catch (error) {
-      logger.error(`Contact enrichment by ${platform} failed`, error as Error);
-      // Return graceful fallback data instead of throwing error
-      return this.generateMockData({ [`${platform}Url`]: profileUrl });
-    }
+    logger.info(`Enriching contact by ${platform} URL`);
+    const key = platform.toLowerCase();
+    const known = ['linkedin', 'twitter', 'facebook', 'website'].includes(key);
+    return this.research(`Find public professional information for the person with this ${platform} profile: ${profileUrl}`, known ? {
+      socialProfiles: { [key]: profileUrl }
+    } : {});
   }
 
   async enrichContactByMultipleSocialNetworks(socialProfiles: {
@@ -277,36 +175,16 @@ class AIEnrichmentService {
     whatsapp?: string;
     website?: string;
   }): Promise<ContactEnrichmentData> {
-    logger.info(`Enriching contact by multiple social networks: ${Object.keys(socialProfiles).length} profiles`);
-
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for multi-social enrichment`);
-      return this.generateMockData({ socialProfiles });
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'multi_social',
-          socialProfiles: socialProfiles,
-          contactId: 'client-enrichment-request'
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-      logger.info(`Contact enriched successfully by multiple social networks`);
-      return data.success ? data.data || data : data;
-    } catch (error) {
-      logger.error('Contact enrichment by multiple social networks failed', error as Error);
-      // Return graceful fallback data instead of throwing error
-      return this.generateMockData({ socialProfiles });
-    }
+    const entries = Object.entries(socialProfiles).filter(([, v]) => !!v);
+    if (!entries.length) throw new Error('No social profiles provided');
+    logger.info(`Enriching contact by ${entries.length} social profiles`);
+    const { linkedin, twitter, facebook, website } = socialProfiles;
+    return this.research(
+      `Find public professional information for the person who owns these profiles (they should all be the same person):\n${entries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}`,
+      { socialProfiles: { ...(linkedin ? { linkedin } : {}), ...(twitter ? { twitter } : {}), ...(facebook ? { facebook } : {}), ...(website ? { website } : {}) } }
+    );
   }
 
-  // NEW: Multi-modal enrichment with GPT-5
   async enrichContactMultiModal(
     contactData: {
       email?: string;
@@ -322,41 +200,20 @@ class AIEnrichmentService {
       realTimeUpdates?: boolean;
     } = {}
   ): Promise<ContactEnrichmentData> {
-    logger.info(`Multi-modal enrichment for contact: ${contactData.name || contactData.email}`);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'multi_modal',
-          contactData,
-          options: {
-            useGPT5: options.useGPT5 && !!this.gpt5ApiKey,
-            includeWebResearch: options.includeWebResearch,
-            realTimeUpdates: options.realTimeUpdates,
-            ...options
-          },
-          contactId: 'multi-modal-enrichment-request'
-        },
-        headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-        }
-      });
-
-      if (error) throw error;
-
-      logger.info(`Multi-modal enrichment completed with ${options.useGPT5 ? 'GPT-5' : 'standard AI'}`);
-      return {
-        ...data,
-        enrichmentType: options.useGPT5 ? 'gpt5' : 'real',
-        isMockData: false
-      };
-    } catch (error) {
-      logger.error('Multi-modal enrichment failed', error as Error);
-      return this.generateMockData(contactData);
-    }
+    void options;
+    const known = [
+      contactData.name && `name: ${contactData.name}`,
+      contactData.email && `email: ${contactData.email}`,
+      contactData.company && `company: ${contactData.company}`,
+      contactData.linkedin && `linkedin: ${contactData.linkedin}`
+    ].filter(Boolean);
+    if (!known.length) throw new Error('Not enough information to enrich this contact');
+    return this.research(`Find public professional information for the person described by:\n${known.join('\n')}`, {
+      ...(contactData.email ? { email: contactData.email } : {}),
+      ...(contactData.company ? { company: contactData.company } : {})
+    });
   }
 
-  // NEW: Real-time enrichment with web data
   async enrichContactRealTime(
     contactData: Partial<ContactEnrichmentData>,
     webContext?: {
@@ -365,36 +222,21 @@ class AIEnrichmentService {
       companyNews?: any[];
     }
   ): Promise<ContactEnrichmentData> {
-    logger.info(`Real-time enrichment for contact`);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'real_time',
-          contactData,
-          webContext,
-          contactId: 'real-time-enrichment-request'
-        },
-        headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-        }
-      });
-
-      if (error) throw error;
-
-      logger.info(`Real-time enrichment completed`);
-      return {
-        ...data,
-        enrichmentType: 'real_time',
-        isMockData: false
-      };
-    } catch (error) {
-      logger.error('Real-time enrichment failed', error as Error);
-      return this.generateMockData(contactData);
-    }
+    const known = JSON.stringify({
+      name: contactData.name || [contactData.firstName, contactData.lastName].filter(Boolean).join(' ') || undefined,
+      email: contactData.email,
+      company: contactData.company,
+      title: contactData.title,
+      linkedin: contactData.socialProfiles?.linkedin
+    });
+    const out = await this.research(
+      `Find current public professional information (including recent role or company changes) for this contact: ${known}${webContext?.searchQuery ? `\nFocus: ${webContext.searchQuery}` : ''}`,
+      contactData
+    );
+    return { ...out, enrichmentType: 'real_time' };
   }
 
-  // NEW: Quality scoring for enriched data
+  // Quality scoring for enriched data
   calculateEnrichmentQuality(data: ContactEnrichmentData): {
     overallScore: number;
     breakdown: {
@@ -405,224 +247,68 @@ class AIEnrichmentService {
     };
     recommendations: string[];
   } {
-    let score = 0;
-    const breakdown = {
-      dataCompleteness: 0,
-      sourceReliability: 0,
-      recencyScore: 0,
-      consistencyScore: 0
-    };
-
-    // Data completeness scoring
     const fields = ['firstName', 'lastName', 'email', 'phone', 'title', 'company', 'industry'];
     const filledFields = fields.filter(field => data[field as keyof ContactEnrichmentData]);
-    breakdown.dataCompleteness = (filledFields.length / fields.length) * 100;
+    const dataCompleteness = (filledFields.length / fields.length) * 100;
+    const sourceReliability = data.sources?.length ? 90 : data.enrichmentType === 'mock' ? 0 : 60;
+    const recencyScore = data.confidence || 0;
+    const consistencyScore = data.confidence || 0;
 
-    // Source reliability scoring
-    if (data.enrichmentType === 'gpt5') {
-      breakdown.sourceReliability = 95;
-    } else if (data.enrichmentType === 'real') {
-      breakdown.sourceReliability = 85;
-    } else {
-      breakdown.sourceReliability = 60;
-    }
+    const score = dataCompleteness * 0.4 + sourceReliability * 0.3 + recencyScore * 0.2 + consistencyScore * 0.1;
 
-    // Recency scoring (simplified)
-    breakdown.recencyScore = data.confidence || 70;
-
-    // Consistency scoring (simplified)
-    breakdown.consistencyScore = 80; // Would implement actual consistency checks
-
-    score = (breakdown.dataCompleteness * 0.4) +
-            (breakdown.sourceReliability * 0.3) +
-            (breakdown.recencyScore * 0.2) +
-            (breakdown.consistencyScore * 0.1);
-
-    const recommendations = [];
-    if (breakdown.dataCompleteness < 70) recommendations.push('Add more contact information for better enrichment');
-    if (breakdown.sourceReliability < 80) recommendations.push('Consider using GPT-5 for higher accuracy');
-    if (breakdown.recencyScore < 75) recommendations.push('Update contact data for fresher insights');
+    const recommendations: string[] = [];
+    if (dataCompleteness < 70) recommendations.push('Add more contact information for better enrichment');
+    if (sourceReliability < 80) recommendations.push('Few or no cited sources; verify the details manually');
+    if (recencyScore < 75) recommendations.push('Low confidence; verify before relying on this data');
 
     return {
       overallScore: Math.round(score),
-      breakdown,
+      breakdown: { dataCompleteness, sourceReliability, recencyScore, consistencyScore },
       recommendations
     };
   }
 
+  /**
+   * Web search cannot reliably return a verified photo of a person, so this returns an empty
+   * string (meaning "no image found") rather than a stock/placeholder image.
+   */
   async findContactImage(name: string, company?: string): Promise<string> {
-    logger.info(`Finding contact image for: ${name}${company ? ` at ${company}` : ''}`);
-
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for image search: ${name}`);
-      // Return a default avatar
-      return 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          type: 'image',
-          name,
-          company,
-          contactId: 'client-enrichment-request'
-        },
-        headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-      logger.info(`Found contact image successfully`);
-      return data.imageUrl || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
-    } catch (error) {
-      logger.error('Finding contact image failed', error as Error);
-
-      // Return a default avatar from Pexels if the API call fails
-      return 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';
-    }
+    logger.info(`Image lookup requested for ${name}${company ? ` at ${company}` : ''}: not supported`);
+    return '';
   }
 
+  /**
+   * Enrich many contacts. A contact that fails comes back with confidence 0 and a notes message
+   * explaining the failure (never fabricated data).
+   */
   async bulkEnrichContacts(contacts: Array<{email?: string, name?: string, company?: string}>): Promise<ContactEnrichmentData[]> {
     logger.info(`Bulk enriching ${contacts.length} contacts`);
-    
-    // Check if any providers are configured before making the request
-    if (!this.hasConfiguredProviders()) {
-      logger.warn(`No AI providers configured for bulk enrichment of ${contacts.length} contacts`);
-      // Generate mock data for each contact
-      return contacts.map(contact => this.generateMockData(contact));
-    }
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          contactId: 'client-bulk-enrichment-request',
-          contacts,
-          type: 'bulk',
-          options: {
-            maxConcurrency: 5,
-            timeout: 60000
-          }
-        },
-        headers: {
-          'Authorization': `Bearer ${import.meta.env['VITE_SUPABASE_ANON_KEY']}`
+    const results: ContactEnrichmentData[] = new Array(contacts.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < contacts.length) {
+        const i = next++;
+        const c = contacts[i]!;
+        try {
+          if (c.email) results[i] = await this.enrichContactByEmail(c.email);
+          else if (c.name) {
+            const [first = '', ...rest] = c.name.trim().split(/\s+/);
+            results[i] = await this.enrichContactByName(first, rest.join(' '), c.company);
+          } else throw new Error('Contact needs an email or name');
+        } catch (error) {
+          logger.error('Bulk enrichment item failed', error as Error);
+          results[i] = {
+            ...(c.email ? { email: c.email } : {}),
+            ...(c.name ? { name: c.name } : {}),
+            ...(c.company ? { company: c.company } : {}),
+            confidence: 0,
+            notes: `Enrichment failed: ${(error as Error).message}`
+          };
         }
-      });
-      
-      if (error) {
-        throw error;
       }
-      
-      const enrichedContacts = data.success ? data.data || [] : [];
-      logger.info(`Successfully bulk enriched ${enrichedContacts.length} contacts`);
-      return enrichedContacts;
-    } catch (error) {
-      logger.error('Bulk contact enrichment failed', error as Error);
-      // Generate mock data for each contact
-      return contacts.map(contact => this.generateMockData(contact));
-    }
-  }
-
-  // Check if there are any configured providers
-  private hasConfiguredProviders(): boolean {
-    // More verbose checking to help debug
-    const hasProviders = this.providers.some(p => p.enabled && p.apiKey && p.apiKey.length > 0);
-    
-    if (!hasProviders) {
-      console.warn("No AI providers are properly configured:");
-      this.providers.forEach(p => {
-        console.warn(`- ${p.name}: enabled=${p.enabled}, apiKey=${p.apiKey ? 'present' : 'missing'}`);
-      });
-    } else {
-      console.log("AI providers configured successfully");
-    }
-    
-    return hasProviders;
-  }
-
-  // Get an available provider, or return a default if none are configured
-  private getAvailableProvider(): string {
-    const enabledProviders = this.providers.filter(p => p.enabled);
-
-    if (enabledProviders.length === 0) {
-      logger.warn('No AI providers are configured. Using fallback mode.');
-      return 'fallback';
-    }
-
-    const firstProvider = enabledProviders[0];
-    return firstProvider ? firstProvider.name : 'fallback';
-  }
-
-  // Generate mock data when API enrichment is not available
-  private generateMockData(data: any): ContactEnrichmentData {
-    logger.info('Generating mock enrichment data for fallback');
-    
-    let mockData: ContactEnrichmentData = {
-      confidence: 30,
-      notes: 'API enrichment unavailable. Using estimated data. To enable AI features, please set up API keys for OpenAI or Gemini.'
     };
-    
-    if (data.email) {
-      // Extract data from email
-      const [username, domain] = data.email.split('@');
-      const nameParts = username.split('.');
-      
-      mockData = {
-        ...mockData,
-        firstName: nameParts[0] ? this.capitalize(nameParts[0]) : '',
-        lastName: nameParts[1] ? this.capitalize(nameParts[1]) : '',
-        email: data.email,
-        company: domain && domain.split('.')[0] ? this.capitalize(domain.split('.')[0]) : '',
-        socialProfiles: {
-          linkedin: data.linkedinUrl || `https://linkedin.com/in/${username.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-          website: `https://${domain}`
-        }
-      };
-    } else if (data.firstName || data.lastName) {
-      // Use provided name data
-      mockData = {
-        ...mockData,
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),
-        company: data.company || 'Unknown Company',
-        email: data.email || this.generateMockEmail(data.firstName, data.lastName, data.company),
-        socialProfiles: {
-          linkedin: data.linkedinUrl || `https://linkedin.com/in/${(data.firstName || '').toLowerCase().replace(/[^a-z0-9]/g, '-')}${
-            data.lastName ? `-${(data.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '-')}` : ''}`,
-        }
-      };
-    } else if (data.linkedinUrl) {
-      // Extract name from LinkedIn URL if possible
-      const urlPath = data.linkedinUrl.split('/in/')[1] || '';
-      const nameParts = urlPath.split('-');
-      
-      mockData = {
-        ...mockData,
-        firstName: nameParts[0] ? this.capitalize(nameParts[0]) : 'Unknown',
-        lastName: nameParts[1] ? this.capitalize(nameParts[1]) : '',
-        socialProfiles: {
-          linkedin: data.linkedinUrl
-        }
-      };
-    }
-    
-    return mockData;
-  }
-
-  // Utility functions for mock data generation
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-  }
-  
-  private generateMockEmail(firstName?: string, lastName?: string, company?: string): string {
-    const first = firstName || 'contact';
-    const last = lastName || 'person';
-    const domain = company ? `${company.toLowerCase().replace(/\s+/g, '')}.com` : 'company.com';
-    return `${first.toLowerCase()}.${last.toLowerCase()}@${domain}`;
+    await Promise.all(Array.from({ length: Math.min(3, contacts.length) }, worker));
+    return results;
   }
 }
 

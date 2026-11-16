@@ -463,7 +463,6 @@ describe('Integration Manager Service', () => {
         contactAPI: 'up' as const,
         aiProviders: [
           { name: 'openai', status: 'up' as const },
-          { name: 'gemini', status: 'up' as const },
         ],
         cache: 'up' as const,
         rateLimiter: 'up' as const,

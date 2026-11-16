@@ -289,7 +289,7 @@ export const CommunicationProvider: React.FC<{ children: React.ReactNode }> = ({
   const sendMessage = useCallback(async (messageData: Partial<MessageData>) => {
     // Implementation for sending messages
     console.log('Sending message:', messageData);
-    // This would integrate with Unipile client
+    // TODO: persist via a Supabase-backed messages table
   }, []);
 
   const saveDraft = useCallback(async (draft: Partial<DraftMessage>) => {

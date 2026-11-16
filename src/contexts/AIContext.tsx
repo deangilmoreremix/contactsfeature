@@ -29,7 +29,7 @@ interface AIState {
   aiPreferences: {
     autoScoring: boolean;
     autoInsights: boolean;
-    preferredProvider: 'auto' | 'openai' | 'gemini';
+    preferredProvider: 'auto' | 'openai';
     insightTypes: ContactInsight['type'][];
   };
   

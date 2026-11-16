@@ -247,11 +247,11 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
                           </span>
                         </div>
                       )}
-                      {image.metadata?.gemini_model && (
+                      {image.metadata?.model && (
                         <div className="mt-1">
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
                             <Sparkles className="w-3 h-3" />
-                            Gemini {image.metadata.gemini_model.replace('gemini-2.5-flash-image-preview', '2.5 Flash')}
+                            {image.metadata.model}
                           </span>
                         </div>
                       )}
@@ -340,10 +340,10 @@ export const SavedImagesGallery: React.FC<SavedImagesGalleryProps> = ({
                         <span className="ml-2 font-medium">{getAgentDisplayName(selectedImage.metadata.agent_id)}</span>
                       </div>
                     )}
-                    {selectedImage.metadata.gemini_model && (
+                    {selectedImage.metadata.model && (
                       <div>
                         <span className="text-gray-500">Model:</span>
-                        <span className="ml-2 font-medium">Gemini {selectedImage.metadata.gemini_model.replace('gemini-2.5-flash-image-preview', '2.5 Flash')}</span>
+                        <span className="ml-2 font-medium">{selectedImage.metadata.model}</span>
                       </div>
                     )}
                   </div>

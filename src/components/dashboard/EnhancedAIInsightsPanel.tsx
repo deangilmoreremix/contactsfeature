@@ -52,7 +52,7 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
       type: 'optimization',
       icon: Zap,
       title: 'AI Model Optimization Active',
-      description: 'Smart routing between Gemma and OpenAI models based on task requirements is improving response times by 40% while reducing costs.',
+      description: 'Smart routing between fast and reasoning models based on task requirements is improving response times by 40% while reducing costs.',
       color: 'text-blue-600',
       priority: 'high',
       recommendation: 'Continue using smart routing for optimal performance'
@@ -61,7 +61,7 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
       type: 'cost',
       icon: DollarSign,
       title: 'Cost Efficiency Improved',
-      description: 'Automatic selection of Gemma models for simple tasks has reduced AI costs by 65% while maintaining 95% accuracy.',
+      description: 'Automatic selection of the fast model for simple tasks has reduced AI costs by 65% while maintaining 95% accuracy.',
       color: 'text-green-600',
       priority: 'medium',
       recommendation: 'Consider increasing batch sizes for bulk operations'
@@ -70,7 +70,7 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
       type: 'performance',
       icon: TrendingUp,
       title: 'Performance Analytics',
-      description: 'Contact scoring accuracy has improved to 92% with the new hybrid model approach. OpenAI models excel at complex analysis while Gemma handles volume efficiently.',
+      description: 'Contact scoring accuracy has improved to 92% with the new hybrid model approach. OpenAI models excel at complex analysis while the fast model handles volume efficiently.',
       color: 'text-purple-600',
       priority: 'high',
       recommendation: 'Expand smart analysis to relationship mapping tasks'
@@ -79,10 +79,10 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
       type: 'alert',
       icon: AlertTriangle,
       title: 'Rate Limit Advisory',
-      description: 'OpenAI usage approaching 80% of rate limits during peak hours. Smart routing is automatically shifting traffic to Gemma models.',
+      description: 'OpenAI usage approaching 80% of rate limits during peak hours. Smart routing is automatically shifting traffic to the fast model.',
       color: 'text-yellow-600',
       priority: 'medium',
-      recommendation: 'Consider upgrading OpenAI tier or increasing Gemma usage'
+      recommendation: 'Consider upgrading OpenAI tier or using the fast model more'
     }
   ];
 
@@ -104,7 +104,7 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
               Smart AI Intelligence Hub
               <Sparkles className="w-4 h-4 ml-2 text-yellow-500" />
             </h3>
-            <p className="text-sm text-gray-600">Advanced multi-model AI orchestration with Gemma & OpenAI</p>
+            <p className="text-sm text-gray-600">Advanced multi-model AI orchestration with OpenAI</p>
           </div>
         </div>
         
@@ -181,7 +181,7 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
                 <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                 <p className="text-gray-600">AI is analyzing your pipeline data across multiple models...</p>
                 <div className="mt-2 text-sm text-gray-500">
-                  Evaluating Gemma 2-9B, GPT-4o Mini, and Gemini Flash performance...
+                  Evaluating model performance...
                 </div>
               </div>
             </div>
@@ -271,14 +271,12 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
                 <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
                   <div className="flex items-center space-x-3">
                     <div className={`w-3 h-3 rounded-full ${
-                      provider.name.includes('gemini') 
-                        ? 'bg-green-500' 
-                        : 'bg-blue-500'
+                      'bg-blue-500'
                     }`}></div>
                     <div>
                       <div className="font-medium text-gray-900">{provider.name}</div>
                       <div className="text-sm text-gray-600">
-                        {provider.name.includes('gemini') ? 'Google' : 'OpenAI'}
+                        OpenAI
                       </div>
                     </div>
                   </div>

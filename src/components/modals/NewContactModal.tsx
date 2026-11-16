@@ -1016,7 +1016,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
             <div className="flex items-center justify-between pt-6 border-t border-gray-200 bg-gray-50 -mx-6 -mb-6 px-6 py-4">
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Brain className="w-4 h-4 text-purple-500" />
-                <span>Powered by OpenAI & Gemini AI</span>
+                <span>Powered by OpenAI</span>
               </div>
               
               <div className="flex items-center space-x-4">
