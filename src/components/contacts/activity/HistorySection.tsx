@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useActivityTypeLabels, useContactTimeline } from '../../../hooks/useContactTimeline';
+import { TimelineKindFilter, useTimelineKindFilter } from '../TimelineKindFilter';
+import { classifyActivity, countByKind, filterByKinds } from '../../../lib/timeline/filterEvents';
 import { fieldLabel, formatDiffValue, groupEventsByMonth, type ContactDiff } from '../../../lib/timeline/contactDiff';
 
 export function HistorySection({ contactId }: { contactId: string }) {
   const { activities, loading, error } = useContactTimeline(contactId);
   const labels = useActivityTypeLabels() as Record<string, { label: string; color: string; icon: string }>;
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const groups = groupEventsByMonth(activities);
+  const counts = useMemo(() => countByKind(activities, (a) => classifyActivity(a.activityType)), [activities]);
+  const kindFilter = useTimelineKindFilter(counts);
+  const groups = groupEventsByMonth(filterByKinds(activities, kindFilter.selected, (a) => classifyActivity(a.activityType)));
 
   const toggle = (id: string) =>
     setOpen((prev) => {
@@ -21,6 +25,9 @@ export function HistorySection({ contactId }: { contactId: string }) {
   return (
     <GlassCard className="p-5 md:col-span-2">
       <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">History</h4>
+      <div className="mb-3">
+        <TimelineKindFilter counts={counts} selected={kindFilter.selected} onToggle={kindFilter.toggle} onClear={kindFilter.clear} />
+      </div>
       {error && <p className="text-sm text-red-600 dark:text-red-400 mb-2">Could not load history.</p>}
       {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>}
       {!loading && groups.length === 0 && (

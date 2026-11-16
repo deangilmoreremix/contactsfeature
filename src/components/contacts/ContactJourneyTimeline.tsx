@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
@@ -10,6 +10,8 @@ import { useDocumentSummarization } from '../../hooks/useDocumentSummarization';
 import { fileStorageService, FileUploadResult, FileMetadata } from '../../services/fileStorage.service';
 import { journeyService, JourneyEvent as DbJourneyEvent, CreateJourneyEventInput } from '../../services/journeyService';
 import { isMockContact } from '../../utils/mockDataDetection';
+import { TimelineKindFilter, useTimelineKindFilter } from './TimelineKindFilter';
+import { classifyJourneyEvent, countByKind, filterByKinds } from '../../lib/timeline/filterEvents';
 import {
   Mail,
   Phone,
@@ -118,7 +120,6 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     const [isUploading, setIsUploading] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [showFileUpload, setShowFileUpload] = useState(false);
-    const [filterType, setFilterType] = useState<string>('all');
     const [filterDateRange, setFilterDateRange] = useState<string>('all');
     const [summarizingFileId, setSummarizingFileId] = useState<string | null>(null);
     const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
@@ -465,8 +466,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     return Icon;
   };
 
-  const filteredEvents = journeyEvents.filter(event => {
-    if (filterType !== 'all' && event.type !== filterType) return false;
+  const dateFilteredEvents = useMemo(() => journeyEvents.filter(event => {
     if (filterDateRange !== 'all') {
       const eventDate = new Date(event.timestamp);
       const now = new Date();
@@ -475,7 +475,11 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       if (filterDateRange === 'month' && daysDiff > 30) return false;
     }
     return true;
-  });
+  }), [journeyEvents, filterDateRange]);
+
+  const kindCounts = useMemo(() => countByKind(dateFilteredEvents, classifyJourneyEvent), [dateFilteredEvents]);
+  const kindFilter = useTimelineKindFilter(kindCounts);
+  const filteredEvents = filterByKinds(dateFilteredEvents, kindFilter.selected, classifyJourneyEvent);
 
   return (
     <>
@@ -505,19 +509,6 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           <p className="text-sm text-gray-600 dark:text-gray-400">Timeline of interactions, milestones, and uploaded files for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Filter events by type"
-          >
-            <option value="all">All Types</option>
-            <option value="interaction">Interactions</option>
-            <option value="milestone">Milestones</option>
-            <option value="status_change">Status Changes</option>
-            <option value="ai_insight">AI Insights</option>
-            <option value="file_upload">File Uploads</option>
-          </select>
           <select
             value={filterDateRange}
             onChange={(e) => setFilterDateRange(e.target.value)}
@@ -759,15 +750,28 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         </GlassCard>
       )}
 
+      {!isLoading && (
+        <TimelineKindFilter
+          counts={kindCounts}
+          selected={kindFilter.selected}
+          onToggle={kindFilter.toggle}
+          onClear={kindFilter.clear}
+        />
+      )}
+
       {/* Journey Timeline */}
       {!isLoading && <GlassCard className="p-6">
         {/* Empty State */}
         {filteredEvents.length === 0 && (
           <div className="text-center py-12">
             <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Journey Events Yet</h4>
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {dateFilteredEvents.length > 0 ? 'No Events Match This Filter' : 'No Journey Events Yet'}
+            </h4>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Start tracking interactions, milestones, and insights for this contact.
+              {dateFilteredEvents.length > 0
+                ? 'Choose "All" above to see every event type again.'
+                : 'Start tracking interactions, milestones, and insights for this contact.'}
             </p>
             <button
               onClick={handleGeneratePredictiveInsights}
