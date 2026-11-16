@@ -1,13 +1,16 @@
 /**
  * Deal health analysis (OpenAI Responses API, strict JSON schema).
  * POST { dealId }  ->  { success, data: { healthScore, riskLevel, indicators, risks, recommendations, nextActions, dataGaps }, model }
+ * POST { dealId, background: true } -> { success, background: true, responseId, status }   (ai_jobs row; finished by openai-webhook)
+ * POST { action: 'status', responseId } -> { success, status, data? }  (reads ai_jobs, polls OpenAI as the fallback)
  *
  * The deal and its contact are re-read with the caller's own Supabase session (RLS), so the client
  * cannot ask for an analysis of someone else's deal or feed the model made-up facts.
  */
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
-const { getUserClient } = require('./_supabaseClient');
-const { createResponse } = require('./_responses');
+const { getUserClient, supabase } = require('./_supabaseClient');
+const { createResponse, retrieveResponse } = require('./_responses');
+const { createJob, resolveJob } = require('./_aiJobs');
 
 const DAY_MS = 86400000;
 
@@ -105,9 +108,31 @@ function normalizeHealth(raw) {
   };
 }
 
+const INSTRUCTIONS =
+  'You are a sales deal-health analyst. Assess ONLY from the JSON facts provided. ' +
+  'Never invent stakeholders, competitors, budgets, meetings or emails. If a fact is null or missing, do not guess it: ' +
+  'list it under dataGaps and lower your confidence instead. Cite the supplied numbers in each indicator rationale. ' +
+  'Give 3-5 indicators, concrete recommendations and next actions the seller can do this week.';
+
 const handler = withAuth(async (event, user) => {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return errorResponse(400, 'Invalid JSON body'); }
+  if (body.action === 'status') {
+    if (typeof body.responseId !== 'string' || !/^resp_[A-Za-z0-9]+$/.test(body.responseId)) return errorResponse(400, 'responseId is required');
+    try {
+      const job = await resolveJob(supabase, user.id, body.responseId, retrieveResponse);
+      if (!job || job.kind !== 'deal_health') return errorResponse(404, 'Analysis run not found');
+      if (job.status === 'completed' && job.result && job.result.health) {
+        return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ success: true, status: 'completed', data: job.result.health, facts: job.result.context && job.result.context.facts, analyzedAt: job.completed_at }) };
+      }
+      if (job.status === 'queued' || job.status === 'in_progress') return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ success: true, status: job.status }) };
+      return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ success: false, status: 'failed', error: job.error || `Run ${job.status}` }) };
+    } catch (err) {
+      console.error('deal-health-analysis status failed:', err && err.message);
+      return errorResponse(502, 'Could not check the analysis status');
+    }
+  }
+
   const dealId = typeof body.dealId === 'string' ? body.dealId : '';
   if (!/^[0-9a-f-]{36}$/i.test(dealId)) return errorResponse(400, 'dealId is required');
 
@@ -126,21 +151,30 @@ const handler = withAuth(async (event, user) => {
 
   const facts = buildDealFacts(deal, contact);
 
+  const request = {
+    role: 'thinking',
+    effort: 'low',
+    schemaName: 'deal_health_analysis',
+    schema: HEALTH_SCHEMA,
+    user: user.id,
+    instructions: INSTRUCTIONS,
+    input: `Deal facts (JSON):\n${JSON.stringify(facts)}`,
+  };
+
+  if (body.background === true) {
+    try {
+      const started = await createResponse({ ...request, background: true, metadata: { user_id: user.id, deal_id: deal.id, purpose: 'deal_health' } });
+      await createJob(supabase, { userId: user.id, kind: 'deal_health', responseId: started.id, status: started.status || 'queued', context: { dealId: deal.id, facts } });
+      return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ success: true, background: true, responseId: started.id, status: started.status || 'queued' }) };
+    } catch (err) {
+      console.error('deal-health-analysis background start failed:', err && err.message);
+      return errorResponse(502, 'AI analysis is unavailable right now. Please try again.');
+    }
+  }
+
   let result;
   try {
-    const out = await createResponse({
-      role: 'thinking',
-      effort: 'low',
-      schemaName: 'deal_health_analysis',
-      schema: HEALTH_SCHEMA,
-      user: user.id,
-      instructions:
-        'You are a sales deal-health analyst. Assess ONLY from the JSON facts provided. ' +
-        'Never invent stakeholders, competitors, budgets, meetings or emails. If a fact is null or missing, do not guess it: ' +
-        'list it under dataGaps and lower your confidence instead. Cite the supplied numbers in each indicator rationale. ' +
-        'Give 3-5 indicators, concrete recommendations and next actions the seller can do this week.',
-      input: `Deal facts (JSON):\n${JSON.stringify(facts)}`,
-    });
+    const out = await createResponse(request);
     if (!out.json) throw new Error('Model returned no structured output');
     result = normalizeHealth(out.json);
   } catch (err) {

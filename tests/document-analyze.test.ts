@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'module';
 import zlib from 'zlib';
 
@@ -80,5 +80,79 @@ describe('detectKind', () => {
     expect(d.detectKind('x', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe('docx');
     expect(d.detectKind('notes.txt', 'text/plain')).toBe('text');
     expect(d.detectKind('a.exe', 'application/octet-stream')).toBeNull();
+  });
+});
+
+describe('storage-path flow', () => {
+  const UID = '11111111-1111-1111-1111-111111111111';
+  const mk = (over: Record<string, unknown> = {}) => {
+    const remove = vi.fn(async () => ({ error: null }));
+    const createSignedUrl = vi.fn(async () => ({ data: { signedUrl: 'https://x.supabase.co/storage/v1/object/sign/contact-documents/a.pdf?token=t' }, error: null }));
+    const download = vi.fn(async () => ({ data: new Blob([Buffer.from('Hello team. Next steps: send quote.')]), error: null }));
+    const from = vi.fn(() => ({ remove, createSignedUrl, download }));
+    const createResponse = vi.fn(async () => ({
+      json: { documentType: 'note', summary: 's', keyPoints: ['k'], actionItems: [], sentiment: 'neutral', confidence: 80 },
+      response: { model: 'm' },
+    }));
+    const handler = d.createHandler({ supabase: { storage: { from } }, createResponse, ...over });
+    return { handler, remove, createSignedUrl, download, from, createResponse };
+  };
+  const send = (handler: any, body: unknown, id = UID) =>
+    handler({ httpMethod: 'POST', headers: {}, body: JSON.stringify(body) }, { id });
+  it('isOwnedPath accepts only the caller uid prefix without traversal', () => {
+    expect(d.isOwnedPath(`${UID}/abc/f.pdf`, UID)).toBe(true);
+    expect(d.isOwnedPath(`other/abc/f.pdf`, UID)).toBe(false);
+    expect(d.isOwnedPath(`${UID}/../other/f.pdf`, UID)).toBe(false);
+    expect(d.isOwnedPath(`${UID}//f.pdf`, UID)).toBe(false);
+    expect(d.isOwnedPath(`${UID}`, UID)).toBe(false);
+  });
+
+  it("rejects another user's storage path before touching storage or OpenAI", async () => {
+    const m = mk();
+    const res = await send(m.handler, { storagePath: 'someone-else/abc/f.pdf', filename: 'f.pdf' });
+    expect(res.statusCode).toBe(403);
+    expect(m.from).not.toHaveBeenCalled();
+    expect(m.createResponse).not.toHaveBeenCalled();
+  });
+
+  it('passes a signed URL to OpenAI as input_file.file_url for PDFs and deletes the object', async () => {
+    const m = mk();
+    const path = `${UID}/abc/report.pdf`;
+    const res = await send(m.handler, { storagePath: path, filename: 'report.pdf', mimeType: 'application/pdf' });
+    expect(res.statusCode).toBe(200);
+    expect(m.createSignedUrl).toHaveBeenCalledWith(path, expect.any(Number));
+    const input = m.createResponse.mock.calls[0][0].input;
+    expect(input[0].content[0]).toEqual({ type: 'input_file', file_url: expect.stringContaining('token=t') });
+    expect(JSON.parse(res.body).data.extraction).toBe('openai-input-file');
+    expect(m.remove).toHaveBeenCalledWith([path]);
+  });
+
+  it('keeps the object when keep:true', async () => {
+    const m = mk();
+    await send(m.handler, { storagePath: `${UID}/abc/report.pdf`, filename: 'report.pdf', keep: true });
+    expect(m.remove).not.toHaveBeenCalled();
+  });
+
+  it('downloads text files server-side and extracts them', async () => {
+    const m = mk();
+    const res = await send(m.handler, { storagePath: `${UID}/abc/notes.txt`, filename: 'notes.txt' });
+    expect(res.statusCode).toBe(200);
+    expect(m.download).toHaveBeenCalled();
+    expect(m.createResponse.mock.calls[0][0].input).toContain('Hello team');
+    expect(m.remove).toHaveBeenCalled();
+  });
+
+  it('reports a missing upload honestly and still cleans up', async () => {
+    const m = mk({});
+    m.createSignedUrl.mockResolvedValueOnce({ data: null, error: { message: 'nf' } } as any);
+    const res = await send(m.handler, { storagePath: `${UID}/abc/report.pdf`, filename: 'report.pdf' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('still accepts the legacy base64 request', async () => {
+    const m = mk();
+    const res = await send(m.handler, { fileName: 'a.txt', dataBase64: Buffer.from('hi there').toString('base64') });
+    expect(res.statusCode).toBe(200);
+    expect(m.from).not.toHaveBeenCalled();
   });
 });

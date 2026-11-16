@@ -30,7 +30,7 @@ function lowerHeaders(headers) {
 }
 
 /** deps: { unwrap, retrieve, db } injectable for tests. */
-async function process(event, deps = {}) {
+async function handleWebhook(event, deps = {}) {
   const unwrap = deps.unwrap || unwrapWebhook;
   const retrieve = deps.retrieve || retrieveResponse;
   const db = deps.db || supabase;
@@ -69,5 +69,5 @@ async function process(event, deps = {}) {
   }
 }
 
-exports.handler = (event) => process(event);
-exports._internals = { process, rawBody, RESPONSE_EVENTS };
+exports.handler = (event) => handleWebhook(event);
+exports._internals = { handleWebhook, rawBody, RESPONSE_EVENTS };

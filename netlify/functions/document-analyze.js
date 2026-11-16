@@ -2,17 +2,27 @@
  * Document analysis: extract text (TXT/MD/CSV, DOCX) or hand the PDF straight to OpenAI as a Responses
  * `input_file`, then return a strict-schema summary.
  *
- * POST { fileName, mimeType?, dataBase64, context?: { contactName?, companyName? } }
+ * Two request shapes:
+ *  1. Storage path (preferred, up to 25 MB):
+ *     POST { storagePath: '<uid>/<uuid>/<filename>', filename?, mimeType?, keep?: boolean, context? }
+ *     The browser uploads straight to the private `contact-documents` bucket first (no Netlify body limit).
+ *     The path must start with the caller's uid. For PDFs a short-lived signed URL is passed to OpenAI as
+ *     `{ type: 'input_file', file_url }`; DOCX/TXT/MD/CSV bytes are downloaded server-side and run through
+ *     the extraction code below. The stored object is deleted afterwards unless `keep: true`.
+ *  2. Legacy inline (small files only):
+ *     POST { fileName, mimeType?, dataBase64, context?: { contactName?, companyName? } }
+ *     Limit 10 MB decoded, but Netlify rejects request bodies above ~6 MB, so in practice ~4.5 MB.
  *
  * DOCX is read with Node built-ins only (minimal zip central-directory reader + zlib inflateRaw).
- * Limit: 10 MB decoded. NOTE: Netlify synchronous functions reject request bodies above ~6 MB, so in
- * practice base64 uploads larger than roughly 4.5 MB of raw file never reach this handler.
  */
 const zlib = require('zlib');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { createResponse } = require('./_responses');
 
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_STORAGE_BYTES = 25 * 1024 * 1024;
+const BUCKET = 'contact-documents';
+const SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_INFLATED = 25 * 1024 * 1024;
 const MAX_TEXT_CHARS = 120000;
 
@@ -107,22 +117,78 @@ function detectKind(fileName, mimeType) {
 
 const wordCount = (t) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
-const handler = withAuth(async (event, user) => {
+/** True when `path` is `<uid>/…` with no traversal or empty segments. */
+function isOwnedPath(path, userId) {
+  if (typeof path !== 'string' || !userId || path.length > 512) return false;
+  const parts = path.split('/');
+  if (parts.length < 2 || parts[0] !== userId) return false;
+  return parts.every((p) => p && p !== '.' && p !== '..') && !path.includes('\\') && !/[\u0000-\u001f]/.test(path);
+}
+
+function createHandler(deps = {}) {
+  const getSupabase = () => deps.supabase || require('./_supabaseClient').supabase;
+  const create = deps.createResponse || createResponse;
+
+  return async function handle(event, user) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return errorResponse(400, 'Invalid JSON body'); }
-  const { fileName, mimeType, dataBase64, context } = body;
-  if (typeof dataBase64 !== 'string' || !dataBase64) return errorResponse(400, 'dataBase64 is required');
-  if (typeof fileName !== 'string' || !fileName) return errorResponse(400, 'fileName is required');
+  const { mimeType, dataBase64, context, storagePath } = body;
+  const fileName = typeof body.fileName === 'string' && body.fileName ? body.fileName
+    : typeof body.filename === 'string' ? body.filename : '';
+  const usingStorage = storagePath !== undefined;
 
-  // 4 base64 chars -> 3 bytes; reject before decoding anything large
-  if (Math.floor((dataBase64.length * 3) / 4) > MAX_BYTES) return errorResponse(413, 'File is larger than the 10 MB limit');
-  const buf = Buffer.from(dataBase64.replace(/^data:[^,]*,/, ''), 'base64');
-  if (buf.length === 0) return errorResponse(400, 'File is empty');
-  if (buf.length > MAX_BYTES) return errorResponse(413, 'File is larger than the 10 MB limit');
+  let buf = null;       // bytes (inline upload, or downloaded for non-PDF storage files)
+  let signedUrl = null; // PDF via storage
+  let kind;
 
-  const kind = detectKind(fileName, mimeType);
-  if (!kind) return errorResponse(415, 'Unsupported file type. Use PDF, DOCX or plain text.');
+  if (usingStorage) {
+    if (!isOwnedPath(storagePath, user.id)) return errorResponse(403, 'You do not have access to this file');
+    const name = fileName || storagePath.split('/').pop();
+    kind = detectKind(name, mimeType);
+    if (!kind) return errorResponse(415, 'Unsupported file type. Use PDF, DOCX or plain text.');
+    body.__name = name;
+  } else {
+    if (typeof dataBase64 !== 'string' || !dataBase64) return errorResponse(400, 'dataBase64 or storagePath is required');
+    if (!fileName) return errorResponse(400, 'fileName is required');
+    // 4 base64 chars -> 3 bytes; reject before decoding anything large
+    if (Math.floor((dataBase64.length * 3) / 4) > MAX_BYTES) return errorResponse(413, 'File is larger than the 10 MB limit');
+    buf = Buffer.from(dataBase64.replace(/^data:[^,]*,/, ''), 'base64');
+    if (buf.length === 0) return errorResponse(400, 'File is empty');
+    if (buf.length > MAX_BYTES) return errorResponse(413, 'File is larger than the 10 MB limit');
+    kind = detectKind(fileName, mimeType);
+    if (!kind) return errorResponse(415, 'Unsupported file type. Use PDF, DOCX or plain text.');
+    body.__name = fileName;
+  }
+  const displayName = body.__name;
 
+  const cleanup = async () => {
+    if (!usingStorage || body.keep === true) return;
+    try { await getSupabase().storage.from(BUCKET).remove([storagePath]); }
+    catch (e) { console.error('document-analyze cleanup failed:', e && e.message); }
+  };
+
+  try {
+    if (usingStorage) {
+      const storage = getSupabase().storage.from(BUCKET);
+      if (kind === 'pdf') {
+        const { data, error } = await storage.createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
+        if (error || !data || !data.signedUrl) return errorResponse(404, 'Uploaded file not found. Please upload it again.');
+        signedUrl = data.signedUrl;
+      } else {
+        const { data, error } = await storage.download(storagePath);
+        if (error || !data) return errorResponse(404, 'Uploaded file not found. Please upload it again.');
+        const ab = await data.arrayBuffer();
+        if (ab.byteLength > MAX_STORAGE_BYTES) return errorResponse(413, 'File is larger than the 25 MB limit');
+        buf = Buffer.from(ab);
+        if (buf.length === 0) return errorResponse(400, 'File is empty');
+      }
+    }
+    return await analyse();
+  } finally {
+    await cleanup();
+  }
+
+  async function analyse() {
   const ctx = [context?.contactName && `Contact: ${context.contactName}`, context?.companyName && `Company: ${context.companyName}`].filter(Boolean).join('; ');
   const instructions =
     'You summarise business documents for a CRM user. Use ONLY what is in the document; never invent facts, names, numbers or dates. ' +
@@ -134,28 +200,28 @@ const handler = withAuth(async (event, user) => {
   let truncated = false;
   try {
     if (kind === 'pdf') {
-      if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return errorResponse(400, 'File is not a valid PDF');
-      input = [{
-        role: 'user',
-        content: [
-          { type: 'input_file', filename: fileName.slice(0, 120), file_data: `data:application/pdf;base64,${buf.toString('base64')}` },
-          { type: 'input_text', text: 'Summarise this document.' },
-        ],
-      }];
+      let filePart;
+      if (signedUrl) {
+        filePart = { type: 'input_file', file_url: signedUrl };
+      } else {
+        if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return errorResponse(400, 'File is not a valid PDF');
+        filePart = { type: 'input_file', filename: displayName.slice(0, 120), file_data: `data:application/pdf;base64,${buf.toString('base64')}` };
+      }
+      input = [{ role: 'user', content: [filePart, { type: 'input_text', text: 'Summarise this document.' }] }];
     } else {
       let text = kind === 'docx' ? extractDocxText(buf) : buf.toString('utf8');
       text = text.replace(/\u0000/g, '').trim();
       if (!text) return errorResponse(422, 'No readable text found in this document');
       words = wordCount(text);
       if (text.length > MAX_TEXT_CHARS) { text = text.slice(0, MAX_TEXT_CHARS); truncated = true; }
-      input = `Document "${fileName}"${truncated ? ' (truncated to the first part)' : ''}:\n\n${text}`;
+      input = `Document "${displayName}"${truncated ? ' (truncated to the first part)' : ''}:\n\n${text}`;
     }
   } catch (err) {
     return errorResponse(422, `Could not read this file: ${err.message}`);
   }
 
   try {
-    const out = await createResponse({
+    const out = await create({
       role: 'default',
       effort: 'low',
       schemaName: 'document_summary',
@@ -188,8 +254,13 @@ const handler = withAuth(async (event, user) => {
     };
   } catch (err) {
     console.error('document-analyze failed:', err && err.message);
+    if (signedUrl && err && err.status === 400) return errorResponse(422, 'The AI service could not read this PDF. It may be encrypted, corrupted or too large.');
     return errorResponse(502, 'AI document analysis is unavailable right now. Please try again.');
   }
-});
+  }
+  };
+}
 
-module.exports = { handler, extractDocxText, readZipEntry, wordXmlToText, detectKind, SUMMARY_SCHEMA, MAX_BYTES };
+const handler = withAuth(createHandler());
+
+module.exports = { handler, createHandler, isOwnedPath, MAX_STORAGE_BYTES, BUCKET, extractDocxText, readZipEntry, wordXmlToText, detectKind, SUMMARY_SCHEMA, MAX_BYTES };

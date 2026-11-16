@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { executeDealAi } from '../../ai/deal/executeDealAi';
-import { metorialService } from '../../services/metorialService';
+import { gpt52EnrichmentService } from '../../services/gpt52EnrichmentService';
 import { sanitizeHtml } from '../../utils/validation';
 
 const esc = (v: string | null | undefined): string =>

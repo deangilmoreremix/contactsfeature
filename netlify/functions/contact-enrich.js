@@ -6,6 +6,8 @@
  *
  * Web research with a reasoning model can exceed Netlify's sync function limit, so the
  * run is started in Responses background mode and polled by the client.
+ * An ai_jobs row is written when the run starts so openai-webhook can finish it; `status` prefers that
+ * row and falls back to polling the response (also finishing the row) when no webhook has arrived.
  * Only publicly available professional information is requested; nothing is guessed.
  */
 const { supabase } = require('./_supabaseClient');
@@ -13,6 +15,7 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { isValidUUID, parseBody, sanitizeString } = require('./_validation');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { createResponse, retrieveResponse, parseJson, resolveModel } = require('./_responses');
+const { createJob, getJob, completeJob, isTerminal } = require('./_aiJobs');
 
 const log = createLogger('contact-enrich');
 
@@ -151,8 +154,18 @@ exports.handler = withAuth(async (event, user) => {
       if (typeof body.responseId !== 'string' || !/^resp_[A-Za-z0-9]+$/.test(body.responseId)) {
         return errorResponse(400, 'responseId is required');
       }
-      const run = await retrieveResponse(body.responseId, { parseJson: true });
-      if (!run.metadata || run.metadata.user_id !== user.id) return errorResponse(404, 'Enrichment run not found');
+      let job = await getJob(supabase, user.id, body.responseId);
+      let run;
+      if (job && job.status === 'completed' && job.result && job.result.json) {
+        // finished by the webhook: no need to call OpenAI
+        run = { id: job.response_id, status: 'completed', json: job.result.json, citations: job.result.citations || [], sources: job.result.sources || [], metadata: job.result.metadata || {}, response: { model: job.result.model } };
+      } else if (job && isTerminal(job.status) && job.status !== 'completed') {
+        return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ status: 'failed', error: job.error || `Run ${job.status}` }) };
+      } else {
+        run = await retrieveResponse(body.responseId, { parseJson: true });
+        if (!run.metadata || run.metadata.user_id !== user.id) return errorResponse(404, 'Enrichment run not found');
+        if (job) await completeJob(supabase, job, run).catch((e) => log.warn('Could not update ai_jobs', { error: e.message }));
+      }
 
       if (run.status === 'queued' || run.status === 'in_progress') {
         return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ status: run.status }) };
@@ -221,6 +234,8 @@ exports.handler = withAuth(async (event, user) => {
       metadata: { user_id: user.id, contact_id: persisted ? contact.id : '', purpose: 'contact_enrichment' },
       user: user.id,
     });
+
+    await createJob(supabase, { userId: user.id, kind: 'contact_enrichment', responseId: started.id, status: started.status || 'queued' });
 
     log.info('Enrichment started', { contactId: persisted ? contact.id : null, responseId: started.id, model: resolveModel('thinking').model });
     return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ responseId: started.id, status: started.status || 'queued' }) };

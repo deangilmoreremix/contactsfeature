@@ -141,4 +141,18 @@ async function completeJob(db, job, run) {
   return { job: updated, changed: true };
 }
 
-module.exports = { createJob, getJob, getJobByResponseId, completeJob, isTerminal, defaultResult, KINDS, TERMINAL };
+/**
+ * Resolve a job for a status endpoint: read the ai_jobs row (kept fresh by openai-webhook) and, when it
+ * is still open, poll the response once and finish the row (the fallback when no webhook arrived).
+ * Returns the up-to-date row or null when the caller has no such job.
+ */
+async function resolveJob(db, userId, responseId, retrieve) {
+  let job = await getJob(db, userId, responseId);
+  if (!job || isTerminal(job.status)) return job;
+  const run = await retrieve(responseId, { parseJson: true });
+  if (run.metadata && run.metadata.user_id && run.metadata.user_id !== userId) return null;
+  const out = await completeJob(db, job, run);
+  return out.job || job;
+}
+
+module.exports = { resolveJob, createJob, getJob, getJobByResponseId, completeJob, isTerminal, defaultResult, KINDS, TERMINAL };
