@@ -553,7 +553,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
     console.log('AIInsightsPanel: handleGenerateIntelligence called for contact:', contact.id);
     try {
       console.log('AIInsightsPanel: Generating correlation');
-      await generateCorrelation(contact, true);
+      await live.run((opts) => generateCorrelation(contact, true, opts));
       console.log('AIInsightsPanel: Generating recommendations');
       await live.run((opts) => generateRecommendations(contact, undefined, opts));
       console.log('AIInsightsPanel: Intelligence generated successfully');

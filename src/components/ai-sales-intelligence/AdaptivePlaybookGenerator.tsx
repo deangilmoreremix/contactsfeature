@@ -461,7 +461,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           </p>
           <ModernButton size="toolbar"
             variant="primary"
-            onClick={generatePlaybook}
+            onClick={() => generatePlaybook()}
             aria-label="Generate adaptive sales playbook"
           >
             🎯 Generate Playbook

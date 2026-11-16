@@ -13,6 +13,8 @@ export default defineConfig({
   testDir: './',
   testMatch: /ai-sweep\.spec\.ts/,
   reporter: 'list',
+  globalSetup: './helpers/aiSweepGlobal.ts',
+  globalTeardown: './helpers/aiSweepTeardown.ts',
   workers: 1,
   timeout: 10 * 60_000,
   use: {

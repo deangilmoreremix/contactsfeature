@@ -1,4 +1,6 @@
 import React, { useState, useCallback, memo } from 'react';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { useLiveCall } from '../../hooks/useLiveCall';
 import { X, AlertCircle, CheckCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { ProductIntelligenceInput } from './ProductIntelligenceInput';
 import { ProductIntelligenceResults } from './ProductIntelligenceResults';
@@ -33,6 +35,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
   contactIds = []
 }) => {
   const [state, setState] = useState<ModalState>({ step: 'input' });
+  const live = useLiveCall();
 
   const handleAnalysisStart = useCallback(async (input: { urls: string[], documents: File[], businessName?: string }) => {
     setState({ step: 'analyzing', progress: { stage: 'input', progress: 0, message: 'Initializing analysis...' } });
@@ -48,7 +51,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
 
       // Analyze web content if URLs provided
       if (input.urls.length > 0) {
-        analysisResult = await productIntelligenceService.analyzeWebContent(input.urls, input.businessName);
+        analysisResult = await live.run((opts) => productIntelligenceService.analyzeWebContent(input.urls, input.businessName, opts)) as AnalysisResults;
       } else if (input.documents.length > 0 && input.documents[0]) {
         // For documents, analyze the first one (in a real implementation, you'd handle multiple)
         analysisResult = await productIntelligenceService.analyzeDocument(input.documents[0], input.businessName);
@@ -249,6 +252,9 @@ Sales Playbook: 1
           </div>
         </div>
 
+        {state.step === 'analyzing' && (
+          <div className="px-6 pt-4"><LiveRunStatus live={live} showText /></div>
+        )}
         {/* Progress Indicator */}
         {state.step === 'analyzing' && state.progress && (
           <div className="px-6 py-4 bg-blue-50 border-b border-blue-200">

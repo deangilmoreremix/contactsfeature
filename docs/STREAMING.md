@@ -26,3 +26,13 @@ Comments `: ping` are heartbeats (every 15 s). The stream ends with `data: [DONE
 `src/services/aiClient.ts` (`aiStream`, `aiJson(req, handlers)`), `src/hooks/useAIStream.ts`, `src/components/ui/StreamingOutput.tsx`, parser `src/lib/streaming/streamClient.ts`.
 
 Non-visible pipelines (scheduled autopilot, batch apply, webhook completion) intentionally stay non-streaming and are listed in `scripts/streaming-allowlist.txt`.
+
+## AI controls sweep (every UI AI control must stream)
+`tests/playwright/ai-sweep.spec.ts` builds the app (production build, `VITE_STREAM_GUARD=1`, `VITE_SUPABASE_URL` pointing at the drip server), serves it with `vite preview`, answers every `/.netlify/functions/*` and Supabase `/functions/v1/*` call with a real dripping SSE stream (`tests/playwright/helpers/aiSweepDrip.ts`, 150-300 ms between events) and clicks each control listed in `tests/playwright/helpers/aiSweepControls.ts` (contact sidebar, every contact-detail tab, all 14 SDR agents, the 12 agent "Run" buttons, contacts-list controls, New Contact research). Per control it asserts: (a) every request asked for a stream (`Accept: text/event-stream`, `stream:true` or `?stream=true`, checked server-side on the real request), (b) `window.__streamViolations` stays empty, (c) when output appears on screen it grows across >= 3 snapshots while the stream is still open. Controls that cannot produce output (dead handlers, external links, no deal in the demo data) are recorded SKIPPED with the reason, never as a pass; a documented non-streaming pipeline is also SKIPPED. A completeness test fails when a mounted UI file that consumes an AI endpoint has no control.
+
+```
+npx playwright test -c tests/playwright/ai-sweep.config.ts                      # build + serve + sweep (~13 min)
+AI_SWEEP_SKIP_BUILD=1 npx playwright test -c tests/playwright/ai-sweep.config.ts # reuse the build in $AI_SWEEP_DIST
+AI_SWEEP_ONLY='^sdr\.' npx playwright test -c tests/playwright/ai-sweep.config.ts # subset by control id
+```
+Report: `$AI_SWEEP_REPORT` (JSON, default in the session scratchpad) plus a printed table; light/dark screenshots of a subset go to `$SHOTS`. Ports: app 5311 (`AI_SWEEP_PORT`), drip server 5312 (`AI_SWEEP_DRIP_PORT`). Set `CHROME_PATH` to use another browser (default `/usr/bin/google-chrome`, `--no-sandbox`).

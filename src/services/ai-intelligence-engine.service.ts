@@ -76,12 +76,13 @@ class AIIntelligenceEngine {
     contactId: string,
     contact: Contact,
     recentInsights: ContactInsight[] = [],
-    communicationHistory: any[] = []
+    communicationHistory: any[] = [],
+    live?: LiveOptions
   ): Promise<IntelligenceCorrelation> {
     logger.info('Generating intelligence correlation', { contactId });
 
     // Gather insights from multiple sources
-    const insights = await this.gatherMultiSourceInsights(contactId, contact, recentInsights);
+    const insights = await this.gatherMultiSourceInsights(contactId, contact, recentInsights, live);
     
     // Analyze correlations and patterns
     const correlation = this.analyzeInsightCorrelations(contactId, insights, communicationHistory);
@@ -232,7 +233,8 @@ class AIIntelligenceEngine {
   private async gatherMultiSourceInsights(
     contactId: string,
     contact: Contact,
-    existingInsights: ContactInsight[]
+    existingInsights: ContactInsight[],
+    live?: LiveOptions
   ): Promise<Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }>> {
     const insights = [];
     
@@ -248,7 +250,7 @@ class AIIntelligenceEngine {
     
     // Generate communication insights
     try {
-      const commStrategy = await communicationAI.generateCommunicationStrategy(contact);
+      const commStrategy = await communicationAI.generateCommunicationStrategy(contact, undefined, undefined, live);
       if (commStrategy) {
         insights.push({
           source: 'communication_analysis',

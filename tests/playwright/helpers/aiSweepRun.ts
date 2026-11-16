@@ -5,8 +5,6 @@ import type { DripLogEntry } from './aiSweepDrip';
 import path from 'node:path';
 
 export const AI_ENDPOINTS = new Set<string>((JSON.parse(fs.readFileSync(path.join(process.cwd(), 'src/lib/streaming/aiEndpoints.json'), 'utf8')) as { endpoints: string[] }).endpoints);
-/** requests that are asserted to ask for a stream even though the guard does not list them */
-export const ALSO_STREAMING = new Set(['agent-runner']);
 export const DRIP_PORT = Number(process.env.AI_SWEEP_DRIP_PORT || 5312);
 export const REPORT_PATH = process.env.AI_SWEEP_REPORT || '/tmp/claude-0/-home-user-contactsfeature/d6437847-acb2-53c6-93db-7d5401eb9b08/scratchpad/ai-sweep-report.json';
 export const SHOTS = process.env.SHOTS || '/tmp/claude-0/-home-user-contactsfeature/d6437847-acb2-53c6-93db-7d5401eb9b08/scratchpad';
@@ -17,6 +15,8 @@ export interface Row {
   endpoints: string[]; streamed: boolean | null; violations: number;
   output: 'inline-grew' | 'inline-jump' | 'none' | 'n/a'; snapshots: number[]; firstOutputMs: number | null; streamMs: number | null;
   ui: string; productBug: boolean;
+  requests: Array<{ endpoint: string; accept: string; bodyStream: boolean; queryStream: boolean; listedInGuard: boolean }>;
+  openRequests: number;
 }
 
 export async function openApp(page: Page, theme: 'light' | 'dark' = 'light', openContact = true) {
@@ -51,6 +51,19 @@ export async function gotoTab(page: Page, tab: string) {
 
 const peek = async (): Promise<DripLogEntry[]> => (await (await fetch(`http://127.0.0.1:${DRIP_PORT}/__log?peek=1`)).json()) as DripLogEntry[];
 export const drainLog = async (): Promise<DripLogEntry[]> => (await (await fetch(`http://127.0.0.1:${DRIP_PORT}/__log`)).json()) as DripLogEntry[];
+
+/** Wait until no AI stream is in flight and nothing new started for `quietMs` (auto-run on tab open, background loads). */
+export async function settle(page: Page, quietMs = 1200, maxMs = 25_000) {
+  const end = Date.now() + maxMs;
+  let last = Date.now();
+  let n = -1;
+  while (Date.now() < end) {
+    const log = await peek();
+    if (log.length !== n || log.some((e) => e.endedAt === null)) { n = log.length; last = Date.now(); }
+    if (Date.now() - last > quietMs) return;
+    await page.waitForTimeout(100);
+  }
+}
 
 export interface Sample { t: number; text: string }
 export interface SampleResult { samples: Sample[]; log: DripLogEntry[]; clickAt: number }
@@ -97,9 +110,11 @@ export function analyse(res: SampleResult): Analysis {
   const reqs = res.log;
   const first = reqs.length ? Math.min(...reqs.map((r) => r.at)) : null;
   const last = reqs.length ? Math.max(...reqs.map((r) => r.endedAt ?? r.at)) : null;
-  const base = first === null ? res.samples[0]!.text : (res.samples.filter((s) => s.t <= first).pop() ?? res.samples[0]!).text;
+  // baseline: the page 140 ms after the request reached the server (the first SSE event is >= 150 ms later), so what
+  // the click rendered synchronously (a modal, a layout, a spinner) is not counted as streamed output
+  const base = first === null ? res.samples[0]!.text : (res.samples.filter((s) => s.t <= first + 140).pop() ?? res.samples[0]!).text;
   const baseLines = lines(base);
-  const after = first === null ? res.samples : res.samples.filter((s) => s.t >= first);
+  const after = first === null ? res.samples : res.samples.filter((s) => s.t >= first + 100);
   const newChars = after.map((s) => [...lines(s.text)].filter((l) => !baseLines.has(l)).join('\n').length);
   const distinct = new Set(newChars).size;
   const final = after.length ? [...lines(after[after.length - 1]!.text)].filter((l) => !baseLines.has(l)) : [];
@@ -116,10 +131,35 @@ export function analyse(res: SampleResult): Analysis {
   return { newChars, firstOutputMs: firstOut && first !== null ? firstOut.t - first : null, streamMs: first !== null && last !== null ? last - first : null, output, distinct, uiMessage: msg.slice(0, 140) };
 }
 
-export function writeReport(rows: Row[], extra: Record<string, unknown>) {
-  fs.mkdirSync(REPORT_PATH.replace(/\/[^/]*$/, ''), { recursive: true });
-  const count = (s: Status) => rows.filter((r) => r.status === s).length;
-  fs.writeFileSync(REPORT_PATH, JSON.stringify({ generatedAt: new Date().toISOString(), totals: { controls: rows.length, passed: count('PASS'), skipped: count('SKIPPED'), failed: count('FAIL') }, rows, ...extra }, null, 2));
+/** Rows are persisted per test (Playwright restarts the worker after a failure, so memory is not enough). */
+const ROWS_FILE = () => `${REPORT_PATH}.ndjson`;
+export function resetRows() { fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true }); fs.writeFileSync(ROWS_FILE(), ''); }
+export function appendLine(kind: 'row' | 'extra', value: unknown, key?: string) { fs.appendFileSync(ROWS_FILE(), JSON.stringify({ kind, key, value }) + '\n'); }
+
+/** Called once from globalTeardown: builds the JSON report + prints the table from the persisted rows. */
+export function finalizeReport() {
+  if (!fs.existsSync(ROWS_FILE())) return;
+  const byId = new Map<string, Row>();
+  const extra: Record<string, unknown> = {};
+  for (const line of fs.readFileSync(ROWS_FILE(), 'utf8').split('\n').filter(Boolean)) {
+    const e = JSON.parse(line) as { kind: string; key?: string; value: unknown };
+    if (e.kind === 'row') byId.set((e.value as Row).id, e.value as Row); else extra[e.key!] = e.value;
+  }
+  const rows = [...byId.values()];
+  const unlisted = new Map<string, Set<string>>();
+  for (const r of rows) for (const q of r.requests) if (!q.listedInGuard) (unlisted.get(q.endpoint) ?? unlisted.set(q.endpoint, new Set()).get(q.endpoint)!).add(r.id);
+  const hit = new Set(rows.flatMap((r) => r.endpoints));
+  const count = (st: Status) => rows.filter((r) => r.status === st).length;
+  fs.writeFileSync(REPORT_PATH, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    totals: { controls: rows.length, passed: count('PASS'), skipped: count('SKIPPED'), failed: count('FAIL') },
+    rows,
+    endpointsNotInGuardList: Object.fromEntries([...unlisted].map(([k, v]) => [k, [...v]])),
+    guardEndpointsNeverReachedByAControl: [...AI_ENDPOINTS].filter((e) => !hit.has(e)),
+    ...extra,
+  }, null, 2));
+  printTable(rows);
+  console.log(`\nAI controls sweep: ${rows.length} controls, ${count('PASS')} passed, ${count('SKIPPED')} skipped, ${count('FAIL')} failed. Report: ${REPORT_PATH}`);
 }
 
 export function printTable(rows: Row[]) {

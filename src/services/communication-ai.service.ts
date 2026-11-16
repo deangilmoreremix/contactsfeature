@@ -3,6 +3,7 @@
  * AI-powered communication analysis, generation, and optimization
  */
 
+import type { LiveOptions } from './liveOptions';
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
 import { logger } from './logger.service';
 import { Contact } from '../types';
@@ -220,9 +221,11 @@ class CommunicationAIService {
   async generateCommunicationStrategy(
     contact: Contact,
     interactionHistory?: any[],
-    businessGoals?: string[]
+    businessGoals?: string[],
+    live?: LiveOptions
   ): Promise<CommunicationStrategy> {
     const request: Omit<AIRequest, 'id'> = {
+      ...(live ? { live } : {}),
       type: 'communication_analysis',
       priority: 'medium',
       data: {

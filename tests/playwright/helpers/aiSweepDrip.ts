@@ -27,14 +27,37 @@ function growing(obj: Record<string, unknown>, result: unknown, id: string): Ev[
   const evs: Ev[] = [started(id)];
   const acc: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
+    if (Array.isArray(v) && v.length > 1) {
+      for (let i = 1; i < v.length; i += 1) { acc[k] = v.slice(0, i); evs.push({ type: 'partial', json: { ...acc } }); }
+    }
     if (typeof v === 'string' && v.length > 40) {
       acc[k] = v.slice(0, Math.floor(v.length / 3)); evs.push({ type: 'partial', json: { ...acc } });
       acc[k] = v.slice(0, Math.floor((v.length * 2) / 3)); evs.push({ type: 'partial', json: { ...acc } });
     }
     acc[k] = v; evs.push({ type: 'partial', json: { ...acc } });
   }
-  evs.push({ type: 'result', data: result }, done(id, JSON.stringify(obj), obj));
+  if (result !== undefined) evs.push({ type: 'result', data: result });
+  evs.push(done(id, JSON.stringify(obj), obj));
   return evs;
+}
+
+/** an instance of a JSON schema (strings are long enough to be streamed in pieces) */
+function synth(schema: any, key = '', depth = 0): unknown {
+  const sc = schema?.schema ?? schema;
+  if (!sc || depth > 5) return null;
+  if (Array.isArray(sc.enum)) return sc.enum[0];
+  const t = Array.isArray(sc.type) ? sc.type.find((x: string) => x !== 'null') : sc.type;
+  if (t === 'object' || sc.properties) {
+    const o: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries<any>(sc.properties ?? {})) o[k] = synth(v, k, depth + 1);
+    return o;
+  }
+  if (t === 'array') return [synth(sc.items, key, depth + 1), synth(sc.items, key, depth + 1)];
+  if (t === 'number' || t === 'integer') return 72;
+  if (t === 'boolean') return true;
+  if (key === 'type') return 'opportunity';
+  if (key === 'category') return 'Growth';
+  return /subject|title|name|label|headline/i.test(key) ? `A clear ${key || 'title'} for ACME Retail` : `${LONG} (${key || 'text'})`;
 }
 
 /** text answer: status, deltas, result, done */
@@ -64,8 +87,34 @@ const ENRICH = {
 const EMAIL = { subject: 'Following up on our call', body: EMAIL_BODY, purpose: 'follow_up', tone: 'professional', model: 'gpt-test' };
 const ANALYSIS = { metrics: { wordCount: 30 }, toneAnalysis: {}, dominantTone: 'professional', qualityScore: 81, responseLikelihood: 64, improvements: [], assessment: 'Clear and concise with one strong call to action.', confidence: 80, model: 'gpt-test', analyzedAt: new Date().toISOString() };
 
+const person = (n: number, first: string, last: string, title: string, company: string, industry: string) => ({
+  id: `00000000-0000-4000-8000-00000000000${n}`, firstName: first, lastName: last, name: `${first} ${last}`, email: `${first.toLowerCase()}@${company.toLowerCase().replace(/\s+/g, '')}.com`, phone: '+1 555 6723',
+  title, company, industry, interestLevel: 'medium', status: 'prospect', sources: ['Email'], tags: [], isFavorite: false, notes: '', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z',
+});
+/** rows returned for /rest/v1/contacts (the fake Supabase) */
+const CONTACTS = [
+  person(1, 'Brooklyn', 'Simmons', 'Retail Operations Manager', 'ACME Retail', 'Retail'),
+  person(2, 'Cameron', 'Williamson', 'VP of Sales', 'Northwind Traders', 'Software'),
+  person(3, 'Darlene', 'Robertson', 'Head of Growth', 'Globex Corporation', 'Media'),
+];
+
 type Script = (body: any, url: URL) => Ev[];
+const LONG = 'A specific, personalised line that references the contact, the company and a recent trigger so the reader sees why this message is for them and what the next step is.';
+/** the 8 Agents-SDK SDR agents: field keys come from src/components/sdr/<Agent>SDRAgent.tsx */
+const agentScript = (id: string, extra: Record<string, unknown>): Script => () => growing({ ...extra }, { ...extra }, id);
 const SCRIPTS: Record<string, Script> = {
+  'ai-stream': (body) => {
+    if (body?.schema) { const o = synth(body.schema) as Record<string, unknown>; return growing(o, undefined, 'r_ai'); }
+    return [started('r_ai'), { type: 'status', tool: 'web_search', phase: 'searching', label: 'Searching the web…' }, ...chunks(TEXT), done('r_ai', TEXT)];
+  },
+  'linkedin-sdr': agentScript('r_li', { connectionNote: LONG, followUpMessage: LONG + ' Happy to share a short example if useful.', talkingPoints: ['Store expansion', 'Ops hiring'] }),
+  'whatsapp-sdr': agentScript('r_wa', { message: LONG, templateSuggestion: 'Hi {{1}}, quick question about {{2}}. Worth a chat this week?', optInReminder: 'Only message contacts who opted in to WhatsApp.' }),
+  'event-based-sdr': agentScript('r_ev', { trigger: 'ACME Retail opened twelve new stores this month and is hiring managers.', eventSources: ['https://news.example.com/acme'], subject: 'Congrats on the new stores', body: EMAIL_BODY }),
+  'referral-sdr': agentScript('r_rf', { subject: 'Could you introduce me?', body: EMAIL_BODY, forwardableBlurb: LONG, idealIntroProfile: 'Head of retail operations at a regional chain with 10+ stores.' }),
+  'newsletter-sdr': agentScript('r_nl', { subject: 'Our retail ops newsletter', preheader: 'Three ideas to ramp new store managers faster', body: EMAIL_BODY, cta: 'Read this month\'s issue' }),
+  'high-intent-sdr': agentScript('r_hi', { urgency: 'high', intentSignals: ['Visited pricing twice', 'Asked about onboarding'], subject: 'Saw you looking at pricing', body: EMAIL_BODY, suggestedNextAction: 'Call within the hour' }),
+  'data-enrichment-sdr': agentScript('r_de', { summary: 'Brooklyn Simmons is Retail Operations Manager at ACME Retail, a mid-size retailer with a growing store footprint.', title: 'Retail Operations Manager', company: 'ACME Retail', industry: 'Retail', companySize: '200-500', linkedinUrl: 'https://linkedin.com/in/example', websiteUrl: 'https://acme.example', confidence: 'high', evidence: ['Company site team page', 'Recent news article'] }),
+  'competitor-aware-sdr': agentScript('r_ca', { competitor: 'RivalCo', differentiators: ['Faster setup', 'Lower price'], sources: ['https://rival.example'], subject: 'A different take on retail ops', body: EMAIL_BODY, battlecard: LONG + ' Lead with setup speed.' }),
   'cold-email-sdr': () => growing(COLD, { ...COLD }, 'r_sdr'),
   'follow-up-sdr': () => growing(COLD, { ...COLD }, 'r_sdr'),
   'objection-handler-sdr': () => growing(COLD, { ...COLD }, 'r_sdr'),
@@ -129,15 +178,18 @@ export function startAiSweepDrip(port: number): Promise<http.Server & { log: Dri
     if (u.pathname.startsWith('/auth/v1/user')) { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify({ id: 'user-1', aud: 'authenticated', email: 'me@example.com' })); return; }
     if (u.pathname.startsWith('/rest/v1/')) {
       for await (const _c of req) { /* drain */ }
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Content-Range': '0-0/*' });
-      res.end('[]');
+      const isContacts = u.pathname === '/rest/v1/contacts' && req.method === 'GET';
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Range', 'Content-Range': isContacts ? `0-${CONTACTS.length - 1}/${CONTACTS.length}` : '*/0' });
+      res.end(JSON.stringify(isContacts ? CONTACTS : []));
       return;
     }
     let raw = '';
     for await (const c of req) raw += c;
     let body: any = {};
     try { body = JSON.parse(raw || '{}'); } catch { /* ignore */ }
-    const endpoint = u.pathname.split('/').pop() || '';
+    const m = /\/(?:\.netlify\/functions|functions\/v1)\/([a-z0-9-]+)/.exec(u.pathname);
+    if (!m) { res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify({ error: `not a function: ${u.pathname}` })); return; }
+    const endpoint = m[1]!;
     const accept = String(req.headers['accept'] || '');
     const bodyStream = body?.stream === true;
     const queryStream = u.searchParams.get('stream') === 'true';
@@ -146,6 +198,14 @@ export function startAiSweepDrip(port: number): Promise<http.Server & { log: Dri
     const entry = log[log.length - 1]!;
     res.on('close', () => { entry.endedAt = Date.now(); });
     const id = `r_${endpoint}`;
+    if (endpoint === 'ai-respond') {
+      // the plain-JSON twin of ai-stream: one JSON document, no SSE (what a non-streaming caller gets)
+      const o = body?.schema ? synth(body.schema) : null;
+      await sleep(400);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ id, text: o ? JSON.stringify(o) : TEXT, json: o, citations: [], usage: null }));
+      return;
+    }
     if (script) return play(res, script(body, u));
     // generic: streams for any endpoint without a dedicated script
     const obj = { text: TEXT, summary: TEXT };

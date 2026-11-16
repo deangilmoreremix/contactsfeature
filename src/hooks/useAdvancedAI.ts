@@ -100,7 +100,8 @@ export const useAdvancedAI = () => {
   // Intelligence Engine Methods
   const generateIntelligenceCorrelation = useCallback(async (
     contact: Contact,
-    includeHistory: boolean = true
+    includeHistory: boolean = true,
+    live?: LiveOptions
   ): Promise<IntelligenceCorrelation> => {
     setState(prev => ({ ...prev, isAnalyzing: true, errors: new Map(prev.errors.set(contact.id, '')) }));
     
@@ -109,7 +110,8 @@ export const useAdvancedAI = () => {
         contact.id,
         contact,
         [], // existing insights will be fetched internally
-        includeHistory ? [] : undefined // communication history
+        includeHistory ? [] : undefined, // communication history
+        live
       );
 
       setState(prev => {
@@ -382,7 +384,8 @@ export const useAdvancedAI = () => {
         contact.id,
         contact,
         [], // existing insights will be fetched internally
-        includeHistory ? [] : undefined // communication history
+        includeHistory ? [] : undefined, // communication history
+        live
       );
 
       yield { type: 'progress', progress: 100, stage: 'Intelligence correlation complete!' };

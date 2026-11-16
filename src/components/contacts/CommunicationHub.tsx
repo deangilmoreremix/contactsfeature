@@ -266,10 +266,11 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
           }
 
           // Generate SMS content using GPT-5
-          const smsResult = await gpt5ToolsService.sendSMS({
-            to: contact.phone,
+          const smsResult = await hub.runLive((h) => gpt5ToolsService.sendSMS({
+            to: contact.phone as string,
             message: `Hi ${contact.firstName || contact.name}, following up on our recent conversation. Would you be available for a quick call this week?`
-          });
+          }, h));
+          if (!smsResult) { researchThinking.complete('Stopped'); return; }
 
           if (smsResult.success && smsResult.smsAppUrl) {
             window.open(smsResult.smsAppUrl, '_blank');
@@ -285,10 +286,11 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
           }
 
           // Prepare call with GPT-5 enhanced notes
-          const callResult = await gpt5ToolsService.makeCall({
-            to: contact.phone,
+          const callResult = await hub.runLive((h) => gpt5ToolsService.makeCall({
+            to: contact.phone as string,
             notes: `Call preparation for ${contact.firstName || contact.name} at ${contact.company}. Recent research: ${searchResults.content.substring(0, 200)}...`
-          });
+          }, h));
+          if (!callResult) { researchThinking.complete('Stopped'); return; }
 
           if (callResult.success && callResult.callUrl) {
             window.open(callResult.callUrl, '_blank');
