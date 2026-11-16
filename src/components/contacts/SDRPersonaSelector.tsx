@@ -3,6 +3,9 @@ import { Contact } from '../../types/contact';
 import { OUTBOUND_PERSONAS, OutboundPersonaId } from '../../agents/personas';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { useAIStream } from '../../hooks/useAIStream';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import {
   Send,
   Users,
@@ -39,6 +42,7 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
 }) => {
   const [selectedPersona, setSelectedPersona] = useState<OutboundPersonaId | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const stream = useAIStream<Record<string, unknown>>();
 
   // Filter personas based on category if provided
   const filteredPersonas = categoryFilter
@@ -127,22 +131,16 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
       const endpoint = getSDREndpointForPersona(personaId);
       console.log(`Running SDR persona ${personaId} via ${endpoint} for contact ${contact.id}`);
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactId: contact.id,
-          personaId,
-          followUpNumber: 1
-        })
+      // Streams over SSE: the draft appears while it is written (Stop aborts the run).
+      const result = await stream.runFunction(endpoint, {
+        contactId: contact.id,
+        personaId,
+        followUpNumber: 1
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `SDR request failed with status ${response.status}`);
+      if (result === null) {
+        // stopped by the user or failed (the error is shown below): nothing was executed
+        return;
       }
-
-      const result = await response.json();
       console.log('SDR persona result:', result);
 
       setLastRunPersona(personaId);
@@ -236,6 +234,20 @@ export const SDRPersonaSelector: React.FC<SDRPersonaSelectorProps> = ({
           </div>
         );
       })}
+
+      {/* Live output while the persona runs */}
+      {isRunning && (
+        <StreamingOutput
+          state={stream.state}
+          display={liveDisplay(stream.state.partial, stream.state.text)}
+          onStop={stream.stop}
+          placeholder="Writing the outreach…"
+        />
+      )}
+
+      {stream.state.status === 'error' && !isRunning && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" role="alert">{stream.state.error}</div>
+      )}
 
       {/* Results Section */}
       {lastRunPersona && runTimestamp && (
