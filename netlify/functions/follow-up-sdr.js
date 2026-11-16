@@ -65,7 +65,7 @@ exports.handler = stream(withAuth(async (event, user) => {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_THINKING_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 1000);
 

@@ -51,7 +51,7 @@ exports.handler = stream(withAuth(async (event, user) => {
     if (!contact) return errorResponse(404, 'Contact not found');
 
     const prefs = extractPreferences({ preferences });
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 1000);
     const contactName = contact.firstname || contact.name || 'there';

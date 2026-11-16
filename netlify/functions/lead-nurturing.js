@@ -125,7 +125,7 @@ Generate nurturing strategy with:
 }`;
 
     const response = await responsesFetch({
-        model: 'gpt-4o',
+        model: 'default',
         instructions: systemPrompt,
         input: userPrompt,
         temperature: 0.3,

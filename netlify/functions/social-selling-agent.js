@@ -31,7 +31,7 @@ exports.handler = withAuth(async (event, user) => {
     if (contactError) throw new Error(`Database error: ${contactError.message}`);
     if (!contact) return errorResponse(404, 'Contact not found');
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const contactName = `${contact.firstname || ''} ${contact.lastname || ''}`.trim() || 'there';

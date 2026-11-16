@@ -42,7 +42,7 @@ exports.handler = withAuth(async (event, user) => {
       deal = dealData;
     }
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 1500);
     const contactName = contact.firstname || contact.name || 'there';

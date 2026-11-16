@@ -63,7 +63,7 @@ exports.handler = stream(withAuth(async (event, user) => {
     return errorResponse(400, 'Objection text is required');
   }
 
-  const model = resolveModel({ model: preferences.model }, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+  const model = resolveModel({ model: preferences.model }, 'thinking', 'SMARTCRM_THINKING_MODEL');
   const temperature = resolveTemperature({ temperature: preferences.temperature }, 0.7);
   const maxTokens = resolveMaxTokens({ maxTokens: preferences.maxTokens }, 1000);
 

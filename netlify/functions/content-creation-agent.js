@@ -32,7 +32,7 @@ exports.handler = withAuth(async (event, user) => {
       contact = contactData;
     }
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const prefsBlock = buildPreferencesPromptBlock(prefs);

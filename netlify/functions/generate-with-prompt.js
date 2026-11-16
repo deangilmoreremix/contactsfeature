@@ -49,7 +49,7 @@ exports.handler = withAuth(async (event, user) => {
       deal = dealData;
     }
 
-    const model = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const model = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const prefsBlock = buildPreferencesPromptBlock(prefs);

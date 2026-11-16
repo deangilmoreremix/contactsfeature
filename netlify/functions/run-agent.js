@@ -62,7 +62,7 @@ exports.handler = withAuth(async (event, user) => {
       contact,
     });
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 

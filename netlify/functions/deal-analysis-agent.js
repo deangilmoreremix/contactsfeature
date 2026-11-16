@@ -39,7 +39,7 @@ exports.handler = withAuth(async (event, user) => {
       .eq('id', deal.contact_id)
       .maybeSingle();
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.5);
     const maxTokens = resolveMaxTokens(prefs, 1500);
     const prefsBlock = buildPreferencesPromptBlock(prefs);

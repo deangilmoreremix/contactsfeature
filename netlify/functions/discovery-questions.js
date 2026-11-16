@@ -105,7 +105,7 @@ Generate questions organized by category:
 Return as JSON with "questions" array containing objects with category, question, rationale, and priority.`;
 
     const response = await responsesFetch({
-        model: 'gpt-4o',
+        model: 'default',
         instructions: systemPrompt,
         input: userPrompt,
         temperature: 0.3,
