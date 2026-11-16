@@ -8,7 +8,7 @@
  */
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { createResponse } = require('./_responses');
-const { buildOptions, underRateLimit, logUsage } = require('./_aiProxy');
+const { buildOptions, underRateLimit, logUsage, withinTokenBudget } = require('./_aiProxy');
 const { userOwnsConversation } = require('./_conversations');
 
 exports.handler = withAuth(async (event, user) => {
@@ -19,6 +19,8 @@ exports.handler = withAuth(async (event, user) => {
   if (error) return errorResponse(400, error);
   if (options.conversationId && !(await userOwnsConversation(user.id, options.conversationId))) return errorResponse(404, 'Conversation not found');
   if (!(await underRateLimit(user.id))) return errorResponse(429, 'Too many AI requests. Please wait a moment.');
+  const budget = await withinTokenBudget(options);
+  if (!budget.ok) return errorResponse(413, `Input is too long (${budget.tokens} tokens). Shorten it and try again.`);
 
   try {
     const r = await createResponse({ ...options, user: user.id });

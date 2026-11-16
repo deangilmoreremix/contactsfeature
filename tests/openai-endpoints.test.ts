@@ -4,6 +4,8 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 process.env.OPENAI_API_KEY = 'test';
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321';
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-test';
 const r = require('../netlify/functions/_responses.js');
 
 describe('OpenAI endpoint helpers (fake client)', () => {
@@ -80,5 +82,20 @@ describe('OpenAI endpoint helpers (fake client)', () => {
     };
     expect(await r.countInputTokens({ client, role: 'fast', input: 'hello' })).toBe(42);
     expect(await r.cancelResponse('resp_1', { client })).toEqual({ id: 'resp_1', status: 'cancelled' });
+  });
+});
+
+describe('proxy token budget guard', () => {
+  const proxy = () => require('../netlify/functions/_aiProxy.js');
+  it('skips small inputs without calling the API', async () => {
+    const count = vi.fn();
+    expect(await proxy().withinTokenBudget({ input: 'hi' }, { countInputTokens: count })).toEqual({ ok: true });
+    expect(count).not.toHaveBeenCalled();
+  });
+  it('rejects large inputs over the budget, accepts under it, fails open on errors', async () => {
+    const big = { input: 'x'.repeat(30000), model: 'fast' };
+    expect(await proxy().withinTokenBudget(big, { countInputTokens: async () => 150000 })).toEqual({ ok: false, tokens: 150000 });
+    expect((await proxy().withinTokenBudget(big, { countInputTokens: async () => 5000 })).ok).toBe(true);
+    expect(await proxy().withinTokenBudget(big, { countInputTokens: async () => { throw new Error('down'); } })).toEqual({ ok: true });
   });
 });

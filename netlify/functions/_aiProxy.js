@@ -103,4 +103,23 @@ async function logUsage(userId, endpoint, options, usage, status = 'ok') {
   } catch (_) { /* best effort */ }
 }
 
-module.exports = { buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE };
+const MAX_INPUT_TOKENS = Number(process.env.AI_PROXY_MAX_INPUT_TOKENS || 100000);
+const TOKEN_CHECK_CHARS = 20000; // only large inputs pay for a token-count round trip
+
+/**
+ * Exact input-token guard (POST /v1/responses/input_tokens) for large prompts.
+ * Returns { ok:true } or { ok:false, tokens }. Fails open if the count call itself errors.
+ */
+async function withinTokenBudget(options, deps = {}) {
+  const size = JSON.stringify(options.input ?? '').length + String(options.instructions || '').length;
+  if (size < TOKEN_CHECK_CHARS) return { ok: true };
+  try {
+    const count = deps.countInputTokens || require('./_responses').countInputTokens;
+    const tokens = await count({ role: options.model, input: options.input, instructions: options.instructions });
+    return tokens > MAX_INPUT_TOKENS ? { ok: false, tokens } : { ok: true, tokens };
+  } catch (_) {
+    return { ok: true };
+  }
+}
+
+module.exports = { withinTokenBudget, MAX_INPUT_TOKENS, buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE };
