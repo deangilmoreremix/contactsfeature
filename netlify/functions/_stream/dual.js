@@ -30,10 +30,18 @@ async function runDual(opts) {
   const baseHeaders = opts.headers || CORS_HEADERS;
 
   if (!isStreamRequested(event, body)) {
-    const r = await create(options);
-    if (!r.text) throw new Error('AI returned no text');
-    const data = await finalize(r.text, r);
-    return { statusCode: 200, headers: baseHeaders, body: JSON.stringify(data) };
+    try {
+      const r = await create(options);
+      if (!r.text) throw new Error('AI returned no text');
+      if (opts.onEvent) opts.onEvent({ type: 'done', usage: r.usage || null });
+      const data = await finalize(r.text, r);
+      return { statusCode: 200, headers: baseHeaders, body: JSON.stringify(data) };
+    } catch (err) {
+      if (opts.onEvent) opts.onEvent({ type: 'error', message: err.message });
+      throw err;
+    } finally {
+      if (opts.onEnd) { try { await opts.onEnd(); } catch (_) { /* logging must never break the response */ } }
+    }
   }
 
   async function* events() {

@@ -1,0 +1,27 @@
+# Functions the UI calls that are legitimately NOT generative AI (data ops, auth, CRUD, delivery).
+# Format: <function-name>   # reason
+contacts                # contact CRUD
+admin-user-management   # user admin
+send-email              # delivery via the user's provider
+duplicate-detection     # deterministic matching
+semantic-search         # embeddings ranking (non-generative)
+gtm-prompt-library      # prompt CRUD
+sdr-autopilot           # state machine / scheduling (non-visible)
+messaging-providers     # provider CRUD
+get-agents              # catalogue read
+get-personas            # catalogue read
+save-agent-settings     # settings write
+get-agent-logs          # log read
+contact-agent-settings  # settings
+sequence-enroll         # enrollment ops
+webhook-trigger         # webhooks
+webhook-dispatch        # webhooks
+calendar-list           # calendar reads
+calendar-schedule       # calendar writes
+manage-sdr-thread       # conversation bookkeeping
+realtime-token          # mints voice token (voice itself streams over WebRTC)
+get-autopilot-status    # status read
+update-autopilot-settings # settings write
+autopilot-run           # non-visible scheduler trigger
+ai-respond              # plain proxy branch for NON-visible pipelines; user-visible calls use ai-stream (gated separately)
+generate-image          # reference-image edit stays synchronous; generation streams via generate-image-stream
