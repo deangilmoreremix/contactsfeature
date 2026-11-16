@@ -163,9 +163,9 @@ export const SDRAutopilotSettings: React.FC<SDRAutopilotSettingsProps> = ({
                 onChange={(e) => updateSetting('defaultMailbox', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="deansales">Dean Sales (dean@agentmail.to)</option>
-                <option value="sarahbizdev">Sarah BizDev (sarah@agentmail.to)</option>
-                <option value="techsales">Tech Sales (tech@agentmail.to)</option>
+                <option value="deansales">Dean Sales</option>
+                <option value="sarahbizdev">Sarah BizDev</option>
+                <option value="techsales">Tech Sales</option>
                 <option value="custom">Custom Mailbox</option>
               </select>
             </div>

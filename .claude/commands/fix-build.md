@@ -49,7 +49,6 @@ Review build warnings and fix any that indicate real problems (unused imports, d
 
 ## Common Issues in This Project
 
-- AgentMail references (removed but may have lingering imports)
 - Twilio references (not used but may have lingering imports)
 - Missing type exports from `src/types/`
 - Circular dependency between services

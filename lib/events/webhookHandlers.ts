@@ -18,7 +18,7 @@ export async function handleEmailDeliveryWebhook(req: any): Promise<void> {
       messageId: message_id,
       status,
       timestamp: new Date(timestamp),
-      provider: 'agentmail' // or other provider
+      provider: 'generic' //
     };
 
     // Emit standardized event
@@ -49,7 +49,7 @@ export async function handleEmailOpenWebhook(req: any): Promise<void> {
       messageId: message_id,
       timestamp: new Date(timestamp),
       ipAddress: ip_address,
-      provider: 'agentmail'
+      provider: 'generic'
     };
 
     await eventBus.emit(EventType.MESSAGE_OPENED, eventPayload, `open_${message_id}`);
@@ -78,7 +78,7 @@ export async function handleEmailClickWebhook(req: any): Promise<void> {
       messageId: message_id,
       timestamp: new Date(timestamp),
       url,
-      provider: 'agentmail'
+      provider: 'generic'
     };
 
     await eventBus.emit(EventType.LINK_CLICKED, eventPayload, `click_${message_id}`);
@@ -109,7 +109,7 @@ export async function handleEmailReplyWebhook(req: any): Promise<void> {
       subject,
       body,
       timestamp: new Date(timestamp),
-      provider: 'agentmail'
+      provider: 'generic'
     };
 
     await eventBus.emit(EventType.REPLY_RECEIVED, eventPayload, `reply_${message_id}`);

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import UserManagement from '../../pages/UserManagement';
+import { MessagingProvidersPanel } from '../settings/MessagingProvidersPanel';
 import {
   X,
   Settings,
@@ -14,7 +15,8 @@ import {
   Zap,
   Save,
   RefreshCw,
-  Users
+  Users,
+  Mail
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -23,7 +25,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'notifications' | 'privacy' | 'users'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'messaging' | 'notifications' | 'privacy' | 'users'>('general');
   const [settings, setSettings] = useState({
     // General Settings
     theme: 'system',
@@ -89,6 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const tabs = [
     { id: 'general', label: 'General', icon: Settings },
     { id: 'ai', label: 'AI Settings', icon: Brain },
+    { id: 'messaging', label: 'Email & SMS', icon: Mail },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'users', label: 'User Management', icon: Users }
@@ -263,6 +266,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             )}
 
             {/* Notifications Settings */}
+            {activeTab === 'messaging' && <MessagingProvidersPanel />}
+
             {activeTab === 'notifications' && (
               <div className="space-y-6">
                 <div>

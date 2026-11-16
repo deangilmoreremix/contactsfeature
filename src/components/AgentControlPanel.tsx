@@ -243,12 +243,12 @@ export const AgentControlPanel = () => {
 
       {/* Inbox */}
       <div>
-        <label className="font-semibold">AgentMail Inbox</label>
+        <label className="font-semibold">Sending Inbox / From Address</label>
         <input
           className="border p-2 rounded w-full"
           value={inbox}
           onChange={(e) => setInbox(e.target.value)}
-          placeholder="your-inbox@agentmail.to"
+          placeholder="you@yourdomain.com"
         />
       </div>
 

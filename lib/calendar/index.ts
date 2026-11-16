@@ -1,11 +1,11 @@
 import { supabase } from "../core/supabaseClient";
-import { executeTool } from "../core/mcpExecutor";
+import { sendEmail } from "../messaging/sendEmail";
 import { logger } from "../core/logger";
 
 /**
  * Schedules a meeting for a contact at given ISO datetime.
  * - Creates a calendar_event row in Supabase
- * - Sends email via AgentMail (or other MCP tool)
+ * - Sends a confirmation email through the user's own provider
  */
 export async function scheduleMeeting(contactId: string, datetime: string) {
   const { data: contact, error: cErr } = await supabase
@@ -34,11 +34,12 @@ export async function scheduleMeeting(contactId: string, datetime: string) {
     throw eErr;
   }
 
-  // Email confirmation (via AgentMail MCP)
-  await executeTool("AgentMail", "send_message", {
+  // Email confirmation (user's configured provider)
+  await sendEmail({
+    contactId,
     to: contact.email,
     subject: "Your meeting is scheduled 📅",
-    body: `
+    text: `
 Hi ${contact.name || ""},
 
 Your meeting has been scheduled for:

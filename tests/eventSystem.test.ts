@@ -89,7 +89,7 @@ describe('Event System', () => {
   });
 
   describe('Webhook Validation', () => {
-    it('should validate AgentMail signatures', () => {
+    it('should validate generic HMAC signatures', () => {
       // Test signature validation approach
       const validateSignature = (
         signature: string,
@@ -326,11 +326,11 @@ describe('Event System', () => {
         toEmail: 'receiver@example.com',
         subject: 'Test Email',
         contactId: 'contact-789',
-        provider: 'agentmail' as const
+        provider: 'generic' as const
       };
 
       expect(payload.messageId).toBeDefined();
-      expect(payload.provider).toBe('agentmail');
+      expect(payload.provider).toBe('generic');
     });
 
     it('should validate sequence step due payload', () => {

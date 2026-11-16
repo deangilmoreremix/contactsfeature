@@ -2,7 +2,7 @@ import { supabase } from "../core/supabaseClient";
 import { logger } from "../core/logger";
 import { renderVideo } from "./renderVideo";
 import { VideoJobRecord } from "./types";
-import { executeTool } from "../core/mcpExecutor";
+import { sendEmail } from "../messaging/sendEmail";
 
 export async function processPendingVideoJobs(limit = 5) {
   const { data: jobs, error } = await supabase
@@ -68,10 +68,11 @@ export async function processPendingVideoJobs(limit = 5) {
         .eq("id", job.id);
 
       // Email link / info to contact
-      await executeTool("AgentMail", "send_message", {
+      await sendEmail({
+        contactId: contact.id,
         to: contact.email,
         subject: "Your personalized video is ready 🎥",
-        body: `
+        text: `
 Hi ${contact.name || ""},
 
 Your personalized video is ready. 🎉

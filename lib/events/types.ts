@@ -115,7 +115,7 @@ export interface EmailSentPayload {
   sequenceId?: string;
   sequenceStepId?: string;
   contactId: string;
-  provider: 'agentmail' | 'sendgrid' | 'mailgun' | 'postmark' | 'ses';
+  provider: 'generic' | 'sendgrid' | 'mailgun' | 'postmark' | 'ses';
 }
 
 export interface EmailDeliveredPayload {
@@ -378,7 +378,7 @@ export function createEmailSentPayload(data: {
     contactId: data.contactId,
     sequenceId: data.sequenceId,
     sequenceStepId: data.sequenceStepId,
-    provider: data.provider || 'agentmail'
+    provider: data.provider || 'generic'
   };
 }
 

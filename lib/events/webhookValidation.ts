@@ -2,7 +2,7 @@
  * Webhook Signature Validation
  * 
  * Provides signature validation for various email providers including:
- * - AgentMail
+ * - Generic HMAC-SHA256 (provider-agnostic)
  * - SendGrid
  * - Mailgun
  * - Postmark
@@ -14,7 +14,7 @@ import { logger } from '../core/logger';
 
 // Configuration for webhook secrets
 interface WebhookConfig {
-  agentmailSecret?: string;
+  genericSecret?: string;
   sendgridSecret?: string;
   mailgunSecret?: string;
   postmarkSecret?: string;
@@ -24,7 +24,7 @@ interface WebhookConfig {
 // Get secrets from environment
 function getWebhookSecrets(): WebhookConfig {
   return {
-    agentmailSecret: process.env.AGENTMAIL_WEBHOOK_SECRET,
+    genericSecret: process.env.INBOUND_EMAIL_WEBHOOK_SECRET,
     sendgridSecret: process.env.SENDGRID_WEBHOOK_SECRET,
     mailgunSecret: process.env.MAILGUN_WEBHOOK_SECRET,
     postmarkSecret: process.env.POSTMARK_WEBHOOK_SECRET,
@@ -54,7 +54,7 @@ export interface ValidationResult {
 /**
  * Email providers supported
  */
-export type EmailProvider = 'agentmail' | 'sendgrid' | 'mailgun' | 'postmark' | 'ses';
+export type EmailProvider = 'generic' | 'sendgrid' | 'mailgun' | 'postmark' | 'ses';
 
 /**
  * Validate webhook signature based on provider
@@ -66,8 +66,8 @@ export function validateWebhookSignature(
   const secrets = getWebhookSecrets();
   
   switch (provider) {
-    case 'agentmail':
-      return validateAgentMailSignature(req, secrets.agentmailSecret);
+    case 'generic':
+      return validateHmacSignature(req, secrets.genericSecret);
     case 'sendgrid':
       return validateSendGridSignature(req, secrets.sendgridSecret);
     case 'mailgun':
@@ -88,8 +88,8 @@ export function autoValidateWebhook(req: WebhookRequest): ValidationResult {
   const { headers } = req;
   
   // Check for provider-specific headers
-  if (headers['x-agentmail-signature']) {
-    return validateWebhookSignature(req, 'agentmail');
+  if (headers['x-webhook-signature']) {
+    return validateWebhookSignature(req, 'generic');
   }
   if (headers['x-sg-signature'] || headers['x-smtpapi']) {
     return validateWebhookSignature(req, 'sendgrid');
@@ -107,10 +107,10 @@ export function autoValidateWebhook(req: WebhookRequest): ValidationResult {
   // Try to detect from content-type
   const contentType = headers['content-type'] || '';
   if (contentType.includes('application/json')) {
-    // Default to agentmail for JSON payloads without specific signature
+    // Default to generic HMAC for JSON payloads without specific signature
     const secrets = getWebhookSecrets();
-    if (secrets.agentmailSecret) {
-      return validateWebhookSignature(req, 'agentmail');
+    if (secrets.genericSecret) {
+      return validateWebhookSignature(req, 'generic');
     }
   }
   
@@ -122,23 +122,23 @@ export function autoValidateWebhook(req: WebhookRequest): ValidationResult {
 // ============================================================================
 
 /**
- * Validate AgentMail webhook signature
- * Uses HMAC-SHA256 signature in X-AgentMail-Signature header
+ * Validate generic HMAC webhook signature
+ * Uses HMAC-SHA256 signature in X-Webhook-Signature header
  */
-function validateAgentMailSignature(
+function validateHmacSignature(
   req: WebhookRequest,
   secret?: string
 ): ValidationResult {
-  const signature = req.headers['x-agentmail-signature'];
-  const timestamp = req.headers['x-agentmail-timestamp'];
+  const signature = req.headers['x-webhook-signature'];
+  const timestamp = req.headers['x-webhook-timestamp'];
   
   if (!secret) {
-    logger.warn('AgentMail webhook secret not configured');
+    logger.warn('generic HMAC webhook secret not configured');
     return { valid: false, error: 'Webhook secret not configured' };
   }
   
   if (!signature) {
-    return { valid: false, error: 'Missing X-AgentMail-Signature header' };
+    return { valid: false, error: 'Missing X-Webhook-Signature header' };
   }
   
   try {
@@ -162,7 +162,7 @@ function validateAgentMailSignature(
     const valid = timingSafeEqual(sigBuffer, expectedBuffer);
     
     if (!valid) {
-      logger.warn('AgentMail signature validation failed', {
+      logger.warn('generic HMAC signature validation failed', {
         providedSignature: signature,
         expectedSignature
       });
@@ -170,12 +170,12 @@ function validateAgentMailSignature(
     
     return {
       valid,
-      provider: 'agentmail',
+      provider: 'generic',
       timestamp: timestamp ? parseInt(timestamp as string, 10) : undefined,
       error: valid ? undefined : 'Invalid signature'
     };
   } catch (error) {
-    logger.error('Error validating AgentMail signature', { error });
+    logger.error('Error validating generic HMAC signature', { error });
     return { valid: false, error: 'Signature validation error' };
   }
 }

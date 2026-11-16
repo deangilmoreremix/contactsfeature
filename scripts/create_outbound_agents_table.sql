@@ -1,10 +1,10 @@
--- Outbound email agents for SmartCRM + AgentMail
+-- Outbound email agents for SmartCRM
 
 create table if not exists outbound_agents (
   id uuid primary key default gen_random_uuid(),
   key text not null unique,                         -- e.g. 'authority_outreach'
   name text not null,                               -- human-readable name
-  inbox_email text not null unique,                 -- AgentMail inbox email
+  inbox_email text not null unique,                 -- sender / inbox email
   target_type text not null check (
     target_type in ('contact', 'deal', 'both')
   ),

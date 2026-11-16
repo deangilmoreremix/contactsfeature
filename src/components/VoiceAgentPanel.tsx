@@ -90,7 +90,7 @@ export const VoiceAgentPanel: React.FC = () => {
       </div>
       <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, color: "#4a5568" }}>
         Convert SDR / AE scripts into voice messages for prospects (e.g., voicemail drops,
-        audio follow-ups). Powered by your voice back-end / OpenAI real-time + AgentMail.
+        audio follow-ups). Powered by your voice back-end / OpenAI real-time.
       </p>
 
       {error && (

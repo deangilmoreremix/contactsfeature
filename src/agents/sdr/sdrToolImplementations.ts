@@ -228,7 +228,6 @@ export async function sendEmailForLead(args: {
   }
 }
 
-export const sendViaAgentMail = sendEmailForLead;
 
 export async function createTaskInSmartCRM(args: {
   lead_id: string;

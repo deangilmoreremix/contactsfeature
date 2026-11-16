@@ -11,7 +11,7 @@ import { logger } from "../core/logger";
  *
  * This should be called by:
  *  - Netlify cron (daily sweep)
- *  - Webhooks (e.g. AgentMail reply)
+ *  - Webhooks (e.g. inbound email reply)
  *  - Manual trigger (button in UI)
  */
 export async function runAutopilot(contactId: string) {

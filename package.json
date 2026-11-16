@@ -28,7 +28,6 @@
     "netlify:deploy": "npx netlify deploy --prod",
     "netlify:deploy:preview": "npx netlify deploy --build",
     "test:functions": "node test-netlify-functions.js",
-    "test:agentmail": "node test-agentmail-webhook.js",
     "generate-gifs": "node scripts/generate-gifs.js",
     "rename-videos": "node scripts/rename-videos.js",
     "demo:agents": "node scripts/demonstrate-agent-system.js"
