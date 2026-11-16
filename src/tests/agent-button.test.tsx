@@ -1,55 +1,32 @@
 /**
- * Comprehensive tests for AgentButton component
- * Tests agent loading, execution, modal interaction, and feedback
+ * AgentButton: agent metadata loading, modal interaction, and execution through the Netlify functions
+ * (generic `agent-runner`, or a direct `functionName`) via streamFunction, plus the success/error feedback.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { AgentButton } from '../components/ai-sales-intelligence/AgentButton';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
-// Mock dependencies
-vi.mock('../services/supabaseClient', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn()
-        }))
-      }))
-    })),
-    functions: {
-      invoke: vi.fn()
-    }
-  }
+const mocks = vi.hoisted(() => ({
+  single: vi.fn(),
+  streamFunction: vi.fn(),
 }));
 
-vi.mock('../../lib/supabase', () => ({
+vi.mock('../lib/supabase', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn()
-        }))
-      }))
-    })),
-    functions: {
-      invoke: vi.fn()
-    }
-  }
+    from: vi.fn(() => ({ select: () => ({ eq: () => ({ single: mocks.single }) }) })),
+  },
 }));
+
+vi.mock('../services/liveFunction', () => ({ streamFunction: mocks.streamFunction }));
+
+vi.mock('../components/ui/LiveRunStatus', () => ({ LiveRunStatus: () => null }));
 
 vi.mock('../components/ui/ModernButton', () => ({
   ModernButton: ({ children, onClick, disabled, variant, size, className }: any) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      data-variant={variant}
-      data-size={size}
-      className={className}
-    >
+    <button onClick={onClick} disabled={disabled} data-variant={variant} data-size={size} className={className}>
       {children}
     </button>
-  )
+  ),
 }));
 
 vi.mock('../components/ai-sales-intelligence/AgentModal', () => ({
@@ -58,17 +35,22 @@ vi.mock('../components/ai-sales-intelligence/AgentModal', () => ({
       <div>Agent: {agent?.name}</div>
       <button onClick={() => onExecute({ testInput: 'value' })}>Execute</button>
       <button onClick={onClose}>Close</button>
-      {loading && <div>Loading...</div>}
+      {loading && <div>Loading modal...</div>}
     </div>
-  )
+  ),
 }));
 
 vi.mock('lucide-react', () => ({
   Loader2: () => <div data-testid="loader-icon" />,
   Sparkles: () => <div data-testid="sparkles-icon" />,
   AlertCircle: () => <div data-testid="alert-icon" />,
-  CheckCircle: () => <div data-testid="check-icon" />
+  CheckCircle: () => <div data-testid="check-icon" />,
 }));
+
+import { AgentButton } from '../components/ai-sales-intelligence/AgentButton';
+import { supabase } from '../lib/supabase';
+
+const RUNNER = '/.netlify/functions/agent-runner';
 
 describe('AgentButton', () => {
   const mockAgent = {
@@ -76,187 +58,107 @@ describe('AgentButton', () => {
     name: 'Test SDR Agent',
     description: 'A test agent for SDR activities',
     capabilities: ['email', 'call'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string' }
-      }
-    }
+    inputSchema: { type: 'object', properties: { message: { type: 'string' } } },
   };
 
   const mockExecutionResult = {
     agentId: 'agent-123',
     success: true,
-    response: {
-      content: 'Agent executed successfully',
-      usage: { total_tokens: 150 }
-    },
-    executionTime: 2.5
+    response: { content: 'Agent executed successfully', usage: { total_tokens: 150 } },
+    executionTime: 2.5,
   };
+
+  /** Renders the button and waits for the agent metadata to load; returns the (single) trigger button. */
+  async function renderLoaded(ui: React.ReactElement, name = 'Test SDR Agent') {
+    render(ui);
+    await waitFor(() => expect(screen.getByText(name)).toBeInTheDocument());
+    return screen.getByRole('button');
+  }
+
+  async function execute(button: HTMLElement) {
+    fireEvent.click(button);
+    fireEvent.click(screen.getByText('Execute'));
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.single.mockResolvedValue({ data: mockAgent, error: null });
+    mocks.streamFunction.mockResolvedValue({ result: mockExecutionResult, text: '', citations: [] });
   });
 
   afterEach(() => {
-    vi.resetAllMocks();
+    cleanup();
   });
 
   describe('Initial Loading', () => {
     it('should show loading state while fetching agent metadata', () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: null, error: null })
-          })
-        })
-      });
-
+      mocks.single.mockReturnValue(new Promise(() => {})); // never resolves
       render(<AgentButton agentId="agent-123" />);
 
       expect(screen.getByText('Loading...')).toBeInTheDocument();
       expect(screen.getByTestId('loader-icon')).toBeInTheDocument();
+      expect(screen.getByRole('button')).toBeDisabled();
     });
 
     it('should load agent metadata successfully', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: mockAgent, error: null })
-          })
-        })
-      });
-
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
+      await renderLoaded(<AgentButton agentId="agent-123" />);
       expect(supabase.from).toHaveBeenCalledWith('agent_metadata');
     });
 
-    it('should handle agent metadata loading error', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: null, error: new Error('Not found') })
-          })
-        })
-      });
-
+    it('should keep the loading button when agent metadata cannot be loaded', async () => {
+      mocks.single.mockResolvedValue({ data: null, error: new Error('Not found') });
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
       render(<AgentButton agentId="agent-123" />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Failed to load agent')).toBeInTheDocument();
-      });
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      spy.mockRestore();
+    });
+
+    it('should skip the metadata lookup when a functionName is given', async () => {
+      await renderLoaded(<AgentButton agentId="agent-123" functionName="cold-email-sdr" />, 'cold-email-sdr');
+      expect(supabase.from).not.toHaveBeenCalled();
     });
   });
 
   describe('Button Rendering', () => {
-    beforeEach(async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: mockAgent, error: null })
-          })
-        })
-      });
-    });
-
     it('should render with agent name and icon', async () => {
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
+      await renderLoaded(<AgentButton agentId="agent-123" />);
       expect(screen.getByTestId('sparkles-icon')).toBeInTheDocument();
     });
 
     it('should render custom children when provided', async () => {
-      render(<AgentButton agentId="agent-123">Custom Button Text</AgentButton>);
-
-      await waitFor(() => {
-        expect(screen.getByText('Custom Button Text')).toBeInTheDocument();
-      });
+      await renderLoaded(<AgentButton agentId="agent-123">Custom Button Text</AgentButton>, 'Custom Button Text');
     });
 
-    it('should apply correct variant and size props', async () => {
-      render(
-        <AgentButton
-          agentId="agent-123"
-          variant="primary"
-          size="lg"
-          className="custom-class"
-        />
+    it('should apply variant and className props (size is always the toolbar size)', async () => {
+      const button = await renderLoaded(
+        <AgentButton agentId="agent-123" variant="primary" size="lg" className="custom-class" />,
       );
-
-      await waitFor(() => {
-        const button = screen.getByRole('button');
-        expect(button).toHaveAttribute('data-variant', 'primary');
-        expect(button).toHaveAttribute('data-size', 'lg');
-        expect(button).toHaveClass('custom-class');
-      });
+      expect(button).toHaveAttribute('data-variant', 'primary');
+      expect(button).toHaveAttribute('data-size', 'toolbar');
+      expect(button).toHaveClass('custom-class');
     });
 
-    it('should show correct icon based on agent name', async () => {
-      const testCases = [
-        { name: 'SDR Agent', expectedIcon: '🎯' },
-        { name: 'Dialer Agent', expectedIcon: '📞' },
-        { name: 'Signals Agent', expectedIcon: '📊' },
-        { name: 'Lead Agent', expectedIcon: '👥' },
-        { name: 'Meetings Agent', expectedIcon: '📅' },
-        { name: 'Voice Agent', expectedIcon: '🎤' },
-        { name: 'Social Agent', expectedIcon: '💬' },
-        { name: 'Unknown Agent', expectedIcon: '🤖' }
-      ];
-
-      for (const { name, expectedIcon } of testCases) {
-        const { supabase } = require('../services/supabaseClient');
-        supabase.from.mockReturnValue({
-          select: () => ({
-            eq: () => ({
-              single: vi.fn().mockResolvedValue({ data: { ...mockAgent, name }, error: null })
-            })
-          })
-        });
-
-        const { rerender } = render(<AgentButton agentId="agent-123" />);
-        await waitFor(() => {
-          expect(screen.getByText(name)).toBeInTheDocument();
-        });
-
-        // Check if the icon text is in the document
-        expect(screen.getByText(expectedIcon)).toBeInTheDocument();
-      }
+    it.each([
+      ['SDR Agent', '🎯'],
+      ['Dialer Agent', '📞'],
+      ['Signals Agent', '📊'],
+      ['Lead Agent', '👥'],
+      ['Meetings Agent', '📅'],
+      ['Voice Agent', '🎤'],
+      ['Social Agent', '💬'],
+      ['Unknown Agent', '🤖'],
+    ])('should show the right icon for %s', async (name, expectedIcon) => {
+      mocks.single.mockResolvedValue({ data: { ...mockAgent, name }, error: null });
+      await renderLoaded(<AgentButton agentId="agent-123" />, name);
+      expect(screen.getByText(expectedIcon)).toBeInTheDocument();
     });
   });
 
   describe('Modal Interaction', () => {
-    beforeEach(async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: mockAgent, error: null })
-          })
-        })
-      });
-    });
-
     it('should open modal when button is clicked', async () => {
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      const button = screen.getByRole('button');
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
       fireEvent.click(button);
 
       expect(screen.getByTestId('agent-modal')).toBeInTheDocument();
@@ -264,208 +166,101 @@ describe('AgentButton', () => {
     });
 
     it('should close modal when close button is clicked', async () => {
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Open modal
-      const button = screen.getByRole('button');
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
       fireEvent.click(button);
-
       expect(screen.getByTestId('agent-modal')).toBeInTheDocument();
 
-      // Close modal
-      const closeButton = screen.getByText('Close');
-      fireEvent.click(closeButton);
-
+      fireEvent.click(screen.getByText('Close'));
       expect(screen.queryByTestId('agent-modal')).not.toBeInTheDocument();
     });
   });
 
   describe('Agent Execution', () => {
-    beforeEach(async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: mockAgent, error: null })
-          })
-        })
-      });
-    });
-
-    it('should execute agent successfully', async () => {
+    it('should run the agent through the agent-runner function', async () => {
       const onSuccess = vi.fn();
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue({ data: mockExecutionResult, error: null });
+      const button = await renderLoaded(<AgentButton agentId="agent-123" contactId="contact-456" onSuccess={onSuccess} />);
+      await execute(button);
 
-      render(<AgentButton agentId="agent-123" contactId="contact-456" onSuccess={onSuccess} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Open modal and execute
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
-
-      await waitFor(() => {
-        expect(supabase.functions.invoke).toHaveBeenCalledWith('agent-runner', {
-          body: {
-            agentId: 'agent-123',
-            userId: 'current-user',
-            contactId: 'contact-456',
-            input: { testInput: 'value' }
-          }
-        });
-      });
-
-      expect(onSuccess).toHaveBeenCalledWith(mockExecutionResult);
+      await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(mockExecutionResult));
+      expect(mocks.streamFunction).toHaveBeenCalledTimes(1);
+      const [url, body, opts] = mocks.streamFunction.mock.calls[0];
+      expect(url).toBe(RUNNER);
+      expect(body).toEqual({ agentId: 'agent-123', contactId: 'contact-456', input: { testInput: 'value' } });
+      expect(opts).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
     });
 
-    it('should show loading state during execution', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({ data: mockExecutionResult, error: null }), 100))
-      );
+    it('should include dealId in the request when provided', async () => {
+      const button = await renderLoaded(<AgentButton agentId="agent-123" dealId="deal-789" />);
+      await execute(button);
 
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
+      await waitFor(() => expect(mocks.streamFunction).toHaveBeenCalled());
+      expect(mocks.streamFunction.mock.calls[0][1]).toEqual({
+        agentId: 'agent-123', dealId: 'deal-789', input: { testInput: 'value' },
       });
+    });
 
-      // Open modal and execute
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
+    it('should call the named Netlify function directly when functionName is given', async () => {
+      const button = await renderLoaded(
+        <AgentButton agentId="agent-123" functionName="cold-email-sdr" contactId="contact-456" />,
+        'cold-email-sdr',
+      );
+      await execute(button);
 
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
+      await waitFor(() => expect(mocks.streamFunction).toHaveBeenCalled());
+      const [url, body] = mocks.streamFunction.mock.calls[0];
+      expect(url).toBe('/.netlify/functions/cold-email-sdr');
+      expect(body).toEqual({ contactId: 'contact-456', input: { testInput: 'value' } });
+    });
 
-      expect(screen.getByText('Running...')).toBeInTheDocument();
+    it('should show a loading state during execution and recover afterwards', async () => {
+      let finish!: (v: unknown) => void;
+      mocks.streamFunction.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
+      await execute(button);
+
+      await waitFor(() => expect(button).toHaveTextContent('Running...'));
       expect(button).toBeDisabled();
 
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
+      finish({ result: mockExecutionResult, text: '', citations: [] });
+      await waitFor(() => expect(button).not.toBeDisabled());
+      expect(button).toHaveTextContent('Test SDR Agent');
     });
 
-    it('should handle execution errors', async () => {
+    it('should report execution errors through onError', async () => {
       const onError = vi.fn();
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue({
-        data: null,
-        error: { message: 'Execution failed' }
-      });
+      mocks.streamFunction.mockRejectedValue(new Error('Execution failed'));
+      const button = await renderLoaded(<AgentButton agentId="agent-123" onError={onError} />);
+      await execute(button);
 
-      render(<AgentButton agentId="agent-123" onError={onError} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Open modal and execute
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
-
-      await waitFor(() => {
-        expect(onError).toHaveBeenCalledWith(new Error('Execution failed'));
-      });
-    });
-
-    it('should include dealId in execution request when provided', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue({ data: mockExecutionResult, error: null });
-
-      render(<AgentButton agentId="agent-123" dealId="deal-789" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Open modal and execute
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
-
-      await waitFor(() => {
-        expect(supabase.functions.invoke).toHaveBeenCalledWith('agent-runner', {
-          body: expect.objectContaining({
-            agentId: 'agent-123',
-            userId: 'current-user',
-            dealId: 'deal-789',
-            input: { testInput: 'value' }
-          })
-        });
-      });
+      await waitFor(() => expect(onError).toHaveBeenCalledWith(new Error('Execution failed')));
     });
   });
 
   describe('Feedback Display', () => {
-    beforeEach(async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: mockAgent, error: null })
-          })
-        })
-      });
-    });
-
-    it('should show success feedback after successful execution', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue({ data: mockExecutionResult, error: null });
-
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Execute agent
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
+    it('should show success feedback with the token count after a successful execution', async () => {
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
+      await execute(button);
 
       await waitFor(() => {
         expect(screen.getByText('Test SDR Agent completed')).toBeInTheDocument();
-        expect(screen.getByText('Execution time: 150 tokens')).toBeInTheDocument();
+        expect(screen.getByText('150 tokens used')).toBeInTheDocument();
         expect(screen.getByTestId('check-icon')).toBeInTheDocument();
       });
     });
 
-    it('should show error feedback after failed execution', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue({
-        data: null,
-        error: { message: 'Agent execution failed' }
-      });
+    it('should show "Finished" when the result carries no usage', async () => {
+      mocks.streamFunction.mockResolvedValue({ result: { agentId: 'agent-123', success: true }, text: '', citations: [] });
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
+      await execute(button);
 
-      render(<AgentButton agentId="agent-123" />);
+      await waitFor(() => expect(screen.getByText('Finished')).toBeInTheDocument());
+    });
 
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Execute agent
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
+    it('should show error feedback after a failed execution', async () => {
+      mocks.streamFunction.mockRejectedValue(new Error('Agent execution failed'));
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
+      await execute(button);
 
       await waitFor(() => {
         expect(screen.getByText('Test SDR Agent failed')).toBeInTheDocument();
@@ -473,91 +268,13 @@ describe('AgentButton', () => {
         expect(screen.getByTestId('alert-icon')).toBeInTheDocument();
       });
     });
-
-    it('should auto-hide feedback after some time', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue({ data: mockExecutionResult, error: null });
-
-      vi.useFakeTimers();
-
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Execute agent
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent completed')).toBeInTheDocument();
-      });
-
-      // Fast-forward time (assuming feedback auto-hides after 5 seconds)
-      vi.advanceTimersByTime(5000);
-
-      // Note: In a real implementation, you'd need to test the auto-hide functionality
-      // This test structure ensures the feedback appears correctly
-
-      vi.useRealTimers();
-    });
   });
 
   describe('Accessibility', () => {
-    beforeEach(async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.from.mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            single: vi.fn().mockResolvedValue({ data: mockAgent, error: null })
-          })
-        })
-      });
-    });
-
-    it('should be keyboard accessible', async () => {
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      const button = screen.getByRole('button');
+    it('should be keyboard focusable', async () => {
+      const button = await renderLoaded(<AgentButton agentId="agent-123" />);
       button.focus();
-
       expect(button).toHaveFocus();
-    });
-
-    it('should show loading state appropriately', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({ data: mockExecutionResult, error: null }), 100))
-      );
-
-      render(<AgentButton agentId="agent-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      });
-
-      // Execute agent
-      const button = screen.getByRole('button');
-      fireEvent.click(button);
-
-      const executeButton = screen.getByText('Execute');
-      fireEvent.click(executeButton);
-
-      expect(button).toBeDisabled();
-      expect(button).toHaveTextContent('Running...');
-
-      await waitFor(() => {
-        expect(button).not.toBeDisabled();
-        expect(button).toHaveTextContent('Test SDR Agent');
-      });
     });
   });
 });

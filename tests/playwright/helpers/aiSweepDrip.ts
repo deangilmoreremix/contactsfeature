@@ -7,7 +7,7 @@
 import http from 'node:http';
 
 type Ev = Record<string, unknown>;
-export interface DripLogEntry { endpoint: string; method: string; accept: string; bodyStream: boolean; queryStream: boolean; wantsStream: boolean; bodyKeys: string[]; task?: string; at: number; scripted: boolean }
+export interface DripLogEntry { endpoint: string; method: string; accept: string; bodyStream: boolean; queryStream: boolean; wantsStream: boolean; bodyKeys: string[]; task?: string; at: number; endedAt: number | null; scripted: boolean }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const TEXT = 'Here is a concrete, personalised answer that arrives piece by piece so the person can read it while the model is still working. It references the contact, the company and the next best step.';
@@ -96,6 +96,7 @@ const SCRIPTS: Record<string, Script> = {
   'run-agent': () => texty('r_ra', TEXT, { success: true, step: 2 }),
 };
 
+/** Same for Netlify (`/.netlify/functions/x`, proxied) and Supabase edge (`/functions/v1/x`) functions. */
 export function startAiSweepDrip(port: number): Promise<http.Server & { log: DripLogEntry[] }> {
   const log: DripLogEntry[] = [];
   const gap = () => sleep(150 + Math.random() * 150);
@@ -119,9 +120,17 @@ export function startAiSweepDrip(port: number): Promise<http.Server & { log: Dri
     if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' }); res.end(); return; }
     const u = new URL(req.url || '/', 'http://x');
     if (u.pathname === '/__log') {
-      const out = log.splice(0, log.length);
+      const out = u.searchParams.get('peek') ? [...log] : log.splice(0, log.length);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify(out));
+      return;
+    }
+    // ---- Supabase stand-in (VITE_SUPABASE_URL points at this server): signed-in user, empty tables, edge functions below
+    if (u.pathname.startsWith('/auth/v1/user')) { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify({ id: 'user-1', aud: 'authenticated', email: 'me@example.com' })); return; }
+    if (u.pathname.startsWith('/rest/v1/')) {
+      for await (const _c of req) { /* drain */ }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Content-Range': '0-0/*' });
+      res.end('[]');
       return;
     }
     let raw = '';
@@ -133,7 +142,9 @@ export function startAiSweepDrip(port: number): Promise<http.Server & { log: Dri
     const bodyStream = body?.stream === true;
     const queryStream = u.searchParams.get('stream') === 'true';
     const script = SCRIPTS[endpoint];
-    log.push({ endpoint, method: req.method || '', accept, bodyStream, queryStream, wantsStream: /text\/event-stream/i.test(accept) || bodyStream || queryStream, bodyKeys: Object.keys(body || {}), task: body?.task, at: Date.now(), scripted: !!script });
+    log.push({ endpoint, method: req.method || '', accept, bodyStream, queryStream, wantsStream: /text\/event-stream/i.test(accept) || bodyStream || queryStream, bodyKeys: Object.keys(body || {}), task: body?.task, at: Date.now(), endedAt: null, scripted: !!script });
+    const entry = log[log.length - 1]!;
+    res.on('close', () => { entry.endedAt = Date.now(); });
     const id = `r_${endpoint}`;
     if (script) return play(res, script(body, u));
     // generic: streams for any endpoint without a dedicated script

@@ -216,18 +216,16 @@ const cases: Case[] = [
     extra: (_e, json) => expect(json.data.insights).toHaveLength(1),
   },
   {
-    name: 'responsesFetch-style function: adaptive-playbook',
+    name: 'responsesFetch-style function: adaptive-playbook (now withAuth + contact ownership)',
     file: 'adaptive-playbook.js',
-    auth: false,
-    body: { contact: { id: 'c1', name: 'Ann', company: 'Acme', title: 'CTO' }, currentStage: 'prospect', businessGoals: ['grow'], automationType: 'comprehensive', playbookType: 'comprehensive', aiProvider: 'openai' },
+    body: { contact: { id: CID, name: 'Ann', company: 'Acme', title: 'CTO' }, currentStage: 'prospect', businessGoals: ['grow'], automationType: 'comprehensive', playbookType: 'comprehensive', aiProvider: 'openai' },
     text: { strategy: { name: 'S', description: 'd', confidence: 0.8, rationale: 'r' }, phases: [], riskMitigation: [], successIndicators: [], competitivePositioning: { strengths: [], weaknesses: [], differentiation: [], winThemes: [] } },
     writes: 1, expectPartialOption: true,
     extra: (_e, json) => expect(json).toMatchObject({ success: true, provider: 'openai', data: { strategy: { name: 'S' }, currentStage: 'prospect' } }),
   },
   {
-    name: 'run-ae-agent (unauthenticated legacy handler, free text)',
+    name: 'run-ae-agent (withAuth + contact ownership, free text)',
     file: 'run-ae-agent.js',
-    auth: false,
     body: { contactId: CID },
     text: 'Plan: 1) send recap 2) book demo',
     writes: 2, // agent_runs + contacts update

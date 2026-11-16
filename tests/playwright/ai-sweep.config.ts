@@ -11,7 +11,7 @@ const DIST = process.env.AI_SWEEP_DIST || path.join(os.tmpdir(), 'smartcrm-ai-sw
  */
 export default defineConfig({
   testDir: './',
-  testMatch: /ai-sweep(-recon)?\.spec\.ts/,
+  testMatch: /ai-sweep\.spec\.ts/,
   reporter: 'list',
   workers: 1,
   timeout: 10 * 60_000,
@@ -27,6 +27,6 @@ export default defineConfig({
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: true,
     timeout: 300_000,
-    env: { VITE_STREAM_GUARD: '1', AI_SWEEP_PORT: String(PORT), AI_SWEEP_DIST: DIST, AI_SWEEP_DRIP_PORT: process.env.AI_SWEEP_DRIP_PORT || '5312' },
+    env: { VITE_STREAM_GUARD: '1', VITE_SUPABASE_URL: `http://127.0.0.1:${process.env.AI_SWEEP_DRIP_PORT || '5312'}`, VITE_SUPABASE_ANON_KEY: 'anon-key', AI_SWEEP_PORT: String(PORT), AI_SWEEP_DIST: DIST, AI_SWEEP_DRIP_PORT: process.env.AI_SWEEP_DRIP_PORT || '5312' },
   },
 });
