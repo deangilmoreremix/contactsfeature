@@ -91,6 +91,7 @@ export const ContactCommandMenu: React.FC<ContactCommandMenuProps> = ({ open, co
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
           <input
             ref={inputRef}
+            autoFocus
             type="text"
             role="combobox"
             aria-expanded="true"

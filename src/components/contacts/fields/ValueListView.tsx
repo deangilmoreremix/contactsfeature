@@ -89,80 +89,73 @@ export const ValueListView: React.FC<ValueListViewProps> = ({
 
   const revealed = editing ? 'inline-flex' : 'hidden group-hover/extra:inline-flex group-focus-within/extra:inline-flex';
 
+  const valueNode = (entry: LabeledValue) =>
+    editingValue === entry.value ? (
+      <input
+        autoFocus
+        type={kind === 'email' ? 'email' : 'tel'}
+        value={editDraft}
+        onChange={(e) => setEditDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); skipBlur.current = true; void commitEdit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); skipBlur.current = true; setEditingValue(null); setError(null); }
+        }}
+        onBlur={() => { if (skipBlur.current) { skipBlur.current = false; return; } void commitEdit(); }}
+        className={`${inputClass} min-w-0`}
+        aria-label={`Edit ${noun(kind)}`}
+      />
+    ) : (
+      <a href={hrefFor(entry.value)} className={`${linkClass} ${editing ? 'block' : ''}`} title={entry.value}>{entry.value}</a>
+    );
+
+  const actions = (entry: LabeledValue) => (
+    <>
+      <button type="button" onClick={() => void copy(entry.value)} className={iconButtonClass} title={`Copy ${noun(kind)}`} aria-label={`Copy ${entry.value}`}>
+        {copied === entry.value ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
+      </button>
+      <button
+        type="button"
+        onClick={() => { setEditingValue(entry.value); setEditDraft(entry.value); setError(null); }}
+        className={`${iconButtonClass} ${revealed}`}
+        title={`Edit ${noun(kind)}`}
+        aria-label={`Edit ${entry.value}`}
+      >
+        <Edit className="w-3 h-3" />
+      </button>
+      <button type="button" disabled={busy} onClick={() => void run(() => onMakePrimary(entry.value))} className={`${iconButtonClass} ${revealed}`} title="Make primary" aria-label={`Make ${entry.value} primary`}>
+        <Star className="w-3 h-3" />
+      </button>
+      <button type="button" disabled={busy} onClick={() => void run(() => onRemove(entry.value))} className={`${iconButtonClass} ${revealed}`} title="Remove" aria-label={`Remove ${entry.value}`}>
+        <X className="w-3 h-3" />
+      </button>
+    </>
+  );
+
   return (
     <>
       {entries.length > 0 && (
         <ul className="mt-1 space-y-1" data-testid={`extra-${kind}-list`}>
           {entries.map((entry) => (
-            <li key={entry.value} className="group/extra flex items-center gap-1 min-w-0" data-testid={`extra-${kind}-row`}>
-              {editing ? (
-                <select
-                  value={labels.includes(entry.label) ? entry.label : '__custom'}
-                  onChange={(e) => void run(() => onLabel(entry.value, e.target.value))}
-                  className={`${selectClass} text-xs py-0.5 px-1 w-20 flex-shrink-0`}
-                  aria-label={`Label for ${entry.value}`}
-                >
-                  {!labels.includes(entry.label) && <option value="__custom" disabled>{entry.label}</option>}
-                  {labels.map((l) => <option key={l} value={l}>{l}</option>)}
-                </select>
-              ) : (
-                <span className={mutedLabelClass}>{entry.label}</span>
-              )}
-              {editingValue === entry.value ? (
-                <input
-                  autoFocus
-                  type={kind === 'email' ? 'email' : 'tel'}
-                  value={editDraft}
-                  onChange={(e) => setEditDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); skipBlur.current = true; void commitEdit(); }
-                    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); skipBlur.current = true; setEditingValue(null); setError(null); }
-                  }}
-                  onBlur={() => { if (skipBlur.current) { skipBlur.current = false; return; } void commitEdit(); }}
-                  className={`${inputClass} min-w-0`}
-                  aria-label={`Edit ${noun(kind)}`}
-                />
-              ) : (
-                <a href={hrefFor(entry.value)} className={linkClass} title={entry.value}>{entry.value}</a>
-              )}
-              <button
-                type="button"
-                onClick={() => void copy(entry.value)}
-                className={iconButtonClass}
-                title={`Copy ${noun(kind)}`}
-                aria-label={`Copy ${entry.value}`}
-              >
-                {copied === entry.value ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEditingValue(entry.value); setEditDraft(entry.value); setError(null); }}
-                className={`${iconButtonClass} ${revealed}`}
-                title={`Edit ${noun(kind)}`}
-                aria-label={`Edit ${entry.value}`}
-              >
-                <Edit className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void run(() => onMakePrimary(entry.value))}
-                className={`${iconButtonClass} ${revealed}`}
-                title="Make primary"
-                aria-label={`Make ${entry.value} primary`}
-              >
-                <Star className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void run(() => onRemove(entry.value))}
-                className={`${iconButtonClass} ${revealed}`}
-                title="Remove"
-                aria-label={`Remove ${entry.value}`}
-              >
-                <X className="w-3 h-3" />
-              </button>
+            <li key={entry.value} className={`group/extra min-w-0 ${editing ? 'space-y-1' : 'flex items-center gap-1'}`} data-testid={`extra-${kind}-row`}>
+              <div className={`flex items-center gap-1 min-w-0 ${editing ? '' : 'contents'}`}>
+                {editing ? (
+                  <select
+                    value={labels.includes(entry.label) ? entry.label : '__custom'}
+                    onChange={(e) => void run(() => onLabel(entry.value, e.target.value))}
+                    className={`${selectClass} text-xs py-0.5 px-1 w-24 flex-shrink-0`}
+                    aria-label={`Label for ${entry.value}`}
+                  >
+                    {!labels.includes(entry.label) && <option value="__custom" disabled>{entry.label}</option>}
+                    {labels.map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                ) : (
+                  <span className={mutedLabelClass}>{entry.label}</span>
+                )}
+                {editing && <span className="flex-1" />}
+                {!editing && valueNode(entry)}
+                {actions(entry)}
+              </div>
+              {editing && valueNode(entry)}
             </li>
           ))}
         </ul>
