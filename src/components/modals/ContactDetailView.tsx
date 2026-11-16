@@ -1,3 +1,4 @@
+import { pushUndo } from '../../lib/undo/undoStack';
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
@@ -472,7 +473,9 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
           onClose={() => setShowDelete(false)}
           onConfirm={async () => {
             try {
-              await useContactStore.getState().deleteContact(contact.id);
+              const deletedId = contact.id;
+              await useContactStore.getState().deleteContact(deletedId);
+              pushUndo(`Moved ${contact.name} to Trash`, () => useContactStore.getState().restoreContact(deletedId));
               setShowDelete(false);
               onClose();
             } catch {

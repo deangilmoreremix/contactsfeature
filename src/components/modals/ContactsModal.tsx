@@ -6,6 +6,7 @@ import { SmartTooltip } from '../ui/SmartTooltip';
 import { ToastProvider } from '../ui/Toast';
 import { aiBatchService } from '../../services/aiBatchService';
 import { AIErrorToaster } from '../ui/AIErrorToaster';
+import { UndoToast } from '../ui/UndoToast';
 import { ContactDetailView } from './ContactDetailView';
 import { ImportContactsModal } from './ImportContactsModal';
 import { NewContactModal } from './NewContactModal';
@@ -1244,6 +1245,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
           <AIProvider>
             <ToastProvider>
               <AIErrorToaster />
+              <UndoToast />
               <ContactErrorBoundary
                 onError={(error, errorInfo) => {
                   console.error('Contact detail error:', error, errorInfo);
