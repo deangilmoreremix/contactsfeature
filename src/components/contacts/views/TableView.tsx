@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import React from 'react';
 import { contactsToCsvBlob } from '../../../utils/contactCsv';
 import { Contact } from '../../../types/contact';
@@ -25,6 +25,22 @@ import { useContactFilterFields } from '../../../hooks/useContactFilterFields';
 import { getContactFieldValue } from '../../../lib/filters/filterContacts';
 import { formatFieldValue, isEmptyFieldValue, type CustomFieldType } from '../../../lib/fields/fieldTypeRegistry';
 import { ContactGroupHeader } from '../ContactGroupHeader';
+import { PeekButton } from '../PeekButton';
+import { useContactPeekStore } from '../../../store/contactPeekStore';
+import { useContactSelectionModeStore } from '../../../store/contactSelectionModeStore';
+import { useTableViewSettings } from '../../../store/tableViewSettingsStore';
+import { pushUndo } from '../../../lib/undo/undoStack';
+import { sortContacts, nextSorts, type SortFieldMap } from '../../../lib/views/sortContacts';
+import {
+  AGGREGATE_LABELS,
+  AGGREGATE_OPS,
+  computeAggregate,
+  formatAggregate,
+  normalizeAggregateOp,
+  type AggregateKind
+} from '../../../lib/records/aggregates';
+import { bulkTrashWithUndo, bulkUpdateWithUndo } from '../../../hooks/useBulkActions';
+import type { ViewDensity } from '../../../types/view';
 
 interface TableViewProps {
   contacts: Contact[];
@@ -39,6 +55,10 @@ interface ColumnDefinition {
   width?: number;
   render?: (value: any, contact: Contact) => React.ReactNode;
   editable?: boolean;
+  /** Raw cell value for sorting / totals (no display placeholders such as '-' or 'Never'). Defaults to accessor. */
+  raw?: (contact: Contact) => unknown;
+  /** How totals and sorting interpret the column. Defaults to text. */
+  kind?: AggregateKind;
 }
 
 const allColumns: ColumnDefinition[] = [
@@ -144,6 +164,8 @@ const allColumns: ColumnDefinition[] = [
     id: 'aiScore',
     label: 'AI Score',
     accessor: (c) => c.aiScore || 0,
+    raw: (c) => c.aiScore,
+    kind: 'number',
     sortable: true,
     width: 120,
     render: (value) => (
@@ -164,6 +186,8 @@ const allColumns: ColumnDefinition[] = [
     id: 'lastConnected',
     label: 'Last Contact',
     accessor: (c) => c.lastConnected || 'Never',
+    raw: (c) => c.lastConnected,
+    kind: 'date',
     sortable: true,
     width: 150
   },
@@ -171,6 +195,7 @@ const allColumns: ColumnDefinition[] = [
     id: 'industry',
     label: 'Industry',
     accessor: (c) => c.industry || '-',
+    raw: (c) => c.industry,
     sortable: true,
     width: 140
   },
@@ -178,6 +203,7 @@ const allColumns: ColumnDefinition[] = [
     id: 'phone',
     label: 'Phone',
     accessor: (c) => c.phone || '-',
+    raw: (c) => c.phone,
     sortable: false,
     width: 150
   },
@@ -205,7 +231,18 @@ const allColumns: ColumnDefinition[] = [
   }
 ];
 
-type SortDirection = 'asc' | 'desc';
+/** Row padding per density; 'comfortable' is the original look. */
+const ROW_PADDING: Record<ViewDensity['type'], string> = {
+  compact: 'py-1.5',
+  comfortable: 'py-3',
+  spacious: 'py-4'
+};
+
+const DENSITY_LABELS: Record<ViewDensity['type'], string> = {
+  compact: 'Compact',
+  comfortable: 'Comfortable',
+  spacious: 'Spacious'
+};
 
 /** Display format for a custom column, derived from its filter field type. */
 const customTypeFor = (t: string): CustomFieldType =>
@@ -223,6 +260,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
         label: f.label,
         sortable: true,
         width: 160,
+        kind: f.type === 'NUMBER' ? 'number' : f.type === 'DATE' || f.type === 'DATE_TIME' ? 'date' : 'text',
         accessor: (c) => {
           const v = getContactFieldValue(c, f);
           return isEmptyFieldValue(v) ? '' : v;
@@ -237,8 +275,19 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     'name', 'email', 'company', 'title', 'status', 'interestLevel', 'aiScore', 'lastConnected'
   ]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [sortField, setSortField] = useState<string>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const sorts = useTableViewSettings((s) => s.sorts);
+  const setSorts = useTableViewSettings((s) => s.setSorts);
+  const density = useTableViewSettings((s) => s.density);
+  const setDensity = useTableViewSettings((s) => s.setDensity);
+  const freezeFirstColumn = useTableViewSettings((s) => s.freezeFirstColumn);
+  const setFreezeFirstColumn = useTableViewSettings((s) => s.setFreezeFirstColumn);
+  const showTotals = useTableViewSettings((s) => s.showTotals);
+  const setShowTotals = useTableViewSettings((s) => s.setShowTotals);
+  const aggregates = useTableViewSettings((s) => s.aggregates);
+  const setAggregate = useTableViewSettings((s) => s.setAggregate);
+  const openPeek = useContactPeekStore((s) => s.open);
+  const setVisibleIds = useContactSelectionModeStore((s) => s.setVisibleIds);
+  const rowPad = ROW_PADDING[density];
   const selectedContacts = useContactSelectionStore((s) => s.selected);
   const toggleSelection = useContactSelectionStore((s) => s.toggle);
   const selectAllIds = useContactSelectionStore((s) => s.selectAll);
@@ -252,26 +301,23 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const reorderStore = useContactStore((s) => s.reorderContacts);
   const prefsLoaded = useRef(false);
   const updateContact = useContactStore((s) => s.updateContact);
-  const deleteContact = useContactStore((s) => s.deleteContact);
 
   const bulkStatusOptions = ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'];
   const bulkInterestOptions = ['hot', 'medium', 'low', 'cold'];
 
-  const handleSort = (columnId: string) => {
+  /** Click sorts by the column; Shift+click adds it as a secondary sort ("then by"). */
+  const handleSort = (columnId: string, additive = false) => {
     setManualMode(false);
-    setSortField(columnId);
-    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    setSorts(nextSorts(sorts, columnId, { additive }));
   };
 
-  const sortedContacts = [...contacts].sort((a, b) => {
-    const column = columnDefs.find(col => col.id === sortField);
-    if (!column) return 0;
-    const aValue = column.accessor(a);
-    const bValue = column.accessor(b);
-    if (aValue === bValue) return 0;
-    const comparison = aValue < bValue ? -1 : 1;
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
+  const sortFields: SortFieldMap = Object.fromEntries(
+    columnDefs.map((col) => [
+      col.id,
+      { kind: col.kind === 'number' ? 'number' : 'text', get: col.raw ?? col.accessor }
+    ])
+  );
+  const sortedContacts = sortContacts(contacts, sorts, sortFields);
 
   // Saved manual order overrides the column sort until the user sorts by a column again.
   const displayContacts = manualMode ? orderColumnContacts(sortedContacts) : sortedContacts;
@@ -367,9 +413,14 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
     setEditingCell(null);
-    if (contact[field as keyof Contact] === rawValue) return;
+    const previous = contact[field as keyof Contact];
+    if (previous === rawValue) return;
     try {
       await updateContact(contactId, { [field]: rawValue } as Partial<Contact>);
+      const label = columnDefs.find(c => c.id === field)?.label ?? field;
+      pushUndo(`Updated ${label.toLowerCase()} of ${contact.name}`, async () => {
+        await useContactStore.getState().updateContact(contactId, { [field]: previous ?? '' } as Partial<Contact>);
+      });
     } catch (error) {
       console.error('Failed to update contact', error);
     }
@@ -378,10 +429,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const bulkUpdateField = async (field: string, value: any) => {
     const ids = Array.from(selectedContacts);
     if (!ids.length) return;
-    const results = await Promise.allSettled(
-      ids.map(id => updateContact(id, { [field]: value } as Partial<Contact>))
-    );
-    const failed = results.filter(r => r.status === 'rejected').length;
+    const { failed } = await bulkUpdateWithUndo(ids, { [field]: value } as Partial<Contact>);
     if (failed) console.error(`Bulk update failed for ${failed} of ${ids.length} contacts`);
     clearSelection();
     setShowBulkMenu(false);
@@ -390,7 +438,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
   const bulkDeleteContacts = async () => {
     const ids = Array.from(selectedContacts);
     if (!ids.length || !confirm(`Delete ${ids.length} contacts?`)) return;
-    await Promise.allSettled(ids.map(id => deleteContact(id)));
+    await bulkTrashWithUndo(ids);
     clearSelection();
     setShowBulkMenu(false);
   };
@@ -430,6 +478,22 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
 
   // ---- Group sections ----
   const navRows = groups ? groups.flatMap(g => (isCollapsed(g.key) ? [] : g.contacts)) : displayContacts;
+
+  // Tell the "Select all matching" banner which rows are currently visible (collapsed groups are not).
+  const navKey = navRows.map(c => c.id).join('|');
+  useEffect(() => {
+    setVisibleIds(navKey ? navKey.split('|') : []);
+    return () => setVisibleIds(null);
+  }, [navKey, setVisibleIds]);
+
+  // Frozen first column: the first data column sticks right after the (measured) checkbox column.
+  const selectThRef = useRef<HTMLTableCellElement>(null);
+  const [selectColWidth, setSelectColWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (freezeFirstColumn && selectThRef.current) setSelectColWidth(selectThRef.current.offsetWidth);
+  });
+  const frozenSelectCls = freezeFirstColumn ? ' sticky left-0 z-[1] bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800' : '';
+  const frozenDataCls = freezeFirstColumn ? ' sticky z-[1] bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800' : '';
 
   // ---- Column drag-reorder and resize ----
   const widthsRef = useRef(columnWidths);
@@ -528,6 +592,8 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
       case 'F2': {
         if (!focusCell) return;
         e.preventDefault();
+        // Alt+Enter peeks (Space is already "toggle selection")
+        if (e.altKey && e.key === 'Enter') { if (navRows[cur.row]) openPeek(navRows[cur.row]!.id); return; }
         if (orderedColumns[cur.col]?.editable) startEditing(cur.row, cur.col);
         else if (navRows[cur.row]) onContactClick(navRows[cur.row]!);
         return;
@@ -584,7 +650,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
         className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
         onClick={() => onContactClick(contact)}
       >
-        <td className="px-4 py-3">
+        <td className={`px-4 ${rowPad}${frozenSelectCls}`}>
           <div className="flex items-center gap-1.5">
             <button
               onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id, e.shiftKey); }}
@@ -621,6 +687,7 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
           const isEditing = editable && editingCell?.id === contact.id && editingCell.field === column.id;
           const isFocused = focusCell?.row === rowIndex && focusCell.col === colIndex;
           const customWidth = columnWidths[column.id];
+          const isFirstData = colIndex === 0;
           const value = column.render
             ? column.render(column.accessor(contact), contact)
             : column.accessor(contact);
@@ -628,8 +695,11 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
             <td
               key={column.id}
               data-cell={`${rowIndex}:${colIndex}`}
-              className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px]${isFocused ? ' ring-2 ring-inset ring-blue-500' : ''}`}
-              style={customWidth ? { width: customWidth, minWidth: customWidth, maxWidth: customWidth } : undefined}
+              className={`px-4 ${rowPad} text-sm text-gray-700 dark:text-gray-300 max-w-[200px]${isFirstData ? (freezeFirstColumn ? frozenDataCls : ' relative') : ''}${isFocused ? ' ring-2 ring-inset ring-blue-500' : ''}`}
+              style={{
+                ...(customWidth ? { width: customWidth, minWidth: customWidth, maxWidth: customWidth } : {}),
+                ...(isFirstData && freezeFirstColumn ? { left: selectColWidth } : {})
+              }}
               onMouseDown={() => setFocusCell({ row: rowIndex, col: colIndex })}
               onDoubleClick={editable ? (e) => { e.stopPropagation(); setEditingCell({ id: contact.id, field: column.id }); } : undefined}
               onClick={isEditing ? (e) => e.stopPropagation() : undefined}
@@ -643,6 +713,9 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                   onCancel={finishEditing}
                 />
               ) : value}
+              {isFirstData && !isEditing && (
+                <PeekButton contact={contact} className="absolute right-1 top-1/2 -translate-y-1/2 group-hover:opacity-100" />
+              )}
             </td>
           );
         })}
@@ -727,6 +800,43 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
               </label>
             ))}
           </div>
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-1" role="group" aria-label="Row density">
+              {(Object.keys(DENSITY_LABELS) as ViewDensity['type'][]).map(key => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={density === key}
+                  onClick={() => setDensity(key)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    density === key
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {DENSITY_LABELS[key]}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={freezeFirstColumn}
+                onChange={(e) => setFreezeFirstColumn(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Freeze first column</span>
+            </label>
+            <label className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTotals}
+                onChange={(e) => setShowTotals(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Show totals</span>
+            </label>
+          </div>
         </GlassCard>
       )}
 
@@ -740,12 +850,12 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left w-20">
+                <th ref={selectThRef} className={`px-4 py-3 text-left w-20${freezeFirstColumn ? ' sticky left-0 z-20 bg-gray-50 dark:bg-gray-800' : ''}`}>
                   <button onClick={toggleSelectAll} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     {selectedContacts.size === contacts.length && contacts.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   </button>
                 </th>
-                {orderedColumns.map(column => (
+                {orderedColumns.map((column, headIndex) => (
                   <th
                     key={column.id}
                     draggable
@@ -763,14 +873,21 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                         moveColumn(from, column.id);
                       }
                     }}
-                    className="relative px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                    style={{ width: columnWidths[column.id] || column.width }}
+                    className={`relative px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider${headIndex === 0 && freezeFirstColumn ? ' sticky z-20 bg-gray-50 dark:bg-gray-800' : ''}`}
+                    style={{ width: columnWidths[column.id] || column.width, ...(headIndex === 0 && freezeFirstColumn ? { left: selectColWidth } : {}) }}
                   >
                     {column.sortable ? (
-                      <button onClick={() => handleSort(column.id)} className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors group">
+                      <button
+                        onClick={(e) => handleSort(column.id, e.shiftKey)}
+                        title="Click to sort, Shift+click to add a secondary sort"
+                        className="flex items-center gap-2 hover:text-gray-700 dark:hover:text-gray-300 transition-colors group"
+                      >
                         <span>{column.label}</span>
-                        {sortField === column.id ? (
-                          sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                        {sorts.some(x => x.field === column.id) ? (
+                          <>
+                            {sorts.find(x => x.field === column.id)!.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                            {sorts.length > 1 && <span className="-ml-1 text-[10px] leading-none">{sorts.findIndex(x => x.field === column.id) + 1}</span>}
+                          </>
                         ) : (
                           <ArrowUpDown className="w-4 h-4 opacity-0 group-hover:opacity-50" />
                         )}
@@ -820,6 +937,41 @@ export function TableView({ contacts, onContactClick }: TableViewProps) {
                 </tr>
               )}
             </tbody>
+            {showTotals && (
+              <tfoot className="sticky bottom-0 z-10" data-testid="table-totals">
+                <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                  <td className={`px-4 py-2${freezeFirstColumn ? ' sticky left-0 z-20 bg-gray-50 dark:bg-gray-800' : ''}`} />
+                  {orderedColumns.map((column, footIndex) => {
+                    const kind: AggregateKind = column.kind ?? 'text';
+                    const op = normalizeAggregateOp(aggregates[column.id], kind);
+                    const result = op === 'none' ? null : computeAggregate(op, displayContacts.map(c => (column.raw ?? column.accessor)(c)), kind);
+                    return (
+                      <td
+                        key={column.id}
+                        className={`px-4 py-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap${footIndex === 0 && freezeFirstColumn ? ' sticky z-20 bg-gray-50 dark:bg-gray-800' : ''}`}
+                        style={footIndex === 0 && freezeFirstColumn ? { left: selectColWidth } : undefined}
+                      >
+                        <select
+                          aria-label={`Calculate ${column.label}`}
+                          value={op}
+                          onChange={(e) => setAggregate(column.id, e.target.value as typeof op)}
+                          className="bg-transparent text-xs text-gray-500 dark:text-gray-400 focus:outline-none cursor-pointer max-w-[7rem]"
+                        >
+                          {AGGREGATE_OPS[kind].map(o => (
+                            <option key={o} value={o}>{o === 'none' ? 'Calculate' : AGGREGATE_LABELS[o]}</option>
+                          ))}
+                        </select>
+                        {op !== 'none' && (
+                          <span className="ml-1 font-semibold text-gray-900 dark:text-gray-100" data-testid={`total-${column.id}`}>
+                            {formatAggregate(op, result)}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </GlassCard>

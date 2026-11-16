@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { ViewDensity } from '../../../types/view';
 import { SmartContactCard } from '../SmartContactCard';
@@ -6,6 +6,8 @@ import { ModernButton } from '../../ui/ModernButton';
 import { useContactSelectionStore } from '../../../store/contactSelectionStore';
 import { useContactGroups } from '../../../hooks/useContactGroups';
 import { ContactGroupHeader } from '../ContactGroupHeader';
+import { PeekButton } from '../PeekButton';
+import { useContactSelectionModeStore } from '../../../store/contactSelectionModeStore';
 import {
   LayoutList,
   Grid3x3,
@@ -36,11 +38,19 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
   const orderedIds = contacts.map((c) => c.id);
   const { groups, isCollapsed, toggle } = useContactGroups(contacts);
 
+  // Tell the "Select all matching" banner which cards are currently visible (collapsed groups are not).
+  const setVisibleIds = useContactSelectionModeStore((s) => s.setVisibleIds);
+  const visibleKey = (groups ? groups.flatMap((g) => (isCollapsed(g.key) ? [] : g.contacts)) : contacts).map((c) => c.id).join('|');
+  useEffect(() => {
+    setVisibleIds(visibleKey ? visibleKey.split('|') : []);
+    return () => setVisibleIds(null);
+  }, [visibleKey, setVisibleIds]);
+
   const renderCard = (contact: Contact) => (
           <div
             key={contact.id}
             onClick={() => onContactClick(contact)}
-            className="cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
+            className="relative group/peek cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
             style={{
               minHeight: viewMode === 'list' ? `${currentDensity.cardHeight}px` : undefined
             }}
@@ -54,6 +64,7 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
               showMetrics={true}
               enableQuickActions={true}
             />
+            <PeekButton contact={contact} className="absolute top-2 right-2 z-20 group-hover/peek:opacity-100 bg-white/80 dark:bg-gray-800/80" />
           </div>
   );
 

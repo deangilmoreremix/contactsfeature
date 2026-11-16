@@ -214,6 +214,39 @@ class ViewPreferencesService {
     }
   }
 
+  /**
+   * Kanban card options (fields shown on cards, hide-empty, collapsed columns) live in the optional
+   * `kanban_column_configs.card_config` JSON column. Returns null when the column does not exist (yet),
+   * there is no row, or the request fails: callers fall back to their local copy.
+   */
+  async getKanbanCardConfig(): Promise<unknown | null> {
+    try {
+      const config = (await this.getKanbanConfig()) as (Record<string, unknown> | null);
+      return config ? (config['card_config'] ?? null) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Best-effort save of the card options next to the column config; never throws (the board keeps working without it). */
+  async saveKanbanCardConfig(cardConfig: unknown, columnField: string, columns: KanbanColumn[]): Promise<void> {
+    try {
+      const userId = await this.getUserId();
+      const existing = await this.getKanbanConfig();
+      if (existing) {
+        let query = supabase.from('kanban_column_configs').update({ card_config: cardConfig, updated_at: new Date().toISOString() } as never);
+        query = userId === null ? query.is('user_id', null) : query.eq('user_id', userId);
+        const { error } = await query;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('kanban_column_configs').insert({ user_id: userId, column_field: columnField, columns, card_config: cardConfig } as never);
+        if (error) throw error;
+      }
+    } catch (error) {
+      logger.warn?.('Kanban card options were not saved to the database (kept locally)', { error: String((error as Error)?.message ?? error) });
+    }
+  }
+
   async getTableColumnPreferences(): Promise<TableColumnPreferences | null> {
     try {
       const userId = await this.getUserId();

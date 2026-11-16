@@ -28,6 +28,13 @@ import { resolveContactShortcut } from '../../lib/commands/contactShortcuts';
 import { adjacentContactId, recordPosition } from '../../lib/contacts/recordNavigation';
 import { buildContactLink, withContactParams } from '../../lib/contacts/deepLink';
 import { downloadContact } from '../../lib/contacts/exportContact';
+import { contactsToVcard, vcardFilename } from '../../lib/export/vcard';
+import { eventsToIcs, icsFilename, serviceEventsToIcsEvents, type IcsEvent } from '../../lib/export/ics';
+import { downloadTextFile } from '../../lib/export/download';
+import { buildContactEvents } from '../../lib/calendar/contactEvents';
+import { canUseContactCalendar, contactCalendarService } from '../../services/contactCalendarService';
+import { readRecentContacts, recordRecentContact, type RecentContact } from '../../lib/records/recentContacts';
+import { useCurrentUserId } from '../../hooks/useCurrentUserId';
 
 // Lazy load tab components for better performance
 const ContactOverviewTab = lazy(() => import('../contacts/ContactOverviewTab').then(module => ({ default: module.ContactOverviewTab })));
@@ -129,6 +136,13 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const navIds = useContactNavigationStore((s) => s.ids);
   const allContacts = useContactStore((s) => s.contacts);
   const isDeleted = !!contact.deletedAt;
+  const userId = useCurrentUserId();
+  const [recents, setRecents] = useState<RecentContact[]>([]);
+  // Record every opened record (and each switch to another one) as "recently viewed".
+  useEffect(() => {
+    if (!isOpen) return;
+    setRecents(recordRecentContact(userId, { id: contact.id, name: contact.name }));
+  }, [isOpen, contact.id, userId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showCommands, setShowCommands] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -212,9 +226,26 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     }
   }, [contact.id, isDeleted, changeTab]);
 
+  /** Meetings from the calendar service when available, else the contact's own dates; downloaded as .ics. */
+  const exportCalendar = useCallback(async () => {
+    let events: IcsEvent[] = [];
+    try {
+      if (canUseContactCalendar(contact.id)) {
+        events = serviceEventsToIcsEvents((await contactCalendarService.list(contact.id, { suggestions: false })).events);
+      }
+    } catch { /* service unavailable: fall back to the contact's own dates */ }
+    if (events.length === 0) {
+      events = buildContactEvents([contact]).map((e) => ({ id: e.id, title: e.title, start: e.date, durationMinutes: 30 }));
+    }
+    if (events.length === 0) { flash('No calendar events to export', 'error'); return; }
+    downloadTextFile(eventsToIcs(events, { calendarName: `${contact.name} - SmartCRM` }), 'text/calendar;charset=utf-8', icsFilename(contact));
+    flash('Calendar exported');
+  }, [contact, flash]);
+
   const runCommand = useCallback((id: ContactCommandId) => {
     setShowCommands(false);
     if (id.startsWith('tab:')) { changeTab(id.slice(4)); return; }
+    if (id.startsWith('recent:')) { goToRecord(id.slice(7)); return; }
     switch (id) {
       case 'palette': setShowCommands(true); break;
       case 'edit': requestEdit(); break;
@@ -224,14 +255,28 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
       case 'copy-link': void copyLink(); break;
       case 'export-csv': downloadContact(contact, 'csv'); flash('Exported as CSV'); break;
       case 'export-json': downloadContact(contact, 'json'); flash('Exported as JSON'); break;
+      case 'export-vcard':
+        downloadTextFile(contactsToVcard([contact]), 'text/vcard;charset=utf-8', vcardFilename([contact]));
+        flash('Exported as vCard');
+        break;
+      case 'export-ics': void exportCalendar(); break;
       case 'shortcuts': setShowShortcuts(true); break;
       case 'customize-tabs': document.querySelector<HTMLElement>('[data-testid="customize-tabs-button"]')?.click(); break;
       case 'merge': setShowMergePicker(true); break;
       case 'delete': setShowDelete(true); break;
       case 'destroy': setShowDestroy(true); break;
-      case 'restore':
-        void useContactStore.getState().restoreContact(contact.id).then(() => flash('Contact restored'), () => flash('Could not restore the contact', 'error'));
+      case 'restore': {
+        const restoredId = contact.id;
+        const restoredName = contact.name;
+        void useContactStore.getState().restoreContact(restoredId).then(
+          () => {
+            flash('Contact restored');
+            pushUndo(`Restored ${restoredName}`, () => useContactStore.getState().deleteContact(restoredId));
+          },
+          () => flash('Could not restore the contact', 'error'),
+        );
         break;
+      }
       case 'duplicate':
         void useContactStore.getState().duplicateContact(contact).then(
           (copy) => { flash('Duplicated'); onOpenContact?.(copy); },
@@ -239,7 +284,15 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
         );
         break;
     }
-  }, [changeTab, requestEdit, toggleFavorite, goToRecord, prevId, nextId, copyLink, contact, flash, onOpenContact]);
+  }, [changeTab, requestEdit, toggleFavorite, goToRecord, prevId, nextId, copyLink, exportCalendar, contact, flash, onOpenContact]);
+
+  // Recently viewed records that still exist (not the open one); names come from the live store.
+  const recentForPalette = useMemo(() => recents
+    .filter((r) => r.id !== contact.id)
+    .map((r) => ({ r, c: allContacts.find((x) => x.id === r.id) }))
+    .filter((x): x is { r: RecentContact; c: Contact } => !!x.c)
+    .map(({ c }) => ({ id: c.id, name: c.name, company: c.company })),
+  [recents, allContacts, contact.id]);
 
   const commands = useMemo(() => buildContactCommands({
     isDeleted,
@@ -248,7 +301,8 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     canNext: !!nextId,
     tabs: visibleTabs,
     activeTab,
-  }), [isDeleted, contact.isFavorite, prevId, nextId, visibleTabs, activeTab]);
+    recent: recentForPalette,
+  }), [isDeleted, contact.isFavorite, prevId, nextId, visibleTabs, activeTab, recentForPalette]);
 
   const anyOverlayOpen = showCommands || showShortcuts || showDelete || showDestroy || showMergePicker || !!mergePair
     || showEmailComposer || showCallHandler || showSMSComposer || showAISettings || showAPIConfig;
@@ -368,6 +422,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       onSaveField={commitOverviewDraft}
                       onUpdate={handleUpdate}
                       lastEnrichment={lastEnrichment}
+                      onReviewDuplicate={(other: Contact) => setMergePair([contact, other])}
                     />
                   )}
 

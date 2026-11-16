@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Settings2, MoreHorizontal, ChevronUp, ChevronDown, Copy, GitMerge, Download, Link2, Trash2,
-  ArchiveRestore, Trash, Command, Keyboard,
+  ArchiveRestore, Trash, Command, Keyboard, CalendarDays,
 } from 'lucide-react';
 import { TOOLBAR_ICON_BTN } from './toolbarStyles';
 import { LOCKED_TAB_IDS } from '../../lib/tabs/tabLayout';
@@ -137,6 +137,8 @@ export const ContactOverflowMenu: React.FC<ContactOverflowMenuProps> = ({ isDele
     { id: 'copy-link', label: 'Copy link', icon: Link2 },
     { id: 'export-csv', label: 'Export as CSV', icon: Download },
     { id: 'export-json', label: 'Export as JSON', icon: Download },
+    { id: 'export-vcard', label: 'Export as vCard', icon: Download },
+    { id: 'export-ics', label: 'Export calendar (.ics)', icon: CalendarDays },
     { id: 'shortcuts', label: 'Keyboard shortcuts', icon: Keyboard, hint: '?' },
     isDeleted
       ? { id: 'destroy', label: 'Delete permanently', icon: Trash, danger: true }

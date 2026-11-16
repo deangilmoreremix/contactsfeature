@@ -10,6 +10,8 @@ import {
   Activity,
   Star
 } from 'lucide-react';
+import { PinChartMenu, PinnedCharts, usePinnedCharts } from '../dashboard/PinnedCharts';
+import { useDealStore } from '../../../store/useDealStore';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface DashboardViewProps {
@@ -18,6 +20,10 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ contacts, onContactClick }: DashboardViewProps) {
+  const { pinned, toggle: togglePin } = usePinnedCharts();
+  const deals = useDealStore((s) => s.deals);
+  const dealsLoaded = useDealStore((s) => s.loaded);
+  const fetchDeals = useDealStore((s) => s.fetchDeals);
   const totalContacts = contacts.length;
   const avgAIScore = contacts.reduce((sum, c) => sum + (c.aiScore || 0), 0) / totalContacts;
   const hotLeads = contacts.filter(c => c.interestLevel === 'hot').length;
@@ -58,6 +64,12 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Contact Analytics Dashboard
         </h3>
+        <PinChartMenu
+          pinned={pinned}
+          onToggle={togglePin}
+          dealsAvailable={deals.length > 0}
+          onOpen={() => { if (!dealsLoaded) void fetchDeals(); }}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -225,6 +237,8 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
           </div>
         </GlassCard>
       </div>
+
+      <PinnedCharts ids={pinned} contacts={contacts} deals={deals} onUnpin={togglePin} />
     </div>
   );
 }

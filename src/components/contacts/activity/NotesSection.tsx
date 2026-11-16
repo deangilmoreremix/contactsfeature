@@ -3,6 +3,8 @@ import { Pin, PinOff, Trash2 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useContactNotes } from '../../../hooks/useContactActivity';
 import type { ContactNote } from '../../../services/contactTasksService';
+import { NoteBody } from './NoteBody';
+import { NoteEditor } from './NoteEditor';
 
 const controlClass =
   'w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all';
@@ -48,12 +50,12 @@ export function NotesSection({ contactId }: { contactId: string }) {
           });
         }}
       >
-        <textarea
+        <NoteEditor
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={setDraft}
           rows={3}
           placeholder="Write a note…"
-          aria-label="New note"
+          ariaLabel="New note"
           className={controlClass}
         />
         <button
@@ -75,7 +77,7 @@ export function NotesSection({ contactId }: { contactId: string }) {
             <li key={note.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
               {editingId === note.id ? (
                 <div className="space-y-2">
-                  <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} className={controlClass} aria-label="Edit note" autoFocus />
+                  <NoteEditor value={editText} onChange={setEditText} rows={3} className={controlClass} ariaLabel="Edit note" autoFocus />
                   <div className="flex gap-2">
                     <button type="button" onClick={() => saveEdit(note)} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
                     <button type="button" onClick={() => setEditingId(null)} className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium whitespace-nowrap text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
@@ -83,13 +85,12 @@ export function NotesSection({ contactId }: { contactId: string }) {
                 </div>
               ) : (
                 <>
-                  <p
+                  <NoteBody
+                    body={note.body}
                     className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap cursor-text"
                     onDoubleClick={() => { setEditingId(note.id); setEditText(note.body); }}
                     title="Double-click to edit"
-                  >
-                    {note.body}
-                  </p>
+                  />
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {new Date(note.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}

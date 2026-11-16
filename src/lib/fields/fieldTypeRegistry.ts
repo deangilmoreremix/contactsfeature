@@ -9,6 +9,8 @@ export type CustomFieldType =
 export interface FieldOption {
   value: string;
   label: string;
+  /** Optional badge colour (hex), set in the custom field editor. */
+  color?: string;
 }
 
 export interface FieldTypeMeta {
@@ -35,6 +37,8 @@ export const FIELD_TYPES: FieldTypeMeta[] = [
 export interface FieldSettings {
   currency?: string;
   decimals?: number;
+  /** Per select option (keyed by stored value): editable label and colour. The stored value never changes. */
+  optionMeta?: Record<string, { label?: string; color?: string }>;
 }
 
 /** Options may be stored as plain strings or {value,label} objects. */

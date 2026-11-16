@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { CustomFieldType, FieldOption, FieldSettings } from '../lib/fields/fieldTypeRegistry';
 import { normalizeOptions } from '../lib/fields/fieldTypeRegistry';
+import { applyOptionMeta, serializeOptions, sortByDisplayOrder, validateFieldLabel } from '../lib/fields/fieldDefinitionEdit';
 
 export interface CustomFieldDef {
   id: string;
@@ -19,14 +20,18 @@ const writeLocal = (defs: CustomFieldDef[]) => {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(defs)); } catch { /* unavailable */ }
 };
 
-const fromRow = (r: any): CustomFieldDef => ({
-  id: r.id,
-  label: r.label,
-  fieldType: (r.field_type ?? r.fieldType) as CustomFieldType,
-  options: normalizeOptions(r.options),
-  settings: (r.settings ?? {}) as FieldSettings,
-  displayOrder: r.display_order ?? 0,
-});
+const fromRow = (r: any): CustomFieldDef => {
+  const settings = (r.settings ?? {}) as FieldSettings;
+  return {
+    id: r.id,
+    label: r.label,
+    fieldType: (r.field_type ?? r.fieldType) as CustomFieldType,
+    // Stored values + the editable labels/colours kept in settings.optionMeta.
+    options: applyOptionMeta(normalizeOptions(r.options), settings),
+    settings,
+    displayOrder: r.display_order ?? 0,
+  };
+};
 
 let listeners: Array<() => void> = [];
 export const onCustomFieldsChanged = (fn: () => void) => {
@@ -40,12 +45,12 @@ export async function listCustomFields(): Promise<CustomFieldDef[]> {
   const local = readLocal();
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return local;
+    if (!user) return sortByDisplayOrder(local);
     const { data, error } = await supabase.from('custom_field_definitions').select('*').eq('is_active', true).order('display_order', { ascending: true });
     if (error) throw error;
-    return [...(data ?? []).map(fromRow), ...local];
+    return sortByDisplayOrder([...(data ?? []).map(fromRow), ...local]);
   } catch {
-    return local;
+    return sortByDisplayOrder(local);
   }
 }
 
@@ -103,5 +108,52 @@ export async function deleteCustomField(def: CustomFieldDef): Promise<void> {
     const { error } = await supabase.from('custom_field_definitions').update({ is_active: false } as never).eq('id', def.id);
     if (error) throw error;
   }
+  notify();
+}
+
+/** Rename a field and/or change its options (labels, colours, order) and settings. Values are never rewritten here. */
+export async function updateCustomField(
+  def: CustomFieldDef,
+  patch: { label?: string; options?: FieldOption[]; settings?: FieldSettings }
+): Promise<CustomFieldDef> {
+  const label = patch.label !== undefined ? patch.label.trim() : def.label;
+  if (patch.label !== undefined) {
+    const problem = validateFieldLabel(label, await listCustomFields(), def.id);
+    if (problem) throw new Error(problem);
+  }
+  const options = patch.options ?? def.options;
+  const base = serializeOptions(options, patch.settings ?? def.settings);
+  const next: CustomFieldDef = { ...def, label, options, settings: base.settings };
+
+  if (def.id.startsWith('local-')) {
+    // Local definitions keep full option objects.
+    writeLocal(readLocal().map((d) => (d.id === def.id ? next : d)));
+  } else {
+    const { error } = await supabase
+      .from('custom_field_definitions')
+      .update({
+        label,
+        options: base.values.length ? base.values : null,
+        settings: base.settings,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', def.id);
+    if (error) throw error;
+  }
+  notify();
+  return next;
+}
+
+/** Persist a new order: `ordered` is the full list in the wanted order (displayOrder 0..n-1). */
+export async function reorderCustomFields(ordered: CustomFieldDef[]): Promise<void> {
+  const withOrder = ordered.map((d, i) => ({ ...d, displayOrder: i }));
+  const localById = new Map(withOrder.filter((d) => d.id.startsWith('local-')).map((d) => [d.id, d]));
+  if (localById.size) writeLocal(readLocal().map((d) => localById.get(d.id) ?? d));
+  const remote = withOrder.filter((d) => !d.id.startsWith('local-'));
+  const results = await Promise.all(
+    remote.map((d) => supabase.from('custom_field_definitions').update({ display_order: d.displayOrder } as never).eq('id', d.id))
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
   notify();
 }

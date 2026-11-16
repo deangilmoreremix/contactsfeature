@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, Edit, Heart, Copy, GitMerge, Download, Link2, Trash2, ArchiveRestore, ChevronUp, ChevronDown,
-  ArrowRight, Keyboard, Settings2, Trash,
+  ArrowRight, Keyboard, Settings2, Trash, Clock, CalendarDays,
 } from 'lucide-react';
 import { filterCommands, type ContactCommand, type ContactCommandId } from '../../lib/commands/contactCommands';
 import { useOverlayEscape } from '../../hooks/useOverlayEscape';
@@ -15,6 +15,7 @@ interface ContactCommandMenuProps {
 
 const ICONS: Record<string, React.ElementType> = {
   edit: Edit, favorite: Heart, duplicate: Copy, merge: GitMerge, 'export-csv': Download, 'export-json': Download,
+  'export-vcard': Download, 'export-ics': CalendarDays,
   'copy-link': Link2, delete: Trash2, restore: ArchiveRestore, destroy: Trash, prev: ChevronUp, next: ChevronDown,
   shortcuts: Keyboard, 'customize-tabs': Settings2,
 };
@@ -109,7 +110,7 @@ export const ContactCommandMenu: React.FC<ContactCommandMenuProps> = ({ open, co
             <p className="px-3 py-6 text-sm text-center text-gray-600 dark:text-gray-400">No matching actions</p>
           )}
           {results.map((cmd, i) => {
-            const Icon = ICONS[cmd.id] ?? ArrowRight;
+            const Icon = ICONS[cmd.id] ?? (cmd.section === 'Recent' ? Clock : ArrowRight);
             const isActive = i === active;
             const showHeading = showSections && (i === 0 || results[i - 1]!.section !== cmd.section);
             return (

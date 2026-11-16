@@ -1,11 +1,13 @@
 import React, { memo } from 'react';
 import { AvatarUpload } from '../ui/AvatarUpload';
+import { ModernButton } from '../ui/ModernButton';
+import { useDuplicateHint } from '../../hooks/useDuplicateHint';
 import { Contact } from '../../types/contact';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { socialPlatforms } from '../../constants/contactConstants';
 import {
   User, Building, Tag, Activity, Database, Globe,
-  Edit, Sparkles
+  Edit, Sparkles, GitMerge, X
 } from 'lucide-react';
 
 interface ContactOverviewTabProps {
@@ -17,6 +19,8 @@ interface ContactOverviewTabProps {
   onSaveField: () => void;
   onUpdate?: (id: string, updates: Partial<Contact>) => Promise<Contact>;
   lastEnrichment: ContactEnrichmentData | null;
+  /** Opens the merge flow for a likely duplicate; the duplicate hint banner is hidden without it. */
+  onReviewDuplicate?: (other: Contact) => void;
 }
 
 export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
@@ -27,8 +31,12 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
   onStartEditingField,
   onSaveField,
   onUpdate,
-  lastEnrichment
+  lastEnrichment,
+  onReviewDuplicate
 }) => {
+  const { matches: duplicateMatches, dismiss: dismissDuplicate } = useDuplicateHint(contact);
+  const duplicate = onReviewDuplicate ? duplicateMatches[0] : undefined;
+
   const personalInfoFields = [
     { label: 'First Name', value: contact.firstName || contact.name.split(' ')[0], icon: User, field: 'firstName' },
     { label: 'Last Name', value: contact.lastName || contact.name.split(' ').slice(1).join(' '), icon: User, field: 'lastName' },
@@ -42,6 +50,30 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
 
   return (
     <div className="p-6 space-y-6">
+      {duplicate && onReviewDuplicate && (
+        <div
+          role="status"
+          data-testid="duplicate-hint"
+          className="px-4 py-2 text-sm flex items-center gap-3 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800"
+        >
+          <GitMerge className="w-4 h-4 shrink-0" />
+          <span className="flex-1 min-w-0 truncate">
+            This contact may be a duplicate of <strong className="font-semibold">{duplicate.contact.name}</strong>
+            {' '}({duplicate.reasons.map((r) => (r === 'email' ? 'same email' : r === 'phone' ? 'same phone' : 'same name & company')).join(', ')})
+            {duplicateMatches.length > 1 ? ` and ${duplicateMatches.length - 1} more` : ''}
+          </span>
+          <ModernButton variant="outline" size="sm" onClick={() => onReviewDuplicate(duplicate.contact)}>Review</ModernButton>
+          <button
+            type="button"
+            aria-label="Dismiss duplicate hint"
+            title="Dismiss"
+            onClick={() => dismissDuplicate(duplicate.contact.id)}
+            className="h-8 w-8 inline-flex items-center justify-center rounded text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* AI Enhancement Notice */}
       {lastEnrichment && (
         <div className="bg-gradient-to-r from-purple-50 via-blue-50 to-green-50 dark:from-purple-900 dark:via-gray-800 dark:to-green-900 border border-purple-200 dark:border-purple-700 rounded-xl p-4">

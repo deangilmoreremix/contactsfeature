@@ -1,3 +1,5 @@
+import type { AggregateOp } from '../lib/records/aggregates';
+
 export type ViewType = 'list' | 'table' | 'kanban' | 'calendar' | 'dashboard' | 'timeline';
 
 export type TimeScale = 'day' | 'week' | 'month' | 'quarter';
@@ -19,6 +21,23 @@ export interface ViewFilterConfig {
 export interface ViewSortConfig {
   field: string;
   direction: 'asc' | 'desc';
+}
+
+/** Ordered list of sorts: first = primary, the rest break ties ("Then by..."). A single legacy sort is a list of one. */
+export type ViewSortList = ViewSortConfig[];
+
+/** Table-only display options, saved with a view preset. Every field is optional; absent = default look. */
+export interface TableViewConfig {
+  /** Row density; absent = 'comfortable' (today's look). */
+  density?: ViewDensity['type'];
+  /** Keep the checkbox + first column visible while scrolling horizontally. */
+  freezeFirstColumn?: boolean;
+  /** Show the aggregate footer. */
+  showTotals?: boolean;
+  /** Aggregate chosen per column id (absent / 'none' = nothing shown). */
+  aggregates?: Record<string, AggregateOp>;
+  /** Header-click sorts of the table (absent = Name A-Z). */
+  sorts?: ViewSortConfig[];
 }
 
 export interface UserViewPreferences {

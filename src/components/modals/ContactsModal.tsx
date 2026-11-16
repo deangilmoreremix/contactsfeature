@@ -34,7 +34,14 @@ import { useContactSelectionStore } from '../../store/contactSelectionStore';
 import { useContactNavigationStore } from '../../store/contactNavigationStore';
 import { ContactTrashModal } from '../contacts/ContactTrashModal';
 import { parseContactLink } from '../../lib/contacts/deepLink';
-import { bulkAddTags, bulkDeleteContacts, bulkUpdateContacts } from '../../services/bulkContactActions';
+import { bulkAddTagsWithUndo, bulkTrashWithUndo, bulkUpdateWithUndo, useBulkActions } from '../../hooks/useBulkActions';
+import { contactsToVcard, vcardFilename } from '../../lib/export/vcard';
+import { downloadTextFile } from '../../lib/export/download';
+import { ContactPeekDrawer } from '../contacts/ContactPeekDrawer';
+import { useTableViewSettings } from '../../store/tableViewSettingsStore';
+import { bannerMessage } from '../../lib/records/selection';
+import { CONTACT_SORT_FIELDS, CONTACT_SORT_LABELS, sortContacts, toSortList } from '../../lib/views/sortContacts';
+import type { ViewSortConfig } from '../../types/view';
 import { useContactViewStore } from '../../store/contactViewStore';
 import type { ContactViewSnapshot } from '../../lib/views/contactViewSnapshot';
 import { useAdvancedContactFilter } from '../../hooks/useAdvancedContactFilter';
@@ -124,6 +131,18 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [bulkActionDropdown, setBulkActionDropdown] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'company' | 'score' | 'updated'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  // Secondary sorts ("Then by...") applied after the primary sort above
+  const [thenBy, setThenBy] = useState<ViewSortConfig[]>([]);
+  const [showThenBy, setShowThenBy] = useState(false);
+  const thenByRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showThenBy) return;
+    const close = (e: MouseEvent) => {
+      if (thenByRef.current && !thenByRef.current.contains(e.target as Node)) setShowThenBy(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showThenBy]);
   const [analysisProgress, setAnalysisProgress] = useState<{current: number, total: number} | null>(null);
   const [aiResults, setAiResults] = useState<{success: number, failed: number} | null>(null);
   const [analyzingContactIds, setAnalyzingContactIds] = useState<string[]>([]);
@@ -231,38 +250,11 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
       result = result.filter(contact => contact.status === statusFilter);
     }
 
-    // Apply sorting
-    result.sort((a, b) => {
-      let aValue: any, bValue: any;
-
-      switch (sortBy) {
-        case 'name':
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
-          break;
-        case 'company':
-          aValue = a.company.toLowerCase();
-          bValue = b.company.toLowerCase();
-          break;
-        case 'score':
-          aValue = a.aiScore || 0;
-          bValue = b.aiScore || 0;
-          break;
-        case 'updated':
-          aValue = new Date(a.updatedAt);
-          bValue = new Date(b.updatedAt);
-          break;
-        default:
-          return 0;
-      }
-
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
+    // Apply sorting (primary + "Then by..." sorts; stable, empty values last)
+    result = sortContacts(result, toSortList({ by: sortBy, order: sortOrder }, thenBy));
 
     return result;
-  }, [contacts, searchTerm, activeFilter, statusFilter, sortBy, sortOrder, fuse]);
+  }, [contacts, searchTerm, activeFilter, statusFilter, sortBy, sortOrder, thenBy, fuse]);
 
   // Advanced nested AND/OR filters (applied on top of the quick filters above)
   const {
@@ -271,6 +263,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     activeCount: advancedFilterCount
   } = useAdvancedContactFilter(searchedAndSortedContacts);
   const filteredContacts = advancedFilteredContacts;
+  const bulk = useBulkActions(filteredContacts);
 
   // Previous / next record in the detail view follows the list as currently filtered and sorted
   const setNavigationIds = useContactNavigationStore((s) => s.setIds);
@@ -295,16 +288,28 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const replaceAdvancedFilters = useContactFilterStore((s) => s.replace);
   const groupBy = useContactViewStore((s) => s.groupBy);
   const setGroupBy = useContactViewStore((s) => s.setGroupBy);
+  const tableDensity = useTableViewSettings((s) => s.density);
+  const tableFreeze = useTableViewSettings((s) => s.freezeFirstColumn);
+  const tableTotals = useTableViewSettings((s) => s.showTotals);
+  const tableAggregates = useTableViewSettings((s) => s.aggregates);
+  const tableSorts = useTableViewSettings((s) => s.sorts);
+  const tableConfig = useMemo(
+    () => useTableViewSettings.getState().toConfig(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tableDensity, tableFreeze, tableTotals, tableAggregates, tableSorts]
+  );
   const viewSnapshot: ContactViewSnapshot = useMemo(
     () => ({
       viewType: currentView,
       quickFilters: { interest: activeFilter, status: statusFilter },
       sort: { by: sortBy, order: sortOrder },
+      ...(thenBy.length ? { thenBy } : {}),
+      ...(Object.keys(tableConfig).length ? { table: tableConfig } : {}),
       recordFilters,
       recordFilterGroups,
       groupBy,
     }),
-    [currentView, activeFilter, statusFilter, sortBy, sortOrder, recordFilters, recordFilterGroups, groupBy]
+    [currentView, activeFilter, statusFilter, sortBy, sortOrder, thenBy, tableConfig, recordFilters, recordFilterGroups, groupBy]
   );
   const applyViewSnapshot = (snap: ContactViewSnapshot) => {
     void setCurrentView(snap.viewType);
@@ -312,6 +317,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     setStatusFilter(snap.quickFilters.status);
     setSortBy(snap.sort.by as typeof sortBy);
     setSortOrder(snap.sort.order);
+    setThenBy(snap.thenBy ?? []);
+    useTableViewSettings.getState().applyConfig(snap.table);
     replaceAdvancedFilters({ recordFilters: snap.recordFilters, recordFilterGroups: snap.recordFilterGroups });
     setGroupBy(snap.groupBy);
     if (snap.recordFilters.length > 0) setShowAdvancedFilters(true);
@@ -752,6 +759,16 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                         Export Selected
                       </button>
                       <button
+                        className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => {
+                          const picked = filteredContacts.filter(c => selectedContacts.includes(c.id));
+                          if (picked.length) downloadTextFile(contactsToVcard(picked), 'text/vcard;charset=utf-8', vcardFilename(picked));
+                          setBulkActionDropdown(false);
+                        }}
+                      >
+                        Export as vCard
+                      </button>
+                      <button
                         onClick={() => setBulkMode(bulkMode === 'tags' ? null : 'tags')}
                         className="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
@@ -763,7 +780,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                           onSubmit={(e) => {
                             e.preventDefault();
                             const tags = bulkTagInput.split(',');
-                            void runBulk(() => bulkAddTags(contacts.filter(c => selectedContacts.includes(c.id)), tags));
+                            void runBulk(() => bulkAddTagsWithUndo(contacts.filter(c => selectedContacts.includes(c.id)), tags));
                           }}
                         >
                           <input
@@ -785,7 +802,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       {bulkMode === 'status' && ['lead', 'prospect', 'customer', 'churned', 'active', 'pending', 'inactive'].map((st) => (
                         <button
                           key={st}
-                          onClick={() => void runBulk(() => bulkUpdateContacts(selectedContacts, { status: st as any }))}
+                          onClick={() => void runBulk(() => bulkUpdateWithUndo(selectedContacts, { status: st as any }))}
                           className="w-full text-left pl-8 pr-4 py-1.5 text-sm capitalize text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
                           {st}
@@ -800,7 +817,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       {bulkMode === 'interest' && ['hot', 'medium', 'low', 'cold'].map((lv) => (
                         <button
                           key={lv}
-                          onClick={() => void runBulk(() => bulkUpdateContacts(selectedContacts, { interestLevel: lv as any }))}
+                          onClick={() => void runBulk(() => bulkUpdateWithUndo(selectedContacts, { interestLevel: lv as any }))}
                           className="w-full text-left pl-8 pr-4 py-1.5 text-sm capitalize text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
                           {lv}
@@ -848,7 +865,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       <button
                         onClick={() => {
                           if (confirm(`Move ${selectedContacts.length} selected contacts to Trash? You can restore them from Deleted.`)) {
-                            void runBulk(() => bulkDeleteContacts(selectedContacts));
+                            void runBulk(() => bulkTrashWithUndo(selectedContacts));
                           }
                         }}
                         className="w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -1142,9 +1159,11 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
               {/* Sort Dropdown */}
               <SmartTooltip featureId="contacts_sort_control">
+                <div className="relative flex shrink-0" ref={thenByRef}>
                 <select
                   value={`${sortBy}-${sortOrder}`}
                   onChange={(e) => {
+                    if (e.target.value === '__then-by') { setShowThenBy(true); return; }
                     const [field, order] = e.target.value.split('-');
                     setSortBy(field as typeof sortBy);
                     setSortOrder(order as typeof sortOrder);
@@ -1159,12 +1178,92 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   <option value="score-asc">Lowest Score</option>
                   <option value="updated-desc">Recently Updated</option>
                   <option value="updated-asc">Oldest Updated</option>
+                  <option value="__then-by">{thenBy.length ? `Then by... (${thenBy.length})` : 'Then by...'}</option>
                 </select>
+                {showThenBy && (
+                  <div
+                    role="dialog"
+                    aria-label="Then by"
+                    data-testid="then-by-popover"
+                    className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-20 p-3"
+                  >
+                    <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                      Then sort by
+                    </p>
+                    {thenBy.length === 0 && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Ties in the sort above are kept in list order.</p>
+                    )}
+                    {thenBy.map((t, i) => (
+                      <div key={i} className="flex items-center gap-2 mb-2">
+                        <select
+                          aria-label={`Then by field ${i + 1}`}
+                          value={t.field}
+                          onChange={(e) => setThenBy(thenBy.map((x, j) => (j === i ? { ...x, field: e.target.value } : x)))}
+                          className="flex-1 min-w-0 h-10 px-3 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {Object.keys(CONTACT_SORT_FIELDS).map((f) => (
+                            <option key={f} value={f}>{CONTACT_SORT_LABELS[f] ?? f}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          aria-label={`Then by direction ${i + 1}: ${t.direction === 'asc' ? 'ascending' : 'descending'}`}
+                          onClick={() => setThenBy(thenBy.map((x, j) => (j === i ? { ...x, direction: x.direction === 'asc' ? 'desc' : 'asc' } : x)))}
+                          className="h-10 px-3 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          {t.direction === 'asc' ? 'A-Z' : 'Z-A'}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove then by ${i + 1}`}
+                          onClick={() => setThenBy(thenBy.filter((_, j) => j !== i))}
+                          className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {thenBy.length < 3 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const used = new Set([sortBy, ...thenBy.map((t) => t.field)]);
+                          const next = Object.keys(CONTACT_SORT_FIELDS).find((f) => !used.has(f));
+                          if (next) setThenBy([...thenBy, { field: next, direction: 'asc' }]);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add sort
+                      </button>
+                    )}
+                  </div>
+                )}
+                </div>
               </SmartTooltip>
 
               <ViewSwitcher />
             </div>
           </div>
+
+          {bulk.banner.kind !== 'none' && (
+            <div
+              role="status"
+              data-testid="select-all-banner"
+              className="flex flex-wrap items-center justify-center gap-3 px-6 py-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-b border-blue-200 dark:border-blue-800"
+            >
+              <span>{bannerMessage(bulk.banner)}</span>
+              {bulk.banner.kind === 'offer' ? (
+                <button type="button" onClick={bulk.selectAllMatching} className="font-semibold underline underline-offset-2 hover:no-underline">
+                  Select all {bulk.banner.matchingCount} matching
+                </button>
+              ) : (
+                <button type="button" onClick={bulk.clearSelection} className="font-semibold underline underline-offset-2 hover:no-underline">
+                  Clear selection
+                </button>
+              )}
+            </div>
+          )}
 
           {showAdvancedFilters && (
             <AdvancedFilterPanel
@@ -1218,7 +1317,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
             )}
           </div>
         </div>
+        <ContactPeekDrawer onOpenRecord={handleContactClick} />
       </div>
+      {!selectedContact && <UndoToast />}
 
       {showTrash && (
         <ContactTrashModal
