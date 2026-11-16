@@ -431,34 +431,10 @@ class AIOrchestrator {
         }
       }
 
-      // All direct API attempts failed, try Supabase fallback if enabled
-      if (enableSupabaseBackup) {
-        try {
-          if (debugFallback) {
-            logger.info(`All direct API attempts failed, trying Supabase fallback`, undefined, {
-              requestId: request.id,
-              service: 'ai-orchestrator',
-              operation: 'supabase_fallback_attempt'
-            });
-          }
+      // The non-streaming Supabase edge-function fallback was removed: every answer must stream
+      // through the Responses API (see docs/STREAMING.md), so a failed attempt surfaces its error.
+      throw lastError || new Error(`Direct ${provider.name} API failed after ${maxRetries} attempts`);
 
-          return await this.callSupabaseEdgeFunction(provider, request);
-        } catch (supabaseError) {
-          if (debugFallback) {
-            logger.error(`Supabase fallback also failed`, supabaseError as Error, undefined, {
-              requestId: request.id,
-              service: 'ai-orchestrator',
-              operation: 'supabase_fallback_failed'
-            });
-          }
-          throw supabaseError;
-        }
-      } else {
-        throw lastError || new Error(`Direct ${provider.name} API failed after ${maxRetries} attempts`);
-      }
-
-    } else if (provider.type === 'edge_function') {
-      return await this.callSupabaseEdgeFunction(provider, request);
     } else {
       throw new Error(`Unsupported provider type: ${provider.type}`);
     }
