@@ -1,3 +1,5 @@
+import { useCompanies } from '../../hooks/useCompanies';
+import { CompanyDetailPanel } from '../contacts/CompanyDetailPanel';
 import { pushUndo } from '../../lib/undo/undoStack';
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
@@ -148,6 +150,8 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   const [showDelete, setShowDelete] = useState(false);
   const [showDestroy, setShowDestroy] = useState(false);
   const [showMergePicker, setShowMergePicker] = useState(false);
+  const [showCompany, setShowCompany] = useState(false);
+  const { findByName: findCompanyByName } = useCompanies();
   const [mergePair, setMergePair] = useState<Contact[] | null>(null);
   const [status, setStatus] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -263,6 +267,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
       case 'shortcuts': setShowShortcuts(true); break;
       case 'customize-tabs': document.querySelector<HTMLElement>('[data-testid="customize-tabs-button"]')?.click(); break;
       case 'merge': setShowMergePicker(true); break;
+      case 'company': setShowCompany(true); break;
       case 'delete': setShowDelete(true); break;
       case 'destroy': setShowDestroy(true); break;
       case 'restore': {
@@ -302,7 +307,8 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     tabs: visibleTabs,
     activeTab,
     recent: recentForPalette,
-  }), [isDeleted, contact.isFavorite, prevId, nextId, visibleTabs, activeTab, recentForPalette]);
+    company: contact.company,
+  }), [isDeleted, contact.company, contact.isFavorite, prevId, nextId, visibleTabs, activeTab, recentForPalette]);
 
   const anyOverlayOpen = showCommands || showShortcuts || showDelete || showDestroy || showMergePicker || !!mergePair
     || showEmailComposer || showCallHandler || showSMSComposer || showAISettings || showAPIConfig;
@@ -554,6 +560,13 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
               flash('Could not delete the contact', 'error');
             }
           }}
+        />
+      )}
+      {showCompany && findCompanyByName(contact.company) && (
+        <CompanyDetailPanel
+          company={findCompanyByName(contact.company)!}
+          onClose={() => setShowCompany(false)}
+          onOpenContact={(c) => { setShowCompany(false); if (c.id !== contact.id) goToRecord(c.id); }}
         />
       )}
       {showMergePicker && (

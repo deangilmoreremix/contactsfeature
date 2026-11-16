@@ -7,7 +7,7 @@ export type ContactCommandSection = 'Record' | 'Navigate' | 'Recent' | 'Go to ta
 
 export type ContactCommandId =
   | 'edit' | 'favorite' | 'duplicate' | 'export-csv' | 'export-json' | 'export-vcard' | 'export-ics' | 'copy-link' | 'merge'
-  | 'delete' | 'restore' | 'destroy' | 'prev' | 'next' | 'shortcuts' | 'customize-tabs'
+  | 'company' | 'delete' | 'restore' | 'destroy' | 'prev' | 'next' | 'shortcuts' | 'customize-tabs'
   /** Not listed in the palette itself; used by the overflow menu to open it. */
   | 'palette'
   | `tab:${string}`
@@ -33,6 +33,8 @@ export interface ContactCommandContext {
   activeTab?: string;
   /** Recently viewed contacts (most recent first); the open contact should already be excluded. */
   recent?: ReadonlyArray<{ id: string; name: string; company?: string | undefined }>;
+  /** The open contact's company name; adds a "View company" command when present. */
+  company?: string | undefined;
 }
 
 export function buildContactCommands(ctx: ContactCommandContext): ContactCommand[] {
@@ -63,6 +65,9 @@ export function buildContactCommands(ctx: ContactCommandContext): ContactCommand
     { id: 'export-ics', title: 'Export calendar (.ics)', section: 'Record', keywords: ['download', 'ical', 'meetings', 'events', 'calendar'] },
     { id: 'copy-link', title: 'Copy link to record', section: 'Record', keywords: ['url', 'share', 'deep link', 'permalink'] },
   );
+  if (ctx.company && ctx.company.trim()) {
+    commands.push({ id: 'company', title: `View company: ${ctx.company.trim()}`, section: 'Record', keywords: ['organization', 'account', 'people', 'colleagues'] });
+  }
   if (!ctx.isDeleted) {
     commands.push({ id: 'delete', title: 'Delete record', section: 'Record', keywords: ['remove', 'trash', 'bin'], danger: true });
   }

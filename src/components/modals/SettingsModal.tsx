@@ -1,3 +1,4 @@
+import { CustomFieldManager } from '../settings/CustomFieldManager';
 import React, { useState } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
@@ -196,6 +197,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   </div>
                 </div>
+                <CustomFieldManager />
               </div>
             )}
 
