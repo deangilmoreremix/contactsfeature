@@ -108,7 +108,8 @@ function buildParams(opts = {}) {
   }
   if (opts.tools && opts.tools.length) params.tools = opts.tools;
   if (opts.toolChoice) params.tool_choice = opts.toolChoice;
-  if (opts.previousResponseId) params.previous_response_id = opts.previousResponseId;
+  if (opts.conversationId) params.conversation = opts.conversationId;
+  else if (opts.previousResponseId) params.previous_response_id = opts.previousResponseId;
   if (opts.background) { params.background = true; params.store = true; } // long-running jobs: poll with retrieveResponse()
   else if (typeof opts.store === 'boolean') params.store = opts.store;
   const include = new Set(opts.include || []);
@@ -376,7 +377,183 @@ async function responsesFetch(body, opts = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Additional OpenAI endpoints (Conversations, Files, Batches, Realtime, Webhooks, token counting)
+// ---------------------------------------------------------------------------------------------
+
+/** Server-side conversation (replaces hand-rolled previous_response_id chains). Returns { id }. */
+async function createConversation(opts = {}) {
+  const client = opts.client || getClient();
+  const res = await withRetry(() => client.conversations.create({
+    ...(opts.items ? { items: opts.items } : {}),
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
+  }));
+  return { id: res.id };
+}
+
+async function deleteConversation(id, opts = {}) {
+  const client = opts.client || getClient();
+  try {
+    await withRetry(() => client.conversations.delete(id));
+    return true;
+  } catch (err) {
+    if (err && err.status === 404) return false; // already gone
+    throw err;
+  }
+}
+
+/**
+ * Upload a file to the Files API. `file` is whatever the SDK accepts (use `toFile` from 'openai'
+ * for Buffers). purpose: 'user_data' (input_file) | 'batch' | 'assistants'.
+ */
+async function uploadFile(file, purpose = 'user_data', opts = {}) {
+  const client = opts.client || getClient();
+  const res = await withRetry(() => client.files.create({ file, purpose }));
+  return { id: res.id, bytes: res.bytes, filename: res.filename };
+}
+
+async function deleteFile(id, opts = {}) {
+  const client = opts.client || getClient();
+  try {
+    await client.files.delete(id);
+    return true;
+  } catch (err) {
+    if (err && err.status === 404) return false;
+    throw err;
+  }
+}
+
+/** Download a file's text content (batch output). */
+async function fileText(id, opts = {}) {
+  const client = opts.client || getClient();
+  const res = await withRetry(() => client.files.content(id));
+  return typeof res.text === 'function' ? res.text() : String(res);
+}
+
+/** Build the JSONL body for a Batch API run. requests: [{ customId, body }]. */
+function buildBatchJsonl(endpoint, requests) {
+  return requests
+    .map((r) => JSON.stringify({ custom_id: r.customId, method: 'POST', url: endpoint, body: r.body }))
+    .join('\n');
+}
+
+/** Create a batch from prepared requests (endpoint '/v1/responses' or '/v1/embeddings'). */
+async function createBatch(endpoint, requests, opts = {}) {
+  const { toFile } = require('openai');
+  const client = opts.client || getClient();
+  const jsonl = buildBatchJsonl(endpoint, requests);
+  const file = await uploadFile(await toFile(Buffer.from(jsonl, 'utf8'), 'batch.jsonl'), 'batch', opts);
+  const batch = await withRetry(() => client.batches.create({
+    input_file_id: file.id,
+    endpoint,
+    completion_window: '24h',
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
+  }));
+  return { id: batch.id, inputFileId: file.id, status: batch.status };
+}
+
+/** Retrieve batch status; when completed also returns parsed output lines. */
+async function getBatch(id, opts = {}) {
+  const client = opts.client || getClient();
+  const batch = await withRetry(() => client.batches.retrieve(id));
+  const out = {
+    id: batch.id,
+    status: batch.status, // validating | in_progress | finalizing | completed | failed | expired | cancelled
+    counts: batch.request_counts || null,
+    outputFileId: batch.output_file_id || null,
+    errorFileId: batch.error_file_id || null,
+    results: [],
+  };
+  if (opts.withResults && batch.status === 'completed' && batch.output_file_id) {
+    const text = await fileText(batch.output_file_id, opts);
+    out.results = parseBatchOutput(text);
+  }
+  return out;
+}
+
+/** Parse batch output JSONL -> [{ customId, ok, body, error }]. */
+function parseBatchOutput(text) {
+  return String(text || '')
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((line) => {
+      const row = JSON.parse(line);
+      const ok = !row.error && row.response && row.response.status_code === 200;
+      return { customId: row.custom_id, ok, body: ok ? row.response.body : null, error: ok ? null : (row.error || row.response || null) };
+    });
+}
+
+async function cancelBatch(id, opts = {}) {
+  const client = opts.client || getClient();
+  const batch = await withRetry(() => client.batches.cancel(id));
+  return { id: batch.id, status: batch.status };
+}
+
+/**
+ * Mint a short-lived Realtime client secret so the BROWSER can connect without our API key.
+ * opts: { instructions, voice, tools, role: 'default'|'mini'|'voice', expiresAfterSeconds }
+ * Returns { value, expiresAt, model }.
+ */
+async function createRealtimeSecret(opts = {}) {
+  const client = opts.client || getClient();
+  const model = opts.model || (models.realtime && models.realtime[opts.role || 'default']) || models.realtime.default;
+  const session = {
+    type: 'realtime',
+    model,
+    ...(opts.instructions ? { instructions: opts.instructions } : {}),
+    ...(opts.voice ? { audio: { output: { voice: opts.voice } } } : {}),
+    ...(opts.tools && opts.tools.length ? { tools: opts.tools, tool_choice: 'auto' } : {}),
+  };
+  const res = await withRetry(() => client.realtime.clientSecrets.create({
+    ...(opts.expiresAfterSeconds ? { expires_after: { anchor: 'created_at', seconds: opts.expiresAfterSeconds } } : {}),
+    session,
+  }));
+  return { value: res.value, expiresAt: res.expires_at || null, model };
+}
+
+/** Verify + parse an OpenAI webhook (signature check). Throws on an invalid signature. */
+async function unwrapWebhook(rawBody, headers, opts = {}) {
+  const client = opts.client || getClient();
+  const secret = opts.secret || process.env.OPENAI_WEBHOOK_SECRET;
+  if (!secret) throw new Error('OPENAI_WEBHOOK_SECRET is not configured');
+  return client.webhooks.unwrap(rawBody, headers, secret);
+}
+
+/** Count input tokens for a prospective request (guards context size before sending). */
+async function countInputTokens(opts = {}) {
+  const client = opts.client || getClient();
+  const { model } = resolveModel(opts.model || opts.role || 'default', opts.effort);
+  const res = await withRetry(() => client.responses.inputTokens.count({
+    model,
+    input: opts.input,
+    ...(opts.instructions ? { instructions: opts.instructions } : {}),
+  }));
+  return res.input_tokens;
+}
+
+/** Cancel a background response. */
+async function cancelResponse(id, opts = {}) {
+  const client = opts.client || getClient();
+  const res = await withRetry(() => client.responses.cancel(id));
+  return { id: res.id, status: res.status };
+}
+
+
 module.exports = {
+  createConversation,
+  deleteConversation,
+  uploadFile,
+  deleteFile,
+  fileText,
+  buildBatchJsonl,
+  createBatch,
+  getBatch,
+  parseBatchOutput,
+  cancelBatch,
+  createRealtimeSecret,
+  unwrapWebhook,
+  countInputTokens,
+  cancelResponse,
   responsesFetch,
   models,
   getClient,
