@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
+(globalThis as any).awslambda ||= { streamifyResponse: (f: unknown) => f, HttpResponseStream: { from: (s: unknown) => s } };
 const fnDir = path.resolve(__dirname, '../netlify/functions');
 process.env.OPENAI_API_KEY = 'test';
 const SECRET_BYTES = crypto.randomBytes(24);
@@ -171,7 +172,7 @@ describe('status endpoints prefer the ai_jobs row', () => {
     const orig = resp.retrieveResponse; resp.retrieveResponse = retrieve;
     for (const n of ['_aiJobs.js', 'contact-enrich.js']) delete require.cache[require.resolve(path.join(fnDir, n))];
     try {
-      const { handler } = require(path.join(fnDir, 'contact-enrich.js'));
+      const { rawHandler: handler } = require(path.join(fnDir, 'contact-enrich.js'));
       const res = await handler({ httpMethod: 'POST', body: JSON.stringify({ action: 'status', responseId: 'resp_e', contact: { title: '' } }) });
       const out = JSON.parse(res.body);
       expect(out.status).toBe('completed');

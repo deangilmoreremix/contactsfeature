@@ -129,4 +129,4 @@ const handler = withAuth(async (event, user) => {
   }
 });
 
-module.exports = { handler: stream(handler), buildDealFacts, normalizeHealth, HEALTH_SCHEMA };
+module.exports = { handler: stream(handler), rawHandler: handler, buildDealFacts, normalizeHealth, HEALTH_SCHEMA };

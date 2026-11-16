@@ -205,4 +205,4 @@ const handler = withAuth(async (event, user) => {
   }
 });
 
-module.exports = { handler: stream(handler), summarizeDeals, FORECAST_SCHEMA };
+module.exports = { handler: stream(handler), rawHandler: handler, summarizeDeals, FORECAST_SCHEMA };

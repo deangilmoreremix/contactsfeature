@@ -301,6 +301,8 @@ const handler = withAuth(async (event, user) => {
 });
 
 exports.handler = stream(handler);
+// un-wrapped handler (plain event -> response) for tests and local callers
+exports.rawHandler = handler;
 
 // exported for tests
 exports._internals = { suggestUpdates, clue, ENRICHMENT_SCHEMA, parseJson, enrichmentEvents, finishRun, runOptions };
