@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { streamTask } from '../../services/aiTask';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Search, Eye, TrendingUp, Zap, Target, BarChart3, Upload, Image as ImageIcon } from 'lucide-react';
@@ -13,14 +16,14 @@ interface FeatureAnalysis {
       description: string;
       competitiveAdvantage: string;
       marketPosition: string;
-      adoptionRate: number;
+      adoptionRate: number | null;
     }>;
     competitiveLandscape: {
       directCompetitors: Array<{
         name: string;
         strengths: string[];
         weaknesses: string[];
-        marketShare: number;
+        marketShare: number | null;
       }>;
       indirectCompetitors: string[];
       marketGaps: string[];
@@ -29,7 +32,7 @@ interface FeatureAnalysis {
       totalAddressableMarket: string;
       serviceableAvailableMarket: string;
       serviceableObtainableMarket: string;
-      growthRate: number;
+      growthRate: number | null;
       keyTrends: string[];
     };
     recommendations: Array<{
@@ -68,6 +71,7 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
 }) => {
   const [analysis, setAnalysis] = useState<FeatureAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const stream = useFunctionStream<{ analysis?: FeatureAnalysis }>();
   const [productUrl, setProductUrl] = useState('');
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'features' | 'competition' | 'market' | 'recommendations'>('overview');
@@ -77,18 +81,17 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
 
     setLoading(true);
     try {
-      const response = await supabase.functions.invoke('feature-analysis', {
-        body: {
-          productUrl,
-          includeVisualAnalysis: uploadedImages.length > 0,
-          analysisDepth: 'comprehensive',
-          competitorResearch: true,
-          marketAnalysis: true
-        }
-      });
+      // ai-task `feature-analysis`: researches with web search and streams the analysis in while it is written.
+      const data = await stream.runLive((h) => streamTask<{ analysis?: FeatureAnalysis }>('feature-analysis', {
+        productUrl,
+        includeVisualAnalysis: uploadedImages.length > 0,
+        analysisDepth: 'comprehensive',
+        competitorResearch: true,
+        marketAnalysis: true
+      }, h));
 
-      if (response.data?.analysis) {
-        const result = response.data.analysis;
+      if (data?.analysis) {
+        const result = data.analysis;
         setAnalysis(result);
         onAnalysisComplete?.(result);
       }
@@ -117,7 +120,8 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
     }
   };
 
-  const getMarketShareColor = (share: number) => {
+  const getMarketShareColor = (share: number | null) => {
+    if (share === null || share === undefined) return 'text-gray-500';
     if (share >= 20) return 'text-green-600';
     if (share >= 10) return 'text-yellow-600';
     return 'text-red-600';
@@ -204,6 +208,16 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
         </div>
       </div>
 
+      {(loading || stream.state.status === 'error') && (
+        <div className="mb-6">
+          {loading ? (
+            <StreamingOutput state={stream.state} display={liveDisplay(stream.state.partial, stream.state.text)} onStop={stream.stop} placeholder="Researching the product…" />
+          ) : (
+            <p className="text-sm text-red-600" role="alert">{stream.state.error}</p>
+          )}
+        </div>
+      )}
+
       {analysis && (
         <>
           {/* Tab Navigation */}
@@ -255,7 +269,7 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-600 mb-1">
-                    {Math.round(analysis.analysis.marketInsights.growthRate * 100)}%
+                    {analysis.analysis.marketInsights.growthRate == null ? '—' : `${Math.round(analysis.analysis.marketInsights.growthRate * 100)}%`}
                   </div>
                   <div className="text-sm text-gray-600">Market Growth</div>
                 </div>
@@ -275,7 +289,7 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-medium text-blue-600">
-                        {Math.round(feature.adoptionRate * 100)}% adoption
+                        {feature.adoptionRate == null ? 'Adoption unknown' : `${Math.round(feature.adoptionRate * 100)}% adoption`}
                       </div>
                       <div className="text-xs text-gray-500 capitalize">
                         {feature.marketPosition}
@@ -302,7 +316,7 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-md font-medium text-gray-900">{competitor.name}</h4>
                         <div className={`text-sm font-medium ${getMarketShareColor(competitor.marketShare)}`}>
-                          {competitor.marketShare}% market share
+                          {competitor.marketShare == null ? 'Share unknown' : `${competitor.marketShare}% market share`}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

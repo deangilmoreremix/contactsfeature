@@ -25,3 +25,9 @@ update-autopilot-settings # settings write
 autopilot-run           # non-visible scheduler trigger
 ai-respond              # plain proxy branch for NON-visible pipelines; user-visible calls use ai-stream (gated separately)
 generate-image          # reference-image edit stays synchronous; generation streams via generate-image-stream
+insights-manager        # CRUD only (get/create/update/delete of stored insight rows); insight GENERATION is the ai-task `ai-insights`/`relationship-insights` path
+communication-manager   # CRUD only (communication history rows)
+email-manager           # data ops only (send via provider, history read, open/click tracking)
+automation-manager      # CRUD only (stored automation rules); rule PLANNING is the ai-task `automation-ai`
+analytics-manager       # CRUD only (analytics rows)
+journey-manager         # CRUD + deterministic month grouping/counts of journey events; narrative timelines are the ai-task `timeline-generator`

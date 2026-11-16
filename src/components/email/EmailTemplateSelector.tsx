@@ -127,19 +127,24 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
         throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/create-email-template`, {
+      // Manual template (no AI involved): saved through the email-templates edge function's `create` action.
+      const response = await fetch(`${supabaseUrl}/functions/v1/email-templates`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js-web'
         },
         body: JSON.stringify({
-          name: newTemplate.name,
-          description: newTemplate.description,
-          subject: newTemplate.subject,
-          body: newTemplate.body,
-          variables: extractVariables(newTemplate.subject + ' ' + newTemplate.body),
-          category: newTemplate.category
+          action: 'create',
+          templateData: {
+            name: newTemplate.name,
+            description: newTemplate.description,
+            subject: newTemplate.subject,
+            body: newTemplate.body,
+            variables: extractVariables(newTemplate.subject + ' ' + newTemplate.body),
+            category: newTemplate.category
+          }
         })
       });
 

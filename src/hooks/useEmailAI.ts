@@ -3,6 +3,11 @@ import { logger } from '../services/logger.service';
 import { cacheService } from '../services/cache.service';
 import { supabase } from '../lib/supabase';
 import { Contact } from '../types';
+import { streamFunction } from '../services/functionStream';
+import { streamTaskEnvelope } from '../services/aiTask';
+import { useFunctionStream } from './useFunctionStream';
+import type { StreamHandlers } from '../lib/streaming/streamClient';
+import { tee } from '../lib/streaming/tee';
 
 // Enhanced interfaces with streaming and caching support
 interface EmailComposition {
@@ -113,6 +118,13 @@ export const useEmailAI = () => {
     cacheStats: { hits: 0, misses: 0, size: 0 }
   });
 
+  /**
+   * Live state of the running AI call (generate / analyze / personalize). Render it with
+   *   <StreamingOutput state={liveStream.state} onStop={liveStream.stop} />
+   * Every AI answer of this hook arrives over SSE, so the text / structured result fills in while it is produced.
+   */
+  const liveStream = useFunctionStream<any>();
+
   // Streaming and caching refs
   const streamingControllerRef = useRef<AbortController | null>(null);
   const cacheRef = useRef<Map<string, any>>(new Map());
@@ -139,9 +151,11 @@ export const useEmailAI = () => {
     purpose: string,
     tone: string = 'professional',
     length: string = 'medium',
-    includeSignature: boolean = true
+    includeSignature: boolean = true,
+    live?: StreamHandlers
   ): Promise<EmailComposition> => {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
+    const t = liveStream.start();
 
     try {
       const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
@@ -156,28 +170,17 @@ export const useEmailAI = () => {
         throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/email-composer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'X-Client-Info': 'supabase-js-web'
-        },
-        body: JSON.stringify({
-          contact,
-          purpose,
-          tone,
-          length,
-          includeSignature
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Failed to generate email');
-      }
-
-      const result = await response.json();
+      // Dual-mode edge function: streams the draft over SSE; `result` is exactly what the JSON mode returned.
+      const { result: streamed } = await streamFunction<EmailComposition>('email-composer', {
+        contact,
+        purpose,
+        tone,
+        length,
+        includeSignature
+      }, tee(t.h, live));
+      if (!streamed) throw new Error('Failed to generate email');
+      const result = streamed;
+      t.finish(result);
 
       setState(prev => ({
         ...prev,
@@ -193,6 +196,7 @@ export const useEmailAI = () => {
 
       return result;
     } catch (error) {
+      t.fail(error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate email';
 
       setState(prev => ({
@@ -210,9 +214,11 @@ export const useEmailAI = () => {
     emailSubject: string,
     emailBody: string,
     context?: string,
-    recipient?: Contact
+    recipient?: Contact,
+    live?: StreamHandlers
   ): Promise<EmailAnalysis> => {
     setState(prev => ({ ...prev, isAnalyzing: true, error: null }));
+    const t = liveStream.start();
 
     try {
       const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
@@ -227,27 +233,15 @@ export const useEmailAI = () => {
         throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/email-analyzer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'X-Client-Info': 'supabase-js-web'
-        },
-        body: JSON.stringify({
-          emailSubject,
-          emailBody,
-          context,
-          recipient
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Failed to analyze email');
-      }
-
-      const result = await response.json();
+      const { result: streamed } = await streamFunction<EmailAnalysis>('email-analyzer', {
+        emailSubject,
+        emailBody,
+        context,
+        recipient
+      }, tee(t.h, live));
+      if (!streamed) throw new Error('Failed to analyze email');
+      const result = streamed;
+      t.finish(result);
 
       setState(prev => ({
         ...prev,
@@ -262,6 +256,7 @@ export const useEmailAI = () => {
 
       return result;
     } catch (error) {
+      t.fail(error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to analyze email';
 
       setState(prev => ({
@@ -280,46 +275,38 @@ export const useEmailAI = () => {
     platform: string,
     purpose: string = 'introduction',
     tone: string = 'professional',
-    length: string = 'medium'
+    length: string = 'medium',
+    live?: StreamHandlers
   ): Promise<PersonalizedMessage> => {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
+    const t = liveStream.start();
 
     try {
-      // Get Supabase URL from environment
-      const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
-
-      if (!supabaseUrl) {
-        throw new Error('Supabase configuration is missing. Please check your environment variables.');
-      }
-
-      // Get the user's session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('User not authenticated. Please sign in to use this feature.');
-      }
-
-      // Call the Supabase Edge Function
-      const response = await fetch(`${supabaseUrl}/functions/v1/personalized-messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+      // ai-task `personalized-messages`: the message streams in while it is written.
+      const envelope = await streamTaskEnvelope<{ message: string; subject: string | null; generatedAt: string; personalizationNotes?: string[] }>(
+        'personalized-messages',
+        {
+          contactId: contact.id,
+          contactData: contact,
+          channel: platform,
+          context: { channel: platform, purpose, tone, length }
         },
-        body: JSON.stringify({
-          contact,
-          platform,
-          purpose,
-          tone,
-          length
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to generate message: ${errorText}`);
-      }
-
-      const result = await response.json();
+        tee(t.h, live)
+      );
+      const task = envelope.data;
+      const message = task.message || '';
+      const result: PersonalizedMessage = {
+        message,
+        platform,
+        purpose,
+        tone,
+        characterCount: message.length,
+        characterLimit: { min: 0, max: Math.max(message.length, 0), ideal: message.length },
+        confidence: 0,
+        model: envelope.model || '',
+        generatedAt: task.generatedAt
+      };
+      t.finish(result);
 
       setState(prev => ({
         ...prev,
@@ -335,6 +322,7 @@ export const useEmailAI = () => {
 
       return result;
     } catch (error) {
+      t.fail(error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate message';
 
       setState(prev => ({
@@ -479,6 +467,10 @@ export const useEmailAI = () => {
     personalizedMessage: state.personalizedMessage,
     emailTemplates: state.emailTemplates,
     
+    // Live stream of the running AI call (render with <StreamingOutput/>)
+    liveStream: liveStream.state,
+    stopLive: liveStream.stop,
+
     // Methods
     generateEmail,
     analyzeEmail,
@@ -545,32 +537,37 @@ export const useEmailAI = () => {
 
         yield { type: 'progress', progress: 30, data: 'Connecting to AI service...' };
 
-        const response = await fetch(`${supabaseUrl}/functions/v1/email-composer`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'X-Client-Info': 'supabase-js-web'
-          },
-          body: JSON.stringify({
-            contact,
-            purpose,
-            tone,
-            length,
-            includeSignature,
-            streaming: true
-          }),
-          signal: streamingControllerRef.current.signal
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(errorData.error || errorData.details || 'Failed to generate email');
+        // Real SSE: every status / text / partial event is reported to the caller as it arrives.
+        const t = liveStream.start();
+        const signal = streamingControllerRef.current.signal;
+        signal.addEventListener('abort', () => liveStream.stop());
+        const queue: StreamingUpdate[] = [];
+        const hooks: StreamHandlers = {
+          onStatus: (label) => { queue.push({ type: 'progress', data: label }); onProgress?.({ type: 'progress', data: label }); },
+          onDelta: (token) => { queue.push({ type: 'token', token }); onProgress?.({ type: 'token', token }); },
+        };
+        const run = streamFunction<EmailComposition>('email-composer', {
+          contact,
+          purpose,
+          tone,
+          length,
+          includeSignature
+        }, tee(t.h, hooks));
+        let settled = false;
+        const finished = run.then((r) => ({ ok: true as const, r }), (e) => ({ ok: false as const, e })).then((x) => { settled = true; return x; });
+        while (!settled) {
+          await Promise.race([finished, new Promise((res) => setTimeout(res, 40))]);
+          while (queue.length) yield queue.shift()!;
         }
+        while (queue.length) yield queue.shift()!;
+        const outcome = await finished;
+        if (!outcome.ok) { t.fail(outcome.e); throw outcome.e; }
+        if (!outcome.r.result) { const err = new Error('Failed to generate email'); t.fail(err); throw err; }
+        t.finish(outcome.r.result);
 
         yield { type: 'progress', progress: 70, data: 'Processing AI response...' };
 
-        const result = await response.json();
+        const result = outcome.r.result;
         const composition: EmailComposition = {
           ...result,
           generatedAt: new Date().toISOString(),

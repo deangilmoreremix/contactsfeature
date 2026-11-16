@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { executeDealAi } from '../ai/deal/executeDealAi';
+import { useFunctionStream } from './useFunctionStream';
 
 export interface SDRResult {
   task: string;
@@ -18,6 +19,8 @@ export const useSDRExecution = (options: UseSDRExecutionOptions = {}) => {
   const { dealId, workspaceId, personaId, onSequenceGenerated } = options;
 
   const [loading, setLoading] = useState<string | null>(null);
+  /** Live state of the running task (render with <StreamingOutput state={stream.state} onStop={stream.stop} />). */
+  const stream = useFunctionStream<string>();
   const [results, setResults] = useState<SDRResult[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SDRResult | null>(null);
@@ -32,8 +35,10 @@ export const useSDRExecution = (options: UseSDRExecutionOptions = {}) => {
     setLoading(task);
     setError(null);
 
+    const t = stream.start();
     try {
       const result = await executeDealAi({
+        live: t.h,
         task: task as any,
         dealId,
         workspaceId,
@@ -52,12 +57,14 @@ export const useSDRExecution = (options: UseSDRExecutionOptions = {}) => {
         generatedAt: new Date()
       };
 
+      t.finish();
       setResults(prev => [sdrResult, ...prev]);
       setSelectedResult(sdrResult);
       setShowModal(true);
 
       if (onSequenceGenerated) onSequenceGenerated(result);
     } catch (err: any) {
+      t.fail(err);
       console.error('SDR generation failed:', err);
       setError(err.message || 'Failed to generate SDR sequence');
     } finally {
@@ -74,6 +81,7 @@ export const useSDRExecution = (options: UseSDRExecutionOptions = {}) => {
 
   return {
     loading,
+    stream,
     results,
     showModal,
     selectedResult,

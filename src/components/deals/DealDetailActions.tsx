@@ -12,7 +12,7 @@ export const DealDetailActions: React.FC<DealDetailActionsProps> = ({ dealId, wo
   const [shareData, setShareData] = useState<any>(null);
 
   const handleFavorite = async () => {
-    const result = await executeDealAi({ task: 'deal_favorite_insights', dealId, workspaceId });
+    const result = await executeDealAi({ task: 'deal_favorite_insights', dealId, workspaceId, live: { onDelta: (_t, full) => setFavoriteTooltip(full) } });
     setFavoriteTooltip(result);
   };
 

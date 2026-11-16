@@ -489,7 +489,7 @@ export default function GTMPromptHub() {
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Select a prompt and click Generate to create content</p>
+                  <p>{genStream.state.status === 'error' ? genStream.state.error : 'Select a prompt and click Generate to create content'}</p>
                 </div>
               )}
             </GlassCard>

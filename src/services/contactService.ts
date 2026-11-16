@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient'
 import { contactsToCsv } from '../utils/contactCsv'
 import { Contact } from '../types/contact'
+import { streamTask, type TaskLive } from './aiTask'
 
 export class ContactService {
   private static instance: ContactService
@@ -259,26 +260,20 @@ export class ContactService {
   }
 
   // Calculate contact score
-  async calculateContactScore(contactId: string): Promise<number> {
+  async calculateContactScore(contactId: string, live?: TaskLive): Promise<number> {
     const contact = await this.getContactById(contactId)
     if (!contact) {
       throw new Error('Contact not found')
     }
 
     try {
-      const { data: scoreData, error } = await supabase.functions.invoke('smart-score', {
-        body: {
-          contactData: contact,
-          scoringCriteria: {}
-        }
-      })
-
-      if (error) throw error
+      const scoreData = await streamTask<{ score?: number; totalScore?: number }>('smart-score', { contactId }, live)
+      const total = Math.round(Number(scoreData.totalScore ?? scoreData.score ?? 0))
 
       // Update contact score in database
-      await this.updateContact(contactId, { score: scoreData.totalScore })
+      await this.updateContact(contactId, { score: total })
 
-      return scoreData.totalScore
+      return total
     } catch (error) {
       console.error('Error calculating contact score:', error)
       throw error

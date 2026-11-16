@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { executeDealAi } from '../../ai/deal/executeDealAi';
 import { gpt52EnrichmentService } from '../../services/gpt52EnrichmentService';
 import { sanitizeHtml } from '../../utils/validation';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { liveDisplay } from '../../lib/streaming/previewText';
 
 const esc = (v: string | null | undefined): string =>
   v ? v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)) : '';
@@ -24,6 +27,7 @@ interface SDRResult {
 
 export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspaceId, personaId, contact, onSequenceGenerated }) => {
   const [loading, setLoading] = useState<string | null>(null);
+  const stream = useFunctionStream<any>();
   const [campaignProgress, setCampaignProgress] = useState<{
     task: string;
     step: number;
@@ -90,26 +94,12 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
 
     // Special handling for AI research using GPT-5.2
     if (task === 'sdr_ai_research') {
+      const t = stream.start();
       try {
         if (!contact) {
           throw new Error('Contact information required for research');
         }
 
-        setCampaignProgress({
-          task,
-          step: 1,
-          totalSteps: 4,
-          currentStep: 'Initiating GPT-5.2 reasoning engine'
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        setCampaignProgress({
-          task,
-          step: 2,
-          totalSteps: 4,
-          currentStep: 'Researching company and contact with AI tools'
-        });
 
         // Use GPT-5.2 enrichment service
         const enrichmentResult = await gpt52EnrichmentService.enrichContact(
@@ -126,25 +116,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
             reasoningEffort: 'xhigh',
             includeCompanyResearch: true,
             includeContactResearch: true,
-            includeSDRInsights: true
+            includeSDRInsights: true,
+            live: t.h
           }
         );
-
-        setCampaignProgress({
-          task,
-          step: 3,
-          totalSteps: 4,
-          currentStep: 'Analyzing insights and generating recommendations'
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        setCampaignProgress({
-          task,
-          step: 4,
-          totalSteps: 4,
-          currentStep: 'Finalizing comprehensive research report'
-        });
 
         // Transform enrichment result to match expected format
         const transformedResult = {
@@ -231,8 +206,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
         setSelectedResult(sdrResult);
         setShowModal(true);
 
+        t.finish();
         if (onSequenceGenerated) onSequenceGenerated(transformedResult);
       } catch (error) {
+        t.fail(error);
         console.error('GPT-5.2 AI research failed:', error);
       } finally {
         setLoading(null);
@@ -241,37 +218,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
       return;
     }
 
-    // For real contacts, do full campaign creation process
-    const campaignSteps = [
-      'Analyzing contact profile and engagement history',
-      'Researching company and industry context',
-      'Generating personalized messaging strategy',
-      'Creating sequence timeline and cadence',
-      'Optimizing subject lines and content',
-      'Finalizing campaign sequence'
-    ];
-
-    setCampaignProgress({
-      task,
-      step: 0,
-      totalSteps: campaignSteps.length,
-      currentStep: campaignSteps[0] || 'Initializing campaign creation'
-    });
+    // Real contacts: the campaign streams in live (status chip + text) instead of a timed progress bar.
+    const t = stream.start();
 
     try {
-      // Simulate campaign creation progress
-      for (let i = 0; i < campaignSteps.length; i++) {
-        setCampaignProgress({
-          task,
-          step: i + 1,
-          totalSteps: campaignSteps.length,
-          currentStep: campaignSteps[i] || 'Processing campaign data'
-        });
-
-        // Wait between steps (simulate processing time)
-        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
-      }
-
       // Determine sequence length based on task type
       const getSequenceLength = (taskType: string) => {
         if (taskType.includes('follow_up') || taskType.includes('bump')) return 10;
@@ -292,8 +242,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
           tone: 'friendly',
           ...options
         },
-        contact
+        contact,
+        live: t.h
       });
+      t.finish();
 
       const sdrResult: SDRResult = {
         task,
@@ -307,6 +259,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
 
       if (onSequenceGenerated) onSequenceGenerated(result);
     } catch (error) {
+      t.fail(error);
       console.error('SDR generation failed:', error);
       // Show error notification
     } finally {
@@ -465,6 +418,16 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
             </button>
           ))}
         </div>
+
+        {loading !== null && stream.state.status !== 'idle' && !campaignProgress && (
+          <StreamingOutput
+            className="mt-3"
+            state={stream.state}
+            display={liveDisplay(stream.state.partial, stream.state.text)}
+            onStop={stream.stop}
+            placeholder="Building your campaign…"
+          />
+        )}
 
         {results.length > 0 && (
           <div className="mt-4 p-3 bg-green-50 rounded-lg">

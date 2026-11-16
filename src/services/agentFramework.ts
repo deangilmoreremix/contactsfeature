@@ -3,6 +3,11 @@ import { logger } from './logger.service';
 import { mcpAdapter } from './mcpAdapter';
 import { aiJson, type AIRole } from './aiClient';
 import type { LiveOptions } from './liveOptions';
+import { streamFunction } from './liveFunction';
+import aiEndpoints from '../lib/streaming/aiEndpoints.json';
+
+/** Netlify functions that answer over SSE when asked (dual-mode, docs/STREAMING.md). Everything else stays plain JSON. */
+const DUAL_MODE_FUNCTIONS = new Set<string>(aiEndpoints.endpoints);
 import type {
   AgentConfig,
   AgentRun,
@@ -600,13 +605,19 @@ class AgentFramework {
       return await mcpAdapter.executeTool(name, args || {});
     }
 
+    // Tool runs report status / text to the caller's live callbacks. onPartial stays with the planning turn
+    // (the agent's own reply), so a tool's JSON never overwrites it.
+    const live: LiveOptions | undefined = request.live
+      ? { ...(request.live.onStatus ? { onStatus: request.live.onStatus } : {}), ...(request.live.onDelta ? { onDelta: request.live.onDelta } : {}), ...(request.live.signal ? { signal: request.live.signal } : {}) }
+      : undefined;
+
     // Route to appropriate Netlify function
     switch (name) {
       case 'ai-enrichment':
         return await this.callNetlifyFunction('ai-enrichment', args);
 
       case 'email-composer':
-        return await this.callNetlifyFunction('email-composer', args);
+        return await this.callNetlifyFunction('email-composer', args, live);
 
       case 'generate-demo-visuals':
         return await this.callNetlifyFunction('generate-image', {
@@ -616,31 +627,31 @@ class AgentFramework {
         });
 
       case 'deal-health-analysis':
-        return await this.callNetlifyFunction('deal-health-analysis', args);
+        return await this.callNetlifyFunction('deal-health-analysis', args, live);
 
       case 'sales-forecasting':
-        return await this.callNetlifyFunction('sales-forecasting', args);
+        return await this.callNetlifyFunction('sales-forecasting', args, live);
 
       case 'semantic-search':
         return await this.callNetlifyFunction('semantic-search', args);
 
       case 'social-selling-agent':
-        return await this.callNetlifyFunction('social-selling-agent', args);
+        return await this.callNetlifyFunction('social-selling-agent', args, live);
 
       case 'email-personalization-agent':
-        return await this.callNetlifyFunction('email-personalization-agent', args);
+        return await this.callNetlifyFunction('email-personalization-agent', args, live);
 
       case 'revenue-intelligence-agent':
-        return await this.callNetlifyFunction('revenue-intelligence-agent', args);
+        return await this.callNetlifyFunction('revenue-intelligence-agent', args, live);
 
       case 'competitive-intelligence-agent':
-        return await this.callNetlifyFunction('competitive-intelligence-agent', args);
+        return await this.callNetlifyFunction('competitive-intelligence-agent', args, live);
 
       case 'negotiation-coach-agent':
-        return await this.callNetlifyFunction('negotiation-coach-agent', args);
+        return await this.callNetlifyFunction('negotiation-coach-agent', args, live);
 
       case 'content-creation-agent':
-        return await this.callNetlifyFunction('content-creation-agent', args);
+        return await this.callNetlifyFunction('content-creation-agent', args, live);
 
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -648,12 +659,23 @@ class AgentFramework {
   }
 
   /**
-   * Call Netlify function
+   * Call Netlify function. Dual-mode functions (the ones that stream) are called over SSE so `live` receives
+   * status / text while they work; the resolved value is the same JSON the function returns in plain mode.
    */
-  private async callNetlifyFunction(functionName: string, payload: any): Promise<any> {
+  private async callNetlifyFunction(functionName: string, payload: any, live?: LiveOptions): Promise<any> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('User must be authenticated');
+    }
+
+    if (DUAL_MODE_FUNCTIONS.has(functionName)) {
+      try {
+        const { result } = await streamFunction<any>(`/.netlify/functions/${functionName}`, payload ?? {}, live ?? {});
+        return result;
+      } catch (e) {
+        if (live?.signal?.aborted) throw e;
+        throw new Error(`Function ${functionName} error: ${e instanceof Error ? e.message : 'request failed'}`);
+      }
     }
 
     const response = await fetch(`/.netlify/functions/${functionName}`, {

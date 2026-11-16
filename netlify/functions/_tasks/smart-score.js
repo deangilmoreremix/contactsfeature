@@ -38,6 +38,6 @@ module.exports = {
   },
   finalize(parsed) {
     const score = Math.max(0, Math.min(100, Math.round(parsed.score || 0)));
-    return { score, grade: gradeOf(score), factors: parsed.factors || [], reasoning: parsed.reasoning || '' };
+    return { score, totalScore: score, grade: gradeOf(score), factors: parsed.factors || [], reasoning: parsed.reasoning || '', calculatedAt: new Date().toISOString() };
   },
 };
