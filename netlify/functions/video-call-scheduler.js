@@ -45,7 +45,7 @@ exports.handler = withAuth(async (event, user) => {
       if (Number.isNaN(when.getTime())) return errorResponse(400, 'startTime must be a valid date');
       const { data: eventRow, error: eventError } = await supabase
         .from('calendar_events')
-        .insert({ contact_id: contactId, scheduled_for: when.toISOString(), status: 'scheduled' })
+        .insert({ user_id: user.id, contact_id: contactId, title, scheduled_for: when.toISOString(), duration_minutes: Number(duration) > 0 ? Number(duration) : 30, status: 'scheduled' })
         .select('id')
         .maybeSingle();
       if (eventError) throw new Error(`Database error: ${eventError.message}`);

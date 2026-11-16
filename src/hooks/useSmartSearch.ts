@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Fuse from 'fuse.js';
 import { useDebounce } from './useDebounce';
+import { sdrAuthHeaders } from '../services/sdrClient';
 
 export interface SearchableField<T> {
   name: string;
@@ -26,12 +27,18 @@ export function useSmartSearch<T>({
   items,
   options,
   searchQuery,
-  minQueryLength = 2
+  minQueryLength = 2,
+  mode = 'fuzzy',
+  getId
 }: {
   items: T[];
   options: SmartSearchOptions<T>;
   searchQuery: string;
   minQueryLength?: number;
+  /** 'semantic' ranks by embedding similarity via the semantic-search function; Fuse.js stays the fallback. */
+  mode?: 'fuzzy' | 'semantic';
+  /** Required for semantic mode: maps an item to its contact id. */
+  getId?: (item: T) => string;
 }) {
   const fuseRef = useRef<Fuse<T> | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -54,7 +61,42 @@ export function useSmartSearch<T>({
     });
   }, [items, options]);
 
-  const results: SearchResult<T>[] = useMemo(() => {
+  const [semanticHits, setSemanticHits] = useState<{ id: string; score: number }[] | null>(null);
+  const [semanticError, setSemanticError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = debouncedQuery?.trim() ?? '';
+    if (mode !== 'semantic' || !getId || q.length < minQueryLength) {
+      setSemanticHits(null);
+      setSemanticError(null);
+      return;
+    }
+    let cancelled = false;
+    setIsSearching(true);
+    (async () => {
+      try {
+        const res = await fetch('/.netlify/functions/semantic-search', {
+          method: 'POST',
+          headers: await sdrAuthHeaders(),
+          body: JSON.stringify({ query: q })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || `Semantic search failed (${res.status})`);
+        if (cancelled) return;
+        setSemanticHits((json.results || []).map((r: { contact: { id: string }; score: number }) => ({ id: r.contact.id, score: r.score })));
+        setSemanticError(null);
+      } catch (e) {
+        if (cancelled) return;
+        setSemanticHits(null); // fall back to Fuse.js
+        setSemanticError(e instanceof Error ? e.message : 'Semantic search failed');
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mode, debouncedQuery, minQueryLength, getId]);
+
+  const fuzzyResults: SearchResult<T>[] = useMemo(() => {
     if (!fuse || !debouncedQuery || debouncedQuery.trim().length < minQueryLength) {
       return [];
     }
@@ -76,6 +118,18 @@ export function useSmartSearch<T>({
     }
   }, [fuse, debouncedQuery, minQueryLength]);
 
+  const semanticResults: SearchResult<T>[] | null = useMemo(() => {
+    if (!semanticHits || !getId) return null;
+    const byId = new Map(items.map((it) => [getId(it), it]));
+    return semanticHits.flatMap((h) => {
+      const item = byId.get(h.id);
+      // Fuse-style score: lower is better, so invert similarity.
+      return item ? [{ item, score: 1 - h.score }] : [];
+    });
+  }, [semanticHits, items, getId]);
+
+  const results: SearchResult<T>[] = semanticResults ?? fuzzyResults;
+
   const highlightedIndices = useMemo(() => {
     if (!results[0]?.matches) return undefined;
     return results[0].matches.find(m => m.key === options.keys[0]?.name)?.indices ?? undefined;
@@ -84,6 +138,8 @@ export function useSmartSearch<T>({
   return {
     results,
     isSearching,
+    activeMode: (semanticResults ? 'semantic' : 'fuzzy') as 'semantic' | 'fuzzy',
+    semanticError,
     totalResults: results.length,
     hasExactMatch: results[0]?.score !== undefined ? results[0].score! < 0.1 : false,
     highlightedIndices

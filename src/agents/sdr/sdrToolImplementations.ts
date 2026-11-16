@@ -71,17 +71,19 @@ async function scheduleCalendarMeeting(params: {
 
     const endTime = new Date(meetingTime.getTime() + 30 * 60 * 1000);
 
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) throw new Error('Not signed in');
+
     const { data: event, error } = await supabase
       .from('calendar_events')
       .insert({
+        user_id: auth.user.id,
         contact_id: params.leadId,
         title: `Discovery Call with ${params.contactName}`,
-        description: 'Meeting scheduled via SDR Autopilot',
-        start_time: meetingTime.toISOString(),
-        end_time: endTime.toISOString(),
-        event_type: 'meeting',
-        status: 'scheduled',
-        created_by: 'sdr_autopilot'
+        notes: 'Meeting scheduled via SDR Autopilot',
+        scheduled_for: meetingTime.toISOString(),
+        duration_minutes: Math.round((endTime.getTime() - meetingTime.getTime()) / 60000),
+        status: 'scheduled'
       })
       .select()
       .maybeSingle();
@@ -90,7 +92,8 @@ async function scheduleCalendarMeeting(params: {
       throw new Error(`Failed to create calendar event: ${error.message}`);
     }
 
-    const joinUrl = `https://meet.smartcrm.app/meeting/${event?.id || Date.now()}`;
+    // No fabricated meeting link: a real URL can be added to the event (meeting_url) by the user.
+    const joinUrl = '';
 
     return {
       success: true,
@@ -358,7 +361,7 @@ export async function scheduleMeetingForLead(args: {
         body_html: `
           <p>Hi ${lead.first_name || 'there'},</p>
           <p>Your discovery call has been scheduled for ${new Date(meetingResult.time).toLocaleString()}.</p>
-          <p><a href="${meetingResult.join_url}">Join the meeting</a></p>
+          ${meetingResult.join_url ? `<p><a href="${meetingResult.join_url}">Join the meeting</a></p>` : ''}
           <p>Looking forward to speaking with you!</p>
           <p>Best regards,<br>SmartCRM Team</p>
         `,

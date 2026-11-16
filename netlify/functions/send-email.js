@@ -8,6 +8,7 @@
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { sendEmail } = require('./_messaging');
+const { injectTracking } = require('./_messaging/tracking');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -38,7 +39,7 @@ exports.handler = withAuth(async (event, user) => {
   }
 
   try {
-    const r = await sendEmail(user.id, { to, subject, html: body_html, text: body_text, fromEmail: from_email, fromName: from_name });
+    const r = await sendEmail(user.id, { to, subject, html: injectTracking(body_html, { emailId: saved.id, baseUrl: process.env.URL }), text: body_text, fromEmail: from_email, fromName: from_name });
     const sentAt = new Date().toISOString();
     await supabase.from('emails').update({ status: 'sent', sent_at: sentAt, message_id: r.messageId || null, provider: r.provider, updated_at: sentAt }).eq('id', saved.id);
     return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ success: true, id: saved.id, message_id: r.messageId, sent_at: sentAt, provider: r.provider }) };
