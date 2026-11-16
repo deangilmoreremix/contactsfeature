@@ -31,7 +31,7 @@ export function enrichmentSources(partial: unknown): PreviewSource[] {
     try { host = new URL(u).hostname; } catch { /* partial URL: keep as typed */ }
     out.push({ url: u, title: asString(title) || host });
   };
-  objectList(partial.evidence).forEach((e) => add(e.sourceUrl, e.field));
+  objectList(partial.evidence).forEach((e) => add(e.sourceUrl, ''));
   objectList(partial.recentNews).forEach((n) => add(n.url, n.headline));
   return out;
 }

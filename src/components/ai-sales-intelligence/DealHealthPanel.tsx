@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentButton } from './AgentButton';
 import { Heart, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useDealStore, type DealRow } from '../../store/useDealStore';
 import { normalizeStage, daysSinceUpdate } from '../../lib/analytics/pipeline';
-import { sdrAuthHeaders } from '../../services/sdrClient';
+import { streamFunction } from '../../services/liveFunction';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { healthFromPartial } from '../../lib/streaming/previews';
 
 interface DealHealth {
   healthScore: number;
@@ -55,6 +57,9 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [healthByDeal, setHealthByDeal] = useState<Record<string, DealHealth>>({});
   const [analyzing, setAnalyzing] = useState(false);
+  // Live run: status line + the structured result as it is written (partial JSON)
+  const [live, setLive] = useState<{ label: string; steps: string[]; partial: unknown }>({ label: '', steps: [], partial: undefined });
+  const abortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -69,23 +74,29 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
     [contactDeals, selectedId],
   );
   const health = deal ? healthByDeal[deal.id] ?? null : null;
+  // While analysing, show the draft that is filling in; afterwards the saved analysis (same layout).
+  const liveDraft = useMemo(() => (analyzing ? healthFromPartial(live.partial) : null), [analyzing, live.partial]);
+  const view = health ?? liveDraft;
 
   const analyze = async () => {
     if (!deal) return;
     setAnalyzing(true);
     setError(null);
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setLive({ label: 'Starting…', steps: [], partial: undefined });
     try {
-      const res = await fetch('/.netlify/functions/deal-health-analysis', {
-        method: 'POST',
-        headers: await sdrAuthHeaders(),
-        body: JSON.stringify({ dealId: deal.id }),
+      const { result } = await streamFunction<{ data?: DealHealth }>('/.netlify/functions/deal-health-analysis', { dealId: deal.id }, {
+        signal: ac.signal,
+        onStatus: (label) => setLive((l) => ({ ...l, label, steps: l.steps[l.steps.length - 1] === label ? l.steps : [...l.steps, label] })),
+        onPartial: (partial) => setLive((l) => ({ ...l, partial })),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.data) throw new Error(json?.error || `Analysis failed (${res.status})`);
-      setHealthByDeal((prev) => ({ ...prev, [deal.id]: json.data as DealHealth }));
+      if (!result?.data) throw new Error('Analysis failed');
+      setHealthByDeal((prev) => ({ ...prev, [deal.id]: result.data as DealHealth }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed');
+      if (!ac.signal.aborted) setError(e instanceof Error ? e.message : 'Analysis failed');
     } finally {
+      abortRef.current = null;
       setAnalyzing(false);
     }
   };
@@ -145,6 +156,15 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
       {error && <div role="alert" className="mb-4 p-3 text-sm rounded-lg bg-red-50 text-red-700">{error}</div>}
       {dealsError && !deal && <div role="alert" className="mb-4 p-3 text-sm rounded-lg bg-red-50 text-red-700">{dealsError}</div>}
 
+      {analyzing && (
+        <StreamingOutput
+          className="mb-4"
+          state={{ status: 'streaming', text: '', label: live.label, steps: live.steps, reasoning: '' }}
+          display=""
+          onStop={() => abortRef.current?.abort()}
+        />
+      )}
+
       {dealsLoading && !loaded && <p className="text-sm text-gray-500">Loading deals...</p>}
 
       {loaded && !deal && (
@@ -182,19 +202,23 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
         </div>
       )}
 
-      {deal && health && (
+      {deal && view && (
         <>
-          <div className="text-center mb-6">
-            <div className={`text-4xl font-bold mb-2 ${scoreColor(health.healthScore)}`}>{health.healthScore}/100</div>
-            <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">Overall Health Score</div>
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${riskColor(health.riskLevel)}`}>
-              <span className="capitalize">{health.riskLevel} Risk</span>
+          {view.healthScore !== null && (
+            <div className="text-center mb-6">
+              <div className={`text-4xl font-bold mb-2 ${scoreColor(view.healthScore)}`}>{view.healthScore}/100</div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">Overall Health Score</div>
+              {view.riskLevel && (
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${riskColor(view.riskLevel)}`}>
+                  <span className="capitalize">{view.riskLevel} Risk</span>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
-          <div className="space-y-3 mb-6">
+          {view.indicators.length > 0 && <div className="space-y-3 mb-6">
             <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Health Indicators</h4>
-            {health.indicators.map((i, idx) => (
+            {view.indicators.map((i, idx) => (
               <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">{scoreIcon(i.score)}<span className="text-sm font-medium text-gray-900 dark:text-gray-100">{i.name}</span></div>
@@ -203,20 +227,20 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
                 {i.rationale && <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{i.rationale}</p>}
               </div>
             ))}
-          </div>
+          </div>}
 
-          {health.recommendations.length > 0 && (
+          {view.recommendations.length > 0 && (
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Recommendations</h4>
-                {health.recommendations.length > 2 && (
+                {view.recommendations.length > 2 && (
                   <button onClick={() => setExpanded(!expanded)} className="text-sm text-blue-600 dark:text-blue-400">
                     {expanded ? 'Show Less' : 'Show All'}
                   </button>
                 )}
               </div>
               <div className="space-y-2">
-                {health.recommendations.slice(0, expanded ? undefined : 2).map((rec, idx) => (
+                {view.recommendations.slice(0, expanded ? undefined : 2).map((rec, idx) => (
                   <div key={idx} className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                     <AlertTriangle className="w-4 h-4 text-yellow-600 mt-1 flex-shrink-0" />
                     <span className="text-sm text-gray-700 dark:text-gray-300">{rec}</span>
@@ -226,11 +250,11 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
             </div>
           )}
 
-          {health.nextActions.length > 0 && (
+          {view.nextActions.length > 0 && (
             <div className="mb-6">
               <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Next Steps</h4>
               <div className="space-y-2">
-                {health.nextActions.map((a, idx) => (
+                {view.nextActions.map((a, idx) => (
                   <div key={idx} className="flex items-start gap-3">
                     <span className="text-blue-500 mt-1">→</span>
                     <span className="text-sm text-gray-700 dark:text-gray-300">{a.action} <span className="text-xs text-gray-500">({a.priority}, {a.timeline})</span></span>
@@ -240,18 +264,20 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
             </div>
           )}
 
-          {health.dataGaps.length > 0 && (
+          {view.dataGaps.length > 0 && (
             <div className="mb-6 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
               <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Missing data that limits this analysis</h4>
               <ul className="list-disc ml-5 text-sm text-gray-600 dark:text-gray-300">
-                {health.dataGaps.map((g, idx) => <li key={idx}>{g}</li>)}
+                {view.dataGaps.map((g, idx) => <li key={idx}>{g}</li>)}
               </ul>
             </div>
           )}
 
-          <ModernButton size="toolbar" variant="primary" onClick={copyReport} className="w-full">
-            {copied ? 'Copied' : 'Copy report'}
-          </ModernButton>
+          {health && (
+            <ModernButton size="toolbar" variant="primary" onClick={copyReport} className="w-full">
+              {copied ? 'Copied' : 'Copy report'}
+            </ModernButton>
+          )}
         </>
       )}
 

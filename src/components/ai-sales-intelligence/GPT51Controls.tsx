@@ -42,7 +42,9 @@ export const GPT51Controls: React.FC<GPT51ControlsProps> = ({
         input: input.trim(),
         reasoning: { effort: reasoningEffort },
         text: { verbosity },
-        max_output_tokens: 1000
+        max_output_tokens: 1000,
+        // live: the answer types in as it is generated
+        live: { onDelta: (_t, full) => setResult(full) }
       });
 
       const output = response.output_text;

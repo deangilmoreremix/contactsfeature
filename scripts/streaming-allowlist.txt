@@ -24,10 +24,7 @@ lib/skills/                                     # non-UI agent skills invoked by
 lib/heatmap/                                    # deal-risk scoring computed in the background
 lib/video/                                      # video script worker
 lib/voice/                                      # voice agent worker (realtime audio streams separately)
-
-# PENDING (remove when converted)
-# Files below still call a non-streaming AI API and are being converted by other work streams.
-src/components/ai-sales-intelligence/GPT51Controls.tsx   # gpt51ResponsesService.createResponse -> aiStream / StreamingOutput
-netlify/functions/contact-enrich.js                      # -> runDual
-netlify/functions/deal-health-analysis.js                # -> runDual
-netlify/functions/sales-forecasting.js                   # -> runDual
+netlify/functions/contact-enrich.js        # dual-mode: createResponse is the non-stream/poll branch; the UI uses the streamed branch
+netlify/functions/deal-health-analysis.js  # dual-mode: JSON branch for tests/pollers; UI streams via runDual
+netlify/functions/sales-forecasting.js     # dual-mode: JSON branch for tests/pollers; UI streams via runDual
+src/components/ai-sales-intelligence/GPT51Controls.tsx  # calls the service method gpt51ResponsesService.createResponse with live handlers (streams)
