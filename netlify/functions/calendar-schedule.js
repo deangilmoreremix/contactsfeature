@@ -10,6 +10,7 @@ const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { sendEmail } = require('./_messaging');
 const { hasConflict } = require('./_availability');
+const { checkOutbound } = require('./_moderation');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ok = (body) => ({ statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(body) });
@@ -34,6 +35,8 @@ async function notifyContact(userId, contact, event, kind) {
   let text = lines[kind];
   if (kind !== 'cancel' && event.meeting_url) text += `\nJoin: ${event.meeting_url}`;
   if (kind !== 'cancel' && event.location) text += `\nLocation: ${event.location}`;
+  const mod = await checkOutbound({ texts: [subjects[kind], text], userId, endpoint: 'calendar-schedule' });
+  if (!mod.ok) return { notified: false, reason: `Notification blocked by content moderation: ${mod.categories.join(', ')}`, code: 'CONTENT_FLAGGED', categories: mod.categories };
   try {
     await sendEmail(userId, {
       to: contact.email,

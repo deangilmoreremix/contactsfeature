@@ -258,19 +258,18 @@ class ImageAgentService {
       const size = aspectToSize(request.aspect_ratio);
       const count = Math.max(1, Math.min(6, request.variants || 1));
       const referenceImages = (request.seeds || []).filter(s => s.startsWith('data:image/')).slice(0, 4);
-      const dataUrls: string[] = [];
-      let model = '';
-      // One request per variant keeps each call small and within function time limits.
-      for (let i = 0; i < count; i++) {
-        const res = await generateImages({
-          prompt: request.prompt,
-          size,
-          quality: 'medium',
-          ...(referenceImages.length ? { referenceImages } : {})
-        });
-        dataUrls.push(...res.images);
-        model = res.model || model;
-      }
+      // Variants run as background jobs that are polled (no long-lived request); with reference images the
+      // service falls back to one synchronous edit request per variant. Partial success is kept.
+      const generated = await generateImages({
+        prompt: request.prompt,
+        n: count,
+        size,
+        quality: 'medium',
+        ...(referenceImages.length ? { referenceImages } : {})
+      });
+      const dataUrls = generated.images;
+      const model = generated.model;
+      if (generated.failed) logger.warn('Some image variants failed', { failed: generated.failed, requested: count });
 
       const images: SavedImage[] = [];
       for (let i = 0; i < dataUrls.length; i++) {

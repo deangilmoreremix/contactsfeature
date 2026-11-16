@@ -1,10 +1,22 @@
 /**
  * POST /.netlify/functions/generate-image
  * Body: { prompt, size?, quality?, n?, fast?, outputFormat?, referenceImages?: string[] (data URLs) }
- * Returns: { images: [{ b64_json, mime_type }], model, size, quality }
  *
- * Uses OpenAI Images (models from src/config/models.json: image.default / image.fast) through the
- * shared _responses helper. When referenceImages are supplied the Images edit endpoint is used.
+ * Text-to-image (no referenceImages) is ASYNCHRONOUS so it can never hit Netlify's function timeout:
+ * one Responses API call per variant (n <= 4, started in parallel) using the hosted `image_generation`
+ * tool with `background: true`. Returns immediately:
+ *   { jobs: [{ responseId }], model, size, quality, outputFormat }
+ * The client then polls `generate-image-status` ({ responseIds }) for the base64 results. Each response
+ * carries `metadata.user_id` so status can refuse other users' ids.
+ *
+ * With referenceImages the Images *edit* endpoint is used and it stays SYNCHRONOUS (it needs multipart
+ * uploads, which the background Responses flow does not cover here). Response shape in that case:
+ *   { images: [{ b64_json, mime_type }], model, size, quality }
+ * Clients must handle both shapes; the browser service sends one image per request when references
+ * are present to stay inside the function time limit.
+ *
+ * Tool params (Responses `image_generation`): model, quality, size, output_format, background
+ * (transparency; unused here), partial_images (streaming only; not used in background polling).
  */
 const { withAuth, CORS_HEADERS } = require('./_auth');
 const responses = require('./_responses');
@@ -37,8 +49,8 @@ function parseRefs(refs) {
 
 /** Exported for tests: handler factory accepting an injected OpenAI client. */
 function createHandler(deps = {}) {
-  const generate = deps.generateImage || responses.generateImage;
-  return async function handle(event) {
+  const create = deps.createResponse || responses.createResponse;
+  return async function handle(event, user) {
     let body;
     try {
       body = JSON.parse(event.body || '{}');
@@ -73,8 +85,8 @@ function createHandler(deps = {}) {
     const model = fast ? models.image.fast : models.image.default;
 
     try {
-      let results;
       if (refs.length) {
+        // Synchronous Images edit (reference images). See header note.
         const client = deps.client || responses.getClient();
         const toFile = deps.toFile || require('openai').toFile;
         const files = await Promise.all(refs.map((r, i) =>
@@ -82,15 +94,33 @@ function createHandler(deps = {}) {
         const res = await client.images.edit({
           model, image: files, prompt, n, size, quality, output_format: outputFormat,
         });
-        results = (res.data || []).map((d) => d.b64_json).filter(Boolean);
-      } else {
-        results = await generate({ client: deps.client, model, prompt, n, size, quality, outputFormat });
+        const images = (res.data || [])
+          .map((d) => d.b64_json)
+          .filter((v) => typeof v === 'string' && !/^https?:/.test(v))
+          .map((b64) => ({ b64_json: b64, mime_type: `image/${outputFormat}` }));
+        if (!images.length) return json(502, { error: 'No image was returned. Try adjusting the prompt.' });
+        return json(200, { images, model, size, quality });
       }
-      const images = results
-        .filter((v) => typeof v === 'string' && !/^https?:/.test(v))
-        .map((b64) => ({ b64_json: b64, mime_type: `image/${outputFormat}` }));
-      if (!images.length) return json(502, { error: 'No image was returned. Try adjusting the prompt.' });
-      return json(200, { images, model, size, quality });
+
+      const settled = await Promise.allSettled(Array.from({ length: n }, (_, i) => create({
+        client: deps.client,
+        role: 'default',
+        input: prompt,
+        tools: [{ type: 'image_generation', model, quality, size, output_format: outputFormat }],
+        toolChoice: { type: 'image_generation' },
+        background: true,
+        store: true,
+        metadata: { user_id: user.id, purpose: 'image_generation', variant: String(i), output_format: outputFormat },
+        user: user.id,
+      })));
+      const jobs = settled
+        .filter((r) => r.status === 'fulfilled' && r.value && r.value.id)
+        .map((r) => ({ responseId: r.value.id }));
+      if (!jobs.length) {
+        const first = settled.find((r) => r.status === 'rejected');
+        throw (first && first.reason) || new Error('Could not start image generation');
+      }
+      return json(200, { jobs, model, size, quality, outputFormat });
     } catch (err) {
       const status = err && err.status === 400 ? 400 : 502;
       const message = status === 400 && err.message ? err.message : 'Image generation failed';

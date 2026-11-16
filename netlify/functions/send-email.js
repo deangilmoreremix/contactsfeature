@@ -9,6 +9,7 @@ const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { sendEmail } = require('./_messaging');
 const { injectTracking } = require('./_messaging/tracking');
+const { checkOutbound, flaggedResponse } = require('./_moderation');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,6 +20,9 @@ exports.handler = withAuth(async (event, user) => {
 
   if (!to || !EMAIL_RE.test(to)) return errorResponse(400, 'A valid "to" address is required');
   if (!subject || !(body_html || body_text)) return errorResponse(400, 'subject and a body are required');
+
+  const mod = await checkOutbound({ texts: [subject, body_text || body_html], userId: user.id, endpoint: 'send-email' });
+  if (!mod.ok) return flaggedResponse(mod.categories, CORS_HEADERS);
 
   if (contact_id) {
     const { data: c } = await supabase.from('contacts').select('id').eq('id', contact_id).eq('user_id', user.id).maybeSingle();

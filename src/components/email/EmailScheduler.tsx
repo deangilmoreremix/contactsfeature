@@ -1,3 +1,4 @@
+import { moderationMessage } from '../../services/messagingProviderService';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Contact } from '../../types/contact';
 import { GlassCard } from '../ui/GlassCard';
@@ -92,7 +93,8 @@ export const EmailScheduler: React.FC<EmailSchedulerProps> = ({
       onSchedule?.({ scheduledDate: when, timezone, emailId: r.id });
       await refresh();
     } catch (e) {
-      showToast({ type: 'error', title: 'Scheduling failed', message: e instanceof Error ? e.message : 'Could not schedule the email' });
+      const flagged = moderationMessage(e);
+      showToast({ type: 'error', title: flagged ? 'Blocked by content moderation' : 'Scheduling failed', message: flagged || (e instanceof Error ? e.message : 'Could not schedule the email') });
     } finally {
       setIsScheduling(false);
     }

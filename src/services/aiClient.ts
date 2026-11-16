@@ -31,6 +31,8 @@ export interface AIRequest {
   maxOutputTokens?: number;
   /** Chain onto a previous response (multi-turn). */
   previousResponseId?: string;
+  /** Server-side OpenAI conversation id (`conv_...`); takes precedence over previousResponseId. */
+  conversationId?: string;
   store?: boolean;
 }
 

@@ -101,6 +101,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
   const [variants, setVariants] = useState(2);
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pendingVariants, setPendingVariants] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -245,31 +246,36 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
       const streamId = `generation-${Date.now()}`;
       if (isStreamingMode) setActiveStreams(prev => new Set([...prev, streamId]));
 
-      // One request per variant so each image can appear (and fail) independently.
+      // Background jobs are started together and polled; each variant appears (or fails) independently.
       let lastError: unknown = null;
-      for (let i = 0; i < count; i++) {
-        if (signal?.aborted) break;
-        setStreamingProgress(((i + 1) / count) * 100);
-        onProgress?.({ type: 'progress', progress: ((i + 1) / count) * 100 });
-        try {
-          const res = await generateImages({
-            prompt: promptText,
-            size,
-            quality: 'medium',
-            ...(seeds.length ? { referenceImages: seeds.slice(0, 4) } : {}),
-            signal,
-          });
-          if (res.model) modelRef.current = res.model;
-          for (const imageData of res.images) {
-            outs.push(imageData);
-            onProgress?.({ type: 'image', imageData, variantIndex: i });
-            if (isStreamingMode) setImages([...outs]);
-          }
-        } catch (variantError) {
-          lastError = variantError;
-          console.warn(`Variant ${i + 1} failed:`, variantError);
-          if (signal?.aborted) break;
-        }
+      let finished = 0;
+      setPendingVariants(Array.from({ length: count }, (_, i) => i));
+      try {
+        await generateImages({
+          prompt: promptText,
+          n: count,
+          size,
+          quality: 'medium',
+          ...(seeds.length ? { referenceImages: seeds.slice(0, 4) } : {}),
+          signal,
+          onVariant: (u) => {
+            if (u.status === 'pending') return;
+            finished += 1;
+            setPendingVariants((prev) => prev.filter((v) => v !== u.index));
+            const pct = (finished / count) * 100;
+            setStreamingProgress(pct);
+            onProgress?.({ type: 'progress', progress: pct });
+            if (u.status === 'done' && u.image) {
+              outs.push(u.image);
+              onProgress?.({ type: 'image', imageData: u.image, variantIndex: u.index });
+              setImages([...outs]);
+            } else {
+              console.warn(`Variant ${u.index + 1} failed:`, u.error);
+            }
+          },
+        });
+      } catch (variantError) {
+        lastError = variantError;
       }
 
       if (isStreamingMode) {
@@ -304,6 +310,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
       onProgress?.({ type: 'error', error: errorMessage });
     } finally {
       setLoading(false);
+      setPendingVariants([]);
       setStreamingProgress(0);
       streamingControllerRef.current = null;
     }
@@ -762,7 +769,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
            </div>
 
           {/* Results */}
-          {!!images.length && (
+          {(!!images.length || pendingVariants.length > 0) && (
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {images.map((src, i) => (
                 <div
@@ -789,6 +796,16 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
                         {savingImage === src ? 'Saving...' : 'Save to App'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              ))}
+              {pendingVariants.map((v) => (
+                <div key={`pending-${v}`} className="rounded-xl border bg-gray-50 flex flex-col">
+                  <div className="w-full aspect-square flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  </div>
+                  <div className="flex items-center justify-between p-2 gap-2">
+                    <span className="text-xs text-gray-600">Variant {v + 1} generating…</span>
                   </div>
                 </div>
               ))}

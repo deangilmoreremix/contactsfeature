@@ -28,6 +28,9 @@ export interface EmailResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  /** 'CONTENT_FLAGGED' when blocked by content moderation */
+  code?: string;
+  categories?: string[];
   provider: string;
 }
 
@@ -53,7 +56,8 @@ class EmailService {
       });
       return { success: r.success, messageId: r.message_id, provider: r.provider || (r.queued ? 'queued' : 'unknown') };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Email send failed', provider: 'none' };
+      const e = error as { code?: string; categories?: string[] };
+      return { success: false, error: error instanceof Error ? error.message : 'Email send failed', code: e?.code, categories: e?.categories, provider: 'none' };
     }
   }
 

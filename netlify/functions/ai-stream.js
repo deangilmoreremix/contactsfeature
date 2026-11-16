@@ -9,6 +9,7 @@ const { Readable } = require('stream');
 const { authenticateRequest, CORS_HEADERS } = require('./_auth');
 const { streamResponse } = require('./_responses');
 const { buildOptions, underRateLimit, logUsage } = require('./_aiProxy');
+const { userOwnsConversation } = require('./_conversations');
 
 const SSE_HEADERS = {
   ...CORS_HEADERS,
@@ -31,6 +32,7 @@ exports.handler = stream(async (event) => {
   try { body = JSON.parse(event.body || '{}'); } catch { return plain(400, 'Invalid JSON body'); }
   const { options, error } = buildOptions(body);
   if (error) return plain(400, error);
+  if (options.conversationId && !(await userOwnsConversation(user.id, options.conversationId))) return plain(404, 'Conversation not found');
   if (!(await underRateLimit(user.id))) return plain(429, 'Too many AI requests. Please wait a moment.');
 
   async function* events() {

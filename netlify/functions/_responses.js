@@ -307,15 +307,23 @@ async function embed(input, opts = {}) {
   return res.data.map((d) => d.embedding);
 }
 
-/** Moderation guard for AI-generated outbound content. Returns { flagged, categories }. */
-async function moderate(text, opts = {}) {
+/**
+ * Moderation guard for outbound content. input: string | string[].
+ * Returns { flagged, categories, results } where `categories` is the legacy category->boolean map
+ * merged (OR) across all inputs and `results` is the raw per-input result list.
+ */
+async function moderate(input, opts = {}) {
   const client = opts.client || getClient();
   const res = await withRetry(() => client.moderations.create({
     model: process.env.SMARTCRM_MODERATION_MODEL || models.moderation.model,
-    input: text,
+    input,
   }));
-  const r = res.results && res.results[0];
-  return { flagged: !!(r && r.flagged), categories: (r && r.categories) || {} };
+  const results = (res && res.results) || [];
+  const categories = {};
+  for (const r of results) {
+    for (const [k, v] of Object.entries((r && r.categories) || {})) categories[k] = !!categories[k] || !!v;
+  }
+  return { flagged: results.some((r) => r && r.flagged), categories, results };
 }
 
 /** Speech-to-text for a Buffer/Readable (call recordings). */

@@ -9,6 +9,7 @@ const MAX_INPUT_CHARS = 120000;
 const MAX_OUTPUT_TOKENS = 8000;
 const MAX_PER_MINUTE = Number(process.env.AI_PROXY_MAX_PER_MINUTE || 30);
 const ALLOWED_TOOL_TYPES = new Set(['web_search', 'file_search']);
+const { CONVERSATION_ID_RE } = require('./_conversations');
 const ALLOWED_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high']);
 
 /** Validate + sanitise the browser payload into createResponse()/streamResponse() options. */
@@ -39,6 +40,11 @@ function buildOptions(body) {
     }
   }
 
+  const conversationId = typeof body.conversationId === 'string' && CONVERSATION_ID_RE.test(body.conversationId) ? body.conversationId : undefined;
+  if (body.conversationId !== undefined && body.conversationId !== null && !conversationId) {
+    return { error: '"conversationId" must be a conversation id starting with conv_' };
+  }
+
   return {
     options: {
       model: modelOrRole,
@@ -50,8 +56,10 @@ function buildOptions(body) {
       tools: tools.length ? tools : undefined,
       toolChoice: tools.length && body.toolChoice === 'required' ? 'required' : undefined,
       maxOutputTokens: Math.min(Number(body.maxOutputTokens) || 2000, MAX_OUTPUT_TOKENS),
-      previousResponseId: typeof body.previousResponseId === 'string' ? body.previousResponseId : undefined,
-      store: body.previousResponseId || body.store === true ? true : false,
+      // A server-side conversation wins over previous_response_id (the API rejects both together).
+      conversationId,
+      previousResponseId: !conversationId && typeof body.previousResponseId === 'string' ? body.previousResponseId : undefined,
+      store: conversationId || body.previousResponseId || body.store === true ? true : false,
     },
   };
 }
@@ -68,6 +76,19 @@ async function underRateLimit(userId) {
   return (count || 0) < MAX_PER_MINUTE;
 }
 
+/** Per-user per-minute limit for one endpoint (e.g. realtime-token), same ai_usage_log table. */
+async function underEndpointLimit(userId, endpoint, max, windowMs = 60_000) {
+  const since = new Date(Date.now() - windowMs).toISOString();
+  const { count, error } = await supabase
+    .from('ai_usage_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('endpoint', endpoint)
+    .gte('created_at', since);
+  if (error) return true;
+  return (count || 0) < max;
+}
+
 async function logUsage(userId, endpoint, options, usage, status = 'ok') {
   try {
     await supabase.from('ai_usage_log').insert({
@@ -82,4 +103,4 @@ async function logUsage(userId, endpoint, options, usage, status = 'ok') {
   } catch (_) { /* best effort */ }
 }
 
-module.exports = { buildOptions, underRateLimit, logUsage, MAX_PER_MINUTE };
+module.exports = { buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE };

@@ -2,6 +2,7 @@ const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { sendEmail } = require('./_messaging');
 const { injectTracking } = require('./_messaging/tracking');
+const { checkOutbound } = require('./_moderation');
 const { createLogger, generateCorrelationId } = require('./_logger');
 
 const log = createLogger('process-email-queue');
@@ -55,6 +56,18 @@ async function processQueue() {
           send_attempts: (email.send_attempts || 0) + 1,
           updated_at: new Date().toISOString(),
         }).eq('id', email.id);
+
+        const mod = await checkOutbound({ texts: [email.subject, email.body_text || email.body_html], userId: email.user_id, endpoint: 'process-email-queue' });
+        if (!mod.ok) {
+          await supabase.from('emails').update({
+            status: 'failed',
+            error_message: 'Blocked by content moderation',
+            updated_at: new Date().toISOString(),
+          }).eq('id', email.id);
+          results.push({ emailId: email.id, success: false, blocked: true, categories: mod.categories });
+          failed++;
+          continue;
+        }
 
         const sendResult = await sendEmailViaProvider(email);
 

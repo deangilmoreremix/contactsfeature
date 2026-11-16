@@ -1,6 +1,7 @@
 /**
  * Netlify Function: browser -> OpenAI Responses proxy (non-streaming).
- * POST { role|model, effort?, instructions?, input, schema?, schemaName?, tools?, maxOutputTokens?, previousResponseId? }
+ * POST { role|model, effort?, instructions?, input, schema?, schemaName?, tools?, maxOutputTokens?, previousResponseId?,
+ *        conversationId? (conv_..., must belong to one of the caller's SDR threads) }
  * -> { id, text, json, citations, usage }
  * The API key stays on the server; models are restricted to the configured roles, tools to
  * web_search / file_search, and each user is rate limited.
@@ -8,6 +9,7 @@
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { createResponse } = require('./_responses');
 const { buildOptions, underRateLimit, logUsage } = require('./_aiProxy');
+const { userOwnsConversation } = require('./_conversations');
 
 exports.handler = withAuth(async (event, user) => {
   let body;
@@ -15,6 +17,7 @@ exports.handler = withAuth(async (event, user) => {
 
   const { options, error } = buildOptions(body);
   if (error) return errorResponse(400, error);
+  if (options.conversationId && !(await userOwnsConversation(user.id, options.conversationId))) return errorResponse(404, 'Conversation not found');
   if (!(await underRateLimit(user.id))) return errorResponse(429, 'Too many AI requests. Please wait a moment.');
 
   try {

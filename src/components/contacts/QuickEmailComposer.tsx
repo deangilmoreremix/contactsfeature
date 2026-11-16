@@ -123,6 +123,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
   const [scheduledTime, setScheduledTime] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   // Initialize with template if contact has specific context
   useEffect(() => {
@@ -175,6 +176,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       return;
     }
 
+    setSendError(null);
     setIsSending(true);
     try {
       // Send through the user's own provider (stored in `emails`, tracked via pixel/link rewrite)
@@ -193,7 +195,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to send email:', error);
-      alert(error instanceof Error ? `Failed to send email: ${error.message}` : 'Failed to send email. Please try again.');
+      setSendError(error instanceof Error ? error.message : 'Failed to send email. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -212,6 +214,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       return;
     }
 
+    setSendError(null);
     setIsScheduling(true);
     try {
       // Schedule email using email scheduler service
@@ -229,7 +232,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to schedule email:', error);
-      alert(error instanceof Error ? `Failed to schedule email: ${error.message}` : 'Failed to schedule email. Please try again.');
+      setSendError(error instanceof Error ? error.message : 'Failed to schedule email. Please try again.');
     } finally {
       setIsScheduling(false);
     }
@@ -268,6 +271,11 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {sendError && (
+            <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+              {sendError}
+            </div>
+          )}
           {/* Email Form */}
           <EmailForm
             emailData={emailData}

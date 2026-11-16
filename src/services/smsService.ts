@@ -18,6 +18,9 @@ export interface SMSResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  /** 'CONTENT_FLAGGED' when blocked by content moderation */
+  code?: string;
+  categories?: string[];
   cost?: number;
   status?: string;
 }
@@ -42,7 +45,8 @@ class SMSService {
       });
       return { success: r.success, messageId: r.messageSid, status: 'sent' };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'SMS send failed' };
+      const e = error as { code?: string; categories?: string[] };
+      return { success: false, error: error instanceof Error ? error.message : 'SMS send failed', code: e?.code, categories: e?.categories };
     }
   }
 

@@ -94,19 +94,33 @@ function buildAgent(slug, ctx) {
   };
 }
 
+/**
+ * Run options for the Agents SDK. `conversationId` (a server-side OpenAI Conversation, `conv_...`)
+ * is supported by @openai/agents `run(..., { conversationId })` and takes precedence; otherwise
+ * `previousResponseId` chains turns. The SDK then only sends the new input each turn.
+ */
+function buildRunOptions(ctx) {
+  const opts = { maxTurns: 8 };
+  if (ctx.conversationId) opts.conversationId = ctx.conversationId;
+  else if (ctx.previousResponseId) opts.previousResponseId = ctx.previousResponseId;
+  return opts;
+}
+
 /** Run one agent for one contact. Returns { output, model, persona, usage }. */
 async function runSdrAgent(slug, ctx) {
   const { agent, model } = buildAgent(slug, ctx);
   const c = ctx.contact;
   const input = `Write the ${DEFINITIONS[slug].name} output for ${c.firstname || c.name || 'this contact'}${c.company ? ` at ${c.company}` : ''}.${ctx.goal ? `\nGoal: ${ctx.goal}` : ''}`;
-  const result = await run(agent, input, { maxTurns: 8 });
+  const result = await (ctx.runFn || run)(agent, input, buildRunOptions(ctx));
   if (!result.finalOutput) throw new Error('Agent returned no output');
   return {
     output: result.finalOutput,
     model,
     persona: ctx.personaId || null,
+    conversationId: ctx.conversationId || null,
+    lastResponseId: result.lastResponseId || null,
     usage: result.state?.usage ? { input_tokens: result.state.usage.inputTokens, output_tokens: result.state.usage.outputTokens } : null,
   };
 }
 
-module.exports = { runSdrAgent, buildAgent, getPersona, PERSONA_IDS, DEFINITIONS };
+module.exports = { runSdrAgent, buildRunOptions, buildAgent, getPersona, PERSONA_IDS, DEFINITIONS };

@@ -7,6 +7,7 @@
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { sendSms } = require('./_messaging');
+const { checkOutbound, flaggedResponse } = require('./_moderation');
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 const MAX_PER_MINUTE = 30;
@@ -19,6 +20,9 @@ exports.handler = withAuth(async (event, user) => {
   if (!to || !message) return errorResponse(400, 'Phone number and message are required');
   if (!E164.test(String(to))) return errorResponse(400, 'Phone number must be in E.164 format, e.g. +14155550123');
   if (String(message).length > 1600) return errorResponse(400, 'Message is too long (max 1600 characters)');
+
+  const mod = await checkOutbound({ texts: [message], userId: user.id, endpoint: 'send-sms' });
+  if (!mod.ok) return flaggedResponse(mod.categories, CORS_HEADERS);
 
   if (contactId) {
     const { data: c } = await supabase.from('contacts').select('id').eq('id', contactId).eq('user_id', user.id).maybeSingle();

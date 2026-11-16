@@ -44,6 +44,17 @@ export const FIELD_LABELS: Record<string, string> = {
   authToken: 'Auth token',
 };
 
+/** Error thrown by the messaging functions; `code === 'CONTENT_FLAGGED'` carries the moderation categories. */
+export type MessagingError = Error & { code?: string; categories?: string[] };
+
+/** User-facing text for a blocked message, or null when the error is not a moderation block. */
+export function moderationMessage(err: unknown): string | null {
+  const e = err as MessagingError | null;
+  if (!e || e.code !== 'CONTENT_FLAGGED') return null;
+  const cats = (e.categories || []).map((c) => c.replace(/[/_-]+/g, ' ')).join(', ');
+  return `This message was blocked by content moderation${cats ? `: ${cats}` : ''}. Edit it and try again.`;
+}
+
 async function call<T>(fn: string, payload: Record<string, unknown>): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Please sign in first');
@@ -54,8 +65,9 @@ async function call<T>(fn: string, payload: Record<string, unknown>): Promise<T>
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(json.error || `Request failed (${res.status})`) as Error & { code?: string };
+    const err = new Error(json.error || `Request failed (${res.status})`) as Error & { code?: string; categories?: string[] };
     err.code = json.code;
+    if (Array.isArray(json.categories)) err.categories = json.categories;
     throw err;
   }
   return json as T;

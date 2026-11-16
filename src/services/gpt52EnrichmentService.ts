@@ -1,65 +1,66 @@
 /**
- * the AI model Enrichment Service
- * Advanced contact enrichment using the AI model Responses API with reasoning and tools
- * Replaces the legacy aiEnrichmentService and Metorial integration
+ * Contact enrichment through the Responses API (via the server-side AI proxy).
+ *
+ * Uses the hosted web_search tool + strict Structured Outputs. Anything the model cannot verify
+ * comes back as null / [] and is shown as "No data" by the UI - nothing is ever invented.
+ * Failures throw AIError (surfaced by AIErrorToaster); there is no canned fallback result.
  */
 
 import { logger } from './logger.service';
-import { aiRespond } from './aiClient';
+import { aiRespond, AIError, type AICitation } from './aiClient';
 import { contextManager } from '../../lib/core/contextManager';
+import {
+  ENRICHMENT_SCHEMA,
+  normalizeEnrichment,
+  isEmptyEnrichment,
+  type EnrichmentNews,
+} from './enrichmentSchema';
+
+export type { EnrichmentNews };
 
 export interface EnrichmentResult {
   contact: {
-    firstName?: string;
-    lastName?: string;
-    title?: string;
-    company?: string;
-    industry?: string;
-    location?: {
-      city?: string;
-      state?: string;
-      country?: string;
-    };
-    socialProfiles?: {
-      linkedin?: string;
-      twitter?: string;
-      website?: string;
-    };
-    bio?: string;
+    firstName: string | null;
+    lastName: string | null;
+    title: string | null;
+    company: string | null;
+    industry: string | null;
+    location: { city: string | null; state: string | null; country: string | null };
+    socialProfiles: { linkedin: string | null; twitter: string | null; website: string | null };
+    bio: string | null;
   };
   company: {
-    name: string;
-    industry: string;
-    size: string;
-    revenue?: string;
-    growth?: string;
+    name: string | null;
+    industry: string | null;
+    size: string | null;
+    revenue: string | null;
+    growth: string | null;
     keyProducts: string[];
-    recentNews: Array<{
-      title: string;
-      date: string;
-      impact: 'high' | 'medium' | 'low';
-    }>;
+    recentNews: EnrichmentNews[];
     competitors: string[];
   };
   insights: {
     painPoints: string[];
     opportunities: string[];
     decisionFactors: string[];
-    timeline: string;
-    budget: string;
+    timeline: string | null;
+    budget: string | null;
   };
   sdrRecommendations: {
-    approach: string;
+    approach: string | null;
     talkingPoints: string[];
     objections: string[];
     nextSteps: string[];
   };
   metadata: {
-    confidence: number;
+    /** 0-100 integer justified by evidence, or null when the model had no evidence. */
+    confidence: number | null;
+    confidenceRationale: string | null;
     reasoningEffort: string;
     toolsUsed: string[];
     processingTime: number;
     model: string;
+    citations: AICitation[];
   };
 }
 
@@ -72,428 +73,99 @@ export interface EnrichmentOptions {
   previousResponseId?: string;
 }
 
-/**
- * Research tools for the AI model enrichment
- */
-const RESEARCH_TOOLS: CustomTool[] = [
-  {
-    type: 'function',
-    name: 'research_company',
-    description: 'Research a company to gather information about industry, size, products, news, and competitors',
-    parameters: {
-      type: 'object',
-      properties: {
-        companyName: {
-          type: 'string',
-          description: 'The name of the company to research'
-        },
-        depth: {
-          type: 'string',
-          enum: ['basic', 'comprehensive', 'executive'],
-          description: 'Depth of research required'
-        },
-        focusAreas: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Specific areas to focus on (e.g., financials, products, leadership)'
-        }
-      },
-      required: ['companyName']
-    }
-  },
-  {
-    type: 'function',
-    name: 'research_contact',
-    description: 'Research a contact to gather professional information, background, and interests',
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'The full name of the contact'
-        },
-        company: {
-          type: 'string',
-          description: 'The company the contact works for'
-        },
-        title: {
-          type: 'string',
-          description: 'The job title of the contact'
-        },
-        linkedinUrl: {
-          type: 'string',
-          description: 'LinkedIn profile URL if available'
-        }
-      },
-      required: ['name']
-    }
-  },
-  {
-    type: 'function',
-    name: 'generate_sdr_strategy',
-    description: 'Generate SDR outreach strategy including talking points, objections, and next steps',
-    parameters: {
-      type: 'object',
-      properties: {
-        contactName: {
-          type: 'string',
-          description: 'Name of the contact'
-        },
-        companyName: {
-          type: 'string',
-          description: 'Name of the company'
-        },
-        industry: {
-          type: 'string',
-          description: 'Industry of the company'
-        },
-        painPoints: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Identified pain points'
-        },
-        context: {
-          type: 'string',
-          description: 'Additional context about the engagement'
-        }
-      },
-      required: ['contactName', 'companyName']
-    }
-  }
-];
+interface ContactInput {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  company?: string;
+  title?: string;
+  linkedin?: string;
+}
+
+const INSTRUCTIONS = `You are a sales-intelligence researcher. Research the given contact and company with the web_search tool and report ONLY what sources support.
+Rules:
+- Never guess or estimate. If a fact (size, revenue, budget, timeline, URLs, news) is not supported by a source, return null (or an empty list).
+- Do not invent profile URLs; only return URLs you found.
+- "confidence" is an integer 0-100 for the whole result, based on how much reliable, matching evidence you found (identity match, source quality, recency). Use null if you found no evidence. Explain it in confidenceRationale.
+- Insights and SDR recommendations must follow from the findings; leave them empty if there is not enough to go on.`;
 
 class GPT52EnrichmentService {
-
-  /**
-   * Enrich a contact using the AI model with reasoning and tools
-   */
-  async enrichContact(
-    contactData: {
-      email?: string;
-      firstName?: string;
-      lastName?: string;
-      name?: string;
-      company?: string;
-      title?: string;
-      linkedin?: string;
-    },
-    options: EnrichmentOptions = {}
-  ): Promise<EnrichmentResult> {
+  async enrichContact(contactData: ContactInput, options: EnrichmentOptions = {}): Promise<EnrichmentResult> {
     const startTime = Date.now();
     const contactName = contactData.name || `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim();
-    const companyName = contactData.company || 'Unknown Company';
+    if (!contactName && !contactData.email && !contactData.company) {
+      throw new AIError('Add a name, email or company before enriching', 400);
+    }
+    const effort = options.reasoningEffort === 'low' ? 'low' : options.reasoningEffort === 'medium' ? 'medium' : 'high';
 
-    logger.info(`Starting the AI model enrichment`, {
-      contact: contactName,
-      company: companyName,
-      reasoningEffort: options.reasoningEffort || 'high'
-    });
+    logger.info('Starting AI enrichment', { contact: contactName, company: contactData.company, effort });
 
     try {
-      // Build the enrichment prompt
-      const prompt = this.buildEnrichmentPrompt(contactData);
-
-      // Determine which tools to enable
-      const tools = this.selectTools(options);
-
-      // Server-side call through the AI proxy (no browser key); web_search for current public info
       const ai = await aiRespond({
         role: 'thinking',
-        effort: options.reasoningEffort === 'high' ? 'high' : options.reasoningEffort === 'low' ? 'low' : 'medium',
-        instructions: this.getSystemInstructions(),
-        input: prompt,
-        tools: tools.some((t) => (t as any).name === 'web_search' || (t as any).type === 'web_search') ? [{ type: 'web_search' }] : undefined,
-        maxOutputTokens: 4000,
-        previousResponseId: options.useContext ? options.previousResponseId : undefined
+        effort,
+        instructions: INSTRUCTIONS,
+        input: `Research this contact and return the structured result:\n${JSON.stringify(contactData, null, 2)}`,
+        schema: ENRICHMENT_SCHEMA,
+        schemaName: 'contact_enrichment',
+        tools: [{ type: 'web_search' }],
+        maxOutputTokens: 6000,
+        previousResponseId: options.useContext ? options.previousResponseId : undefined,
       });
+      if (ai.json == null) throw new AIError('Enrichment returned no structured result', 502);
 
-      const textContent = ai.text;
-      const functionCalls: any[] = [];
-      const reasoningSummaries: string[] = [];
-      const response = { id: ai.id };
+      const payload = normalizeEnrichment(ai.json);
+      if (isEmptyEnrichment(payload)) throw new AIError('No public information found for this contact', 404);
 
-      // Parse the enrichment result
-      const result = this.parseEnrichmentResult(textContent, contactData, functionCalls);
+      const result: EnrichmentResult = {
+        contact: {
+          firstName: payload.contact.firstName, lastName: payload.contact.lastName, title: payload.contact.title,
+          company: payload.contact.company, industry: payload.contact.industry,
+          location: { city: payload.contact.city, state: payload.contact.state, country: payload.contact.country },
+          socialProfiles: { linkedin: payload.contact.linkedin, twitter: payload.contact.twitter, website: payload.contact.website },
+          bio: payload.contact.bio,
+        },
+        company: payload.company,
+        insights: payload.insights,
+        sdrRecommendations: payload.sdrRecommendations,
+        metadata: {
+          confidence: payload.confidence,
+          confidenceRationale: payload.confidenceRationale,
+          reasoningEffort: effort,
+          toolsUsed: ai.citations.length ? ['web_search'] : [],
+          processingTime: Date.now() - startTime,
+          model: 'thinking',
+          citations: ai.citations,
+        },
+      };
 
-      // Store context for future use
       if (options.useContext) {
         contextManager.addItem({
           type: 'assistant',
-          content: JSON.stringify({
-            responseId: response.id,
-            reasoning: reasoningSummaries,
-            result: result
-          }),
-          metadata: {
-            importance: 0.8,
-            confidence: result.metadata.confidence
-          }
+          content: JSON.stringify({ responseId: ai.id, result }),
+          metadata: { importance: 0.8, confidence: result.metadata.confidence ?? 0 },
         });
       }
 
-      const processingTime = Date.now() - startTime;
-
-      logger.info(`the AI model enrichment completed`, {
-        contact: contactName,
-        company: companyName,
-        confidence: result.metadata.confidence,
-        processingTime,
-        toolsUsed: result.metadata.toolsUsed
+      logger.info('AI enrichment completed', {
+        contact: contactName, confidence: result.metadata.confidence, processingTime: result.metadata.processingTime,
       });
-
-      return {
-        ...result,
-        metadata: {
-          ...result.metadata,
-          processingTime,
-          reasoningEffort: options.reasoningEffort || 'high',
-          model: response.model
-        }
-      };
-
+      return result;
     } catch (error) {
-      logger.error('the AI model enrichment failed', error as Error, {
-        contact: contactName,
-        company: companyName
-      });
-
-      // Return graceful fallback
-      return this.generateFallbackResult(contactData);
+      logger.error('AI enrichment failed', error as Error, { contact: contactName });
+      if (error instanceof AIError) throw error;
+      throw new AIError(error instanceof Error ? error.message : 'Enrichment failed', 502);
     }
   }
 
-  /**
-   * Generate SDR insights for a contact using the AI model
-   */
-  async generateSDRInsights(
-    contactName: string,
-    companyName: string,
-    context: string = ''
-  ): Promise<EnrichmentResult> {
-    logger.info(`Generating SDR insights with the AI model`, { contact: contactName, company: companyName });
-
-    return this.enrichContact(
-      { name: contactName, company: companyName },
-      {
-        reasoningEffort: 'xhigh',
-        includeCompanyResearch: true,
-        includeContactResearch: true,
-        includeSDRInsights: true
-      }
-    );
+  async generateSDRInsights(contactName: string, companyName: string): Promise<EnrichmentResult> {
+    return this.enrichContact({ name: contactName, company: companyName }, { reasoningEffort: 'high' });
   }
 
-  /**
-   * Quick enrichment using fast model
-   */
-  async quickEnrich(contactData: { email?: string; name?: string; company?: string }): Promise<Partial<EnrichmentResult>> {
-    const startTime = Date.now();
-
-    try {
-      const ai = await aiRespond({
-        role: 'fast',
-        instructions: 'Provide a quick enrichment with basic company and contact info. Be concise. Use null for anything you cannot verify.',
-        input: `Quick enrichment for: ${JSON.stringify(contactData)}`,
-        maxOutputTokens: 1000
-      });
-      const textContent = ai.text;
-
-      logger.info(`Quick enrichment completed`, {
-        contact: contactData.name || contactData.email,
-        processingTime: Date.now() - startTime
-      });
-
-      return this.parseEnrichmentResult(textContent, contactData, []);
-
-    } catch (error) {
-      logger.error('Quick enrichment failed', error as Error);
-      return this.generateFallbackResult(contactData);
-    }
-  }
-
-  /**
-   * Build the enrichment prompt
-   */
-  private buildEnrichmentPrompt(contactData: any): string {
-    return `Enrich this contact with comprehensive research:
-
-Contact Information:
-${JSON.stringify(contactData, null, 2)}
-
-Please provide:
-1. Contact details (name, title, bio, social profiles)
-2. Company information (industry, size, products, competitors, recent news)
-3. Sales insights (pain points, opportunities, decision factors, timeline, budget)
-4. SDR recommendations (approach strategy, talking points, objections, next steps)
-
-Use the available research tools to gather real-time information. Return the result as a structured JSON object.`;
-  }
-
-  /**
-   * Get system instructions for enrichment
-   */
-  private getSystemInstructions(): string {
-    return `You are an expert AI sales intelligence assistant specializing in contact enrichment and SDR research.
-
-Your task is to research contacts and companies to provide actionable sales intelligence.
-
-Guidelines:
-- Use the research_company tool to gather company information
-- Use the research_contact tool to gather professional background
-- Use the generate_sdr_strategy tool to create outreach strategies
-- Be thorough but focus on actionable insights
-- Cite specific data points when possible
-- Provide confidence scores (0-100) for each piece of information
-- Return results in structured JSON format
-
-Always return a complete enrichment result with all fields populated, even if some data is estimated.`;
-  }
-
-  /**
-   * Select which tools to enable based on options
-   */
-  private selectTools(options: EnrichmentOptions): CustomTool[] {
-    const tools: CustomTool[] = [];
-
-    if (options.includeCompanyResearch !== false) {
-      tools.push(RESEARCH_TOOLS.find(t => t.name === 'research_company')!);
-    }
-
-    if (options.includeContactResearch !== false) {
-      tools.push(RESEARCH_TOOLS.find(t => t.name === 'research_contact')!);
-    }
-
-    if (options.includeSDRInsights !== false) {
-      tools.push(RESEARCH_TOOLS.find(t => t.name === 'generate_sdr_strategy')!);
-    }
-
-    return tools;
-  }
-
-  /**
-   * Parse the enrichment result from AI response
-   */
-  private parseEnrichmentResult(
-    textContent: string,
-    contactData: any,
-    functionCalls: any[]
-  ): EnrichmentResult {
-    try {
-      // Try to extract JSON from the response
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return this.normalizeResult(parsed, contactData, functionCalls);
-      }
-    } catch (parseError) {
-      logger.warn('Failed to parse enrichment JSON, using fallback');
-    }
-
-    return this.generateFallbackResult(contactData);
-  }
-
-  /**
-   * Normalize the parsed result to match EnrichmentResult interface
-   */
-  private normalizeResult(parsed: any, contactData: any, functionCalls: any[]): EnrichmentResult {
-    const toolsUsed = functionCalls.map(fc => fc.name);
-
-    return {
-      contact: {
-        firstName: parsed.contact?.firstName || contactData.firstName,
-        lastName: parsed.contact?.lastName || contactData.lastName,
-        title: parsed.contact?.title || contactData.title || 'Unknown',
-        company: parsed.contact?.company || contactData.company,
-        industry: parsed.contact?.industry || parsed.company?.industry || 'Technology',
-        location: parsed.contact?.location || { city: 'Unknown', state: 'Unknown', country: 'Unknown' },
-        socialProfiles: parsed.contact?.socialProfiles || {
-          linkedin: contactData.linkedin,
-          website: contactData.company ? `https://${contactData.company.toLowerCase().replace(/\s+/g, '')}.com` : undefined
-        },
-        bio: parsed.contact?.bio || `Professional at ${contactData.company || 'Unknown Company'}`
-      },
-      company: {
-        name: parsed.company?.name || contactData.company || 'Unknown Company',
-        industry: parsed.company?.industry || 'Technology',
-        size: parsed.company?.size || '51-200 employees',
-        revenue: parsed.company?.revenue,
-        growth: parsed.company?.growth,
-        keyProducts: parsed.company?.keyProducts || ['Product A', 'Product B'],
-        recentNews: parsed.company?.recentNews || [],
-        competitors: parsed.company?.competitors || []
-      },
-      insights: {
-        painPoints: parsed.insights?.painPoints || ['Legacy systems', 'Scaling challenges'],
-        opportunities: parsed.insights?.opportunities || ['Digital transformation', 'AI adoption'],
-        decisionFactors: parsed.insights?.decisionFactors || ['ROI', 'Ease of implementation'],
-        timeline: parsed.insights?.timeline || '60-90 days',
-        budget: parsed.insights?.budget || '$50K-$200K'
-      },
-      sdrRecommendations: {
-        approach: parsed.sdrRecommendations?.approach || 'Professional and consultative',
-        talkingPoints: parsed.sdrRecommendations?.talkingPoints || ['Industry trends', 'Competitive advantages'],
-        objections: parsed.sdrRecommendations?.objections || ['Budget constraints', 'Timing'],
-        nextSteps: parsed.sdrRecommendations?.nextSteps || ['Schedule discovery call', 'Send case studies']
-      },
-      metadata: {
-        confidence: parsed.metadata?.confidence || 75,
-        reasoningEffort: parsed.metadata?.reasoningEffort || 'high',
-        toolsUsed: toolsUsed,
-        processingTime: 0,
-        model: 'thinking'
-      }
-    };
-  }
-
-  /**
-   * Generate fallback result when enrichment fails
-   */
-  private generateFallbackResult(contactData: any): EnrichmentResult {
-    const companyName = contactData.company || 'Unknown Company';
-    const contactName = contactData.name || `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim() || 'Unknown Contact';
-
-    return {
-      contact: {
-        firstName: contactData.firstName,
-        lastName: contactData.lastName,
-        title: contactData.title || 'Unknown',
-        company: companyName,
-        industry: 'Technology',
-        location: { city: 'Unknown', state: 'Unknown', country: 'Unknown' },
-        socialProfiles: {
-          linkedin: contactData.linkedin
-        },
-        bio: `Contact at ${companyName}`
-      },
-      company: {
-        name: companyName,
-        industry: 'Technology',
-        size: 'Unknown',
-        keyProducts: [],
-        recentNews: [],
-        competitors: []
-      },
-      insights: {
-        painPoints: ['Information not available'],
-        opportunities: ['Information not available'],
-        decisionFactors: ['Information not available'],
-        timeline: 'Unknown',
-        budget: 'Unknown'
-      },
-      sdrRecommendations: {
-        approach: 'Research-based approach recommended',
-        talkingPoints: ['Request more information'],
-        objections: ['Lack of information'],
-        nextSteps: ['Gather more contact data']
-      },
-      metadata: {
-        confidence: 30,
-        reasoningEffort: 'none',
-        toolsUsed: [],
-        processingTime: 0,
-        model: 'fallback'
-      }
-    };
+  /** Same schema on the fast role; no deep research, so expect more nulls. */
+  async quickEnrich(contactData: { email?: string; name?: string; company?: string }): Promise<EnrichmentResult> {
+    return this.enrichContact(contactData, { reasoningEffort: 'low' });
   }
 }
 

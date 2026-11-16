@@ -11,11 +11,15 @@ const models = require('../src/config/models.json');
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
+let seq = 0;
 function fakeClient() {
   return {
     images: {
-      generate: vi.fn(async () => ({ data: [{ b64_json: 'AAA' }, { b64_json: 'BBB' }] })),
+      generate: vi.fn(),
       edit: vi.fn(async () => ({ data: [{ b64_json: 'EDIT' }] })),
+    },
+    responses: {
+      create: vi.fn(async () => ({ id: `resp_job${++seq}`, status: 'queued' })),
     },
   };
 }
@@ -23,23 +27,41 @@ const call = (handler: any, body: unknown) =>
   handler({ httpMethod: 'POST', headers: {}, body: JSON.stringify(body) }, { id: 'u1' });
 
 describe('generate-image function', () => {
-  it('generates base64 images with the default model', async () => {
+  it('starts one background image_generation job per variant and returns immediately', async () => {
     const client = fakeClient();
-    const res = await call(createHandler({ client }), { prompt: 'a red fox', n: 2, size: '1536x1024', quality: 'high' });
+    const res = await call(createHandler({ client }), { prompt: 'a red fox', n: 3, size: '1536x1024', quality: 'high', outputFormat: 'webp' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.images.map((i: any) => i.b64_json)).toEqual(['AAA', 'BBB']);
-    expect(body.images[0].mime_type).toBe('image/png');
+    expect(body.jobs).toHaveLength(3);
+    expect(body.jobs[0].responseId).toMatch(/^resp_/);
+    expect(body.images).toBeUndefined();
     expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
-    expect(client.images.generate).toHaveBeenCalledWith(expect.objectContaining({
-      model: models.image.default, prompt: 'a red fox', n: 2, size: '1536x1024', quality: 'high',
-    }));
+    expect(client.responses.create).toHaveBeenCalledTimes(3);
+    const params = client.responses.create.mock.calls[0][0];
+    expect(params.background).toBe(true);
+    expect(params.store).toBe(true);
+    expect(params.input).toBe('a red fox');
+    expect(params.metadata.user_id).toBe('u1');
+    expect(params.tools).toEqual([{ type: 'image_generation', model: models.image.default, quality: 'high', size: '1536x1024', output_format: 'webp' }]);
+    expect(params.tool_choice).toEqual({ type: 'image_generation' });
+    expect(params.max_tokens).toBeUndefined();
+    expect(client.images.generate).not.toHaveBeenCalled();
   });
 
-  it('uses the fast model when requested', async () => {
+  it('uses the fast image model when requested', async () => {
     const client = fakeClient();
     await call(createHandler({ client }), { prompt: 'x', fast: true });
-    expect(client.images.generate.mock.calls[0][0].model).toBe(models.image.fast);
+    expect(client.responses.create.mock.calls[0][0].tools[0].model).toBe(models.image.fast);
+  });
+
+  it('keeps the variants that started when one start call fails', async () => {
+    const client = fakeClient();
+    client.responses.create
+      .mockResolvedValueOnce({ id: 'resp_ok1', status: 'queued' })
+      .mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 401 }));
+    const res = await call(createHandler({ client }), { prompt: 'x', n: 2 });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).jobs).toEqual([{ responseId: 'resp_ok1' }]);
   });
 
   it('uses the edit endpoint for reference images', async () => {
@@ -49,6 +71,8 @@ describe('generate-image function', () => {
     expect(res.statusCode).toBe(200);
     expect(client.images.edit).toHaveBeenCalledOnce();
     expect(client.images.generate).not.toHaveBeenCalled();
+    expect(client.responses.create).not.toHaveBeenCalled();
+    expect(JSON.parse(res.body).images[0].b64_json).toBe('EDIT');
   });
 
   it.each([
@@ -63,11 +87,11 @@ describe('generate-image function', () => {
     const res = await call(createHandler({ client }), body);
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toContain(field);
-    expect(client.images.generate).not.toHaveBeenCalled();
+    expect(client.responses.create).not.toHaveBeenCalled();
   });
 
   it('returns 502 without leaking upstream details', async () => {
-    const client = { images: { generate: vi.fn(async () => { throw Object.assign(new Error('secret key sk-123'), { status: 500 }); }) } };
+    const client = { responses: { create: vi.fn(async () => { throw Object.assign(new Error('secret key sk-123'), { status: 500 }); }) } };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await call(createHandler({ client }), { prompt: 'x' });
     expect(res.statusCode).toBe(502);
