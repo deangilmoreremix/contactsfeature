@@ -30,8 +30,10 @@ import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
 import { supabase } from './supabaseClient';
+import { compositeFromRow, compositeToRow } from '../lib/fields/compositeFields';
 import { encryptionService } from '../utils/encryption';
 import { Contact } from '../types/contact';
+import { normalizeContactRow } from '../lib/contacts/softDelete';
 import apiConfig from '../config/api.config';
 
 export interface ContactFilters {
@@ -48,6 +50,8 @@ export interface ContactFilters {
   offset?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  /** Soft delete: 'exclude' (default) hides deleted contacts, 'only' lists the Trash. */
+  deleted?: 'exclude' | 'only';
 }
 
 export interface ContactListResponse {
@@ -343,7 +347,7 @@ class ContactAPIService {
       logger.info('Using Supabase for contact creation');
       const { data, error } = await supabase
         .from('contacts')
-        .insert([sanitized])
+        .insert([compositeToRow(sanitized)])
         .select()
         .single();
 
@@ -352,10 +356,11 @@ class ContactAPIService {
         throw error;
       }
 
+      const created = compositeFromRow(data);
       // Cache the new contact
-      cacheService.setContact(data.id, data);
+      cacheService.setContact(created.id, created);
 
-      return data;
+      return created;
     } catch (error) {
       logger.error('Contact creation failed', error as Error);
       throw error;
@@ -433,7 +438,7 @@ class ContactAPIService {
       try {
         const { data, error } = await supabase
           .from('contacts')
-          .update(sanitized)
+          .update(compositeToRow(sanitized))
           .eq('id', contactId)
           .select()
           .single();
@@ -443,15 +448,16 @@ class ContactAPIService {
           throw error;
         }
 
+        const updated = compositeFromRow(data);
         // Update cache
-        cacheService.setContact(contactId, data);
+        cacheService.setContact(contactId, updated);
 
         // Invalidate related cache entries
         cacheService.invalidateAllContacts();
 
         logger.info('Contact updated successfully via Supabase', { contactId, updates: Object.keys(updates) });
 
-        return data;
+        return updated;
       } catch (error) {
         logger.error('Contact update failed', error as Error);
         throw error;
@@ -459,24 +465,82 @@ class ContactAPIService {
     }
   }
   
+  /**
+   * Soft delete: moves the contact to the Trash (sets deleted_at / deletedAt). Use
+   * restoreContact to bring it back and destroyContact to remove it for good.
+   */
   async deleteContact(contactId: string): Promise<void> {
-    // Local storage fallback
-    logger.info('Using local storage for contact deletion');
+    const deletedAt = new Date().toISOString();
+    if (this.shouldUseFallback()) {
+      logger.info('Using local storage for contact soft deletion');
+      this.setLocalDeletedAt(contactId, deletedAt);
+    } else {
+      const { error } = await supabase.from('contacts').update({ deleted_at: deletedAt }).eq('id', contactId);
+      if (error) {
+        logger.error('Supabase contact soft delete failed', error);
+        throw error;
+      }
+    }
+    cacheService.invalidateContact(contactId);
+    cacheService.invalidateAllContacts();
+    logger.info('Contact moved to trash', { contactId });
+  }
+
+  /** Bring a contact back from the Trash. */
+  async restoreContact(contactId: string): Promise<void> {
+    if (this.shouldUseFallback()) {
+      this.setLocalDeletedAt(contactId, null);
+    } else {
+      const { error } = await supabase.from('contacts').update({ deleted_at: null }).eq('id', contactId);
+      if (error) {
+        logger.error('Supabase contact restore failed', error);
+        throw error;
+      }
+    }
+    cacheService.invalidateContact(contactId);
+    cacheService.invalidateAllContacts();
+    logger.info('Contact restored from trash', { contactId });
+  }
+
+  /** Permanently delete a contact (from the Trash). Cannot be undone. */
+  async destroyContact(contactId: string): Promise<void> {
+    if (this.shouldUseFallback()) {
+      const contacts = this.getLocalContacts();
+      const remaining = contacts.filter(c => c.id !== contactId);
+      if (remaining.length === contacts.length) {
+        throw new Error(`Contact with ID ${contactId} not found`);
+      }
+      this.saveLocalContacts(remaining);
+    } else {
+      const { error } = await supabase.from('contacts').delete().eq('id', contactId);
+      if (error) {
+        logger.error('Supabase contact permanent delete failed', error);
+        throw error;
+      }
+    }
+    cacheService.invalidateContact(contactId);
+    cacheService.invalidateAllContacts();
+    logger.info('Contact permanently deleted', { contactId });
+  }
+
+  /** Contacts currently in the Trash (newest deletion first). */
+  async getDeletedContacts(): Promise<Contact[]> {
+    const result = await this.getContacts({ deleted: 'only', limit: 500 });
+    return result.contacts
+      .map(c => normalizeContactRow(c) as Contact)
+      .sort((a, b) => String(b.deletedAt ?? '').localeCompare(String(a.deletedAt ?? '')));
+  }
+
+  private setLocalDeletedAt(contactId: string, deletedAt: string | null): void {
     const contacts = this.getLocalContacts();
-    const filteredContacts = contacts.filter(c => c.id !== contactId);
-    
-    if (filteredContacts.length === contacts.length) {
+    const index = contacts.findIndex(c => c.id === contactId);
+    if (index === -1) {
       throw new Error(`Contact with ID ${contactId} not found`);
     }
-    
-    this.saveLocalContacts(filteredContacts);
-    
-    // Remove from cache
-    cacheService.invalidateContact(contactId);
-    
-    logger.info('Contact deleted successfully', { contactId });
+    contacts[index] = { ...contacts[index], deletedAt, updatedAt: new Date().toISOString() };
+    this.saveLocalContacts(contacts);
   }
-  
+
   /**
    * Retrieve contacts with optional filtering, sorting, and pagination
    *
@@ -543,9 +607,12 @@ class ContactAPIService {
     try {
       logger.info('Using Supabase for contacts list');
 
-      let query = supabase
+      let query: any = supabase
         .from('contacts')
         .select('*', { count: 'exact' });
+
+      // Soft delete: the active list never contains deleted rows; the Trash asks for them explicitly.
+      query = filters.deleted === 'only' ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null);
 
       // Apply filters to query
       query = this.applySupabaseFilters(query, filters);
@@ -565,7 +632,7 @@ class ContactAPIService {
       }
 
       const result: ContactListResponse = {
-        contacts: data || [],
+        contacts: (data || []).map((row) => compositeFromRow(row)),
         total: count || 0,
         limit,
         offset,
@@ -584,7 +651,9 @@ class ContactAPIService {
 
 
   private applyFilters(contacts: Contact[], filters: ContactFilters): Contact[] {
-    let filteredContacts = [...contacts];
+    let filteredContacts = filters.deleted === 'only'
+      ? contacts.filter(c => !!c.deletedAt)
+      : contacts.filter(c => !c.deletedAt);
 
     if (filters.search) {
       const search = filters.search.toLowerCase();

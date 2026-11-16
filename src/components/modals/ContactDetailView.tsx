@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { QuickEmailComposer } from '../contacts/QuickEmailComposer';
@@ -12,6 +12,20 @@ import { Contact } from '../../types/contact';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { useContactTabs } from '../../hooks/useContactTabs';
 import { useContactPresence } from '../../hooks/useContactPresence';
+import { useContactStore } from '../../hooks/useContactStore';
+import { useContactTabLayout } from '../../hooks/useContactTabLayout';
+import { useContactNavigationStore } from '../../store/contactNavigationStore';
+import { contactTabs } from '../../constants/contactConstants';
+import { ContactCommandMenu } from '../contacts/ContactCommandMenu';
+import { ContactShortcutsHelp } from '../contacts/ContactShortcutsHelp';
+import { ContactMergePicker } from '../contacts/ContactMergePicker';
+import { MergeContactsModal } from '../contacts/MergeContactsModal';
+import { DeleteContactDialog, DestroyContactDialog } from '../contacts/ContactDeleteDialogs';
+import { buildContactCommands, type ContactCommandId } from '../../lib/commands/contactCommands';
+import { resolveContactShortcut } from '../../lib/commands/contactShortcuts';
+import { adjacentContactId, recordPosition } from '../../lib/contacts/recordNavigation';
+import { buildContactLink, withContactParams } from '../../lib/contacts/deepLink';
+import { downloadContact } from '../../lib/contacts/exportContact';
 
 // Lazy load tab components for better performance
 const ContactOverviewTab = lazy(() => import('../contacts/ContactOverviewTab').then(module => ({ default: module.ContactOverviewTab })));
@@ -25,6 +39,9 @@ const AIInsightsPanel = lazy(() => import('../contacts/AIInsightsPanel').then(mo
 const ContactEmailPanel = lazy(() => import('../contacts/ContactEmailPanel').then(module => ({ default: module.ContactEmailPanel })));
 const ContactOutboundAgentPanel = lazy(() => import('../contacts/ContactOutboundAgentPanel').then(module => ({ default: module.ContactOutboundAgentPanel })));
 const ContactActivityTab = lazy(() => import('../contacts/ContactActivityTab').then(module => ({ default: module.ContactActivityTab })));
+// >>> NEW DETAIL TABS (see contactConstants.ts)
+const ContactEmailsTab = lazy(() => import('../contacts/ContactEmailsTab').then(module => ({ default: module.ContactEmailsTab })));
+const ContactCalendarTab = lazy(() => import('../contacts/ContactCalendarTab').then(module => ({ default: module.ContactCalendarTab })));
 const ContactSDRPanel = lazy(() => import('../contacts/ContactSDRPanel').then(module => ({ default: module.ContactSDRPanel })));
 
 interface ContactDetailViewProps {
@@ -32,18 +49,26 @@ interface ContactDetailViewProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdate?: (id: string, updates: Partial<Contact>) => Promise<Contact>;
+  /** Tab to open first (deep link `&tab=`); falls back to Overview when unknown. */
+  initialTab?: string | undefined;
+  /** Switch the detail view to another contact (previous / next, duplicate). */
+  onOpenContact?: (contact: Contact) => void;
 }
+
+const KNOWN_TAB_IDS = new Set(contactTabs.map((t) => t.id));
 
 export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   contact,
   isOpen,
   onClose,
-  onUpdate
+  onUpdate,
+  initialTab,
+  onOpenContact
 }) => {
   // Provide a default onUpdate function to handle cases where it's not provided
   const handleUpdate: (id: string, updates: Partial<Contact>) => Promise<Contact> = onUpdate || ((id: string, updates: Partial<Contact>) => Promise.resolve(contact));
   // State management
-  const { activeTab, changeTab } = useContactTabs('overview');
+  const { activeTab, changeTab } = useContactTabs(initialTab && KNOWN_TAB_IDS.has(initialTab) ? initialTab : 'overview');
   const researchStatus = useResearchStatus();
   const otherViewers = useContactPresence(contact.id, isOpen);
 
@@ -68,6 +93,167 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
     console.log('Call completed:', callData);
     // Could add activity logging here
   };
+
+  // ---- Record actions: command menu, navigation, delete / restore, duplicate, export, merge, copy link ----
+  const { visibleTabs } = useContactTabLayout();
+  const navIds = useContactNavigationStore((s) => s.ids);
+  const allContacts = useContactStore((s) => s.contacts);
+  const isDeleted = !!contact.deletedAt;
+  const [showCommands, setShowCommands] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [showDestroy, setShowDestroy] = useState(false);
+  const [showMergePicker, setShowMergePicker] = useState(false);
+  const [mergePair, setMergePair] = useState<Contact[] | null>(null);
+  const [status, setStatus] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
+  const statusTimer = useRef<ReturnType<typeof setTimeout>>();
+  const flash = useCallback((text: string, tone: 'ok' | 'error' = 'ok') => {
+    setStatus({ text, tone });
+    if (statusTimer.current) clearTimeout(statusTimer.current);
+    statusTimer.current = setTimeout(() => setStatus(null), 2500);
+  }, []);
+  useEffect(() => () => { if (statusTimer.current) clearTimeout(statusTimer.current); }, []);
+
+  const prevId = adjacentContactId(navIds, contact.id, 'prev');
+  const nextId = adjacentContactId(navIds, contact.id, 'next');
+  const position = recordPosition(navIds, contact.id);
+  const goToRecord = useCallback((id: string | null) => {
+    if (!id) return;
+    const target = useContactStore.getState().contacts.find((c) => c.id === id);
+    if (target) onOpenContact?.(target);
+  }, [onOpenContact]);
+
+  // Start from a clean enrichment state when moving to another record
+  useEffect(() => {
+    setLastEnrichment(null);
+    setIsEnriching(false);
+  }, [contact.id]);
+
+  // Keep the URL in sync (?contact=<id>&tab=<tab>) while the record is open; clear it when closed.
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const { pathname, search, hash } = window.location;
+      window.history.replaceState(window.history.state, '', `${pathname}${withContactParams(search, contact.id, activeTab)}${hash}`);
+    } catch { /* history unavailable (sandboxed iframe, tests) */ }
+  }, [isOpen, contact.id, activeTab]);
+  useEffect(() => () => {
+    try {
+      const { pathname, search, hash } = window.location;
+      window.history.replaceState(window.history.state, '', `${pathname}${withContactParams(search, null)}${hash}`);
+    } catch { /* ignore */ }
+  }, []);
+
+  const copyLink = useCallback(async () => {
+    const link = buildContactLink(window.location, contact.id, activeTab);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // Clipboard API blocked (insecure origin / permissions): fall back to a temporary textarea.
+      const area = document.createElement('textarea');
+      area.value = link;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand?.('copy');
+      document.body.removeChild(area);
+      if (!ok) { flash('Could not copy the link', 'error'); return; }
+    }
+    flash('Link copied');
+  }, [contact.id, activeTab, flash]);
+
+  const toggleFavorite = useCallback(() => {
+    if (isDeleted) return;
+    void handleUpdate(contact.id, { isFavorite: !contact.isFavorite }).catch(() => flash('Could not update favorite', 'error'));
+  }, [contact.id, contact.isFavorite, isDeleted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Editing lives in the sidebar: ask it to start editing (event), else press its Edit quick action. */
+  const requestEdit = useCallback(() => {
+    if (isDeleted) return;
+    changeTab('overview');
+    const event = new CustomEvent('smartcrm:contact-edit', { cancelable: true, detail: { contactId: contact.id } });
+    if (window.dispatchEvent(event)) {
+      const editButton = Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Edit');
+      editButton?.click();
+    }
+  }, [contact.id, isDeleted, changeTab]);
+
+  const runCommand = useCallback((id: ContactCommandId) => {
+    setShowCommands(false);
+    if (id.startsWith('tab:')) { changeTab(id.slice(4)); return; }
+    switch (id) {
+      case 'palette': setShowCommands(true); break;
+      case 'edit': requestEdit(); break;
+      case 'favorite': toggleFavorite(); break;
+      case 'prev': goToRecord(prevId); break;
+      case 'next': goToRecord(nextId); break;
+      case 'copy-link': void copyLink(); break;
+      case 'export-csv': downloadContact(contact, 'csv'); flash('Exported as CSV'); break;
+      case 'export-json': downloadContact(contact, 'json'); flash('Exported as JSON'); break;
+      case 'shortcuts': setShowShortcuts(true); break;
+      case 'customize-tabs': document.querySelector<HTMLElement>('[data-testid="customize-tabs-button"]')?.click(); break;
+      case 'merge': setShowMergePicker(true); break;
+      case 'delete': setShowDelete(true); break;
+      case 'destroy': setShowDestroy(true); break;
+      case 'restore':
+        void useContactStore.getState().restoreContact(contact.id).then(() => flash('Contact restored'), () => flash('Could not restore the contact', 'error'));
+        break;
+      case 'duplicate':
+        void useContactStore.getState().duplicateContact(contact).then(
+          (copy) => { flash('Duplicated'); onOpenContact?.(copy); },
+          () => flash('Could not duplicate the contact', 'error'),
+        );
+        break;
+    }
+  }, [changeTab, requestEdit, toggleFavorite, goToRecord, prevId, nextId, copyLink, contact, flash, onOpenContact]);
+
+  const commands = useMemo(() => buildContactCommands({
+    isDeleted,
+    isFavorite: !!contact.isFavorite,
+    canPrev: !!prevId,
+    canNext: !!nextId,
+    tabs: visibleTabs,
+    activeTab,
+  }), [isDeleted, contact.isFavorite, prevId, nextId, visibleTabs, activeTab]);
+
+  const anyOverlayOpen = showCommands || showShortcuts || showDelete || showDestroy || showMergePicker || !!mergePair
+    || showEmailComposer || showCallHandler || showSMSComposer || showAISettings || showAPIConfig;
+
+  // Keyboard shortcuts (never while typing; Ctrl/Cmd+K toggles the palette from anywhere)
+  const shortcutState = useRef({ anyOverlayOpen, showCommands, runCommand, visibleTabs, changeTab });
+  shortcutState.current = { anyOverlayOpen, showCommands, runCommand, visibleTabs, changeTab };
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const action = resolveContactShortcut(e, e.target as HTMLElement | null);
+      if (!action) return;
+      const st = shortcutState.current;
+      if (action.type === 'palette') {
+        e.preventDefault();
+        if (st.showCommands) setShowCommands(false);
+        else if (!st.anyOverlayOpen) setShowCommands(true);
+        return;
+      }
+      if (st.anyOverlayOpen) return;
+      e.preventDefault();
+      switch (action.type) {
+        case 'help': setShowShortcuts(true); break;
+        case 'next': st.runCommand('next'); break;
+        case 'prev': st.runCommand('prev'); break;
+        case 'edit': st.runCommand('edit'); break;
+        case 'favorite': st.runCommand('favorite'); break;
+        case 'tab': {
+          const tab = st.visibleTabs[action.index];
+          if (tab) st.changeTab(tab.id);
+          break;
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -109,6 +295,11 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                 {otherViewers.some((v) => v.email) ? `: ${[...new Set(otherViewers.map((v) => v.email).filter(Boolean))].join(', ')}` : ''}
               </div>
             )}
+            {isDeleted && (
+              <div role="status" className="px-4 py-1 text-xs bg-amber-50 text-amber-800 border-b border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800">
+                This contact is in Trash. Restore it from the menu (Ctrl K) or delete it permanently.
+              </div>
+            )}
             {/* Header */}
             <ContactHeader
               activeTab={activeTab}
@@ -116,11 +307,18 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
               contact={contact}
               isEditing={false}
               isSaving={false}
-              onEdit={() => {}}
+              onEdit={requestEdit}
               onSave={() => {}}
               onCancel={() => {}}
-              onToggleFavorite={() => {}}
+              onToggleFavorite={toggleFavorite}
               onClose={onClose}
+              onPrev={() => goToRecord(prevId)}
+              onNext={() => goToRecord(nextId)}
+              canPrev={!!prevId}
+              canNext={!!nextId}
+              positionLabel={position ? `${position.index} / ${position.total}` : undefined}
+              onRunCommand={runCommand}
+              isDeleted={isDeleted}
             />
 
             {/* Tab Content */}
@@ -213,12 +411,95 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
                       <ContactActivityTab contact={contact} />
                     </div>
                   )}
+
+                  {/* >>> NEW DETAIL TABS (see contactConstants.ts) */}
+                  {activeTab === 'emails' && (
+                    <div className="p-6">
+                      <ContactEmailsTab contact={contact} />
+                    </div>
+                  )}
+
+                  {activeTab === 'calendar' && (
+                    <div className="p-6">
+                      <ContactCalendarTab contact={contact} />
+                    </div>
+                  )}
                 </Suspense>
               </ErrorBoundary>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Record actions */}
+      <ContactCommandMenu open={showCommands} commands={commands} onRun={runCommand} onClose={() => setShowCommands(false)} />
+      <ContactShortcutsHelp open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      {showDelete && (
+        <DeleteContactDialog
+          name={contact.name}
+          onClose={() => setShowDelete(false)}
+          onConfirm={async () => {
+            try {
+              await useContactStore.getState().deleteContact(contact.id);
+              setShowDelete(false);
+              onClose();
+            } catch {
+              setShowDelete(false);
+              flash('Could not delete the contact', 'error');
+            }
+          }}
+        />
+      )}
+      {showDestroy && (
+        <DestroyContactDialog
+          name={contact.name}
+          onClose={() => setShowDestroy(false)}
+          onConfirm={async () => {
+            try {
+              await useContactStore.getState().destroyContact(contact.id);
+              setShowDestroy(false);
+              onClose();
+            } catch {
+              setShowDestroy(false);
+              flash('Could not delete the contact', 'error');
+            }
+          }}
+        />
+      )}
+      {showMergePicker && (
+        <ContactMergePicker
+          contact={contact}
+          contacts={allContacts}
+          onClose={() => setShowMergePicker(false)}
+          onPick={(other) => { setShowMergePicker(false); setMergePair([contact, other]); }}
+        />
+      )}
+      {mergePair && (
+        <MergeContactsModal
+          contacts={mergePair}
+          primaryId={contact.id}
+          onClose={() => setMergePair(null)}
+          onMerged={() => {
+            setMergePair(null);
+            // The primary stays unless the user chose the other record as the one to keep.
+            if (!useContactStore.getState().contacts.some((c) => c.id === contact.id)) onClose();
+            else flash('Contacts merged');
+          }}
+        />
+      )}
+      {status && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] h-10 px-4 inline-flex items-center rounded-lg text-sm font-medium shadow-lg ${
+            status.tone === 'error'
+              ? 'bg-red-600 text-white'
+              : 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+          }`}
+        >
+          {status.text}
+        </div>
+      )}
 
       {/* Modals */}
       <QuickEmailComposer

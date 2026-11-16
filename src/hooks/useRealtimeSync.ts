@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useContactStore } from './useContactStore';
 import { useDealStore, type DealRow } from '../store/useDealStore';
-import { applyRowChange, type RealtimeEventType } from '../lib/realtimeApply';
+import { type RealtimeEventType } from '../lib/realtimeApply';
+import { applyContactRealtime } from '../lib/contacts/softDelete';
 import { contactAPI } from '../services/contact-api.service';
 import type { Contact } from '../types';
 
@@ -32,8 +33,16 @@ export function useRealtimeSync(enabled: boolean): void {
           if (!contactAPI.usesDatabase()) return;
           const type = payload.eventType as RealtimeEventType;
           useContactStore.setState((s) => {
-            const contacts = applyRowChange(s.contacts, type, payload.new as Partial<Contact>, payload.old as Partial<Contact>);
-            return { contacts, totalCount: Math.max(0, s.totalCount + contacts.length - s.contacts.length) };
+            // Soft-deleted rows (deleted_at set) move to the trash list instead of the active list.
+            const next = applyContactRealtime(
+              { contacts: s.contacts, trashed: s.trashedContacts },
+              type, payload.new as Partial<Contact>, payload.old as Partial<Contact>,
+            );
+            return {
+              contacts: next.contacts,
+              trashedContacts: next.trashed,
+              totalCount: Math.max(0, s.totalCount + next.contacts.length - s.contacts.length),
+            };
           });
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'deals', filter: `user_id=eq.${uid}` }, (payload) => {

@@ -31,14 +31,24 @@ const LABELS: Record<string, string> = {
   firstName: 'First name', lastName: 'Last name', interestLevel: 'Interest', aiScore: 'AI score',
   socialProfiles: 'Social profiles', customFields: 'Custom fields', isFavorite: 'Favorite',
   lastConnected: 'Last contact',
+  additionalEmails: 'Additional emails', additionalPhones: 'Additional phones',
 };
 export const fieldLabel = (key: string) =>
   LABELS[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 export function formatDiffValue(v: unknown): string {
   if (v === null || v === undefined || v === '') return 'empty';
-  if (Array.isArray(v)) return v.length ? v.join(', ') : 'empty';
+  if (Array.isArray(v)) {
+    // Composite lists ({label,value} / {label,url}) read as their values, not "[object Object]".
+    const items = v.map((i) => (i && typeof i === 'object' ? String((i as Record<string, unknown>)['value'] ?? (i as Record<string, unknown>)['url'] ?? '') : String(i))).filter(Boolean);
+    return items.length ? items.join(', ') : 'empty';
+  }
   if (typeof v === 'object') {
+    const a = v as Record<string, unknown>;
+    if ('city' in a || 'street' in a || 'country' in a || 'postalCode' in a) {
+      const text = [a['street'], a['city'], a['state'], a['postalCode'], a['country']].filter(Boolean).join(', ');
+      return text || 'empty';
+    }
     const keys = Object.keys(v as object);
     return keys.length ? keys.join(', ') : 'empty';
   }

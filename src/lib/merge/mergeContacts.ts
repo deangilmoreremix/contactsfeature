@@ -4,6 +4,7 @@
  * multi-value fields"; AGPL, reimplemented). Mirrors the SQL function merge_contacts.
  */
 import type { Contact } from '../../types/contact';
+import { pickAddress, unionEmails, unionLinks, unionPhones } from '../fields/compositeFields';
 
 export const MAX_MERGE_RECORDS = 9;
 
@@ -11,6 +12,8 @@ export const MAX_MERGE_RECORDS = 9;
 const SKIP = new Set(['id', 'createdAt', 'updatedAt', 'position', 'activityLog']);
 const UNION_ARRAYS = new Set(['tags', 'sources']);
 const MERGE_OBJECTS = new Set(['socialProfiles', 'customFields']);
+/** Composite fields with their own merge rule (union of lists, first non-empty address). */
+const COMPOSITE = new Set(['additionalEmails', 'additionalPhones', 'links', 'address']);
 const CONCAT_TEXT = new Set(['notes']);
 const OR_BOOLEANS = new Set(['isFavorite']);
 
@@ -58,6 +61,11 @@ export function mergeContactRecords(records: Contact[], overrides: Record<string
     const nonEmpty = values.filter((x) => !isEmptyValue(x.v));
     if (nonEmpty.length === 0) continue;
 
+    if (COMPOSITE.has(key)) {
+      // Handled after the loop (needs the final primary email/phone).
+      continue;
+    }
+
     if (UNION_ARRAYS.has(key)) {
       out[key] = Array.from(new Set(nonEmpty.flatMap((x) => x.v as unknown[])));
       sources[key] = nonEmpty[0]!.id;
@@ -77,6 +85,44 @@ export function mergeContactRecords(records: Contact[], overrides: Record<string
       sources[key] = nonEmpty[0]!.id;
       const distinct = new Set(nonEmpty.map((x) => JSON.stringify(x.v)));
       if (distinct.size > 1) conflicts.push(key);
+    }
+  }
+  // Composite fields: unions never lose an address/number; merged-away primaries become extras.
+  const valueOf = (k: string) => records.map((r) => get(r, k));
+  const anyComposite = records.some((r) =>
+    ['additionalEmails', 'additionalPhones', 'links', 'address'].some((k) => !isEmptyValue(get(r, k)))
+  );
+  const forcedFor = (k: string) => (overrides[k] ? byId.get(overrides[k]!) : undefined);
+  if (anyComposite || records.some((r) => r.email || r.phone)) {
+    const hasExtraEmails = records.some((r) => !isEmptyValue(get(r, 'additionalEmails')));
+    const hasExtraPhones = records.some((r) => !isEmptyValue(get(r, 'additionalPhones')));
+    const otherEmails = records.map((r) => r.email).filter((e) => e && e.trim().toLowerCase() !== String(out['email'] ?? '').trim().toLowerCase());
+    const otherPhones = records.map((r) => r.phone).filter((p) => p);
+    const fe = forcedFor('additionalEmails');
+    const fp = forcedFor('additionalPhones');
+    const fl = forcedFor('links');
+    const fa = forcedFor('address');
+    const emails = fe ? unionEmails([get(fe, 'additionalEmails')], out['email']) : unionEmails(valueOf('additionalEmails'), out['email'], otherEmails);
+    const phones = fp ? unionPhones([get(fp, 'additionalPhones')], out['phone']) : unionPhones(valueOf('additionalPhones'), out['phone'], otherPhones);
+    if (emails.length && (hasExtraEmails || otherEmails.length || fe)) {
+      out['additionalEmails'] = emails;
+      sources['additionalEmails'] = (fe ?? records.find((r) => !isEmptyValue(get(r, 'additionalEmails'))) ?? winner).id;
+    }
+    if (phones.length && (hasExtraPhones || otherPhones.length || fp)) {
+      out['additionalPhones'] = phones;
+      sources['additionalPhones'] = (fp ?? records.find((r) => !isEmptyValue(get(r, 'additionalPhones'))) ?? winner).id;
+    }
+    const links = fl ? unionLinks([get(fl, 'links')]) : unionLinks(valueOf('links'));
+    if (links.length) {
+      out['links'] = links;
+      sources['links'] = (fl ?? records.find((r) => !isEmptyValue(get(r, 'links'))) ?? winner).id;
+    }
+    const addr = fa ? pickAddress([get(fa, 'address')]) : pickAddress(valueOf('address'));
+    if (Object.keys(addr).length) {
+      out['address'] = addr;
+      sources['address'] = (fa ?? records.find((r) => !isEmptyValue(get(r, 'address'))) ?? winner).id;
+      const distinct = new Set(records.map((r) => get(r, 'address')).filter((a) => !isEmptyValue(a)).map((a) => JSON.stringify(pickAddress([a]))));
+      if (distinct.size > 1) conflicts.push('address');
     }
   }
   // Keep derived name consistent with the merged first/last name.

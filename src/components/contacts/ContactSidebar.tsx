@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { AvatarUpload } from '../ui/AvatarUpload';
 import { Contact } from '../../types/contact';
 import { useResearchStatus } from '../ui/ResearchStatusOverlay';
 import type { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { enrichContactWithWebSearch, type EnrichmentOutcome } from '../../services/contactEnrichment';
 import { useContactEditing } from '../../hooks/useContactEditing';
+import { EditableTitle } from './fields/EditableTitle';
+import { EmailsField } from './fields/EmailsField';
+import { PhonesField } from './fields/PhonesField';
+import { LinksField } from './fields/LinksField';
+import { AddressField } from './fields/AddressField';
 import {
   X, Edit, Mail, Phone, Plus, MessageSquare, FileText,
   User, Globe, Clock, Building, Brain,
@@ -76,6 +81,34 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
 
   const researchStatus = useResearchStatus();
   const [enrichmentOutcome, setEnrichmentOutcome] = useState<EnrichmentOutcome | null>(null);
+  const [addingEmail, setAddingEmail] = useState(false);
+  const [addingPhone, setAddingPhone] = useState(false);
+
+  /**
+   * Optimistically apply a partial update and persist it through the existing update path
+   * (store updateContact -> timeline diff). Rejects (after rolling back) when saving fails.
+   */
+  const applyUpdates = useCallback(async (updates: Partial<Contact>) => {
+    const before = editedContact as unknown as Record<string, unknown>;
+    const previous: Record<string, unknown> = {};
+    Object.keys(updates).forEach((k) => { previous[k] = before[k]; });
+    setEditedContact((prev) => ({ ...prev, ...updates }));
+    if (!onUpdate) return;
+    try {
+      await onUpdate(contact.id, updates);
+    } catch (error) {
+      setEditedContact((prev) => ({ ...prev, ...(previous as Partial<Contact>) }));
+      throw error;
+    }
+  }, [editedContact, onUpdate, contact.id, setEditedContact]);
+
+  const handleSaveTitle = useCallback(async (name: string) => {
+    const [first = '', ...rest] = name.split(' ');
+    await applyUpdates({ name, firstName: first, lastName: rest.join(' ') });
+  }, [applyUpdates]);
+
+  const hasExtraEmails = (editedContact.additionalEmails?.length ?? 0) > 0 || addingEmail;
+  const hasExtraPhones = (editedContact.additionalPhones?.length ?? 0) > 0 || addingPhone;
 
   const handleWebEnrichment = async () => {
     if (researchStatus.status.isActive) return;
@@ -237,7 +270,11 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
           </div>
 
           {/* Name and Title */}
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 leading-tight">{editedContact.name}</h3>
+          <EditableTitle
+            value={editedContact.name}
+            onSave={handleSaveTitle}
+            className="text-xl font-bold text-gray-900 dark:text-white mb-2 leading-tight"
+          />
           <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">{editedContact.title}</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm">{editedContact.company}</p>
           {editedContact.industry && (
@@ -459,8 +496,8 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
 
           <div className="space-y-3">
             {/* Email */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
+            <div className={`group flex ${hasExtraEmails ? 'items-start' : 'items-center'} justify-between`}>
+              <div className={`flex ${hasExtraEmails ? 'items-start' : 'items-center'} space-x-3 min-w-0 flex-1`}>
                 <div className="w-6 h-6 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Mail className="w-3 h-3 text-green-600" />
                 </div>
@@ -478,19 +515,39 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
                   ) : (
                     <p className="text-sm font-medium text-gray-900 truncate">{editedContact.email}</p>
                   )}
+                  <EmailsField
+                    email={editedContact.email}
+                    additionalEmails={editedContact.additionalEmails}
+                    editing={isEditing}
+                    adding={addingEmail}
+                    onCancelAdd={() => setAddingEmail(false)}
+                    onChange={(next) => applyUpdates({ email: next.email, additionalEmails: next.additionalEmails })}
+                  />
                 </div>
               </div>
-              <button
-                onClick={() => handleStartEditingField('email')}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-              >
-                <Edit className="w-3 h-3" />
-              </button>
+              <div className="flex items-center flex-shrink-0">
+                {!addingEmail && (
+                  <button
+                    onClick={() => setAddingEmail(true)}
+                    className={`p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ${isEditing ? 'inline-flex' : 'hidden group-hover:inline-flex focus:inline-flex'}`}
+                    title="Add another email"
+                    aria-label="Add another email"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleStartEditingField('email')}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+              </div>
             </div>
 
             {/* Phone */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
+            <div className={`group flex ${hasExtraPhones ? 'items-start' : 'items-center'} justify-between`}>
+              <div className={`flex ${hasExtraPhones ? 'items-start' : 'items-center'} space-x-3 min-w-0 flex-1`}>
                 <div className="w-6 h-6 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Phone className="w-3 h-3 text-yellow-600" />
                 </div>
@@ -509,14 +566,34 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
                   ) : (
                     <p className="text-sm font-medium text-gray-900">{editedContact.phone || 'Not provided'}</p>
                   )}
+                  <PhonesField
+                    phone={editedContact.phone ?? ''}
+                    additionalPhones={editedContact.additionalPhones}
+                    editing={isEditing}
+                    adding={addingPhone}
+                    onCancelAdd={() => setAddingPhone(false)}
+                    onChange={(next) => applyUpdates({ phone: next.phone, additionalPhones: next.additionalPhones })}
+                  />
                 </div>
               </div>
-              <button
-                onClick={() => handleStartEditingField('phone')}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-              >
-                <Edit className="w-3 h-3" />
-              </button>
+              <div className="flex items-center flex-shrink-0">
+                {!addingPhone && (
+                  <button
+                    onClick={() => setAddingPhone(true)}
+                    className={`p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ${isEditing ? 'inline-flex' : 'hidden group-hover:inline-flex focus:inline-flex'}`}
+                    title="Add another phone"
+                    aria-label="Add another phone"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleStartEditingField('phone')}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+              </div>
             </div>
 
             {/* Company */}
@@ -548,6 +625,13 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
                 <Edit className="w-3 h-3" />
               </button>
             </div>
+
+            {/* Address (composite) */}
+            <AddressField
+              address={editedContact.address}
+              editing={isEditing}
+              onChange={(address) => applyUpdates({ address })}
+            />
 
             {/* Social Media */}
             <div className="flex items-center justify-between">
@@ -638,6 +722,13 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Links (composite) */}
+            <LinksField
+              links={editedContact.links}
+              editing={isEditing}
+              onChange={(links) => applyUpdates({ links })}
+            />
 
             {/* Last Connected */}
             <div className="flex items-center justify-between">

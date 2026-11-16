@@ -1,12 +1,15 @@
 /**
  * Netlify Function: list the signed-in user's calendar events in a range (+ optional free slots).
- * GET ?from=&to=&status=  or  POST { from, to, status?, availability?: { count, durationMinutes, timeZone, workStartHour, workEndHour } }
+ * GET ?from=&to=&status=&contactId=  or  POST { from, to, status?, contactId?, availability?: { count, durationMinutes, timeZone, workStartHour, workEndHour } }
  * Defaults: from = now - 1 day, to = now + 30 days. Events are filtered by user_id.
+ * contactId (optional) narrows the list to one contact's events; the contact must belong to the caller (404 otherwise).
+ * Availability suggestions always consider ALL of the caller's events, never just the filtered contact's.
  */
 const { supabase } = require('./_supabaseClient');
 const { authenticateRequest, CORS_HEADERS, errorResponse } = require('./_auth');
 const { proposeTimes, computeFreeSlots } = require('./_availability');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORS = { ...CORS_HEADERS, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 
 function contactName(c) {
@@ -30,7 +33,16 @@ exports.handler = async (event) => {
   const to = params.to ? new Date(params.to) : new Date(now + 30 * 86400000);
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return errorResponse(400, 'from/to must be valid dates');
 
+  const contactId = params.contactId || null;
+  if (contactId && !UUID_RE.test(contactId)) return errorResponse(400, 'contactId must be a valid id');
+
   try {
+    if (contactId) {
+      const { data: owned, error: ownErr } = await supabase.from('contacts').select('id').eq('id', contactId).eq('user_id', user.id).maybeSingle();
+      if (ownErr) throw new Error(ownErr.message);
+      if (!owned) return errorResponse(404, 'Contact not found');
+    }
+
     let q = supabase
       .from('calendar_events')
       .select('*')
@@ -40,6 +52,7 @@ exports.handler = async (event) => {
       .order('scheduled_for', { ascending: true })
       .limit(500);
     if (params.status) q = q.eq('status', params.status);
+    if (contactId) q = q.eq('contact_id', contactId);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     const events = rows || [];
@@ -57,8 +70,21 @@ exports.handler = async (event) => {
     if (params.availability) {
       const a = typeof params.availability === 'object' ? params.availability : {};
       const opts = { ...a, from: a.from || new Date().toISOString(), to: a.to || to.toISOString() };
-      body.suggestions = proposeTimes(events, opts);
-      if (a.allSlots) body.slots = computeFreeSlots(events, opts);
+      let busyEvents = events;
+      if (contactId) {
+        // Free time depends on every meeting the user has, not only this contact's.
+        const { data: all, error: allErr } = await supabase
+          .from('calendar_events')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('scheduled_for', new Date(new Date(opts.from).getTime() - 86400000).toISOString())
+          .lte('scheduled_for', new Date(opts.to).toISOString())
+          .limit(1000);
+        if (allErr) throw new Error(allErr.message);
+        busyEvents = all || [];
+      }
+      body.suggestions = proposeTimes(busyEvents, opts);
+      if (a.allSlots) body.slots = computeFreeSlots(busyEvents, opts);
     }
     return { statusCode: 200, headers: CORS, body: JSON.stringify(body) };
   } catch (e) {

@@ -24,6 +24,7 @@ import { isMatchingSelectFilter } from '../../vendor/twenty-shared/utils/filter/
 import { isMatchingMultiSelectFilter } from '../../vendor/twenty-shared/utils/filter/utils/isMatchingMultiSelectFilter';
 import { isMatchingArrayFilter } from '../../vendor/twenty-shared/utils/filter/utils/isMatchingArrayFilter';
 import type { ContactFilterField } from './contactFilterFields';
+import { allEmails, allPhones, normalizeAddress } from '../fields/compositeFields';
 
 export type { RecordFilter, RecordFilterGroup };
 
@@ -43,6 +44,13 @@ export function getContactFieldValue(contact: Contact, field: ContactFilterField
     const cf = (contact as Anyish)['customFields'] ?? {};
     const id = field.id.replace(/^custom:/, '');
     return cf[field.label] ?? cf[id] ?? null;
+  }
+  // Virtual fields over the composite values (primary + additional).
+  switch (field.name) {
+    case 'anyEmail': return allEmails(contact).join('\n') || null;
+    case 'anyPhone': return allPhones(contact).join('\n') || null;
+    case 'city': return normalizeAddress((contact as Anyish)['address']).city ?? null;
+    case 'country': return normalizeAddress((contact as Anyish)['address']).country ?? null;
   }
   return (contact as Anyish)[field.name];
 }

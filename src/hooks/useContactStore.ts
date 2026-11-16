@@ -16,10 +16,14 @@ import { automationService } from '../services/automation.service';
 import { logger } from '../services/logger.service';
 import { sampleContacts } from './sampleContacts';
 import { useDebounce } from './useDebounce';
+import { softDeleteInState, restoreInState, destroyInState, excludeDeleted } from '../lib/contacts/softDelete';
+import { buildDuplicateContact } from '../lib/contacts/duplicateContact';
 import { handleError, logError, withErrorHandling, ERROR_CODES, createError } from '../utils/errorHandling';
 
 interface ContactState {
   contacts: Contact[];
+  /** Soft-deleted contacts (Trash). Loaded on demand in database mode, kept in localStorage in demo mode. */
+  trashedContacts: Contact[];
   isLoading: boolean;
   error: string | null;
   selectedContact: Contact | null;
@@ -31,7 +35,14 @@ interface ContactActions {
   fetchContacts: (filters?: any) => Promise<void>;
   createContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Contact>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact>;
+  /** Soft delete: moves the contact to the Trash. */
   deleteContact: (id: string) => Promise<void>;
+  restoreContact: (id: string) => Promise<void>;
+  /** Permanently delete (from the Trash). */
+  destroyContact: (id: string) => Promise<void>;
+  loadTrash: () => Promise<void>;
+  /** Create a copy ('Name (copy)') of a contact and return it. */
+  duplicateContact: (contact: Contact) => Promise<Contact>;
   /** Apply several contact patches optimistically (rolls back if saving fails outside demo mode). */
   /** Load saved contacts (database) or re-apply the saved row order (demo mode). Safe to call repeatedly. */
   hydrateContacts: () => Promise<void>;
@@ -67,8 +78,41 @@ function savePositionsLocally(patches: Array<{ id: string; updates: Partial<Cont
   }
 }
 
+const TRASH_KEY = 'smartcrm.trashed_contacts';
+
+function readLocalTrash(): Contact[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TRASH_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalTrash(trashed: Contact[]) {
+  try {
+    localStorage.setItem(TRASH_KEY, JSON.stringify(trashed));
+  } catch {
+    /* storage unavailable: the trash lasts for this session only */
+  }
+}
+
+/** Run a persistence call. In demo mode the browser store is the source of truth, so failures are ignored there. */
+async function persist(call: () => Promise<unknown>): Promise<void> {
+  if (contactAPI.usesDatabase()) {
+    await call();
+    return;
+  }
+  try {
+    await call();
+  } catch (error) {
+    logger.warn('Demo mode: kept change locally', { error });
+  }
+}
+
 export const useContactStore = create<ContactStore>((set, get) => ({
   contacts: sampleContacts, 
+  trashedContacts: [],
   isLoading: false,
   error: null,
   selectedContact: null,
@@ -82,7 +126,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       const response = await contactAPI.getContacts(filters);
 
       set({
-        contacts: response.contacts,
+        contacts: excludeDeleted(response.contacts),
         isLoading: false,
         totalCount: response.total,
         hasMore: response.hasMore
@@ -212,11 +256,17 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       await get().fetchContacts();
       return;
     }
-    // Demo mode: keep the built-in sample contacts but restore the order the user arranged.
+    // Demo mode: keep the built-in sample contacts but restore the order the user arranged
+    // and the contacts the user moved to the Trash.
+    const trashed = readLocalTrash();
+    const trashedIds = new Set(trashed.map((c) => c.id));
     const saved = readSavedPositions();
-    if (Object.keys(saved).length === 0) return;
+    if (Object.keys(saved).length === 0 && trashed.length === 0) return;
     set((state) => ({
-      contacts: state.contacts.map((c) => (saved[c.id] !== undefined ? { ...c, position: saved[c.id] } : c))
+      contacts: state.contacts
+        .filter((c) => !trashedIds.has(c.id))
+        .map((c) => (saved[c.id] !== undefined ? { ...c, position: saved[c.id] } : c)),
+      trashedContacts: trashed,
     }));
   },
 
@@ -244,33 +294,70 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   },
 
   deleteContact: async (id) => {
+    const before = get();
+    if (!before.contacts.some((c) => c.id === id)) return;
     try {
-      await contactAPI.deleteContact(id);
-
-      set(state => ({
-        contacts: state.contacts.filter(c => c.id !== id),
-        totalCount: Math.max(0, state.totalCount - 1),
-        selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
-      }));
-
-      logger.info('Contact deleted successfully', { contactId: id });
+      await persist(() => contactAPI.deleteContact(id));
     } catch (error) {
       logger.error('Failed to delete contact', error as Error);
-
-      // Delete locally in development/fallback mode
-      if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
-        set(state => ({
-          contacts: state.contacts.filter(c => c.id !== id),
-          totalCount: Math.max(0, state.totalCount - 1),
-          selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
-        }));
-
-        logger.info('Deleted contact locally in development mode', { contactId: id });
-        return;
-      }
-
-      throw error;
+      if (!(import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development')) throw error;
+      logger.info('Deleted contact locally in development mode', { contactId: id });
     }
+    set((state) => {
+      const next = softDeleteInState({ contacts: state.contacts, trashed: state.trashedContacts }, id, new Date().toISOString());
+      return {
+        contacts: next.contacts,
+        trashedContacts: next.trashed,
+        totalCount: Math.max(0, state.totalCount - 1),
+        selectedContact: state.selectedContact?.id === id ? null : state.selectedContact
+      };
+    });
+    if (!contactAPI.usesDatabase()) saveLocalTrash(get().trashedContacts);
+    logger.info('Contact moved to trash', { contactId: id });
+  },
+
+  restoreContact: async (id) => {
+    if (!get().trashedContacts.some((c) => c.id === id)) return;
+    await persist(() => contactAPI.restoreContact(id));
+    set((state) => {
+      const next = restoreInState({ contacts: state.contacts, trashed: state.trashedContacts }, id);
+      return { contacts: next.contacts, trashedContacts: next.trashed, totalCount: state.totalCount + 1 };
+    });
+    if (!contactAPI.usesDatabase()) saveLocalTrash(get().trashedContacts);
+    logger.info('Contact restored from trash', { contactId: id });
+  },
+
+  destroyContact: async (id) => {
+    await persist(() => contactAPI.destroyContact(id));
+    set((state) => {
+      const wasActive = state.contacts.some((c) => c.id === id);
+      const next = destroyInState({ contacts: state.contacts, trashed: state.trashedContacts }, id);
+      return {
+        contacts: next.contacts,
+        trashedContacts: next.trashed,
+        totalCount: wasActive ? Math.max(0, state.totalCount - 1) : state.totalCount
+      };
+    });
+    if (!contactAPI.usesDatabase()) saveLocalTrash(get().trashedContacts);
+    logger.info('Contact permanently deleted', { contactId: id });
+  },
+
+  loadTrash: async () => {
+    if (!contactAPI.usesDatabase()) {
+      set({ trashedContacts: readLocalTrash() });
+      return;
+    }
+    try {
+      set({ trashedContacts: await contactAPI.getDeletedContacts() });
+    } catch (error) {
+      // e.g. the soft-delete migration has not been applied yet: keep whatever we have
+      logger.warn('Could not load deleted contacts', { error });
+    }
+  },
+
+  duplicateContact: async (contact) => {
+    const existing = get().contacts.map((c) => c.email);
+    return get().createContact(buildDuplicateContact(contact, existing));
   },
 
   clearContacts: async () => {
@@ -436,7 +523,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       const response = await contactAPI.searchContacts(query);
 
       set({
-        contacts: response.contacts,
+        contacts: excludeDeleted(response.contacts),
         isLoading: false,
         totalCount: response.total,
         hasMore: response.hasMore
@@ -451,7 +538,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       // Fallback to client-side search on error
       if (query) {
         const lowerQuery = query.toLowerCase();
-        const filteredContacts = sampleContacts.filter(contact =>
+        const filteredContacts = excludeDeleted(sampleContacts).filter(contact =>
           contact.name.toLowerCase().includes(lowerQuery) ||
           contact.email.toLowerCase().includes(lowerQuery) ||
           contact.company.toLowerCase().includes(lowerQuery) ||

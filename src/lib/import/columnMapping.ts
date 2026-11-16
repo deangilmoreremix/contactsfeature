@@ -6,6 +6,7 @@
 import Fuse from 'fuse.js';
 import type { Contact } from '../../types/contact';
 import { findDuplicateGroups } from '../merge/findDuplicates';
+import { ADDRESS_KEYS, normalizeAddress, parseEmailCell, parseLinkCell, parsePhoneCell } from '../fields/compositeFields';
 
 export interface ImportTarget {
   key: string; // Contact property, or `custom:<label>`
@@ -28,6 +29,14 @@ export const BASE_IMPORT_TARGETS: ImportTarget[] = [
   { key: 'tags', label: 'Tags', aliases: ['tags', 'labels', 'tag'] },
   { key: 'sources', label: 'Sources', aliases: ['source', 'sources', 'lead source', 'origin'] },
   { key: 'notes', label: 'Notes', aliases: ['notes', 'note', 'comments', 'description'] },
+  { key: 'additionalEmails', label: 'Additional emails', aliases: ['additional emails', 'other emails', 'secondary emails', 'extra emails', 'emails'] },
+  { key: 'additionalPhones', label: 'Additional phones', aliases: ['additional phones', 'other phones', 'secondary phones', 'extra phones', 'phones'] },
+  { key: 'links', label: 'Links', aliases: ['links', 'urls', 'other links', 'web links'] },
+  { key: 'address.street', label: 'Street', aliases: ['street', 'address', 'street address', 'address line 1', 'address1'] },
+  { key: 'address.city', label: 'City', aliases: ['city', 'town'] },
+  { key: 'address.state', label: 'State', aliases: ['state', 'province', 'region', 'state province'] },
+  { key: 'address.postalCode', label: 'Postal code', aliases: ['postal code', 'postalcode', 'zip', 'zip code', 'postcode'] },
+  { key: 'address.country', label: 'Country', aliases: ['country', 'country region'] },
   { key: 'socialProfiles.linkedin', label: 'LinkedIn', aliases: ['linkedin', 'linkedin url', 'linkedin profile'] },
   { key: 'socialProfiles.twitter', label: 'Twitter / X', aliases: ['twitter', 'x', 'twitter url', 'twitter handle'] },
   { key: 'socialProfiles.website', label: 'Website', aliases: ['website', 'web', 'url', 'site', 'homepage'] },
@@ -131,11 +140,22 @@ export function validateImportedContact(c: Record<string, any>): string[] {
 export function rowsToContacts(rows: string[][], mapping: Record<number, string>, firstRowNumber = 2): ImportedRow[] {
   return rows.map((row, idx) => {
     const c: Record<string, any> = {};
+    const compositeErrors: string[] = [];
     Object.entries(mapping).forEach(([col, target]) => {
       if (!target) return;
       const value = cleanImportedValue(row[Number(col)]);
       if (!value) return;
-      if (target.startsWith('socialProfiles.')) {
+      if (target === 'additionalEmails' || target === 'additionalPhones' || target === 'links') {
+        const parsed = target === 'additionalEmails' ? parseEmailCell(value) : target === 'additionalPhones' ? parsePhoneCell(value) : parseLinkCell(value);
+        if (parsed.entries.length) c[target] = parsed.entries;
+        if (parsed.invalid.length) compositeErrors.push(`Invalid ${target === 'links' ? 'link' : target === 'additionalEmails' ? 'additional email' : 'additional phone'}: ${parsed.invalid[0]}`);
+      } else if (target === 'address' || target.startsWith('address.')) {
+        const key = target.split('.')[1];
+        const base = (c['address'] ?? {}) as Record<string, string>;
+        if (!key) Object.assign(base, normalizeAddress(value));
+        else if ((ADDRESS_KEYS as readonly string[]).includes(key)) base[key] = value;
+        c['address'] = normalizeAddress(base);
+      } else if (target.startsWith('socialProfiles.')) {
         c['socialProfiles'] = { ...(c['socialProfiles'] ?? {}), [target.split('.')[1]!]: value };
       } else if (target.startsWith('custom:')) {
         c['customFields'] = { ...(c['customFields'] ?? {}), [target.slice(7)]: value };
@@ -156,7 +176,7 @@ export function rowsToContacts(rows: string[][], mapping: Record<number, string>
     }
     if (!c['name'] && (c['firstName'] || c['lastName'])) c['name'] = `${c['firstName'] ?? ''} ${c['lastName'] ?? ''}`.trim();
 
-    const errors = validateImportedContact(c);
+    const errors = [...validateImportedContact(c), ...compositeErrors];
     // Defaults (same as the previous importer)
     c['sources'] = c['sources']?.length ? c['sources'] : ['Manual Import'];
     c['interestLevel'] = c['interestLevel'] || 'medium';

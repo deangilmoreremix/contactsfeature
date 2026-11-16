@@ -36,7 +36,7 @@ exports.handler = withAuth(async (event, user) => {
   if (!process.env.OPENAI_API_KEY) return errorResponse(503, 'Semantic search is unavailable: OPENAI_API_KEY is not configured');
 
   try {
-    const { data: contacts, error: cErr } = await supabase.from('contacts').select('*').eq('user_id', user.id).limit(MAX_CONTACTS);
+    const { data: contacts, error: cErr } = await supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null).limit(MAX_CONTACTS);
     if (cErr) throw new Error(cErr.message);
     const list = contacts || [];
     const byId = new Map(list.map((c) => [c.id, c]));

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAI } from '../../contexts/AIContext';
 import { AIProvider } from '../../contexts/AIContext';
 import { ModernButton } from '../ui/ModernButton';
@@ -28,6 +28,9 @@ import { findDuplicateGroups, type DuplicateGroup } from '../../lib/merge/findDu
 import { MAX_MERGE_RECORDS } from '../../lib/merge/mergeContacts';
 import { useContactFilterStore } from '../../store/contactFilterStore';
 import { useContactSelectionStore } from '../../store/contactSelectionStore';
+import { useContactNavigationStore } from '../../store/contactNavigationStore';
+import { ContactTrashModal } from '../contacts/ContactTrashModal';
+import { parseContactLink } from '../../lib/contacts/deepLink';
 import { bulkAddTags, bulkDeleteContacts, bulkUpdateContacts } from '../../services/bulkContactActions';
 import { useContactViewStore } from '../../store/contactViewStore';
 import type { ContactViewSnapshot } from '../../lib/views/contactViewSnapshot';
@@ -61,7 +64,8 @@ import {
   Mail,
   Bot,
   Trash2,
-  Package
+  Package,
+  ArchiveRestore
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -88,7 +92,7 @@ const statusOptions = [
 ];
 
 export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, onNavigate }) => {
-  const { contacts, updateContact, clearContacts } = useContactStore();
+  const { contacts, trashedContacts, updateContact, clearContacts, loadTrash } = useContactStore();
   const { currentView } = useView();
   const { scoreBulkContacts } = useAI();
   
@@ -100,6 +104,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [initialDetailTab, setInitialDetailTab] = useState<string | undefined>(undefined);
+  const [showTrash, setShowTrash] = useState(false);
   const selectedSet = useContactSelectionStore((s) => s.selected);
   const selectedContacts = useMemo(() => Array.from(selectedSet), [selectedSet]);
   const setSelectedContacts = useContactSelectionStore((s) => s.setMany);
@@ -149,8 +155,25 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     if (fresh && fresh !== selectedContact) setSelectedContact(fresh);
   }, [contacts, selectedContact]);
   useEffect(() => {
-    if (isOpen) void hydrateContacts();
-  }, [isOpen, hydrateContacts]);
+    if (isOpen) void hydrateContacts().then(() => loadTrash());
+  }, [isOpen, hydrateContacts, loadTrash]);
+
+  // Deep link: ?contact=<id>[&tab=<tab>] opens that contact once it is available (also from the Trash).
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!isOpen || deepLinkHandled.current) return;
+    const { contactId, tab } = parseContactLink(window.location.search);
+    if (!contactId) {
+      deepLinkHandled.current = true;
+      return;
+    }
+    const found = contacts.find((c) => c.id === contactId) ?? trashedContacts.find((c) => c.id === contactId);
+    if (found) {
+      deepLinkHandled.current = true;
+      setInitialDetailTab(tab ?? undefined);
+      setSelectedContact(found);
+    }
+  }, [isOpen, contacts, trashedContacts]);
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -244,6 +267,13 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     activeCount: advancedFilterCount
   } = useAdvancedContactFilter(searchedAndSortedContacts);
   const filteredContacts = advancedFilteredContacts;
+
+  // Previous / next record in the detail view follows the list as currently filtered and sorted
+  const setNavigationIds = useContactNavigationStore((s) => s.setIds);
+  useEffect(() => {
+    setNavigationIds(filteredContacts.map((c) => c.id));
+  }, [filteredContacts, setNavigationIds]);
+  useEffect(() => () => setNavigationIds([]), [setNavigationIds]);
   const duplicateGroups = useMemo(
     () => findDuplicateGroups(contacts).filter((g) => !dismissedDuplicates.has(duplicateGroupKey(g))),
     [contacts, dismissedDuplicates]
@@ -453,6 +483,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
   const handleContactDetailClose = () => {
     setSelectedContact(null);
+    setInitialDetailTab(undefined);
   };
 
   const handleEditContact = (contact: Contact) => {
@@ -785,7 +816,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       )}
                       <button
                         onClick={() => {
-                          if (confirm(`Delete ${selectedContacts.length} selected contacts? This cannot be undone.`)) {
+                          if (confirm(`Move ${selectedContacts.length} selected contacts to Trash? You can restore them from Deleted.`)) {
                             void runBulk(() => bulkDeleteContacts(selectedContacts));
                           }
                         }}
@@ -1055,6 +1086,16 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
             {/* View Mode Toggle */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Deleted (Trash) */}
+              <button
+                onClick={() => setShowTrash(true)}
+                className={`${TOOLBAR_BTN} bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
+                title="Deleted contacts (Trash)"
+              >
+                <ArchiveRestore className="w-4 h-4" />
+                <span>Deleted{trashedContacts.length > 0 ? ` (${trashedContacts.length})` : ''}</span>
+              </button>
+
               {/* Clear Data Button */}
               <SmartTooltip featureId="clear_data_button">
                 <ModernButton
@@ -1148,6 +1189,13 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
         </div>
       </div>
 
+      {showTrash && (
+        <ContactTrashModal
+          onClose={() => setShowTrash(false)}
+          onOpen={(c) => { setShowTrash(false); setSelectedContact(c); }}
+        />
+      )}
+
       {/* Import Contacts Modal */}
       <ImportContactsModal
         isOpen={isImportModalOpen}
@@ -1178,6 +1226,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                       isOpen={!!selectedContact}
                       onClose={handleContactDetailClose}
                       onUpdate={updateContact}
+                      initialTab={initialDetailTab}
+                      onOpenContact={setSelectedContact}
                     />
                   </div>
                 </SmartTooltip>

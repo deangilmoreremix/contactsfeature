@@ -9,6 +9,8 @@ interface MergeContactsModalProps {
   contacts: Contact[];
   onClose: () => void;
   onMerged: () => void;
+  /** Pre-select this contact as the record to keep (defaults to the most complete one). */
+  primaryId?: string;
 }
 
 const FIELDS: Array<{ key: keyof Contact; label: string }> = [
@@ -36,9 +38,11 @@ const show = (v: unknown): string => {
 /** Completeness score: contact with the most filled fields is the default record to keep. */
 const completeness = (c: Contact) => FIELDS.filter((f) => !isEmptyValue(c[f.key])).length;
 
-export function MergeContactsModal({ contacts, onClose, onMerged }: MergeContactsModalProps) {
+export function MergeContactsModal({ contacts, onClose, onMerged, primaryId }: MergeContactsModalProps) {
   const [winnerId, setWinnerId] = useState(
-    () => [...contacts].sort((a, b) => completeness(b) - completeness(a))[0]!.id
+    () => (primaryId && contacts.some((c) => c.id === primaryId)
+      ? primaryId
+      : [...contacts].sort((a, b) => completeness(b) - completeness(a))[0]!.id)
   );
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);

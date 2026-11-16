@@ -5,6 +5,7 @@
  * implemented from scratch. Mirrors the SQL function find_contact_duplicates.
  */
 import type { Contact } from '../../types/contact';
+import { allEmails, allPhones } from '../fields/compositeFields';
 
 export type DuplicateReason = 'email' | 'phone' | 'name_company';
 
@@ -21,10 +22,15 @@ export const normalizePhone = (v: unknown) => (typeof v === 'string' ? v.replace
 
 function keysFor(c: Contact): Array<{ reason: DuplicateReason; key: string }> {
   const keys: Array<{ reason: DuplicateReason; key: string }> = [];
-  const email = normalizeEmail(c.email);
-  if (email) keys.push({ reason: 'email', key: `email:${email}` });
-  const phone = normalizePhone(c.phone);
-  if (phone.length >= 7) keys.push({ reason: 'phone', key: `phone:${phone.slice(-10)}` });
+  // Primary and additional emails/phones all count (a match on any of them makes a candidate pair).
+  for (const email of allEmails(c)) keys.push({ reason: 'email', key: `email:${email}` });
+  const seenPhones = new Set<string>();
+  for (const p of allPhones(c)) {
+    const phone = normalizePhone(p);
+    if (phone.length < 7 || seenPhones.has(phone.slice(-10))) continue;
+    seenPhones.add(phone.slice(-10));
+    keys.push({ reason: 'phone', key: `phone:${phone.slice(-10)}` });
+  }
   const name = clean(c.name) || clean(`${c.firstName ?? ''} ${c.lastName ?? ''}`);
   const company = clean(c.company);
   if (name && company) keys.push({ reason: 'name_company', key: `nc:${name}|${company}` });
@@ -32,6 +38,8 @@ function keysFor(c: Contact): Array<{ reason: DuplicateReason; key: string }> {
 }
 
 export function findDuplicateGroups(contacts: Contact[]): DuplicateGroup[] {
+  // Soft-deleted contacts (Trash) are never offered for merge.
+  contacts = contacts.filter((c) => !c.deletedAt);
   const parent = new Map<string, string>();
   const find = (x: string): string => {
     let root = x;
