@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ content: S.str, headlines: S.strArr, keyTakeaways: S.strArr, callToAction: S.str, socialSnippets: S.strArr });
+
 const log = createLogger('content-creation-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -58,34 +63,32 @@ Generate:
 
 Return JSON with "content", "headlines" (array), "keyTakeaways" (array), "callToAction", "socialSnippets" (array).${prefsBlock}`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'content_creation' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          content: '',
+          headlines: [],
+          keyTakeaways: [],
+          callToAction: '',
+          socialSnippets: [],
+        });
 
-    const parsed = parseJSONResponse(content, {
-      content: '',
-      headlines: [],
-      keyTakeaways: [],
-      callToAction: '',
-      socialSnippets: [],
+        log.info('Content created', { contactId, contentType, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          contentType: contentType || 'outreach',
+          targetAudience: targetAudience || 'B2B decision makers',
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Content created', { contactId, contentType, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        contentType: contentType || 'outreach',
-        targetAudience: targetAudience || 'B2B decision makers',
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Content creation failed', { contactId, contentType, error: error.message });
     return errorResponse(500, 'Content creation failed');
   }
-});
+}));

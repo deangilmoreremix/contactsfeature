@@ -1,4 +1,6 @@
-const { responsesFetch } = require('./_responses');
+const { stream } = require('@netlify/functions');
+const { runDual } = require('./_stream/dual');
+const { S } = require('./_stream/helpers');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -69,7 +71,7 @@ function validateInput(contact, currentStage, businessGoals, automationType, pla
   }
 }
 
-exports.handler = async (event) => {
+exports.handler = stream(async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -78,6 +80,7 @@ exports.handler = async (event) => {
   }
 
   try {
+    const reqBody = JSON.parse(event.body);
     const {
       contact,
       currentStage = 'prospect',
@@ -85,7 +88,7 @@ exports.handler = async (event) => {
       automationType = 'comprehensive',
       playbookType = 'comprehensive',
       aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    } = reqBody;
 
     // Validate all inputs
     validateInput(contact, currentStage, businessGoals, automationType, playbookType, aiProvider);
@@ -98,48 +101,39 @@ exports.handler = async (event) => {
       aiProvider
     });
 
-    let result;
+    // Same URL, two modes: JSON (as before) or SSE (status/delta/partial events + final `result`).
+    return await runDual({
+      event,
+      body: reqBody,
+      headers: CORS_HEADERS,
+      options: buildOptions(contact, currentStage, businessGoals, automationType, playbookType),
+      finalize: async (text) => {
+        const result = shapeResult(text, currentStage, automationType);
 
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
-        break;
-      default:
-        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
-    }
+        const playbookData = {
+          contact_id: contact.id,
+          current_stage: currentStage,
+          automation_type: automationType,
+          recommended_actions: result.recommendedActions,
+          automation_sequence: result.automationSequence,
+          triggers: result.triggers,
+          conditions: result.conditions,
+          ai_provider: aiProvider,
+          created_at: new Date().toISOString()
+        };
 
-    // Store playbook suggestions
-    const playbookData = {
-      contact_id: contact.id,
-      current_stage: currentStage,
-      automation_type: automationType,
-      recommended_actions: result.recommendedActions,
-      automation_sequence: result.automationSequence,
-      triggers: result.triggers,
-      conditions: result.conditions,
-      ai_provider: aiProvider,
-      created_at: new Date().toISOString()
-    };
+        await supabase
+          .from('adaptive_playbooks')
+          .insert(playbookData);
 
-    await supabase
-      .from('adaptive_playbooks')
-      .insert(playbookData);
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        return {
+          success: true,
+          data: result,
+          provider: aiProvider,
+          timestamp: new Date().toISOString()
+        };
       },
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
-    };
+    });
   } catch (error) {
     console.error('Adaptive playbook generation failed:', error);
     return {
@@ -151,15 +145,27 @@ exports.handler = async (event) => {
       })
     };
   }
+});
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const OUTPUT_SCHEMA = S.obj({
+  strategy: S.obj({ name: S.str, description: S.str, confidence: S.num, rationale: S.str }),
+  phases: S.arr(S.obj({
+    id: S.str, name: S.str, timeline: S.str, objectives: S.strArr,
+    tactics: S.arr(S.obj({ id: S.str, name: S.str, description: S.str, priority: S.oneOf('high', 'medium', 'low'), estimatedEffort: S.str, successMetrics: S.strArr, dependencies: S.strArr })),
+    milestones: S.arr(S.obj({ id: S.str, name: S.str, description: S.str, dueDate: S.str, owner: S.str, status: S.str })),
+  })),
+  riskMitigation: S.arr(S.obj({ risk: S.str, probability: S.num, impact: S.str, mitigation: S.str })),
+  successIndicators: S.arr(S.obj({ metric: S.str, target: S.str, current: S.str, status: S.str })),
+  competitivePositioning: S.obj({ strengths: S.strArr, weaknesses: S.strArr, differentiation: S.strArr, winThemes: S.strArr }),
+});
 
+function buildOptions(contact, currentStage, businessGoals, automationType, playbookType) {
     const systemPrompt = `You are an expert sales automation strategist. Create adaptive playbooks that respond to contact behavior and business objectives. Generate intelligent automation sequences with appropriate triggers and conditions.`;
 
     const userPrompt = `Create a ${playbookType} sales playbook for this contact:
@@ -233,28 +239,20 @@ Generate a detailed sales playbook with the following structure:
   }
 }`;
 
-    const response = await responsesFetch({
-        model: 'gpt-5.2',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.3,
-        text: {
-          format: {
-            type: 'json_object'
-          }
-        }
-      });
+  return {
+    model: 'default',
+    effort: 'low',
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: OUTPUT_SCHEMA,
+    schemaName: 'adaptive_playbook',
+    store: false,
+  };
+}
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`OpenAI Responses API error: ${response.status} - ${errorBody}`);
-    }
-
-    const data = await response.json();
-
-    const content = JSON.parse(data.output_text);
-
-    return {
+function shapeResult(text, currentStage, automationType) {
+  const content = JSON.parse(text);
+  return {
       strategy: content.strategy,
       phases: content.phases || [],
       riskMitigation: content.riskMitigation || [],
@@ -270,8 +268,4 @@ Generate a detailed sales playbook with the following structure:
       automationType,
       generated: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('OpenAI adaptive playbook generation failed:', error);
-    throw error;
-  }
 }

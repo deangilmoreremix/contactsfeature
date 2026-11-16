@@ -2,16 +2,25 @@
  * Contact enrichment via the OpenAI Responses API `web_search` tool.
  *
  * POST { action: 'start', contactId | contact }  -> { responseId, status }
+ * POST { action: 'start', stream: true, ... }    -> SSE (docs/STREAMING.md): status ("Searching the web…"), delta/partial
+ *                                                  (the structured findings filling in), then `result` = exactly what
+ *                                                  `status` returns when completed, then done.
+ * POST { action: 'start', stream: true, resume: { responseId, startingAfter } } -> re-attach after a dropped connection
  * POST { action: 'status', responseId }          -> { status, result?, citations?, suggestedUpdates? }
  *
- * Web research with a reasoning model can exceed Netlify's sync function limit, so the
- * run is started in Responses background mode and polled by the client.
+ * Web research with a reasoning model can exceed Netlify's sync function limit, so the run always uses
+ * Responses background mode: the client either streams it (and resumes with `starting_after` if the connection
+ * drops) or polls `status`.
  * An ai_jobs row is written when the run starts so openai-webhook can finish it; `status` prefers that
  * row and falls back to polling the response (also finishing the row) when no webhook has arrived.
  * Only publicly available professional information is requested; nothing is guessed.
  */
+const { stream } = require('@netlify/functions');
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { isStreamRequested } = require('./_stream/dual');
+const { SSE_HEADERS, toSseReadable } = require('./_stream/sse');
+const { streamBackgroundJob, loadOwnedRun } = require('./_stream/backgroundJob');
 const { isValidUUID, parseBody, sanitizeString } = require('./_validation');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { createResponse, retrieveResponse, parseJson, resolveModel } = require('./_responses');
@@ -144,7 +153,89 @@ async function loadContact(userId, body) {
   return { contact: null, persisted: false };
 }
 
-exports.handler = withAuth(async (event, user) => {
+/**
+ * Turn a completed run into the client payload: validates the structured result, computes the empty-fields-only
+ * fill and stores the enrichment row. Shared by the polling `status` action and the streamed run.
+ */
+async function finishRun(user, run, fallbackContact) {
+  const result = run.json;
+  if (!result) return { status: 'failed', error: 'Model returned no structured result' };
+
+  const meta = run.metadata || {};
+  const contactId = meta.contact_id && isValidUUID(meta.contact_id) ? meta.contact_id : null;
+  let contact = fallbackContact || {};
+  if (contactId) {
+    const { data } = await supabase.from('contacts').select('*').eq('id', contactId).eq('user_id', user.id).maybeSingle();
+    if (data) contact = data;
+  }
+  const suggestedUpdates = suggestUpdates(result, contact);
+
+  if (contactId) {
+    const { error: insertError } = await supabase.from('contact_enrichments').upsert({
+      contact_id: contactId,
+      user_id: user.id,
+      response_id: run.id,
+      status: 'completed',
+      matched: !!result.matched,
+      confidence: Math.max(0, Math.min(100, Math.round(result.confidence || 0))),
+      result,
+      citations: run.citations,
+      applied_fields: Object.keys(suggestedUpdates),
+      model: run.response && run.response.model,
+    }, { onConflict: 'response_id' });
+    if (insertError) log.warn('Could not persist enrichment', { error: insertError.message });
+  }
+
+  return {
+    status: 'completed',
+    persisted: !!contactId,
+    result,
+    citations: run.citations,
+    sources: run.sources,
+    suggestedUpdates,
+  };
+}
+
+/** Run request shared by the poll and stream paths. */
+function runOptions(user, contact, persisted) {
+  return {
+    role: 'thinking',
+    effort: 'medium',
+    instructions: INSTRUCTIONS,
+    input: `Research this CRM contact and return the structured findings.\n\n${clue(contact)}`,
+    schema: ENRICHMENT_SCHEMA,
+    schemaName: 'contact_enrichment',
+    tools: [{ type: 'web_search', search_context_size: 'medium' }],
+    toolChoice: 'required',
+    background: true,
+    metadata: { user_id: user.id, contact_id: persisted ? contact.id : '', purpose: 'contact_enrichment' },
+    user: user.id,
+  };
+}
+
+/**
+ * Streamed enrichment: background run + live events (see _stream/backgroundJob.js). Ends with a `result` event
+ * holding exactly what the `status` action returns when completed.
+ * opts: { user, contact, persisted, fallbackContact, resume?: { responseId, startingAfter }, deps? }
+ */
+function enrichmentEvents(opts) {
+  const { user, resume } = opts;
+  const options = runOptions(user, opts.contact || {}, opts.persisted);
+  return streamBackgroundJob({
+    user,
+    kind: 'contact_enrichment',
+    options,
+    resume,
+    deps: opts.deps,
+    warn: (m, e) => log.warn(m, { error: e && e.message }),
+    finalize: async (run) => {
+      const out = await ((opts.deps && opts.deps.finishRun) || finishRun)(user, run, opts.fallbackContact);
+      return out.status === 'completed' ? out : { error: out.error };
+    },
+  });
+}
+
+const handler = withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
   const body = parseBody(event);
   if (!body) return errorResponse(400, 'Invalid JSON body');
@@ -174,66 +265,30 @@ exports.handler = withAuth(async (event, user) => {
         return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ status: 'failed', error: (run.error && run.error.message) || `Run ${run.status}` }) };
       }
 
-      const result = run.json;
-      if (!result) return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ status: 'failed', error: 'Model returned no structured result' }) };
-
-      const contactId = run.metadata.contact_id && isValidUUID(run.metadata.contact_id) ? run.metadata.contact_id : null;
-      let contact = body.contact || {};
-      if (contactId) {
-        const { data } = await supabase.from('contacts').select('*').eq('id', contactId).eq('user_id', user.id).maybeSingle();
-        if (data) contact = data;
-      }
-      const suggestedUpdates = suggestUpdates(result, contact);
-
-      if (contactId) {
-        const { error: insertError } = await supabase.from('contact_enrichments').upsert({
-          contact_id: contactId,
-          user_id: user.id,
-          response_id: run.id,
-          status: 'completed',
-          matched: !!result.matched,
-          confidence: Math.max(0, Math.min(100, Math.round(result.confidence || 0))),
-          result,
-          citations: run.citations,
-          applied_fields: Object.keys(suggestedUpdates),
-          model: run.response && run.response.model,
-        }, { onConflict: 'response_id' });
-        if (insertError) log.warn('Could not persist enrichment', { error: insertError.message });
-      }
-
-      return {
-        statusCode: 200,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-          status: 'completed',
-          persisted: !!contactId,
-          result,
-          citations: run.citations,
-          sources: run.sources,
-          suggestedUpdates,
-        }),
-      };
+      const out = await finishRun(user, run, body.contact);
+      return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(out) };
     }
 
     // action === 'start' (default)
+    if (isStreamRequested(event, body) && body.resume && typeof body.resume.responseId === 'string') {
+      if (!/^resp_[A-Za-z0-9]+$/.test(body.resume.responseId)) return errorResponse(400, 'responseId is required');
+      if (!(await loadOwnedRun(user, body.resume.responseId))) return errorResponse(404, 'Enrichment run not found');
+      const startingAfter = Number.isInteger(body.resume.startingAfter) ? body.resume.startingAfter : undefined;
+      const readable = toSseReadable(enrichmentEvents({ user, fallbackContact: body.contact, resume: { responseId: body.resume.responseId, startingAfter } }));
+      return { statusCode: 200, headers: { ...CORS_HEADERS, ...SSE_HEADERS }, body: readable };
+    }
+
     const { contact, persisted } = await loadContact(user.id, body);
     if (!contact) return errorResponse(404, 'Contact not found');
     const hasClue = contact.email || contact.name || contact.firstName || contact.firstname || contact.company;
     if (!hasClue) return errorResponse(400, 'Contact needs at least a name, email or company to research');
 
-    const started = await createResponse({
-      role: 'thinking',
-      effort: 'medium',
-      instructions: INSTRUCTIONS,
-      input: `Research this CRM contact and return the structured findings.\n\n${clue(contact)}`,
-      schema: ENRICHMENT_SCHEMA,
-      schemaName: 'contact_enrichment',
-      tools: [{ type: 'web_search', search_context_size: 'medium' }],
-      toolChoice: 'required',
-      background: true,
-      metadata: { user_id: user.id, contact_id: persisted ? contact.id : '', purpose: 'contact_enrichment' },
-      user: user.id,
-    });
+    if (isStreamRequested(event, body)) {
+      const readable = toSseReadable(enrichmentEvents({ user, contact, persisted, fallbackContact: body.contact }));
+      return { statusCode: 200, headers: { ...CORS_HEADERS, ...SSE_HEADERS }, body: readable };
+    }
+
+    const started = await createResponse(runOptions(user, contact, persisted));
 
     await createJob(supabase, { userId: user.id, kind: 'contact_enrichment', responseId: started.id, status: started.status || 'queued' });
 
@@ -245,5 +300,7 @@ exports.handler = withAuth(async (event, user) => {
   }
 });
 
+exports.handler = stream(handler);
+
 // exported for tests
-exports._internals = { suggestUpdates, clue, ENRICHMENT_SCHEMA, parseJson };
+exports._internals = { suggestUpdates, clue, ENRICHMENT_SCHEMA, parseJson, enrichmentEvents, finishRun, runOptions };

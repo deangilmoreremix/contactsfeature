@@ -13,11 +13,17 @@
  *     POST { fileName, mimeType?, dataBase64, context?: { contactName?, companyName? } }
  *     Limit 10 MB decoded, but Netlify rejects request bodies above ~6 MB, so in practice ~4.5 MB.
  *
+ * Dual mode: same URL returns JSON, or SSE (Accept: text/event-stream / body.stream:true) with `partial` events that
+ * fill documentType/summary/keyPoints/actionItems live and a final `result` event = the JSON payload. In stream mode the
+ * stored object is deleted when the stream ends (it must outlive the model call), exactly once.
+ *
  * DOCX is read with Node built-ins only (minimal zip central-directory reader + zlib inflateRaw).
  */
 const zlib = require('zlib');
+const { stream } = require('@netlify/functions');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { createResponse } = require('./_responses');
+const { runDual, isStreamRequested } = require('./_stream/dual');
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_STORAGE_BYTES = 25 * 1024 * 1024;
@@ -161,11 +167,14 @@ function createHandler(deps = {}) {
   }
   const displayName = body.__name;
 
+  let cleaned = false;
   const cleanup = async () => {
-    if (!usingStorage || body.keep === true) return;
+    if (cleaned || !usingStorage || body.keep === true) return;
+    cleaned = true;
     try { await getSupabase().storage.from(BUCKET).remove([storagePath]); }
     catch (e) { console.error('document-analyze cleanup failed:', e && e.message); }
   };
+  let deferCleanup = false; // stream mode: the stream's onEnd deletes the object
 
   try {
     if (usingStorage) {
@@ -185,7 +194,7 @@ function createHandler(deps = {}) {
     }
     return await analyse();
   } finally {
-    await cleanup();
+    if (!deferCleanup) await cleanup();
   }
 
   async function analyse() {
@@ -220,40 +229,53 @@ function createHandler(deps = {}) {
     return errorResponse(422, `Could not read this file: ${err.message}`);
   }
 
+  const options = {
+    role: 'default',
+    effort: 'low',
+    schemaName: 'document_summary',
+    schema: SUMMARY_SCHEMA,
+    instructions,
+    input,
+    user: user.id,
+    store: false,
+  };
+  const buildData = (j, model) => ({
+    documentType: String(j.documentType || 'other'),
+    summary: String(j.summary || ''),
+    keyPoints: (j.keyPoints || []).map(String).slice(0, 12),
+    actionItems: (j.actionItems || []).map(String).slice(0, 12),
+    sentiment: ['positive', 'neutral', 'negative'].includes(j.sentiment) ? j.sentiment : 'neutral',
+    confidence: Math.round(Math.min(100, Math.max(0, Number(j.confidence) || 0))),
+    wordCount: words || null,
+    truncated,
+    extraction: kind === 'pdf' ? 'openai-input-file' : kind === 'docx' ? 'docx-xml' : 'plain-text',
+    model: model || null,
+  });
+
   try {
-    const out = await create({
-      role: 'default',
-      effort: 'low',
-      schemaName: 'document_summary',
-      schema: SUMMARY_SCHEMA,
-      instructions,
-      input,
-      user: user.id,
-      store: false,
-    });
+    if (isStreamRequested(event, body)) {
+      deferCleanup = true;
+      const finalize = (text, r) => {
+        let j = r && r.json;
+        if (!j) { try { j = JSON.parse(text); } catch { j = null; } }
+        if (!j) throw new Error('Model returned no structured output');
+        return { success: true, data: buildData(j, (r && r.response && r.response.model) || null) };
+      };
+      return await runDual({
+        event, body, options, finalize, deps: deps.dual,
+        onEnd: cleanup,
+      });
+    }
+    const out = await create(options);
     if (!out.json) throw new Error('Model returned no structured output');
-    const j = out.json;
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
-      body: JSON.stringify({
-        success: true,
-        data: {
-          documentType: String(j.documentType || 'other'),
-          summary: String(j.summary || ''),
-          keyPoints: (j.keyPoints || []).map(String).slice(0, 12),
-          actionItems: (j.actionItems || []).map(String).slice(0, 12),
-          sentiment: ['positive', 'neutral', 'negative'].includes(j.sentiment) ? j.sentiment : 'neutral',
-          confidence: Math.round(Math.min(100, Math.max(0, Number(j.confidence) || 0))),
-          wordCount: words || null,
-          truncated,
-          extraction: kind === 'pdf' ? 'openai-input-file' : kind === 'docx' ? 'docx-xml' : 'plain-text',
-          model: (out.response && out.response.model) || null,
-        },
-      }),
+      body: JSON.stringify({ success: true, data: buildData(out.json, out.response && out.response.model) }),
     };
   } catch (err) {
     console.error('document-analyze failed:', err && err.message);
+    if (deferCleanup) await cleanup(); // the stream never started
     if (signedUrl && err && err.status === 400) return errorResponse(422, 'The AI service could not read this PDF. It may be encrypted, corrupted or too large.');
     return errorResponse(502, 'AI document analysis is unavailable right now. Please try again.');
   }
@@ -261,6 +283,6 @@ function createHandler(deps = {}) {
   };
 }
 
-const handler = withAuth(createHandler());
+const handler = stream(withAuth(createHandler()));
 
 module.exports = { handler, createHandler, isOwnedPath, MAX_STORAGE_BYTES, BUCKET, extractDocxText, readZipEntry, wordXmlToText, detectKind, SUMMARY_SCHEMA, MAX_BYTES };

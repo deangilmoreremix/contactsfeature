@@ -78,8 +78,12 @@ function sleep(ms) {
  *           (`temperature` is accepted and ignored for reasoning models; unknown/legacy model ids
  *            such as "gpt-5.2" fall back to the configured `default` role.)
  */
-async function callOpenAI(messages, config = {}) {
-  const { createResponse, allowedModelIds } = require('./_responses');
+/**
+ * Translate callOpenAI(messages, config) arguments into createResponse()/streamResponse() options.
+ * Shared by callOpenAI and the dual-mode (JSON or SSE) functions so both paths send the same request.
+ */
+function buildCallOptions(messages, config = {}) {
+  const { allowedModelIds } = require('./_responses');
 
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const input = messages
@@ -91,7 +95,7 @@ async function callOpenAI(messages, config = {}) {
   const known = requested && (isRole || allowedModelIds().has(requested));
   const wanted = config.maxTokens ?? 1000;
 
-  const result = await createResponse({
+  return {
     role: config.role || (isRole ? requested : 'default'),
     model: known && !isRole ? requested : undefined,
     effort: config.effort || 'low',
@@ -104,7 +108,12 @@ async function callOpenAI(messages, config = {}) {
     maxOutputTokens: wanted + 2000,
     temperature: config.temperature,
     store: false,
-  });
+  };
+}
+
+async function callOpenAI(messages, config = {}) {
+  const { createResponse } = require('./_responses');
+  const result = await createResponse(buildCallOptions(messages, config));
 
   if (!result.text) {
     throw new Error(`OpenAI returned no text (status: ${result.status || 'unknown'})`);
@@ -121,4 +130,4 @@ function parseJSONResponse(content, fallback) {
   }
 }
 
-module.exports = { fetchWithRetry, fetchWithTimeout, callOpenAI, parseJSONResponse };
+module.exports = { fetchWithRetry, fetchWithTimeout, callOpenAI, buildCallOptions, parseJSONResponse };

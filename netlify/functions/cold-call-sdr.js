@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ opening: S.str, valueProposition: S.str, discoveryQuestions: S.strArr, objections: S.arr(S.obj({ objection: S.str, response: S.str })), close: S.str, voicemail: S.str });
+
 const log = createLogger('cold-call-sdr');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -75,34 +80,32 @@ Keep it conversational and natural${prefsBlock}
 
 Return JSON with "opening", "valueProposition", "discoveryQuestions" (array), "objections" (array with "objection" and "response"), "close", and "voicemail" fields.`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'cold_call_script' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          opening: `Hi ${contactName}, this is [Your Name] from [Your Company]...`,
+          valueProposition: 'I help companies like yours...',
+          discoveryQuestions: ['What challenges are you facing?', 'What are your goals?'],
+          objections: [{ objection: 'Not interested', response: 'I understand, let me ask you a quick question...' }],
+          close: 'Could we schedule 15 minutes to discuss?',
+          voicemail: 'Hi ${contactName}, this is [Your Name] calling from [Your Company]...',
+        });
 
-    const parsed = parseJSONResponse(content, {
-      opening: `Hi ${contactName}, this is [Your Name] from [Your Company]...`,
-      valueProposition: 'I help companies like yours...',
-      discoveryQuestions: ['What challenges are you facing?', 'What are your goals?'],
-      objections: [{ objection: 'Not interested', response: 'I understand, let me ask you a quick question...' }],
-      close: 'Could we schedule 15 minutes to discuss?',
-      voicemail: 'Hi ${contactName}, this is [Your Name] calling from [Your Company]...',
+        log.info('Cold call script generated', { contactId, dealId, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          dealId,
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Cold call script generated', { contactId, dealId, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        dealId,
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Cold call script generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Cold call script generation failed');
   }
-});
+}));

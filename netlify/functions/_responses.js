@@ -292,6 +292,13 @@ function createStreamMapper(opts = {}) {
         else if (item.type === 'mcp_call') emit({ type: 'status', tool: item.name, phase: 'calling', label: `Running ${item.name}…` });
         break;
       }
+      case 'response.output_item.done': {
+        const item = event.item || {};
+        if (item.type === 'image_generation_call' && typeof item.result === 'string' && item.result) {
+          emit({ type: 'image', index: event.output_index || 0, b64: item.result, partial: false });
+        }
+        break;
+      }
       case 'response.image_generation_call.partial_image':
         emit({ type: 'image', index: event.partial_image_index || 0, b64: event.partial_image_b64, partial: true });
         break;

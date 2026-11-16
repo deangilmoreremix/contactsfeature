@@ -62,7 +62,7 @@ const KINDS = {
   contact_enrichment: {},
   deal_health: {
     transform(run) {
-      const { normalizeHealth } = require('./deal-health-analysis');
+      const { normalizeHealth } = require('./_dealHealth');
       return run.json ? { health: normalizeHealth(run.json) } : null;
     },
     async onComplete(db, job, result) {

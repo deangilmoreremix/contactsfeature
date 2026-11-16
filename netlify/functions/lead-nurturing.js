@@ -1,4 +1,6 @@
-const { responsesFetch } = require('./_responses');
+const { stream } = require('@netlify/functions');
+const { runDual } = require('./_stream/dual');
+const { S } = require('./_stream/helpers');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -6,7 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-exports.handler = async (event) => {
+exports.handler = stream(async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -15,13 +17,14 @@ exports.handler = async (event) => {
   }
 
   try {
+    const reqBody = JSON.parse(event.body);
     const {
       contact,
       nurtureStrategy = 'comprehensive',
       timeframe = '90d',
       businessGoals = [],
       aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    } = reqBody;
 
     console.log('Lead nurturing request:', {
       contactId: contact.id,
@@ -29,45 +32,36 @@ exports.handler = async (event) => {
       aiProvider
     });
 
-    let result;
+    // Same URL, two modes: JSON (as before) or SSE (status/delta/partial events + final `result`).
+    return await runDual({
+      event,
+      body: reqBody,
+      headers: CORS_HEADERS,
+      options: buildOptions(contact, nurtureStrategy, timeframe, businessGoals),
+      finalize: async (text) => {
+        const result = shapeResult(text, nurtureStrategy, timeframe);
 
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await generateWithOpenAI(contact, nurtureStrategy, timeframe, businessGoals);
-        break;
-      default:
-        result = await generateWithOpenAI(contact, nurtureStrategy, timeframe, businessGoals);
-    }
+        await supabase
+          .from('lead_nurturing_strategies')
+          .insert({
+            contact_id: contact.id,
+            nurture_strategy: nurtureStrategy,
+            nurture_sequence: result.nurtureSequence,
+            content_calendar: result.contentCalendar,
+            engagement_triggers: result.engagementTriggers,
+            success_metrics: result.successMetrics,
+            ai_provider: aiProvider,
+            created_at: new Date().toISOString()
+          });
 
-    // Store nurturing strategy
-    await supabase
-      .from('lead_nurturing_strategies')
-      .insert({
-        contact_id: contact.id,
-        nurture_strategy: nurtureStrategy,
-        nurture_sequence: result.nurtureSequence,
-        content_calendar: result.contentCalendar,
-        engagement_triggers: result.engagementTriggers,
-        success_metrics: result.successMetrics,
-        ai_provider: aiProvider,
-        created_at: new Date().toISOString()
-      });
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        return {
+          success: true,
+          data: result,
+          provider: aiProvider,
+          timestamp: new Date().toISOString()
+        };
       },
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
-    };
+    });
   } catch (error) {
     console.error('Lead nurturing strategy generation failed:', error);
     return {
@@ -79,15 +73,23 @@ exports.handler = async (event) => {
       })
     };
   }
+});
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function generateWithOpenAI(contact, nurtureStrategy, timeframe, businessGoals) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const OUTPUT_SCHEMA = S.obj({
+  nurtureSequence: S.arr(S.obj({ week: S.num, theme: S.str, contentType: S.oneOf('email', 'social', 'webinar', 'case_study', 'demo'), objective: S.str, callToAction: S.str, successCriteria: S.strArr })),
+  contentCalendar: S.arr(S.obj({ date: S.str, content: S.str, channel: S.str, purpose: S.str })),
+  engagementTriggers: S.strArr,
+  successMetrics: S.strArr,
+  personalizationStrategy: S.str,
+});
 
+function buildOptions(contact, nurtureStrategy, timeframe, businessGoals) {
     const systemPrompt = `You are an expert lead nurturing strategist. Create comprehensive nurture campaigns that build relationships, establish thought leadership, and guide prospects through the buyer's journey.`;
 
     const userPrompt = `Create a ${nurtureStrategy} lead nurturing strategy for this contact:
@@ -124,27 +126,20 @@ Generate nurturing strategy with:
   "personalizationStrategy": "string"
 }`;
 
-    const response = await responsesFetch({
-        model: 'default',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.3,
-        text: {
-          format: {
-            type: "json_object"
-          }
-        }
-      });
+  return {
+    model: 'default',
+    effort: 'low',
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: OUTPUT_SCHEMA,
+    schemaName: 'lead_nurturing',
+    store: false,
+  };
+}
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    const content = JSON.parse(data.output_text);
-
-    return {
+function shapeResult(text, nurtureStrategy, timeframe) {
+  const content = JSON.parse(text);
+  return {
       nurtureSequence: content.nurtureSequence || [],
       contentCalendar: content.contentCalendar || [],
       engagementTriggers: content.engagementTriggers || [],
@@ -154,8 +149,4 @@ Generate nurturing strategy with:
       timeframe,
       generated: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('OpenAI lead nurturing generation failed:', error);
-    throw error;
-  }
 }

@@ -1,10 +1,16 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
+
+const ANALYSIS = S.obj({ score: S.num, issues: S.strArr, recommendations: S.strArr });
+const OUTPUT_SCHEMA = S.obj({ spamScore: S.num, spamTriggersFound: S.strArr, subjectAnalysis: ANALYSIS, contentAnalysis: ANALYSIS, overallScore: S.num, recommendations: S.strArr, optimizedSubject: S.str, tips: S.strArr });
 
 const log = createLogger('email-deliverability-agent');
 
@@ -21,7 +27,7 @@ const SPAM_TRIGGER_PHRASES = [
   'will not believe', 'shocking', 'unbelievable', 'miracle', 'secret'
 ];
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -81,37 +87,35 @@ Return JSON with:
 7. "optimizedSubject" - Improved subject line suggestion
 8. "tips" - General best practices for this contact's industry${prefsBlock}`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'email_deliverability' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          spamScore: 0,
+          spamTriggersFound: [],
+          subjectAnalysis: { score: 50, issues: [], recommendations: [] },
+          contentAnalysis: { score: 50, issues: [], recommendations: [] },
+          overallScore: 50,
+          recommendations: [],
+          optimizedSubject: subject || '',
+          tips: [],
+        });
 
-    const parsed = parseJSONResponse(content, {
-      spamScore: 0,
-      spamTriggersFound: [],
-      subjectAnalysis: { score: 50, issues: [], recommendations: [] },
-      contentAnalysis: { score: 50, issues: [], recommendations: [] },
-      overallScore: 50,
-      recommendations: [],
-      optimizedSubject: subject || '',
-      tips: [],
+        log.info('Email deliverability analyzed', { contactId, overallScore: parsed.overallScore, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          originalSubject: subject,
+          originalBody: emailBody,
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Email deliverability analyzed', { contactId, overallScore: parsed.overallScore, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        originalSubject: subject,
-        originalBody: emailBody,
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Email deliverability analysis failed', { contactId, error: error.message });
     return errorResponse(500, 'Email deliverability analysis failed');
   }
-});
+}));

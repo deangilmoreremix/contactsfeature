@@ -7,11 +7,20 @@
  * a projection range + insights. With too little data it is not called at all.
  * { background: true } starts a Responses background run tracked in ai_jobs (finished by openai-webhook) and
  * returns { responseId }; { action: 'status', responseId } reads the job (polling OpenAI as the fallback).
+ *
+ * Dual mode (docs/STREAMING.md): `stream:true` (or Accept: text/event-stream) answers with SSE, the projection range,
+ * insights and actions filling in as the model writes them, then a `result` event with exactly the JSON the plain mode
+ * returns. `background:true` + `stream:true` streams a background run (ai_jobs row), `resume:{responseId,startingAfter}`
+ * re-attaches after a dropped connection. With too little data the AI is not called and the JSON reply is returned.
  */
+const { stream } = require('@netlify/functions');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { getUserClient, supabase } = require('./_supabaseClient');
-const { createResponse, retrieveResponse } = require('./_responses');
+const { createResponse, retrieveResponse, parseJson } = require('./_responses');
 const { createJob, resolveJob } = require('./_aiJobs');
+const { runDual, isStreamRequested } = require('./_stream/dual');
+const { SSE_HEADERS, toSseReadable } = require('./_stream/sse');
+const { streamBackgroundJob, loadOwnedRun } = require('./_stream/backgroundJob');
 
 const MAX_DEALS = 500;
 const MIN_CLOSED_FOR_FORECAST = 3;
@@ -105,6 +114,20 @@ const handler = withAuth(async (event, user) => {
       return errorResponse(502, 'Could not check the forecast status');
     }
   }
+  const wantsStream = isStreamRequested(event, body);
+  const sse = (events) => ({ statusCode: 200, headers: { ...CORS_HEADERS, ...SSE_HEADERS }, body: toSseReadable(events) });
+  const finalizeRun = (run, ctx) => {
+    if (!run.json) return { error: 'Model returned no structured output' };
+    return { success: true, data: { stats: ctx && ctx.stats, forecast: run.json, reason: null }, generatedAt: new Date().toISOString() };
+  };
+  if (wantsStream && body.resume && typeof body.resume.responseId === 'string') {
+    if (!(await loadOwnedRun(user, body.resume.responseId))) return errorResponse(404, 'Forecast run not found');
+    const startingAfter = Number.isInteger(body.resume.startingAfter) ? body.resume.startingAfter : undefined;
+    return sse(streamBackgroundJob({
+      user, kind: 'sales_forecast', options: { schema: FORECAST_SCHEMA }, resume: { responseId: body.resume.responseId, startingAfter }, finalize: finalizeRun,
+    }));
+  }
+
   if (!Array.isArray(body.deals)) return errorResponse(400, 'deals array is required');
   if (body.deals.length > MAX_DEALS) return errorResponse(413, `Too many deals (max ${MAX_DEALS})`);
 
@@ -143,6 +166,15 @@ const handler = withAuth(async (event, user) => {
     input: `Pipeline statistics (JSON):\n${JSON.stringify(stats)}`,
   };
 
+  if (body.background === true && wantsStream) {
+    return sse(streamBackgroundJob({
+      user, kind: 'sales_forecast',
+      options: { ...request, metadata: { user_id: user.id, purpose: 'sales_forecast' } },
+      context: { stats },
+      finalize: finalizeRun, // ai_jobs onComplete (kind sales_forecast) stores the forecast row
+    }));
+  }
+
   if (body.background === true) {
     try {
       const started = await createResponse({ ...request, background: true, metadata: { user_id: user.id, purpose: 'sales_forecast' } });
@@ -154,26 +186,23 @@ const handler = withAuth(async (event, user) => {
     }
   }
 
-  let forecast;
   try {
-    const out = await createResponse(request);
-    if (!out.json) throw new Error('Model returned no structured output');
-    forecast = out.json;
+    return await runDual({
+      event, body, options: request,
+      finalize: async (text) => {
+        const forecast = parseJson(text);
+        if (!forecast) throw new Error('Model returned no structured output');
+        const { error: saveErr } = await db.from('sales_forecasts').insert({
+          user_id: user.id, timeframe: '90d', deal_count: stats.dealCount, result: { stats, forecast },
+        });
+        if (saveErr) console.warn('sales-forecasting: could not store forecast:', saveErr.message);
+        return { success: true, data: { stats, forecast, reason: null }, generatedAt: new Date().toISOString() };
+      },
+    });
   } catch (err) {
     console.error('sales-forecasting failed:', err && err.message);
     return errorResponse(502, 'AI forecast is unavailable right now. Please try again.');
   }
-
-  const { error: saveErr } = await db.from('sales_forecasts').insert({
-    user_id: user.id, timeframe: '90d', deal_count: stats.dealCount, result: { stats, forecast },
-  });
-  if (saveErr) console.warn('sales-forecasting: could not store forecast:', saveErr.message);
-
-  return {
-    statusCode: 200,
-    headers: CORS_HEADERS,
-    body: JSON.stringify({ success: true, data: { stats, forecast, reason: null }, generatedAt: new Date().toISOString() }),
-  };
 });
 
-module.exports = { handler, summarizeDeals, FORECAST_SCHEMA };
+module.exports = { handler: stream(handler), summarizeDeals, FORECAST_SCHEMA };

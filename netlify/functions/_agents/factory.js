@@ -12,6 +12,7 @@ const { Agent, run, tool, webSearchTool, setDefaultOpenAIKey, setOpenAIAPI, setT
 const { z } = require('zod');
 const { resolveModel } = require('../_responses');
 const { buildPreferencesPromptBlock } = require('../_sdrPreferences');
+const { parsePartialJson } = require('../_stream/partialJson');
 const personas = require('./personas.json');
 const { DEFINITIONS } = require('./definitions');
 
@@ -109,9 +110,7 @@ function buildRunOptions(ctx) {
 /** Run one agent for one contact. Returns { output, model, persona, usage }. */
 async function runSdrAgent(slug, ctx) {
   const { agent, model } = buildAgent(slug, ctx);
-  const c = ctx.contact;
-  const input = `Write the ${DEFINITIONS[slug].name} output for ${c.firstname || c.name || 'this contact'}${c.company ? ` at ${c.company}` : ''}.${ctx.goal ? `\nGoal: ${ctx.goal}` : ''}`;
-  const result = await (ctx.runFn || run)(agent, input, buildRunOptions(ctx));
+  const result = await (ctx.runFn || run)(agent, agentInput(slug, ctx), buildRunOptions(ctx));
   if (!result.finalOutput) throw new Error('Agent returned no output');
   return {
     output: result.finalOutput,
@@ -123,4 +122,87 @@ async function runSdrAgent(slug, ctx) {
   };
 }
 
-module.exports = { runSdrAgent, buildRunOptions, buildAgent, getPersona, PERSONA_IDS, DEFINITIONS };
+function agentInput(slug, ctx) {
+  const c = ctx.contact;
+  return `Write the ${DEFINITIONS[slug].name} output for ${c.firstname || c.name || 'this contact'}${c.company ? ` at ${c.company}` : ''}.${ctx.goal ? `\nGoal: ${ctx.goal}` : ''}`;
+}
+
+function toolLabel(rawItem) {
+  const name = (rawItem && rawItem.name) || '';
+  if (/web_search/i.test(name) || (rawItem && /web_search/i.test(rawItem.type || ''))) return { tool: 'web_search', label: 'Searching the web…' };
+  return { tool: name || undefined, label: `Running ${name || 'tool'}…` };
+}
+
+/**
+ * Pure mapper: Agents SDK stream events -> our UI events (docs/STREAMING.md).
+ *   raw_model_stream_event output_text_delta -> delta (+ partial: tolerant parse of the structured JSON so far)
+ *   run_item_stream_event tool_called / tool_output / message_output_created -> status
+ *   agent_updated_stream_event -> status
+ * Text accumulation restarts at each model response (`response_started`), because an agent that calls
+ * tools produces one response per turn and only the last holds the structured output.
+ */
+function createAgentEventMapper() {
+  let full = '';
+  let lastPartial = '';
+  let started = false;
+  return function map(ev) {
+    const out = [];
+    if (!ev) return out;
+    if (ev.type === 'raw_model_stream_event') {
+      const d = ev.data || {};
+      if (d.type === 'response_started') {
+        full = '';
+        lastPartial = '';
+        if (!started) { started = true; out.push({ type: 'status', phase: 'started', label: 'Thinking…' }); }
+      } else if (d.type === 'output_text_delta' && d.delta) {
+        full += d.delta;
+        out.push({ type: 'delta', text: d.delta });
+        const json = parsePartialJson(full);
+        const key = json === undefined ? '' : JSON.stringify(json);
+        if (key && key !== lastPartial) { lastPartial = key; out.push({ type: 'partial', json }); }
+      }
+    } else if (ev.type === 'run_item_stream_event') {
+      const raw = (ev.item && ev.item.rawItem) || {};
+      if (ev.name === 'tool_called') {
+        const { tool: t, label } = toolLabel(raw);
+        out.push({ type: 'status', phase: 'calling', ...(t ? { tool: t } : {}), label });
+      } else if (ev.name === 'tool_output') {
+        out.push({ type: 'status', phase: 'tool_done', ...(raw.name ? { tool: raw.name } : {}), label: 'Reading the results…' });
+      } else if (ev.name === 'message_output_created') {
+        out.push({ type: 'status', phase: 'writing', label: 'Writing…' });
+      }
+    } else if (ev.type === 'agent_updated_stream_event') {
+      out.push({ type: 'status', phase: 'agent', label: `${(ev.agent && ev.agent.name) || 'Agent'} is working…` });
+    }
+    return out;
+  };
+}
+
+/**
+ * Streaming twin of runSdrAgent: async generator of UI events, ending with
+ * { type: 'final', output, model, persona, conversationId, lastResponseId, usage } (not sent to the
+ * client as-is: the handler turns it into `result` + `done`). Throws if the run fails or has no output.
+ */
+async function* streamSdrAgent(slug, ctx) {
+  const { agent, model } = buildAgent(slug, ctx);
+  const streamed = await (ctx.runFn || run)(agent, agentInput(slug, ctx), { ...buildRunOptions(ctx), stream: true });
+  const map = createAgentEventMapper();
+  const source = typeof streamed[Symbol.asyncIterator] === 'function' ? streamed : streamed.toStream();
+  for await (const ev of source) {
+    for (const e of map(ev)) yield e;
+  }
+  await streamed.completed;
+  if (streamed.error) throw streamed.error;
+  if (!streamed.finalOutput) throw new Error('Agent returned no output');
+  yield {
+    type: 'final',
+    output: streamed.finalOutput,
+    model,
+    persona: ctx.personaId || null,
+    conversationId: ctx.conversationId || null,
+    lastResponseId: streamed.lastResponseId || null,
+    usage: streamed.state?.usage ? { input_tokens: streamed.state.usage.inputTokens, output_tokens: streamed.state.usage.outputTokens } : null,
+  };
+}
+
+module.exports = { runSdrAgent, streamSdrAgent, createAgentEventMapper, buildRunOptions, buildAgent, getPersona, PERSONA_IDS, DEFINITIONS };

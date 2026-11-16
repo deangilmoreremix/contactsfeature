@@ -1,13 +1,16 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 
 const log = createLogger('generate-with-prompt');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -82,40 +85,48 @@ Generate the content now.`;
 
     log.info('Generating content with prompt', { promptId, contactId, dealId });
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: fullPrompt }],
-      { model, temperature, maxTokens }
-    );
+    // Free-form output (the prompt may ask for any format): streamed as text deltas, no schema.
+    let failureLogged = false;
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: fullPrompt }], { model, temperature, maxTokens }),
+      onEvent: (ev) => {
+        // Stream mode: a model/stream failure never reaches the catch below, so log it here (once).
+        if (ev.type === 'error' && !failureLogged) {
+          failureLogged = true;
+          log.error('Content generation failed (stream)', { promptId, contactId, error: ev.message });
+          logGeneration({ userId: user.id, promptId, contactId, dealId, success: false, error: ev.message });
+        }
+      },
+      finalize: async (content) => {
+        let parsed;
+        try {
+          parsed = parseJSONResponse(content, { content });
+        } catch {
+          parsed = { content };
+        }
 
-    let parsed;
-    try {
-      parsed = parseJSONResponse(content, { content });
-    } catch {
-      parsed = { content };
-    }
+        const result = {
+          content: parsed.content || content,
+          ...parsed,
+          promptId,
+          contactId,
+          dealId,
+          generatedAt: new Date().toISOString(),
+        };
 
-    const result = {
-      content: parsed.content || content,
-      ...parsed,
-      promptId,
-      contactId,
-      dealId,
-      generatedAt: new Date().toISOString(),
-    };
+        await logGeneration({ userId: user.id, promptId, contactId, dealId, success: true });
 
-    await logGeneration({ userId: user.id, promptId, contactId, dealId, success: true });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify(result),
-    };
+        return result;
+      },
+    });
   } catch (error) {
     log.error('Content generation failed', { promptId, contactId, error: error.message });
     await logGeneration({ userId: user.id, promptId, contactId, dealId, success: false, error: error.message });
     return errorResponse(500, 'Content generation failed');
   }
-});
+}));
 
 function buildUserContext({ contact, deal, customInput }) {
   const parts = [];

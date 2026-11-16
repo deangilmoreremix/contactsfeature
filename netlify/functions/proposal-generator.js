@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ executiveSummary: S.str, problemStatement: S.str, solution: S.str, timeline: S.strArr, pricing: S.arr(S.obj({ tier: S.str, price: S.str, features: S.strArr })), caseStudy: S.str, nextSteps: S.str });
+
 const log = createLogger('proposal-generator');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -78,36 +83,34 @@ Make it compelling, professional, and tailored to their specific situation${pref
 
 Return JSON with "executiveSummary", "problemStatement", "solution", "timeline", "pricing" (array with "tier", "price", "features"), "caseStudy", "nextSteps".`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'proposal' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          executiveSummary: 'Proposal summary...',
+          problemStatement: 'The challenge...',
+          solution: 'Our approach...',
+          timeline: [],
+          pricing: [],
+          caseStudy: 'Success story...',
+          nextSteps: 'Next steps...',
+        });
 
-    const parsed = parseJSONResponse(content, {
-      executiveSummary: 'Proposal summary...',
-      problemStatement: 'The challenge...',
-      solution: 'Our approach...',
-      timeline: [],
-      pricing: [],
-      caseStudy: 'Success story...',
-      nextSteps: 'Next steps...',
+        log.info('Proposal generated', { contactId, dealId, proposalType, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          dealId,
+          proposalType: proposalType || 'standard',
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Proposal generated', { contactId, dealId, proposalType, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        dealId,
-        proposalType: proposalType || 'standard',
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Proposal generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Proposal generation failed');
   }
-});
+}));

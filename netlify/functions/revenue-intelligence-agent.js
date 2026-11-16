@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ forecastSummary: S.str, conversionProbability: S.num, riskFactors: S.strArr, recommendations: S.strArr, keyMetrics: S.obj({ expectedRevenue: S.str, winRate: S.str, averageCycleDays: S.str, pipelineCoverage: S.str }) });
+
 const log = createLogger('revenue-intelligence-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -70,34 +75,32 @@ Generate:
 
 Return JSON with "forecastSummary", "conversionProbability", "riskFactors" (array), "recommendations" (array), "keyMetrics" (object).${prefsBlock}`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'revenue_intelligence' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          forecastSummary: '',
+          conversionProbability: 0,
+          riskFactors: [],
+          recommendations: [],
+          keyMetrics: {},
+        });
 
-    const parsed = parseJSONResponse(content, {
-      forecastSummary: '',
-      conversionProbability: 0,
-      riskFactors: [],
-      recommendations: [],
-      keyMetrics: {},
+        log.info('Revenue intelligence generated', { contactId, dealId, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          dealId,
+          forecastPeriod: forecastPeriod || '3 months',
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Revenue intelligence generated', { contactId, dealId, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        dealId,
-        forecastPeriod: forecastPeriod || '3 months',
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Revenue intelligence failed', { contactId, dealId, error: error.message });
     return errorResponse(500, 'Revenue intelligence failed');
   }
-});
+}));

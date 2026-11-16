@@ -1,7 +1,9 @@
-const { callOpenAI } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { supabase } = require('./_supabaseClient');
 
-exports.handler = async (event, context) => {
+exports.handler = stream(async (event, context) => {
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -28,7 +30,8 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { contactId } = JSON.parse(event.body || '{}');
+    const reqBody = JSON.parse(event.body || '{}');
+    const { contactId } = reqBody;
 
     if (!contactId) {
       return {
@@ -123,63 +126,68 @@ exports.handler = async (event, context) => {
       }
     ];
 
-    const response = (await callOpenAI(
-      [
-        {
-          role: 'system',
-          content: 'You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Provide a clear action plan with next steps.'
-        },
-        { role: 'user', content: prompt }
-      ],
-      { role: 'thinking', maxTokens: 2000 }
-    )) || 'No response generated';
-
-    try {
-      await supabase.from('agent_runs').insert({
-        agent_id: 'ae-agent',
-        contact_id: contactId,
-        user_id: contact.user_id || null,
-        status: 'completed',
-        output_data: { summary: response.substring(0, 500) },
-        completed_at: new Date().toISOString()
-      });
-    } catch (_logErr) {
-      console.warn('Failed to log AE agent run:', _logErr);
-    }
-
-    await supabase
-      .from('contacts')
-      .update({
-        pipeline_stage: 'relationship_building',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', contactId);
-
-    return {
-      statusCode: 200,
+    // Streams live (status/delta events, then `result` = the JSON payload) when the client asks for it.
+    let failureLogged = false;
+    return await runDual({
+      event,
+      body: reqBody,
       headers,
-      body: JSON.stringify({
-        success: true,
-        contactId,
-        response: response.substring(0, 500), // Truncate for response
-        executedAt: new Date().toISOString()
-      })
-    };
+      options: callOptions(
+        [
+          {
+            role: 'system',
+            content: 'You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Provide a clear action plan with next steps.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        { role: 'thinking', maxTokens: 2000 }
+      ),
+      onEvent: (ev) => {
+        // Stream mode: a model failure never reaches the catch below, so record it here (once).
+        if (ev.type === 'error' && !failureLogged) {
+          failureLogged = true;
+          logFailedRun(contactId, ev.message);
+        }
+      },
+      finalize: async (text) => {
+        const response = text || 'No response generated';
+
+        try {
+          await supabase.from('agent_runs').insert({
+            agent_id: 'ae-agent',
+            contact_id: contactId,
+            user_id: contact.user_id || null,
+            status: 'completed',
+            output_data: { summary: response.substring(0, 500) },
+            completed_at: new Date().toISOString()
+          });
+        } catch (_logErr) {
+          console.warn('Failed to log AE agent run:', _logErr);
+        }
+
+        await supabase
+          .from('contacts')
+          .update({
+            pipeline_stage: 'relationship_building',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', contactId);
+
+        return {
+          success: true,
+          contactId,
+          response: response.substring(0, 500), // Truncate for response
+          executedAt: new Date().toISOString()
+        };
+      },
+    });
 
   } catch (error) {
     console.error('AE Agent execution failed:', error);
 
     try {
       const parsedBody = JSON.parse(event.body || '{}');
-      if (parsedBody.contactId) {
-        await supabase.from('agent_runs').insert({
-          agent_id: 'ae-agent',
-          contact_id: parsedBody.contactId,
-          status: 'failed',
-          error_message: error.message,
-          completed_at: new Date().toISOString()
-        });
-      }
+      if (parsedBody.contactId) await logFailedRun(parsedBody.contactId, error.message);
     } catch (_logErr) {
       console.warn('Failed to log AE agent error:', _logErr);
     }
@@ -193,7 +201,21 @@ exports.handler = async (event, context) => {
       })
     };
   }
-};
+});
+
+async function logFailedRun(contactId, message) {
+  try {
+    await supabase.from('agent_runs').insert({
+      agent_id: 'ae-agent',
+      contact_id: contactId,
+      status: 'failed',
+      error_message: message,
+      completed_at: new Date().toISOString()
+    });
+  } catch (_logErr) {
+    console.warn('Failed to log AE agent error:', _logErr);
+  }
+}
 
 function buildAEAgentPrompt(contact, deal, memory) {
   let prompt = `You are an Account Executive (AE) agent following up with a qualified lead.

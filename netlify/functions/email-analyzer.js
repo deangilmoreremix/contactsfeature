@@ -1,4 +1,6 @@
-const { responsesFetch } = require('./_responses');
+const { stream } = require('@netlify/functions');
+const { runDual } = require('./_stream/dual');
+const { S } = require('./_stream/helpers');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -6,7 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-exports.handler = async (event) => {
+exports.handler = stream(async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -15,12 +17,13 @@ exports.handler = async (event) => {
   }
 
   try {
+    const reqBody = JSON.parse(event.body);
     const {
       content,
       recipient,
       analysisType = 'comprehensive',
       aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    } = reqBody;
 
     console.log('Email analysis request:', {
       recipientId: recipient?.id,
@@ -28,47 +31,38 @@ exports.handler = async (event) => {
       aiProvider
     });
 
-    let result;
+    // Same URL, two modes: JSON (as before) or SSE (status/delta/partial events + final `result`).
+    return await runDual({
+      event,
+      body: reqBody,
+      headers: CORS_HEADERS,
+      options: buildOptions(content, recipient, analysisType),
+      finalize: async (text) => {
+        const result = shapeResult(text, analysisType);
 
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await analyzeWithOpenAI(content, recipient, analysisType);
-        break;
-      default:
-        result = await analyzeWithOpenAI(content, recipient, analysisType);
-    }
+        if (recipient) {
+          await supabase
+            .from('email_analyses')
+            .insert({
+              contact_id: recipient.id,
+              email_subject: content.subject,
+              analysis_type: analysisType,
+              sentiment_score: result.sentiment?.score,
+              engagement_score: result.engagement?.score,
+              recommendations: result.recommendations,
+              ai_provider: aiProvider,
+              created_at: new Date().toISOString()
+            });
+        }
 
-    // Store analysis results
-    if (recipient) {
-      await supabase
-        .from('email_analyses')
-        .insert({
-          contact_id: recipient.id,
-          email_subject: content.subject,
-          analysis_type: analysisType,
-          sentiment_score: result.sentiment?.score,
-          engagement_score: result.engagement?.score,
-          recommendations: result.recommendations,
-          ai_provider: aiProvider,
-          created_at: new Date().toISOString()
-        });
-    }
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        return {
+          success: true,
+          data: result,
+          provider: aiProvider,
+          timestamp: new Date().toISOString()
+        };
       },
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
-    };
+    });
   } catch (error) {
     console.error('Email analysis failed:', error);
     return {
@@ -80,15 +74,23 @@ exports.handler = async (event) => {
       })
     };
   }
+});
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function analyzeWithOpenAI(content, recipient, analysisType) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const OUTPUT_SCHEMA = S.obj({
+  sentiment: S.obj({ score: S.num, label: S.oneOf('positive', 'neutral', 'negative'), confidence: S.num }),
+  engagement: S.obj({ score: S.num, potential: S.oneOf('high', 'medium', 'low'), factors: S.strArr }),
+  improvements: S.strArr,
+  recommendations: S.strArr,
+  response_strategy: S.obj({ approach: S.str, timing: S.str, tone: S.str }),
+});
 
+function buildOptions(content, recipient, analysisType) {
     const systemPrompt = `You are an expert email analyst specializing in B2B sales communication. Analyze emails for sentiment, engagement potential, improvement opportunities, and response strategies.`;
 
     const userPrompt = `Analyze this email for ${analysisType} insights:
@@ -108,27 +110,20 @@ Provide analysis in JSON format with:
   "response_strategy": {"approach": "string", "timing": "string", "tone": "string"}
 }`;
 
-    const response = await responsesFetch({
-        model: 'default',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.2,
-        text: {
-          format: {
-            type: "json_object"
-          }
-        }
-      });
+  return {
+    model: 'default',
+    effort: 'low',
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: OUTPUT_SCHEMA,
+    schemaName: 'email_analysis',
+    store: false,
+  };
+}
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    const content = JSON.parse(data.output_text);
-
-    return {
+function shapeResult(text, analysisType) {
+  const content = JSON.parse(text);
+  return {
       sentiment: content.sentiment || { score: 0, label: 'neutral', confidence: 50 },
       engagement: content.engagement || { score: 50, potential: 'medium', factors: [] },
       improvements: content.improvements || [],
@@ -137,8 +132,4 @@ Provide analysis in JSON format with:
       analysisType,
       analyzed: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('OpenAI email analysis failed:', error);
-    throw error;
-  }
 }

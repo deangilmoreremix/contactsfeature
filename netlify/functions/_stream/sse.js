@@ -26,12 +26,14 @@ function toSseReadable(events, opts = {}) {
   const out = new PassThrough();
   const heartbeatMs = opts.heartbeatMs === undefined ? 15000 : opts.heartbeatMs;
   const timer = heartbeatMs > 0 ? setInterval(() => out.write(': ping\n\n'), heartbeatMs) : null;
-  let closed = false;
+  let closed = false; // client went away
+  let ended = false;  // onEnd already ran
   const finish = async () => {
-    if (closed) return;
-    closed = true;
+    if (ended) return;
+    ended = true;
     if (timer) clearInterval(timer);
     try { if (opts.onEnd) await opts.onEnd(); } catch (_) { /* never break the stream on cleanup */ }
+    if (closed) return;
     out.write('data: [DONE]\n\n');
     out.end();
   };

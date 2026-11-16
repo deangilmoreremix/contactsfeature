@@ -1,7 +1,8 @@
 const { supabase } = require('./_supabaseClient');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { buildSdrSystemPrompt, parseJsonResponse } = require('./_streamingUtils');
-const { createStreamingResponse } = require('./_openaiClient');
+const { runDual } = require('./_stream/dual');
+const { sdrOptions, S } = require('./_stream/helpers');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
 
@@ -32,10 +33,6 @@ const { stream } = require('@netlify/functions');
 
 exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
-
-  // Check if streaming is requested
-  const isStreaming = event.headers?.accept?.includes('text/event-stream') || 
-                      event.queryStringParameters?.stream === 'true';
 
   // Parse body
   let body = {};
@@ -126,109 +123,39 @@ Return ONLY valid JSON with:
 - "body": Discovery email with questions
 - "discoveryQuestions": Array of 3-5 key questions to ask`;
 
-    // If streaming requested, return streaming response
-    if (isStreaming) {
-      const responseStream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          
-          try {
-            let fullContent = '';
-
-            for await (const chunk of createStreamingResponse({
-              instructions: DISCOVERY_SYSTEM_PROMPT,
-              input: userInput,
-              model,
-              temperature,
-              maxTokens,
-            })) {
-              if (chunk.type === 'token') {
-                fullContent += chunk.token;
-                const data = JSON.stringify({ 
-                  type: 'token', 
-                  token: chunk.token,
-                  partial: fullContent 
-                });
-                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-              } else if (chunk.type === 'error') {
-                const errorData = JSON.stringify({ type: 'error', error: chunk.error });
-                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-                controller.close();
-                return;
-              }
-            }
-
-            const parsed = parseJsonResponse(fullContent, {
-              subject: `Quick question about ${company}`,
-              body: fullContent,
-              discoveryQuestions: [],
-            });
-
-            log.info('Discovery questions generated (streaming)', { contactId, model });
-
-            const completeData = JSON.stringify({ type: 'complete', data: parsed });
-            controller.enqueue(encoder.encode(`data: ${completeData}\n\n`));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (error) {
-            log.error('Streaming discovery failed', { contactId, error: error.message });
-            const errorData = JSON.stringify({ type: 'error', error: error.message });
-            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-            controller.close();
-          }
-        }
-      });
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-        body: responseStream,
-        isBase64Encoded: false,
-      };
-    }
-
-    // Non-streaming response
-    let fullContent = '';
-    for await (const chunk of createStreamingResponse({
-      instructions: DISCOVERY_SYSTEM_PROMPT,
-      input: userInput,
-      model,
-      temperature,
-      maxTokens,
-    })) {
-      if (chunk.type === 'token') {
-        fullContent += chunk.token;
-      } else if (chunk.type === 'complete') {
-        fullContent = chunk.content;
-      }
-    }
-
-    const parsed = parseJsonResponse(fullContent, {
-      subject: `Quick question about ${company}`,
-      body: fullContent,
-      discoveryQuestions: [],
-    });
-
-    log.info('Discovery questions generated', { contactId, model });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        subject: parsed.subject,
-        body: parsed.body,
-        discoveryQuestions: parsed.discoveryQuestions || [],
-        sent: false, // drafts only: nothing is emailed until the user saves or sends it
-        model,
+    // One code path for both modes: JSON (as before) or SSE status/delta/partial events followed by
+    // `result` (exactly the JSON payload) when the client asks for a stream.
+    return await runDual({
+      event,
+      body,
+      options: sdrOptions({
+        instructions: DISCOVERY_SYSTEM_PROMPT,
+        input: userInput,
+        model: model,
+        temperature,
+        maxTokens,
+        schema: S.obj({ subject: S.str, body: S.str, discoveryQuestions: S.strArr }),
+        schemaName: 'discovery',
       }),
-    };
+      finalize: (text) => {
+        const parsed = parseJsonResponse(text, {
+          subject: `Quick question about ${company}`,
+          body: text,
+          discoveryQuestions: [],
+        });
+
+        log.info('Discovery questions generated', { contactId, model });
+
+        return {
+          contactId,
+          subject: parsed.subject,
+          body: parsed.body,
+          discoveryQuestions: parsed.discoveryQuestions || [],
+          sent: false, // drafts only: nothing is emailed until the user saves or sends it
+          model,
+        };
+      },
+    });
   } catch (error) {
     log.error('Discovery generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Discovery generation failed');

@@ -1,4 +1,5 @@
-const { responsesFetch } = require('./_responses');
+const { stream } = require('@netlify/functions');
+const { runDual } = require('./_stream/dual');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -6,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-exports.handler = async (event) => {
+exports.handler = stream(async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -15,12 +16,13 @@ exports.handler = async (event) => {
   }
 
   try {
+    const reqBody = JSON.parse(event.body);
     const {
       contact,
       meetingContext,
       questionType = 'comprehensive',
       aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    } = reqBody;
 
     console.log('Discovery questions request:', {
       contactId: contact.id,
@@ -28,43 +30,34 @@ exports.handler = async (event) => {
       aiProvider
     });
 
-    let result;
+    // Same URL, two modes: JSON (as before) or SSE (status/delta/partial events + final `result`).
+    return await runDual({
+      event,
+      body: reqBody,
+      headers: CORS_HEADERS,
+      options: buildOptions(contact, meetingContext, questionType),
+      finalize: async (text) => {
+        const result = shapeResult(text, questionType, meetingContext);
 
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await generateWithOpenAI(contact, meetingContext, questionType);
-        break;
-      default:
-        result = await generateWithOpenAI(contact, meetingContext, questionType);
-    }
+        await supabase
+          .from('discovery_questions')
+          .insert({
+            contact_id: contact.id,
+            question_type: questionType,
+            questions: result.questions,
+            meeting_context: meetingContext,
+            ai_provider: aiProvider,
+            created_at: new Date().toISOString()
+          });
 
-    // Store questions in database
-    await supabase
-      .from('discovery_questions')
-      .insert({
-        contact_id: contact.id,
-        question_type: questionType,
-        questions: result.questions,
-        meeting_context: meetingContext,
-        ai_provider: aiProvider,
-        created_at: new Date().toISOString()
-      });
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        return {
+          success: true,
+          data: result,
+          provider: aiProvider,
+          timestamp: new Date().toISOString()
+        };
       },
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
-    };
+    });
   } catch (error) {
     console.error('Discovery questions generation failed:', error);
     return {
@@ -76,15 +69,35 @@ exports.handler = async (event) => {
       })
     };
   }
+});
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function generateWithOpenAI(contact, meetingContext, questionType) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const OUTPUT_SCHEMA = {
+              type: "object",
+              properties: {
+                questions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      category: { type: "string" },
+                      question: { type: "string" },
+                      rationale: { type: "string" },
+                      priority: { type: "string", enum: ["high", "medium", "low"] }
+                    },
+                    required: ["category", "question", "rationale", "priority"]
+                  }
+                }
+              },
+              required: ["questions"]
+            };
 
+function buildOptions(contact, meetingContext, questionType) {
     const systemPrompt = `You are an expert sales discovery specialist. Generate strategic discovery questions that uncover pain points, requirements, decision criteria, and success factors.`;
 
     const userPrompt = `Generate ${questionType} discovery questions for this contact:
@@ -104,55 +117,23 @@ Generate questions organized by category:
 
 Return as JSON with "questions" array containing objects with category, question, rationale, and priority.`;
 
-    const response = await responsesFetch({
-        model: 'default',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.3,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "discovery_questions",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                questions: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      category: { type: "string" },
-                      question: { type: "string" },
-                      rationale: { type: "string" },
-                      priority: { type: "string", enum: ["high", "medium", "low"] }
-                    },
-                    required: ["category", "question", "rationale", "priority"]
-                  }
-                }
-              },
-              required: ["questions"]
-            }
-          }
-        }
-      });
+  return {
+    model: 'default',
+    effort: 'low',
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: OUTPUT_SCHEMA,
+    schemaName: 'discovery_questions',
+    store: false,
+  };
+}
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    const content = JSON.parse(data.output_text);
-
-    return {
+function shapeResult(text, questionType, meetingContext) {
+  const content = JSON.parse(text);
+  return {
       questions: content.questions || [],
       questionType,
       meetingContext,
       generated: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('OpenAI discovery questions generation failed:', error);
-    throw error;
-  }
 }
