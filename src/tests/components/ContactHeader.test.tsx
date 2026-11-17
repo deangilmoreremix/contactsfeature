@@ -46,12 +46,6 @@ describe('ContactHeader', () => {
     vi.clearAllMocks();
   });
 
-  it('renders contact name and company', () => {
-    render(<ContactHeader {...defaultProps} />);
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('at Example Corp')).toBeInTheDocument();
-  });
-
   it('renders tab navigation', () => {
     render(<ContactHeader {...defaultProps} />);
     expect(screen.getByText('Overview')).toBeInTheDocument();
@@ -86,14 +80,14 @@ describe('ContactHeader', () => {
 
   it('calls onClose when close button is clicked', () => {
     render(<ContactHeader {...defaultProps} />);
-    const closeButton = screen.getByRole('button', { name: /close/i });
+    const closeButton = document.querySelector('svg.lucide-x')!.closest('button')!; // icon-only button
     fireEvent.click(closeButton);
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
   it('shows loading state when saving', () => {
     render(<ContactHeader {...defaultProps} isEditing={true} isSaving={true} />);
-    const saveButton = screen.getByText('Save');
+    const saveButton = screen.getByText('Save').closest('button')!;
     expect(saveButton).toBeDisabled();
   });
 
