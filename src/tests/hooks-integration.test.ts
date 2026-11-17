@@ -27,19 +27,6 @@ Object.defineProperty(window, 'localStorage', {
   writable: true,
 });
 
-Object.defineProperty(window, 'document', {
-  value: {
-    createElement: vi.fn(() => ({
-      click: vi.fn(),
-      setAttribute: vi.fn(),
-    })),
-    body: {
-      appendChild: vi.fn(),
-    },
-  },
-  writable: true,
-});
-
 describe('React Hooks Integration', () => {
   const mockContacts: Contact[] = [
     {
@@ -82,9 +69,14 @@ describe('React Hooks Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Database mode, development fallbacks off, and an empty store (it starts with the built-in sample contacts)
+    vi.stubEnv('DEV', false);
+    vi.mocked(contactAPI.usesDatabase).mockReturnValue(true);
+    useContactStore.setState({ contacts: [], totalCount: 0, hasMore: false, error: null, isLoading: false, selectedContact: null, trashedContacts: [] });
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.resetAllMocks();
   });
 
@@ -215,7 +207,7 @@ describe('React Hooks Integration', () => {
       let loadingState;
       await act(async () => {
         const fetchPromise = result.current.fetchContacts();
-        loadingState = result.current.isLoading;
+        loadingState = useContactStore.getState().isLoading;
         await fetchPromise;
       });
 

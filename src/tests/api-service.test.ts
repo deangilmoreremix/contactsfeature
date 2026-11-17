@@ -6,43 +6,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
+import { encryptionService } from '../utils/encryption';
 
-// Mock dependencies
+// Collaborators that would reach the network / storage are mocked; validation is the real service.
+const storage = vi.hoisted(() => ({ contacts: null as any }));
+const supabaseMock = vi.hoisted(() => ({ from: vi.fn() }));
 vi.mock('../services/http-client.service');
-vi.mock('../services/validation.service');
 vi.mock('../services/cache.service');
 vi.mock('../services/logger.service');
-vi.mock('../services/supabaseClient');
-
-// Mock localStorage
-Object.defineProperty(global, 'window', {
-  value: {
-    localStorage: {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(() => null),
-      removeItem: vi.fn(() => null),
-      clear: vi.fn(() => null),
-    },
-    URL: {
-      createObjectURL: vi.fn(() => 'mock-url'),
-      revokeObjectURL: vi.fn(() => null),
-    },
-  },
-  writable: true,
-});
-
-Object.defineProperty(global, 'document', {
-  value: {
-    createElement: vi.fn(() => ({
-      click: vi.fn(),
-      setAttribute: vi.fn(),
-    })),
-    body: {
-      appendChild: vi.fn(),
-    },
-  },
-  writable: true,
-});
+vi.mock('../services/supabaseClient', () => ({ supabase: { from: supabaseMock.from } }));
+// Contacts live encrypted in localStorage; the cipher is covered by encryption.test.ts, so here the
+// store is a plain variable that each test fills with `storage.contacts = [...]`.
+vi.mock('../utils/encryption', () => ({
+  encryptionService: { getDecryptedItem: vi.fn(), setEncryptedItem: vi.fn(), removeEncryptedItem: vi.fn() }
+}));
 
 describe('Contact API Service', () => {
   const mockContact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -70,92 +47,69 @@ describe('Contact API Service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    storage.contacts = [];
+    vi.mocked(encryptionService.getDecryptedItem).mockImplementation(() => storage.contacts);
+    vi.mocked(encryptionService.setEncryptedItem).mockImplementation((_key: string, value: any) => { storage.contacts = value; });
+    (contactAPI as any).supabaseKey = null; // local storage mode unless a test opts into Supabase
+    (contactAPI as any).isMockMode = false;
   });
 
   afterEach(() => {
     vi.resetAllMocks();
   });
 
+  /** Opt a test into the Supabase code path. */
+  const useSupabase = (table: { insert?: any; select?: any }) => {
+    (contactAPI as any).supabaseKey = 'test-anon-key';
+    supabaseMock.from.mockReturnValue(table);
+  };
+
   describe('Contact Creation', () => {
     it('should create contact successfully via Supabase', async () => {
-      // Mock Supabase response
-      const mockSupabaseResponse = {
-        data: mockCreatedContact,
-        error: null
-      };
-
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn(() => Promise.resolve(mockSupabaseResponse))
-            }))
-          }))
-        }))
-      };
-
-      // Mock the supabase import
-      vi.mocked(await import('../services/supabaseClient')).supabase = mockSupabase as any;
+      const single = vi.fn(() => Promise.resolve({ data: mockCreatedContact, error: null }));
+      const insert = vi.fn(() => ({ select: vi.fn(() => ({ single })) }));
+      useSupabase({ insert });
 
       const result = await contactAPI.createContact(mockContact);
 
-      expect(result).toEqual(mockCreatedContact);
+      expect(supabaseMock.from).toHaveBeenCalledWith('contacts');
+      expect(insert).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(expect.objectContaining({
+        id: mockCreatedContact.id,
+        firstName: mockContact.firstName,
+        email: mockContact.email
+      }));
     });
 
-    it('should fallback to localStorage when Supabase fails', async () => {
-      // Mock Supabase failure
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn(() => Promise.resolve({ data: null, error: new Error('API Error') }))
-            }))
-          }))
-        }))
-      };
+    it('should surface the error (no local fallback) when Supabase fails', async () => {
+      const single = vi.fn(() => Promise.resolve({ data: null, error: new Error('API Error') }));
+      useSupabase({ insert: vi.fn(() => ({ select: vi.fn(() => ({ single })) })) });
 
-      vi.mocked(await import('../services/supabaseClient')).supabase = mockSupabase as any;
+      await expect(contactAPI.createContact(mockContact)).rejects.toThrow('API Error');
+      expect(storage.contacts).toEqual([]); // nothing was stored locally
+    });
 
+    it('should create the contact in local storage when Supabase is not configured', async () => {
       const result = await contactAPI.createContact(mockContact);
 
-      // Should create a local contact with generated ID
       expect(result.id).toMatch(/^local-/);
       expect(result.firstName).toBe(mockContact.firstName);
       expect(result.email).toBe(mockContact.email);
+      expect(storage.contacts).toEqual([result]);
     });
 
     it('should validate contact data before creation', async () => {
       const invalidContact = { ...mockContact, email: 'invalid-email' };
 
-      // Mock validation failure
-      const mockValidation = {
-        sanitizeContact: vi.fn(() => invalidContact),
-        validateContact: vi.fn(() => ({
-          isValid: false,
-          errors: { email: ['Invalid email format'] }
-        }))
-      };
-
-      vi.mocked(await import('../services/validation.service')).validationService = mockValidation as any;
-
       await expect(contactAPI.createContact(invalidContact)).rejects.toThrow('Contact validation failed');
+      expect(storage.contacts).toEqual([]);
     });
   });
 
   describe('Contact Retrieval', () => {
     it('should retrieve contact from localStorage', async () => {
       // Mock localStorage to return our contact
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify([mockCreatedContact])),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = [mockCreatedContact];
 
       const result = await contactAPI.getContact(mockCreatedContact.id);
 
@@ -163,17 +117,7 @@ describe('Contact API Service', () => {
     });
 
     it('should throw error for non-existent contact', async () => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify([])),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = [];
 
       await expect(contactAPI.getContact('non-existent-id')).rejects.toThrow('Contact with ID non-existent-id not found');
     });
@@ -182,17 +126,7 @@ describe('Contact API Service', () => {
   describe('Contact Updates', () => {
     beforeEach(() => {
       // Set up initial contact in localStorage
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify([mockCreatedContact])),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = [mockCreatedContact];
     });
 
     it('should update contact successfully', async () => {
@@ -201,7 +135,7 @@ describe('Contact API Service', () => {
       const result = await contactAPI.updateContact(mockCreatedContact.id, updates);
 
       expect(result.title).toBe('Senior Software Engineer');
-      expect(result.phone).toBe('+1 555 987 6543');
+      expect(result.phone).toBe('+15559876543'); // phone numbers are normalised by the sanitizer
       expect(result.updatedAt).not.toBe(mockCreatedContact.updatedAt);
     });
 
@@ -216,17 +150,7 @@ describe('Contact API Service', () => {
     });
 
     it('should throw error for non-existent contact update', async () => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify([])),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = [];
 
       await expect(contactAPI.updateContact('non-existent-id', { title: 'New Title' }))
         .rejects.toThrow('Contact with ID non-existent-id not found');
@@ -235,41 +159,22 @@ describe('Contact API Service', () => {
 
   describe('Contact Deletion', () => {
     beforeEach(() => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify([mockCreatedContact])),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = [mockCreatedContact];
     });
 
     it('should delete contact successfully', async () => {
       await contactAPI.deleteContact(mockCreatedContact.id);
 
-      // Verify the contact was removed from localStorage
-      expect(window.localStorage.setItem).toHaveBeenCalledWith(
-        'contacts',
-        JSON.stringify([])
-      );
+      // Deletion is a soft delete: the contact stays in storage, flagged with deletedAt (it moves to the Trash)
+      expect(encryptionService.setEncryptedItem).toHaveBeenCalledWith('contacts', [
+        expect.objectContaining({ id: mockCreatedContact.id, deletedAt: expect.any(String) })
+      ]);
+      const { contacts } = await contactAPI.getContacts({});
+      expect(contacts).toHaveLength(0);
     });
 
     it('should throw error for non-existent contact deletion', async () => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify([])),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = [];
 
       await expect(contactAPI.deleteContact('non-existent-id'))
         .rejects.toThrow('Contact with ID non-existent-id not found');
@@ -298,17 +203,7 @@ describe('Contact API Service', () => {
     ];
 
     beforeEach(() => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify(mockContacts)),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = mockContacts;
     });
 
     it('should list all contacts without filters', async () => {
@@ -354,7 +249,7 @@ describe('Contact API Service', () => {
       expect(result.contacts).toHaveLength(2);
       expect(result.limit).toBe(2);
       expect(result.offset).toBe(1);
-      expect(result.hasMore).toBe(true);
+      expect(result.hasMore).toBe(false); // offset 1 + 2 returned = all 3 contacts
     });
 
     it('should apply sorting', async () => {
@@ -390,17 +285,7 @@ describe('Contact API Service', () => {
     ];
 
     beforeEach(() => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify(mockContacts)),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = mockContacts;
     });
 
     it('should search contacts by query', async () => {
@@ -467,24 +352,14 @@ describe('Contact API Service', () => {
     const mockContacts = [mockCreatedContact];
 
     beforeEach(() => {
-      const mockLocalStorage = {
-        getItem: vi.fn(() => JSON.stringify(mockContacts)),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = mockContacts;
     });
 
     it('should export contacts as CSV', async () => {
       const blob = await contactAPI.exportContacts({}, 'csv');
 
       expect(blob).toBeInstanceOf(Blob);
-      expect(blob.type).toBe('text/csv');
+      expect(blob.type).toBe('text/csv;charset=utf-8');
     });
 
     it('should export contacts as JSON', async () => {
@@ -504,37 +379,17 @@ describe('Contact API Service', () => {
 
   describe('Error Handling and Fallbacks', () => {
     it('should handle Supabase connection errors', async () => {
-      // Mock Supabase failure
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn(() => Promise.reject(new Error('Network error')))
-            }))
-          }))
-        }))
-      };
+      const single = vi.fn(() => Promise.reject(new Error('Network error')));
+      useSupabase({ insert: vi.fn(() => ({ select: vi.fn(() => ({ single })) })) });
 
-      vi.mocked(await import('../services/supabaseClient')).supabase = mockSupabase as any;
-
-      // Should fallback to local creation
-      const result = await contactAPI.createContact(mockContact);
-      expect(result.id).toMatch(/^local-/);
+      // A failed Supabase write is reported to the caller (it is not silently kept in local storage)
+      await expect(contactAPI.createContact(mockContact)).rejects.toThrow('Network error');
+      expect(storage.contacts).toEqual([]);
     });
 
     it('should handle localStorage corruption', async () => {
       // Mock corrupted localStorage
-      const mockLocalStorage = {
-        getItem: vi.fn(() => 'invalid json'),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-        clear: vi.fn()
-      };
-
-      Object.defineProperty(window, 'localStorage', {
-        value: mockLocalStorage,
-        writable: true
-      });
+      storage.contacts = null; // the encryption service returns null for data it cannot decrypt
 
       // Should reinitialize with sample data
       const result = await contactAPI.getContacts({});
@@ -567,14 +422,17 @@ describe('Contact API Service', () => {
         name: 'John Doe',
         email: 'john@example.com',
         title: 'Developer',
-        company: 'Tech Corp'
+        company: 'Tech Corp',
+        interestLevel: 'medium',
+        status: 'lead'
       };
 
       const result = await contactAPI.createContact(minimalContact as any);
 
       expect(result.firstName).toBe('John');
+      // phone stays unset; industry is defaulted to '' by the sanitizer
       expect(result.phone).toBeUndefined();
-      expect(result.industry).toBeUndefined();
+      expect(result.industry).toBe('');
     });
   });
 });

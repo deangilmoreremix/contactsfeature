@@ -59,7 +59,9 @@ class CacheService {
     if (this.cache.size === 0) return;
     
     let oldestKey = '';
-    let oldestTime = Date.now();
+    // Infinity (not Date.now()): entries stored within the current millisecond must still be evictable,
+    // otherwise nothing is evicted and setMaxSize() would loop forever. Ties keep the first-inserted entry.
+    let oldestTime = Infinity;
     
     for (const [key, entry] of this.cache.entries()) {
       if (entry.timestamp < oldestTime) {

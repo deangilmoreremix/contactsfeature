@@ -6,57 +6,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AdaptivePlaybookGenerator } from '../components/ai-sales-intelligence/AdaptivePlaybookGenerator';
+import { cacheService } from '../services/cache.service';
 
-// Mock dependencies
-vi.mock('../services/supabaseClient', () => ({
-  supabase: {
-    functions: {
-      invoke: vi.fn()
-    }
-  }
-}));
+// The playbook is streamed from the adaptive-playbook function via streamFunction (services/functionStream);
+// the UI components, hooks and research overlay are real.
+const streamFunction = vi.hoisted(() => vi.fn());
+vi.mock('../services/functionStream', () => ({ streamFunction }));
 
-vi.mock('../components/ui/GlassCard', () => ({
-  GlassCard: ({ children, className }: any) => ({
-    type: 'div',
-    props: { className },
-    children
-  })
-}));
-
-vi.mock('../components/ui/ModernButton', () => ({
-  ModernButton: ({ children, onClick, loading, variant, size, className }: any) => ({
-    type: 'button',
-    props: {
-      onClick,
-      disabled: loading,
-      className,
-      'data-variant': variant,
-      'data-size': size
-    },
-    children: loading ? 'Loading...' : children
-  })
-}));
-
-vi.mock('../components/ui/ResearchThinkingAnimation', () => ({
-  useResearchThinking: () => ({
-    startResearch: vi.fn(),
-    moveToAnalyzing: vi.fn(),
-    moveToSynthesizing: vi.fn(),
-    complete: vi.fn()
-  })
-}));
-
-vi.mock('../components/ui/ResearchStatusOverlay', () => ({
-  useResearchStatus: () => ({
-    status: { isActive: false },
-    reset: vi.fn()
-  }),
-  ResearchStatusOverlay: ({ children }: any) => ({
-    type: 'div',
-    props: {},
-    children
-  })
+vi.mock('../services/analyticsService', () => ({
+  analyticsService: { startTracking: vi.fn().mockReturnValue('session-1'), endTracking: vi.fn() }
 }));
 
 describe('AdaptivePlaybookGenerator', () => {
@@ -136,12 +94,13 @@ describe('AdaptivePlaybookGenerator', () => {
     }
   };
 
+  // What streamFunction resolves with: the function's JSON payload is `{ data: <playbook> }`
+  const streamResult = { result: { data: mockPlaybookResponse.data.playbook, provider: 'openai' }, text: '', citations: [] };
+
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
+    cacheService.clear(); // generated playbooks are cached per deal; start every test cold
+    streamFunction.mockReset().mockResolvedValue(streamResult);
   });
 
   describe('Initial Render', () => {
@@ -179,8 +138,7 @@ describe('AdaptivePlaybookGenerator', () => {
 
   describe('Playbook Generation', () => {
     it('should generate playbook successfully', async () => {
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockResolvedValue(mockPlaybookResponse);
+      streamFunction.mockResolvedValue(streamResult);
 
       render(
         <AdaptivePlaybookGenerator
@@ -195,12 +153,11 @@ describe('AdaptivePlaybookGenerator', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(supabase.functions.invoke).toHaveBeenCalledWith('adaptive-playbook', {
-          body: expect.objectContaining({
-            dealData: mockDeal,
-            model: 'gpt-5'
-          })
-        });
+        expect(streamFunction).toHaveBeenCalledWith(
+          'adaptive-playbook',
+          expect.objectContaining({ contact: mockDeal, currentStage: 'prospect', playbookType: 'comprehensive', aiProvider: 'openai' }),
+          expect.anything()
+        );
       });
 
       await waitFor(() => {
@@ -210,8 +167,7 @@ describe('AdaptivePlaybookGenerator', () => {
     });
 
     it('should handle generation errors gracefully', async () => {
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockRejectedValue(new Error('API Error'));
+      streamFunction.mockRejectedValue(new Error('API Error'));
 
       render(
         <AdaptivePlaybookGenerator
@@ -226,14 +182,15 @@ describe('AdaptivePlaybookGenerator', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(screen.getByText('❌ Failed to generate playbook')).toBeInTheDocument();
+        // the live output shows the stream error and no playbook is rendered
+        expect(screen.getByText('API Error')).toBeInTheDocument();
+        expect(screen.queryByText('Strategic Account Development')).not.toBeInTheDocument();
       });
     });
 
     it('should show loading state during generation', async () => {
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve(mockPlaybookResponse), 100))
+      streamFunction.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(streamResult), 100))
       );
 
       render(
@@ -254,8 +211,7 @@ describe('AdaptivePlaybookGenerator', () => {
 
   describe('Playbook Display', () => {
     beforeEach(async () => {
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockResolvedValue(mockPlaybookResponse);
+      streamFunction.mockResolvedValue(streamResult);
 
       render(
         <AdaptivePlaybookGenerator
@@ -329,8 +285,7 @@ describe('AdaptivePlaybookGenerator', () => {
   describe('User Interactions', () => {
     it('should call onExecutePhase when Execute button is clicked', async () => {
       const onExecutePhase = vi.fn();
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockResolvedValue(mockPlaybookResponse);
+      streamFunction.mockResolvedValue(streamResult);
 
       render(
         <AdaptivePlaybookGenerator
@@ -362,8 +317,7 @@ describe('AdaptivePlaybookGenerator', () => {
 
     it('should call onCustomize when Customize button is clicked', async () => {
       const onCustomize = vi.fn();
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockResolvedValue(mockPlaybookResponse);
+      streamFunction.mockResolvedValue(streamResult);
 
       render(
         <AdaptivePlaybookGenerator
@@ -391,8 +345,7 @@ describe('AdaptivePlaybookGenerator', () => {
   describe('Edge Cases', () => {
     it('should handle empty competitors list', async () => {
       const dealWithoutCompetitors = { ...mockDeal, competitors: [] };
-      const { supabase } = await import('../services/supabaseClient');
-      vi.mocked(supabase.functions.invoke).mockResolvedValue(mockPlaybookResponse);
+      streamFunction.mockResolvedValue(streamResult);
 
       render(
         <AdaptivePlaybookGenerator
@@ -407,11 +360,11 @@ describe('AdaptivePlaybookGenerator', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(supabase.functions.invoke).toHaveBeenCalledWith('adaptive-playbook', {
-          body: expect.objectContaining({
-            dealData: dealWithoutCompetitors
-          })
-        });
+        expect(streamFunction).toHaveBeenCalledWith(
+          'adaptive-playbook',
+          expect.objectContaining({ contact: dealWithoutCompetitors }),
+          expect.anything()
+        );
       });
     });
 

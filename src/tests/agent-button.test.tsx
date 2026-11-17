@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
-    from: vi.fn(() => ({ select: () => ({ eq: () => ({ single: mocks.single }) }) })),
+    from: vi.fn(() => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.single }) }) })),
   },
 }));
 

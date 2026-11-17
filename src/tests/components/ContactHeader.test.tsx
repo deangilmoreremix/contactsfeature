@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { ContactHeader } from '../../components/contacts/ContactHeader';
 import { Contact } from '../../types/contact';
 
@@ -30,19 +31,19 @@ const mockContact: Contact = {
 describe('ContactHeader', () => {
   const defaultProps = {
     activeTab: 'overview',
-    onTabChange: jest.fn(),
+    onTabChange: vi.fn(),
     contact: mockContact,
     isEditing: false,
     isSaving: false,
-    onEdit: jest.fn(),
-    onSave: jest.fn(),
-    onCancel: jest.fn(),
-    onToggleFavorite: jest.fn(),
-    onClose: jest.fn()
+    onEdit: vi.fn(),
+    onSave: vi.fn(),
+    onCancel: vi.fn(),
+    onToggleFavorite: vi.fn(),
+    onClose: vi.fn()
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders contact name and company', () => {

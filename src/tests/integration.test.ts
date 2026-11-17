@@ -3,16 +3,18 @@
  * Comprehensive test suite for the integration system
  */
 
+import { vi } from 'vitest';
+
 // Mock implementations for testing
 const mockHttpClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  patch: jest.fn(),
-  delete: jest.fn(),
-  setAuth: jest.fn(),
-  clearAuth: jest.fn(),
-  isAuthenticated: jest.fn(),
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  patch: vi.fn(),
+  delete: vi.fn(),
+  setAuth: vi.fn(),
+  clearAuth: vi.fn(),
+  isAuthenticated: vi.fn(),
 };
 
 const mockContact = {
@@ -36,7 +38,7 @@ const mockContact = {
 
 // Jest setup
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('HTTP Client Service', () => {
@@ -76,10 +78,10 @@ describe('Cache Service', () => {
     // Mock cache service
     const cache = new Map();
     cacheService = {
-      set: jest.fn((namespace, key, data, ttl) => {
+      set: vi.fn((namespace, key, data, ttl) => {
         cache.set(`${namespace}:${key}`, { data, timestamp: Date.now(), ttl });
       }),
-      get: jest.fn((namespace, key) => {
+      get: vi.fn((namespace, key) => {
         const entry = cache.get(`${namespace}:${key}`);
         if (!entry) return null;
         if (Date.now() - entry.timestamp > entry.ttl) {
@@ -88,10 +90,10 @@ describe('Cache Service', () => {
         }
         return entry.data;
       }),
-      delete: jest.fn((namespace, key) => {
+      delete: vi.fn((namespace, key) => {
         return cache.delete(`${namespace}:${key}`);
       }),
-      clear: jest.fn(() => {
+      clear: vi.fn(() => {
         cache.clear();
       }),
     };
@@ -191,7 +193,7 @@ describe('Rate Limiter Service', () => {
   test('should allow requests within limit', async () => {
     // Mock rate limiter
     const rateLimiter = {
-      checkLimit: jest.fn().mockResolvedValue({
+      checkLimit: vi.fn().mockResolvedValue({
         allowed: true,
         resetTime: Date.now() + 60000,
         remaining: 9,
@@ -212,7 +214,7 @@ describe('Rate Limiter Service', () => {
   test('should reject requests over limit', async () => {
     // Mock rate limiter
     const rateLimiter = {
-      checkLimit: jest.fn().mockResolvedValue({
+      checkLimit: vi.fn().mockResolvedValue({
         allowed: false,
         resetTime: Date.now() + 60000,
         remaining: 0,

@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useContactStore } from '../hooks/useContactStore';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
+import { renderHook, act } from '@testing-library/react';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -25,18 +26,7 @@ Object.defineProperty(window, 'localStorage', {
   writable: true,
 });
 
-Object.defineProperty(window, 'document', {
-  value: {
-    createElement: vi.fn(() => ({
-      click: vi.fn(),
-      setAttribute: vi.fn(),
-    })),
-    body: {
-      appendChild: vi.fn(),
-    },
-  },
-  writable: true,
-});
+
 
 describe('Contact Creation Functionality', () => {
   const validContactData = {
@@ -64,9 +54,15 @@ describe('Contact Creation Functionality', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Database mode with the development fallbacks off: API failures must reach the caller, and the
+    // store starts empty instead of with the built-in sample contacts.
+    vi.stubEnv('DEV', false);
+    vi.mocked(contactAPI.usesDatabase).mockReturnValue(true);
+    useContactStore.setState({ contacts: [], totalCount: 0, hasMore: false, error: null, isLoading: false, selectedContact: null, trashedContacts: [] });
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.resetAllMocks();
   });
 
@@ -88,8 +84,10 @@ describe('Contact Creation Functionality', () => {
 
       await expect(result.current.createContact(invalidContact as any)).rejects.toThrow('Validation failed');
 
+      // Validation lives in the API layer: the store hands the contact over and surfaces the API's error
       expect(result.current.error).toContain('Validation failed');
-      expect(contactAPI.createContact).not.toHaveBeenCalled();
+      expect(contactAPI.createContact).toHaveBeenCalledTimes(1);
+      expect(result.current.contacts).toHaveLength(0);
     });
 
     it('should validate email format', async () => {
@@ -250,7 +248,7 @@ describe('Contact Creation Functionality', () => {
       });
 
       expect(result.current.contacts).toHaveLength(2);
-      expect(result.current.contacts[1].email).toBe('different@example.com');
+      expect(result.current.contacts[0].email).toBe('different@example.com'); // new contacts are added at the top
     });
 
     it('should handle case-insensitive email comparison', async () => {
@@ -365,7 +363,7 @@ describe('Contact Creation Functionality', () => {
       let loadingState: boolean = false;
 
       vi.mocked(contactAPI.createContact).mockImplementation(async () => {
-        loadingState = result.current.isLoading;
+        loadingState = useContactStore.getState().isLoading;
         await new Promise(resolve => setTimeout(resolve, 10));
         return mockCreatedContact;
       });

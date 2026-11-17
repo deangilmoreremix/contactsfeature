@@ -12,6 +12,8 @@ import { VoiceAgentPanel } from '../components/VoiceAgentPanel';
 import { VideoAgentPanel } from '../components/VideoAgentPanel';
 import { HeatmapPanel } from '../components/HeatmapPanel';
 import { PlaybooksPanel } from '../components/PlaybooksPanel';
+import { newOutcome } from '../lib/streaming/streamClient';
+import { getCurrentUser } from '../lib/supabase';
 
 // Mock dependencies
 vi.mock('../services/sdrPreferencesService', () => ({
@@ -46,9 +48,25 @@ vi.mock('../components/ui/ModernButton', () => ({
   )
 }));
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+const supa = vi.hoisted(() => ({ maybeSingle: vi.fn(), insert: vi.fn(), from: vi.fn() }));
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+    from: supa.from
+  },
+  getCurrentUser: vi.fn().mockResolvedValue({ id: 'user-1' })
+}));
+
+vi.mock('../services/sdrClient', () => ({
+  sdrAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'Bearer test' })
+}));
+
+// The panels stream through useAIStream; the SSE transport is mocked, the hook and panels are real.
+const streamSse = vi.hoisted(() => vi.fn());
+vi.mock('../lib/streaming/streamClient', async (orig) => ({
+  ...(await orig<typeof import('../lib/streaming/streamClient')>()),
+  streamSse
+}));
 
 describe('SDR Agent User Controls System', () => {
   const mockUserPreferences = {
@@ -115,11 +133,17 @@ describe('SDR Agent User Controls System', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockReset();
+    streamSse.mockReset();
+    // campaign save: supabase.from('sdr_campaigns').insert(row).select().maybeSingle()
+    supa.maybeSingle.mockReset().mockResolvedValue({ data: { id: 'template-1' }, error: null });
+    supa.insert.mockReset().mockImplementation(() => ({ select: () => ({ maybeSingle: supa.maybeSingle }) }));
+    supa.from.mockReset().mockImplementation(() => ({ insert: supa.insert }));
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: 'user-1' } as never);
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    vi.resetAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('SDRAgentConfigurator Component', () => {
@@ -154,8 +178,10 @@ describe('SDR Agent User Controls System', () => {
         />
       );
 
-      expect(screen.getByDisplayValue('5')).toBeInTheDocument(); // campaignLength
-      expect(screen.getByDisplayValue('professional')).toBeInTheDocument(); // tone
+      // selects display the selected option's label
+      expect(screen.getByDisplayValue('Five Touch (5 messages)')).toBeInTheDocument(); // campaignLength
+      expect(screen.getByDisplayValue('Professional')).toBeInTheDocument(); // tone
+      fireEvent.click(screen.getByText('Timing & Schedule'));
       expect(screen.getByDisplayValue('24')).toBeInTheDocument(); // messageDelay
     });
 
@@ -199,38 +225,39 @@ describe('SDR Agent User Controls System', () => {
         <SDRAgentConfigurator
           agentId="voice-agent"
           agentName="Voice Agent"
+          currentConfig={{ ...mockUserPreferences, campaignLength: 25 }}
           onSave={mockOnSave}
           onClose={mockOnClose}
         />
       );
 
-      // Try to save without required fields
-      const saveButton = screen.getByText('Save Configuration');
-      fireEvent.click(saveButton);
+      fireEvent.click(screen.getByText('Save Configuration'));
 
-      // Should not call onSave due to validation
+      // An out-of-range campaign length is rejected before onSave runs
+      expect(await screen.findByText('Campaign length must be between 1 and 20 messages')).toBeInTheDocument();
       expect(mockOnSave).not.toHaveBeenCalled();
+      expect(mockOnClose).not.toHaveBeenCalled();
     });
 
     it('should handle save errors gracefully', async () => {
-      const { SDRPreferencesService } = await import('../services/sdrPreferencesService');
-      vi.mocked(SDRPreferencesService.saveUserPreferences).mockRejectedValue(new Error('Save failed'));
+      const failingSave = vi.fn().mockRejectedValue(new Error('Save failed'));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
 
       render(
         <SDRAgentConfigurator
           agentId="voice-agent"
           agentName="Voice Agent"
-          onSave={mockOnSave}
+          onSave={failingSave}
           onClose={mockOnClose}
         />
       );
 
-      const saveButton = screen.getByText('Save Configuration');
-      fireEvent.click(saveButton);
+      fireEvent.click(screen.getByText('Save Configuration'));
 
       await waitFor(() => {
         expect(screen.getByText('Failed to save configuration. Please try again.')).toBeInTheDocument();
       });
+      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 
@@ -267,8 +294,8 @@ describe('SDR Agent User Controls System', () => {
       );
 
       expect(screen.getByText('Day 0')).toBeInTheDocument();
-      expect(screen.getByText('Email')).toBeInTheDocument();
-      expect(screen.getByText('introduction')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Email')).toBeInTheDocument(); // step type select
+      expect(screen.getByDisplayValue('Introduction')).toBeInTheDocument(); // template select
     });
 
     it('should allow adding new campaign steps', () => {
@@ -285,7 +312,9 @@ describe('SDR Agent User Controls System', () => {
       const addButton = screen.getByText('Add Campaign Step');
       fireEvent.click(addButton);
 
-      expect(screen.getAllByText('Day')).toHaveLength(2);
+      expect(screen.getByText('Day 0')).toBeInTheDocument();
+      expect(screen.getByText('Day 3')).toBeInTheDocument();
+      expect(screen.getAllByText(/^Day \d+$/)).toHaveLength(2);
     });
 
     it('should allow removing campaign steps', () => {
@@ -300,33 +329,21 @@ describe('SDR Agent User Controls System', () => {
         />
       );
 
-      const removeButtons = screen.getAllByRole('button', { name: /trash/i });
+      // The remove buttons are icon-only (lucide Trash2)
+      const removeButtons = Array.from(document.querySelectorAll('button')).filter(b => b.querySelector('svg.lucide-trash2, svg.lucide-trash-2'));
+      expect(removeButtons).toHaveLength(2);
       fireEvent.click(removeButtons[0]);
 
-      expect(screen.getAllByText('Day')).toHaveLength(1);
+      expect(screen.getAllByText(/^Day \d+$/)).toHaveLength(1);
+      expect(screen.getByText('Day 3')).toBeInTheDocument();
     });
 
     it('should save campaign template successfully', async () => {
-      const { SDRPreferencesService } = await import('../services/sdrPreferencesService');
-      vi.mocked(SDRPreferencesService.saveCampaignTemplate).mockResolvedValue({
-        id: 'template-1',
-        userId: 'demo-user',
-        name: 'Test Campaign',
-        description: 'A test campaign',
-        agentId: 'voice-agent',
-        sequence: mockCampaignSequence,
-        settings: {},
-        isPublic: false,
-        usageCount: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-
       render(
         <CampaignBuilder
           agentId="voice-agent"
           agentName="Voice Agent"
+          initialSequence={mockCampaignSequence as any}
           onSave={mockOnSave}
           onPreview={mockOnPreview}
           onClose={mockOnClose}
@@ -337,13 +354,25 @@ describe('SDR Agent User Controls System', () => {
       const nameInput = screen.getByPlaceholderText('My Custom Campaign');
       fireEvent.change(nameInput, { target: { value: 'Test Campaign' } });
 
-      const saveButton = screen.getByText('Save Template');
-      fireEvent.click(saveButton);
+      fireEvent.click(screen.getByText('Save Template'));
 
       await waitFor(() => {
-        expect(mockOnSave).toHaveBeenCalled();
-        expect(screen.getByText('Campaign template saved successfully!')).toBeInTheDocument();
+        expect(mockOnSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'template-1', name: 'Test Campaign', agentId: 'voice-agent' }));
       });
+      expect(supa.from).toHaveBeenCalledWith('sdr_campaigns');
+      expect(supa.insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'user-1', name: 'Test Campaign', agent_id: 'voice-agent', total_steps: 2, duration_days: 3 }));
+      expect(window.alert).toHaveBeenCalledWith('Campaign saved successfully!');
+    });
+
+    it('should not allow saving a template without a name', () => {
+      render(<CampaignBuilder agentId="voice-agent" agentName="Voice Agent" onSave={mockOnSave} onClose={mockOnClose} />);
+
+      const saveButton = screen.getByText('Save Template').closest('button')!;
+      expect(saveButton).toBeDisabled();
+
+      fireEvent.click(saveButton);
+      expect(supa.insert).not.toHaveBeenCalled();
+      expect(mockOnSave).not.toHaveBeenCalled();
     });
 
     it('should show campaign statistics', () => {
@@ -359,7 +388,7 @@ describe('SDR Agent User Controls System', () => {
       );
 
       expect(screen.getByText('Total Steps: 2')).toBeInTheDocument();
-      expect(screen.getByText('Duration: 5 days')).toBeInTheDocument();
+      expect(screen.getByText('Duration: 3 days')).toBeInTheDocument();
       expect(screen.getByText('Channels Used: 2')).toBeInTheDocument();
     });
   });
@@ -428,9 +457,6 @@ describe('SDR Agent User Controls System', () => {
 
   describe('End-to-End Integration', () => {
     it('should allow complete SDR agent configuration workflow', async () => {
-      const { SDRPreferencesService } = await import('../services/sdrPreferencesService');
-      vi.mocked(SDRPreferencesService.saveUserPreferences).mockResolvedValue(mockUserPreferences);
-
       // Start with VoiceAgentPanel
       render(<VoiceAgentPanel />);
       const settingsButton = screen.getByTitle('Configure Voice Agent Settings');
@@ -440,8 +466,9 @@ describe('SDR Agent User Controls System', () => {
       expect(screen.getByText('Configure Voice Agent')).toBeInTheDocument();
 
       // Change campaign length
-      const campaignLengthSelect = screen.getByDisplayValue('3'); // default
-      fireEvent.change(campaignLengthSelect, { target: { value: '5' } });
+      const campaignLengthSelect = screen.getByDisplayValue('Five Touch (5 messages)'); // default
+      fireEvent.change(campaignLengthSelect, { target: { value: '7' } });
+      expect(screen.getByDisplayValue('Extended (7 messages)')).toBeInTheDocument();
 
       // Open Campaign Builder
       const campaignBuilderButton = screen.getByText('Campaign Builder');
@@ -458,31 +485,17 @@ describe('SDR Agent User Controls System', () => {
       const nameInput = screen.getByPlaceholderText('My Custom Campaign');
       fireEvent.change(nameInput, { target: { value: 'My Campaign' } });
 
-      vi.mocked(SDRPreferencesService.saveCampaignTemplate).mockResolvedValue({
-        id: 'template-1',
-        userId: 'demo-user',
-        name: 'My Campaign',
-        description: '',
-        agentId: 'voice-agent',
-        sequence: [],
-        settings: {},
-        isPublic: false,
-        usageCount: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-
       const saveTemplateButton = screen.getByText('Save Template');
       fireEvent.click(saveTemplateButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Campaign template saved successfully!')).toBeInTheDocument();
+        expect(supa.insert).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Campaign', agent_id: 'voice-agent', total_steps: 2 }));
       });
+      expect(window.alert).toHaveBeenCalledWith('Campaign saved successfully!');
     });
 
     it('should handle API errors gracefully across all components', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      streamSse.mockRejectedValueOnce(new Error('Network error'));
 
       render(<VoiceAgentPanel />);
 
@@ -496,7 +509,7 @@ describe('SDR Agent User Controls System', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(screen.getByText('⚠️ Failed to run voice agent')).toBeInTheDocument();
+        expect(screen.getByText('⚠️ Network error')).toBeInTheDocument();
       });
     });
   });
@@ -524,7 +537,7 @@ describe('SDR Agent User Controls System', () => {
       expect(screen.getByText('Configure Voice Agent')).toBeInTheDocument();
     });
 
-    it('should maintain state consistency across modal interactions', () => {
+    it('should discard unsaved changes when the settings modal is cancelled', () => {
       render(<VoiceAgentPanel />);
 
       // Open settings
@@ -532,7 +545,7 @@ describe('SDR Agent User Controls System', () => {
       fireEvent.click(settingsButton);
 
       // Change a setting
-      const campaignLengthSelect = screen.getByDisplayValue('3');
+      const campaignLengthSelect = screen.getByDisplayValue('Five Touch (5 messages)');
       fireEvent.change(campaignLengthSelect, { target: { value: '7' } });
 
       // Close and reopen
@@ -542,8 +555,9 @@ describe('SDR Agent User Controls System', () => {
       // Reopen settings
       fireEvent.click(settingsButton);
 
-      // Should remember the change
-      expect(screen.getByDisplayValue('7')).toBeInTheDocument();
+      // Cancel does not save, so the reopened modal shows the defaults again
+      expect(screen.getByDisplayValue('Five Touch (5 messages)')).toBeInTheDocument();
+      expect(screen.queryByDisplayValue('Extended (7 messages)')).not.toBeInTheDocument();
     });
   });
 
@@ -558,7 +572,7 @@ describe('SDR Agent User Controls System', () => {
       fireEvent.click(settingsButton);
 
       // Should show default values
-      expect(screen.getByDisplayValue('3')).toBeInTheDocument(); // default campaign length
+      expect(screen.getByDisplayValue('Five Touch (5 messages)')).toBeInTheDocument(); // default campaign length
     });
 
     it('should handle malformed campaign sequences', () => {
@@ -582,12 +596,7 @@ describe('SDR Agent User Controls System', () => {
     });
 
     it('should handle network timeouts', async () => {
-      mockFetch.mockImplementationOnce(
-        () => new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: async () => ({ success: true })
-        }), 10000)) // 10 second delay
-      );
+      streamSse.mockImplementationOnce(() => new Promise(() => {})); // never settles
 
       render(<VoiceAgentPanel />);
 
@@ -601,7 +610,7 @@ describe('SDR Agent User Controls System', () => {
       fireEvent.click(generateButton);
 
       // Should show loading state
-      expect(screen.getByText('Generating Voice...')).toBeInTheDocument();
+      expect(screen.getByText('Writing Voice Script...')).toBeInTheDocument();
     });
   });
 });

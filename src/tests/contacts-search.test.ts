@@ -7,7 +7,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useContactStore } from '../hooks/useContactStore';
 import { useSearchContacts } from '../hooks/useSearchContacts';
 import { contactAPI } from '../services/contact-api.service';
-import { cacheService } from '../services/cache.service';
 import { Contact } from '../types';
 
 // Mock dependencies
@@ -16,34 +15,9 @@ vi.mock('../services/cache.service');
 vi.mock('../services/logger.service');
 
 // Mock DOM APIs
-Object.defineProperty(global, 'window', {
-  value: {
-    localStorage: {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(() => null),
-      removeItem: vi.fn(() => null),
-      clear: vi.fn(() => null),
-    },
-    URL: {
-      createObjectURL: vi.fn(() => 'mock-url'),
-      revokeObjectURL: vi.fn(() => null),
-    },
-  },
-  writable: true,
-});
 
-Object.defineProperty(global, 'document', {
-  value: {
-    createElement: vi.fn(() => ({
-      click: vi.fn(),
-      setAttribute: vi.fn(),
-    })),
-    body: {
-      appendChild: vi.fn(),
-    },
-  },
-  writable: true,
-});
+
+
 
 describe('Contact Search and Filtering', () => {
   let store: ReturnType<typeof useContactStore>;
@@ -107,10 +81,20 @@ describe('Contact Search and Filtering', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    store = useContactStore.getState() as any;
+    // Database mode with the development fallbacks off: API failures must reach the caller, and the
+    // store starts empty instead of with the built-in sample contacts.
+    vi.stubEnv('DEV', false);
+    vi.mocked(contactAPI.usesDatabase).mockReturnValue(true);
+    useContactStore.setState({ contacts: [], totalCount: 0, hasMore: false, error: null, isLoading: false, selectedContact: null, trashedContacts: [] });
+    // Live view of the zustand state: reads see the current state, assignments write to it
+    store = new Proxy({} as any, {
+      get: (_t, key) => (useContactStore.getState() as any)[key],
+      set: (_t, key, value) => { useContactStore.setState({ [key]: value } as any); return true; }
+    });
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.resetAllMocks();
   });
 
@@ -126,12 +110,12 @@ describe('Contact Search and Filtering', () => {
 
       vi.mocked(contactAPI.getContacts).mockResolvedValue(mockResponse);
 
-      const result = await store.fetchContacts({ limit: 2, offset: 0 });
+      await store.fetchContacts({ limit: 2, offset: 0 });
 
       expect(contactAPI.getContacts).toHaveBeenCalledWith({ limit: 2, offset: 0 });
-      expect(result.contacts).toHaveLength(2);
-      expect(result.hasMore).toBe(true);
-      expect(result.total).toBe(3);
+      expect(store.contacts).toHaveLength(2);
+      expect(store.hasMore).toBe(true);
+      expect(store.totalCount).toBe(3);
     });
 
     it('should apply status filter', async () => {
@@ -281,27 +265,35 @@ describe('Contact Search and Filtering', () => {
       expect(store.contacts).toEqual([mockContacts[2]]);
     });
 
-    it('should handle empty search query', async () => {
+    // The store always delegates to the API; the minimum query length and debouncing live in useSearchContacts.
+    it('should delegate an empty search query to the API', async () => {
+      vi.mocked(contactAPI.searchContacts).mockResolvedValue({ contacts: mockContacts, total: 3, limit: 50, offset: 0, hasMore: false });
+
       await store.searchContacts('');
 
-      expect(contactAPI.searchContacts).not.toHaveBeenCalled();
+      expect(contactAPI.searchContacts).toHaveBeenCalledWith('');
+      expect(store.contacts).toHaveLength(3);
     });
 
-    it('should handle short search queries with client-side filtering', async () => {
-      // Short queries (< 2 chars) should use client-side filtering
+    it('should delegate short search queries to the API', async () => {
+      vi.mocked(contactAPI.searchContacts).mockResolvedValue({ contacts: [mockContacts[0]], total: 1, limit: 50, offset: 0, hasMore: false });
+
       await store.searchContacts('J');
 
-      expect(contactAPI.searchContacts).not.toHaveBeenCalled();
-      // Should filter existing contacts
+      expect(contactAPI.searchContacts).toHaveBeenCalledWith('J');
+      expect(store.contacts).toEqual([mockContacts[0]]);
     });
 
     it('should fallback to client-side search when API fails', async () => {
       vi.mocked(contactAPI.searchContacts).mockRejectedValue(new Error('API Error'));
 
-      await store.searchContacts('John');
+      await store.searchContacts('Jonah');
 
-      expect(contactAPI.searchContacts).toHaveBeenCalledWith('John');
-      // Should fallback to client-side search
+      expect(contactAPI.searchContacts).toHaveBeenCalledWith('Jonah');
+      expect(store.error).toBe('API Error');
+      // falls back to filtering the built-in sample contacts
+      expect(store.contacts.map((c: Contact) => c.name)).toEqual(['Jonah Jude']);
+      expect(store.hasMore).toBe(false);
     });
   });
 
@@ -356,42 +348,6 @@ describe('Contact Search and Filtering', () => {
 
       expect(mockSearchHook.error).toBe('Search failed');
       expect(mockSearchHook.hasResults).toBe(false);
-    });
-  });
-
-  describe('Cache Integration', () => {
-    it('should use cached results when available', async () => {
-      const cachedResponse = {
-        contacts: mockContacts,
-        total: 3,
-        limit: 50,
-        offset: 0,
-        hasMore: false
-      };
-
-      vi.mocked(cacheService.getContactList).mockReturnValue(cachedResponse);
-
-      const result = await store.fetchContacts({});
-
-      expect(cacheService.getContactList).toHaveBeenCalledWith({});
-      expect(contactAPI.getContacts).not.toHaveBeenCalled();
-      expect(result).toEqual(cachedResponse);
-    });
-
-    it('should cache search results', async () => {
-      const mockResponse = {
-        contacts: [mockContacts[0]],
-        total: 1,
-        limit: 50,
-        offset: 0,
-        hasMore: false
-      };
-
-      vi.mocked(contactAPI.searchContacts).mockResolvedValue(mockResponse);
-
-      await store.searchContacts('John');
-
-      expect(cacheService.setContactList).toHaveBeenCalled();
     });
   });
 

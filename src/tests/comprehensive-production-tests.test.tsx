@@ -5,9 +5,8 @@
  * production readiness assessment to ensure complete functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock all external dependencies
 vi.mock('@supabase/supabase-js', () => ({
@@ -42,18 +41,8 @@ import { AdaptivePlaybookGenerator } from '../components/ai-sales-intelligence/A
 import { CommunicationOptimizer } from '../components/ai-sales-intelligence/CommunicationOptimizer';
 import { DiscoveryQuestionsGenerator } from '../components/ai-sales-intelligence/DiscoveryQuestionsGenerator';
 
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: { retry: false },
-    mutations: { retry: false }
-  }
-});
-
-const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-  <QueryClientProvider client={createTestQueryClient()}>
-    {children}
-  </QueryClientProvider>
-);
+// The app does not use react-query, so no provider is needed
+const TestWrapper = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
 describe('SmartCRM Dashboard - Comprehensive Production Tests', () => {
 

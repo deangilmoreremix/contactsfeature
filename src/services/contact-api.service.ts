@@ -9,7 +9,6 @@
  * @example
  * ```typescript
  * import { contactAPI } from './services/contact-api.service';
-import { contactsToCsvBlob } from '../utils/contactCsv';
  *
  * // Create a contact
  * const contact = await contactAPI.createContact({
@@ -34,6 +33,7 @@ import { compositeFromRow, compositeToRow } from '../lib/fields/compositeFields'
 import { encryptionService } from '../utils/encryption';
 import { Contact } from '../types/contact';
 import { normalizeContactRow } from '../lib/contacts/softDelete';
+import { contactsToCsvBlob } from '../utils/contactCsv';
 import apiConfig from '../config/api.config';
 
 export interface ContactFilters {
@@ -672,6 +672,10 @@ class ContactAPIService {
       filteredContacts = filteredContacts.filter(c => c.status === filters.status);
     }
 
+    if (filters.industry) {
+      filteredContacts = filteredContacts.filter(c => c.industry === filters.industry);
+    }
+
     if (filters.hasAIScore !== undefined) {
       filteredContacts = filteredContacts.filter(c =>
         filters.hasAIScore ? !!c.aiScore : !c.aiScore
@@ -721,6 +725,10 @@ class ContactAPIService {
 
     if (filters.status && filters.status !== 'all') {
       query = query.eq('status', filters.status);
+    }
+
+    if (filters.industry) {
+      query = query.eq('industry', filters.industry);
     }
 
     if (filters.hasAIScore !== undefined) {

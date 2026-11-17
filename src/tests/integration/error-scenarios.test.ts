@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { agentFramework } from '../../services/agentFramework';
 import { agentService } from '../../services/agentService';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../services/supabaseClient';
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {

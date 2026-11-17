@@ -377,7 +377,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           <div>
             <div className="text-sm text-gray-600">Deal Value</div>
             <div className="text-sm font-medium text-gray-900">
-              ${deal.value?.toLocaleString() || 'TBD'}
+              {deal.value ? `$${deal.value.toLocaleString()}` : 'TBD'}
             </div>
           </div>
           <div>

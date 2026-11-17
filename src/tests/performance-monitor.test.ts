@@ -274,8 +274,10 @@ describe('Performance Monitor', () => {
       expect(cacheMetrics).toHaveLength(1);
       expect(processingMetrics).toHaveLength(1);
 
-      // Search operation should include all phases
-      expect(searchMetrics[0].value).toBeGreaterThanOrEqual(145); // 120 + 15 + 10 + buffer
+      // The timer measures elapsed time (120ms API call + 10ms of the rest); the recorded
+      // cache_check / result_processing values are separate metrics, not part of the elapsed time
+      expect(searchMetrics[0].value).toBeGreaterThanOrEqual(130);
+      expect(searchMetrics[0].value).toBeGreaterThanOrEqual(apiMetrics[0].value);
     });
 
     it('should track search performance thresholds', () => {

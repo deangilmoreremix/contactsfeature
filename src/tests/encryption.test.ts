@@ -4,29 +4,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import CryptoJS from 'crypto-js';
 import { encryptionService } from '../utils/encryption';
 
-// Mock crypto-js
-vi.mock('crypto-js', () => ({
-  default: {
-    AES: {
-      encrypt: vi.fn((data, key) => ({
-        toString: vi.fn(() => `encrypted_${data}_${key}`)
-      })),
-      decrypt: vi.fn((encrypted, key) => ({
-        toString: vi.fn((encoding) => {
-          if (encoding === 'utf8') {
-            return encrypted.replace('encrypted_', '').replace(`_${key}`, '');
-          }
-          return encrypted;
-        })
-      }))
-    },
-    enc: {
-      Utf8: 'utf8'
-    }
-  }
-}));
+// The cipher is real (AES from crypto-js); only localStorage is replaced, by a Map-backed fake.
+const ENCRYPTION_KEY = 'contacts-encryption-key-v1';
+const storage = new Map<string, string>();
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -53,9 +36,10 @@ describe('Encryption Service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLocalStorage.getItem.mockReturnValue(null);
-    mockLocalStorage.setItem.mockImplementation(() => {});
-    mockLocalStorage.removeItem.mockImplementation(() => {});
+    storage.clear();
+    mockLocalStorage.getItem.mockImplementation((k: string) => storage.get(k) ?? null);
+    mockLocalStorage.setItem.mockImplementation((k: string, v: string) => { storage.set(k, v); });
+    mockLocalStorage.removeItem.mockImplementation((k: string) => { storage.delete(k); });
   });
 
   afterEach(() => {
@@ -66,9 +50,12 @@ describe('Encryption Service', () => {
     it('should encrypt data successfully', () => {
       const encrypted = encryptionService.encrypt(testData);
 
-      expect(encrypted).toBe(`encrypted_${testJson}_contacts-encryption-key-v1`);
       expect(typeof encrypted).toBe('string');
       expect(encrypted.length).toBeGreaterThan(0);
+      // The result is AES ciphertext, not the plain JSON
+      expect(encrypted).not.toContain(testJson);
+      expect(encrypted).not.toContain('john@example.com');
+      expect(encrypted).not.toContain('secret-data');
     });
 
     it('should decrypt data successfully', () => {
@@ -85,8 +72,8 @@ describe('Encryption Service', () => {
         true,
         [1, 2, 3],
         { nested: { value: 'test' } },
-        null,
-        undefined
+        null
+        // `undefined` has no JSON representation, so it cannot be stored
       ];
 
       testCases.forEach((data) => {
@@ -131,15 +118,14 @@ describe('Encryption Service', () => {
     it('should set encrypted item in localStorage', () => {
       encryptionService.setEncryptedItem('test-key', testData);
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'test-key',
-        `encrypted_${testJson}_contacts-encryption-key-v1`
-      );
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith('test-key', expect.any(String));
+      const stored = mockLocalStorage.setItem.mock.calls[0][1] as string;
+      expect(stored).not.toContain('john@example.com');
+      expect(encryptionService.decrypt(stored)).toEqual(testData);
     });
 
     it('should get decrypted item from localStorage', () => {
-      const encryptedData = `encrypted_${testJson}_contacts-encryption-key-v1`;
-      mockLocalStorage.getItem.mockReturnValue(encryptedData);
+      mockLocalStorage.getItem.mockReturnValue(encryptionService.encrypt(testData));
 
       const result = encryptionService.getDecryptedItem('test-key');
 
@@ -186,7 +172,7 @@ describe('Encryption Service', () => {
 
       expect(() => {
         encryptionService.setEncryptedItem('test-key', testData);
-      }).toThrow('Failed to store encrypted data');
+      }).toThrow('localStorage quota exceeded'); // the storage error is rethrown as is
 
       expect(consoleSpy).toHaveBeenCalledWith('Failed to store encrypted data:', expect.any(Error));
 
@@ -217,22 +203,22 @@ describe('Encryption Service', () => {
       const encrypted1 = encryptionService.encrypt(data1);
       const encrypted2 = encryptionService.encrypt(data2);
 
-      // Both should use the same key
-      expect(encrypted1).toContain('contacts-encryption-key-v1');
-      expect(encrypted2).toContain('contacts-encryption-key-v1');
+      // Both are decryptable with the one documented key
+      expect(CryptoJS.AES.decrypt(encrypted1, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8)).toBe(JSON.stringify(data1));
+      expect(CryptoJS.AES.decrypt(encrypted2, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8)).toBe(JSON.stringify(data2));
 
       // But produce different encrypted outputs for different data
       expect(encrypted1).not.toBe(encrypted2);
     });
 
     it('should produce different encrypted outputs for same data', () => {
-      // Note: In a real implementation, you might want to add salt/randomization
-      // This test documents current behavior
+      // CryptoJS passphrase mode salts every encryption, so the output is not deterministic
       const encrypted1 = encryptionService.encrypt(testData);
       const encrypted2 = encryptionService.encrypt(testData);
 
-      // Currently produces the same output (deterministic encryption)
-      expect(encrypted1).toBe(encrypted2);
+      expect(encrypted1).not.toBe(encrypted2);
+      expect(encryptionService.decrypt(encrypted1)).toEqual(testData);
+      expect(encryptionService.decrypt(encrypted2)).toEqual(testData);
     });
 
     it('should handle special characters in data', () => {
@@ -259,7 +245,9 @@ describe('Encryption Service', () => {
       const encrypted = encryptionService.encrypt(binaryData);
       const decrypted = encryptionService.decrypt(encrypted);
 
-      expect(decrypted).toEqual(binaryData);
+      // JSON has no binary type: the Uint8Array comes back as a plain index -> byte object, the string is intact
+      expect(decrypted).toEqual(JSON.parse(JSON.stringify(binaryData)));
+      expect(decrypted.blob).toBe(binaryData.blob);
     });
   });
 
@@ -286,13 +274,19 @@ describe('Encryption Service', () => {
     });
 
     it('should handle decryption with wrong key', () => {
-      // This would normally fail, but our mock doesn't simulate key validation
       const encrypted = encryptionService.encrypt(testData);
 
-      // In real implementation, wrong key would cause decryption to fail
-      // Our mock just returns the original data, so this test documents the expected behavior
-      const decrypted = encryptionService.decrypt(encrypted);
-      expect(decrypted).toEqual(testData);
+      // Another key cannot recover the plain text (empty or garbage, never the JSON)
+      let wrongKeyResult = '';
+      try {
+        wrongKeyResult = CryptoJS.AES.decrypt(encrypted, 'some-other-key').toString(CryptoJS.enc.Utf8);
+      } catch {
+        wrongKeyResult = ''; // malformed UTF-8 is also a failed decryption
+      }
+      expect(wrongKeyResult).not.toBe(testJson);
+
+      // The service's own key does
+      expect(encryptionService.decrypt(encrypted)).toEqual(testData);
     });
   });
 

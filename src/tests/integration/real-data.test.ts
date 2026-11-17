@@ -9,6 +9,10 @@ import { useContactStore } from '../../hooks/useContactStore';
 import { contactAPI } from '../../services/contact-api.service';
 import { Contact } from '../../types';
 
+vi.mock('../../services/contact-api.service');
+vi.mock('../../services/cache.service');
+vi.mock('../../services/logger.service');
+
 // Mock browser APIs for testing
 const mockLocalStorage = {
   getItem: vi.fn(() => null),
@@ -36,24 +40,34 @@ const mockURL = {
 };
 
 // Set up global mocks
-Object.defineProperty(global, 'window', {
-  value: {
-    localStorage: mockLocalStorage,
-    document: mockDocument,
-    URL: mockURL,
-  },
-  writable: true,
-});
 
-Object.defineProperty(global, 'document', {
-  value: mockDocument,
-  writable: true,
-});
+
+
 
 Object.defineProperty(global, 'localStorage', {
   value: mockLocalStorage,
   writable: true,
 });
+
+/** Quote-aware split of one CSV line (the fixtures below contain quoted fields with commas). */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') { current += '"'; i++; } else { quoted = !quoted; }
+    } else if (ch === ',' && !quoted) {
+      fields.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
 
 // Real-world test data scenarios
 const realWorldContacts = {
@@ -185,9 +199,19 @@ describe('Real Data Integration Tests', () => {
     // Reset localStorage mock
     mockLocalStorage.getItem.mockReturnValue(null);
     mockLocalStorage.setItem.mockClear();
+    // Database mode, development fallbacks off, empty store (it starts with the built-in sample contacts)
+    vi.stubEnv('DEV', false);
+    vi.mocked(contactAPI.usesDatabase).mockReturnValue(true);
+    useContactStore.setState({ contacts: [], totalCount: 0, hasMore: false, error: null, isLoading: false, selectedContact: null, trashedContacts: [] });
+    // jsdom has no object URLs; the export download click is observed instead of navigating
+    Object.assign(window.URL, { createObjectURL: mockURL.createObjectURL, revokeObjectURL: mockURL.revokeObjectURL });
+    mockURL.createObjectURL.mockReturnValue('mock-blob-url');
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
     vi.resetAllMocks();
   });
 
@@ -319,19 +343,19 @@ describe('Real Data Integration Tests', () => {
       const { result } = renderHook(() => useContactStore());
 
       const csvContacts = realCsvScenarios.complexCsv.split('\n').slice(1).map(line => {
-        const parts = line.split(',');
+        const parts = parseCsvLine(line);
         return {
           firstName: parts[0],
           lastName: parts[1],
           email: parts[2],
           phone: parts[3],
-          title: parts[4].replace(/"/g, ''),
-          company: parts[5].replace(/"/g, ''),
+          title: parts[4],
+          company: parts[5],
           industry: parts[6],
           interestLevel: parts[7] as 'hot' | 'medium' | 'low',
           status: parts[8] as 'lead' | 'prospect' | 'customer',
-          tags: parts[9].replace(/"/g, '').split(','),
-          notes: parts[10].replace(/"/g, ''),
+          tags: parts[9].split(','),
+          notes: parts[10],
           sources: ['CSV Import']
         };
       });
@@ -409,7 +433,7 @@ describe('Real Data Integration Tests', () => {
       const { result } = renderHook(() => useContactStore());
 
       const csvContacts = realCsvScenarios.messyCsv.split('\n').slice(1).map(line => {
-        const parts = line.split(',');
+        const parts = parseCsvLine(line);
         return {
           firstName: parts[0] || '',
           lastName: parts[1] || '',
@@ -445,10 +469,10 @@ describe('Real Data Integration Tests', () => {
         await result.current.importContacts(csvContacts);
       });
 
-      // Should only import valid contacts
-      expect(result.current.contacts).toHaveLength(2);
+      // Only complete rows are imported: Bob has no last name and the third row has no valid email
+      expect(validContacts).toHaveLength(1);
+      expect(result.current.contacts).toHaveLength(1);
       expect(result.current.contacts[0].firstName).toBe('Alice');
-      expect(result.current.contacts[1].firstName).toBe('Bob');
     });
   });
 
@@ -487,21 +511,8 @@ describe('Real Data Integration Tests', () => {
       });
 
       expect(contactAPI.exportContacts).toHaveBeenCalledWith({}, 'csv');
-      expect(mockDocument.createElement).toHaveBeenCalledWith('a');
       expect(mockURL.createObjectURL).toHaveBeenCalledWith(mockBlob);
-    });
-
-    it('should export filtered contact data', async () => {
-      const { result } = renderHook(() => useContactStore());
-
-      const mockBlob = new Blob(['filtered,data'], { type: 'text/csv' });
-      vi.mocked(contactAPI.exportContacts).mockResolvedValue(mockBlob);
-
-      await act(async () => {
-        await result.current.exportContacts('csv', { industry: 'Technology' });
-      });
-
-      expect(contactAPI.exportContacts).toHaveBeenCalledWith({ industry: 'Technology' }, 'csv');
+      expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
     });
 
     it('should export as JSON with proper formatting', async () => {
@@ -603,15 +614,16 @@ describe('Real Data Integration Tests', () => {
 
       expect(result.current.contacts).toHaveLength(5);
 
-      // 2. Filter and export tech contacts only
+      // 2. Export. The store exports with empty filters (it has no per-call filter argument)
       const mockBlob = new Blob(['tech,contacts'], { type: 'text/csv' });
       vi.mocked(contactAPI.exportContacts).mockResolvedValue(mockBlob);
 
       await act(async () => {
-        await result.current.exportContacts('csv', { industry: 'Technology' });
+        await result.current.exportContacts('csv');
       });
 
-      expect(contactAPI.exportContacts).toHaveBeenCalledWith({ industry: 'Technology' }, 'csv');
+      expect(contactAPI.exportContacts).toHaveBeenCalledWith({}, 'csv');
+      expect(mockURL.createObjectURL).toHaveBeenCalledWith(mockBlob);
     });
   });
 
