@@ -1319,6 +1319,29 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
         </div>
       </div>
 
+      {/* AI Suggestions output: shown where the button is, as it streams and after it finishes */}
+      {activeTab !== 'suggestions' && (live.state.active || suggestions.length > 0) && (
+        <GlassCard className="p-4 space-y-3">
+          <LiveRunStatus live={live} showText placeholder="Researching and drafting suggestions…" />
+          {!live.state.active && suggestions.length > 0 && (
+            <>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-gray-900">AI Suggestions ({suggestions.length})</h4>
+                <button type="button" className="text-sm text-purple-700 hover:underline" onClick={() => setActiveTab('suggestions')}>View all</button>
+              </div>
+              <ul className="space-y-2">
+                {suggestions.map((s) => (
+                  <li key={s.id} className="text-sm text-gray-700">
+                    <span className="font-medium text-gray-900">{s.title}</span>
+                    {s.description ? <span> — {s.description}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </GlassCard>
+      )}
+
       {/* Automation Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <GlassCard className="p-4" aria-label={`${automations.filter(a => a.isActive).length} active automation rules`}>

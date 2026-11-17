@@ -21,6 +21,15 @@ interface AgentButtonProps {
   children?: React.ReactNode;
 }
 
+/** The agent's answer as readable text: its output_text, else what streamed, else a text-like field of the payload. */
+function finalText(result: AgentExecutionResult, streamed: string): string {
+  const r = result as unknown as Record<string, unknown>;
+  const data = (r.data ?? {}) as Record<string, unknown>;
+  const candidates = [result.response?.output_text, r.content, r.text, r.summary, data.text, data.summary, streamed];
+  const hit = candidates.find((c): c is string => typeof c === 'string' && c.trim().length > 0 && !/^\s*[{[]/.test(c));
+  return hit ?? '';
+}
+
 export const AgentButton: React.FC<AgentButtonProps> = ({
   agentId,
   functionName,
@@ -38,6 +47,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [executionResult, setExecutionResult] = useState<AgentExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resultText, setResultText] = useState('');
   // Live run: status line + the agent's answer typing in (dual-mode functions stream; others answer as plain JSON)
   const live = useLiveCall();
 
@@ -76,6 +86,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
     setLoading(true);
     setError(null);
     setExecutionResult(null);
+    setResultText('');
 
     try {
       let result: AgentExecutionResult;
@@ -89,6 +100,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         }, opts));
         if (!run) return; // stopped by the user
         result = (run.result ?? {}) as AgentExecutionResult;
+        setResultText(finalText(result, run.outcome.text));
       } else {
         // Generic runner: dispatches the agent id to its dual-mode function server-side (allow-list) and streams
         // the agent's own answer through; ownership of the contact / deal is checked there.
@@ -100,6 +112,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         }, opts));
         if (!run) return; // stopped by the user
         result = (run.result ?? {}) as AgentExecutionResult;
+        setResultText(finalText(result, run.outcome.text));
       }
 
       setExecutionResult(result);
@@ -177,9 +190,13 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         />
       )}
 
+      {/* The agent's answer, typing in while it runs and kept beneath the button once finished */}
       {live.state.active && (
-        <div className="fixed bottom-4 right-4 max-w-sm w-full z-50">
-          <LiveRunStatus live={live} />
+        <LiveRunStatus live={live} showText className="w-full basis-full mt-2 text-left" placeholder="Agent is working…" />
+      )}
+      {!live.state.active && resultText && (
+        <div className="w-full basis-full mt-2 text-left rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3" aria-label={`${agent.name} result`}>
+          <pre className="whitespace-pre-wrap break-words text-sm font-sans text-gray-800 dark:text-gray-100 m-0">{resultText}</pre>
         </div>
       )}
 

@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { aiOrchestrator, AIRequest, AIResponse } from '../services/ai-orchestrator.service';
-import { contactAI, ContactInsight, ContactScore } from '../services/contact-ai.service';
+import { contactAI, ContactInsight, ContactScore, type BulkProgress } from '../services/contact-ai.service';
 import { communicationAI } from '../services/communication-ai.service';
 import { logger } from '../services/logger.service';
 import { Contact } from '../types';
@@ -51,7 +51,7 @@ interface AIActions {
   getCommunicationStrategy: (contact: Contact) => Promise<any>;
   
   // Batch operations
-  scoreBulkContacts: (contacts: Contact[]) => Promise<void>;
+  scoreBulkContacts: (contacts: Contact[], progress?: BulkProgress) => Promise<void>;
   generateBulkInsights: (contacts: Contact[]) => Promise<void>;
   
   // State management
@@ -429,14 +429,14 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   }, []);
 
-  const scoreBulkContacts = useCallback(async (contacts: Contact[]): Promise<void> => {
+  const scoreBulkContacts = useCallback(async (contacts: Contact[], progress?: BulkProgress): Promise<void> => {
     const requestId = `bulk_score_${Date.now()}`;
     
     try {
       dispatch({ type: 'ADD_ACTIVE_REQUEST', payload: { id: requestId, type: 'bulk_scoring' } });
       dispatch({ type: 'SET_PROCESSING', payload: true });
       
-      const results = await contactAI.getBulkInsights(contacts, 'scoring');
+      const results = await contactAI.getBulkInsights(contacts, 'scoring', progress);
       
       results.forEach(result => {
         if (result.insights && !result.error) {

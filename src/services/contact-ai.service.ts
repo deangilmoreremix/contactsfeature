@@ -10,6 +10,15 @@ import { logger } from './logger.service';
 import { webSearchService } from './webSearchService';
 import { Contact } from '../types';
 
+/** Per-contact live progress for bulk runs (scores stream in as each contact is analysed). */
+export interface BulkProgress {
+  onItemStart?: (contact: Contact) => void;
+  onItemStatus?: (contact: Contact, label: string) => void;
+  onItemPartial?: (contact: Contact, partial: unknown) => void;
+  onItemText?: (contact: Contact, text: string) => void;
+  onItemDone?: (contact: Contact, ok: boolean) => void;
+}
+
 export interface ContactInsight {
   id: string;
   type: 'opportunity' | 'risk' | 'recommendation' | 'prediction' | 'pattern';
@@ -320,7 +329,8 @@ class ContactAIService {
 
   async getBulkInsights(
     contacts: Contact[],
-    insightType: 'scoring' | 'categorization' | 'opportunity_analysis' = 'scoring'
+    insightType: 'scoring' | 'categorization' | 'opportunity_analysis' = 'scoring',
+    progress?: BulkProgress
   ): Promise<Array<{ contactId: string; insights: any; error?: string }>> {
     const results = [];
     
@@ -330,23 +340,32 @@ class ContactAIService {
       const batch = contacts.slice(i, i + batchSize);
       
       const batchPromises = batch.map(async (contact) => {
+        // Per-item live callbacks (streams each contact's result) only when a progress listener is attached
+        const live: LiveOptions | undefined = progress ? {
+          onStatus: (label) => progress.onItemStatus?.(contact, label),
+          onPartial: (partial) => progress.onItemPartial?.(contact, partial),
+          onDelta: (_t, full) => progress.onItemText?.(contact, full),
+        } : undefined;
+        progress?.onItemStart?.(contact);
         try {
           let insights;
           
           switch (insightType) {
             case 'scoring':
-              insights = await this.scoreContact(contact);
+              insights = await this.scoreContact(contact, undefined, live);
               break;
             case 'categorization':
-              insights = await this.generateInsights(contact, ['recommendation']);
+              insights = await this.generateInsights(contact, ['recommendation'], undefined, live);
               break;
             case 'opportunity_analysis':
-              insights = await this.generateInsights(contact, ['opportunity', 'prediction']);
+              insights = await this.generateInsights(contact, ['opportunity', 'prediction'], undefined, live);
               break;
           }
           
+          progress?.onItemDone?.(contact, true);
           return { contactId: contact.id, insights };
         } catch (error) {
+          progress?.onItemDone?.(contact, false);
           return { 
             contactId: contact.id, 
             insights: null, 

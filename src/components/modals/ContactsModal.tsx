@@ -53,6 +53,8 @@ import { DashboardView } from '../contacts/views/DashboardView';
 import { TimelineView } from '../contacts/views/TimelineView';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import Fuse from 'fuse.js';
+import { liveDisplay } from '../../lib/streaming/previewText';
+import type { BulkProgress } from '../../services/contact-ai.service';
 import {
   X,
   Search,
@@ -128,6 +130,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(() => readDismissedDuplicateGroups());
   const [bulkTagInput, setBulkTagInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  // Contacts being scored right now, with the score fields streaming in (shown in the progress banner)
+  const [liveScores, setLiveScores] = useState<Record<string, { name: string; text: string }>>({});
   const [bulkActionDropdown, setBulkActionDropdown] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'company' | 'score' | 'updated'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -359,7 +363,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
     switch (currentView) {
       case 'list':
-        return <ListView {...viewProps} />;
+        return <ListView {...viewProps} onOpenSDRModal={handleOpenSDRModal} />;
       case 'table':
         return <TableView {...viewProps} />;
       case 'kanban':
@@ -416,6 +420,23 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     }
   };
 
+  /** Live per-contact progress for bulk scoring: updates the banner's counter and the streaming score preview. */
+  const bulkScoreProgress = (total: number): BulkProgress => {
+    let done = 0;
+    const nameOf = (c: Contact) => c.name || [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email || 'Contact';
+    const put = (c: Contact, text: string) => setLiveScores(prev => ({ ...prev, [c.id]: { name: nameOf(c), text } }));
+    return {
+      onItemStart: (c) => put(c, ''),
+      onItemPartial: (c, partial) => put(c, liveDisplay(partial, '')),
+      onItemText: (c, full) => put(c, liveDisplay(undefined, full)),
+      onItemDone: (c) => {
+        done += 1;
+        setAnalysisProgress({ current: done, total });
+        setLiveScores(prev => { const { [c.id]: _gone, ...rest } = prev; return rest; });
+      },
+    };
+  };
+
   const handleAnalyzeAll = async () => {
     const contactsToAnalyze = filteredContacts.filter(c => !c.aiScore || c.aiScore === 0);
     
@@ -430,7 +451,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
     try {
       // Use the new bulk analysis service
-      await scoreBulkContacts(contactsToAnalyze);
+      await scoreBulkContacts(contactsToAnalyze, bulkScoreProgress(contactsToAnalyze.length));
       setAiResults({ success: contactsToAnalyze.length, failed: 0 });
     } catch (error) {
       console.error('Bulk analysis failed:', error);
@@ -438,6 +459,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     }
 
     setAnalysisProgress(null);
+    setLiveScores({});
     setIsAnalyzing(false);
   };
 
@@ -453,7 +475,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
 
     try {
       const selectedContactObjects = contacts.filter(c => selectedContacts.includes(c.id));
-      await scoreBulkContacts(selectedContactObjects);
+      await scoreBulkContacts(selectedContactObjects, bulkScoreProgress(selectedContactObjects.length));
       setAiResults({ success: selectedContactObjects.length, failed: 0 });
     } catch (error) {
       console.error('Selected analysis failed:', error);
@@ -461,6 +483,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     }
 
     setAnalysisProgress(null);
+    setLiveScores({});
     setSelectedContacts([]);
     setIsAnalyzing(false);
   };
@@ -1007,6 +1030,17 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
                   <span className="text-sm text-purple-700 dark:text-purple-300">
                     {Math.round((analysisProgress.current / analysisProgress.total) * 100)}%
                   </span>
+                </div>
+              )}
+
+              {analysisProgress && Object.keys(liveScores).length > 0 && (
+                <div className="mt-3 space-y-2" aria-live="polite">
+                  {Object.entries(liveScores).map(([id, item]) => (
+                    <div key={id} className="text-sm text-purple-900 dark:text-purple-200">
+                      <span className="font-medium">{item.name}</span>
+                      {item.text ? <pre className="whitespace-pre-wrap break-words font-sans text-xs text-purple-800 dark:text-purple-300 m-0 mt-1">{item.text}</pre> : null}
+                    </div>
+                  ))}
                 </div>
               )}
 

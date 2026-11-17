@@ -52,7 +52,11 @@ describe('tracking helpers', () => {
 describe('track-click / track-open handlers', () => {
   it('rejects non-http targets and redirects valid ones', async () => {
     const updates: string[] = [];
-    const chain: any = { update: () => chain, eq: () => chain, is: () => { updates.push('u'); return Promise.resolve({}); } };
+    const chain: any = {
+      select: () => chain, update: () => chain, eq: () => chain,
+      maybeSingle: async () => ({ data: { id: ID, body_html: '<a href="https://acme.com/p">p</a>', body_text: null }, error: null }),
+      is: () => { updates.push('u'); return Promise.resolve({}); },
+    };
     require.cache[require.resolve('../netlify/functions/_supabaseClient.js')] = { exports: { supabase: { from: () => chain } } } as any;
     delete require.cache[require.resolve('../netlify/functions/track-click.js')];
     delete require.cache[require.resolve('../netlify/functions/track-open.js')];

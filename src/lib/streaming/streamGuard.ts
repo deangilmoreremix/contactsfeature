@@ -23,12 +23,22 @@ declare global {
 
 const ENDPOINTS = new Set<string>((endpointsJson as { endpoints: string[] }).endpoints);
 // plain-JSON by design (non-visible pipelines / mint tokens / reference-image edits)
-const EXEMPT = new Set(['ai-respond', 'generate-image', 'realtime-token']);
+const EXEMPT = new Set(['generate-image', 'realtime-token']);
+// ai-respond is the plain-JSON twin of ai-stream, so it is policed too: any call without stream:true is a violation
+// unless it is one of the documented non-visible callers below (no UI is attached to the run).
+const POLICED_EXTRA = new Set(['ai-respond']);
+/**
+ * Documented non-visible ai-respond callers, keyed by the request's `schemaName`:
+ * ai-task-queue.service.ts (queued background scoring/enrichment workers, "INTENTIONALLY NON-STREAMING").
+ */
+export const NON_VISIBLE_AI_RESPOND_SCHEMAS: ReadonlySet<string> = new Set([
+  'lead_score', 'task_enrichment', 'task_insights', 'task_email',
+]);
 const NAME_RE = /\/(?:\.netlify\/functions|functions\/v1)\/([a-z0-9-]+)/;
 
 export function endpointOf(url: string): string | null {
   const m = NAME_RE.exec(url);
-  return m && ENDPOINTS.has(m[1]) && !EXEMPT.has(m[1]) ? m[1] : null;
+  return m && (ENDPOINTS.has(m[1]) || POLICED_EXTRA.has(m[1])) && !EXEMPT.has(m[1]) ? m[1] : null;
 }
 
 export function wantsStream(init?: RequestInit, request?: Request): boolean {
@@ -37,6 +47,17 @@ export function wantsStream(init?: RequestInit, request?: Request): boolean {
   const body = init?.body;
   if (typeof body === 'string') return /"stream(ing)?"\s*:\s*true/.test(body);
   return false;
+}
+
+/** True for an allow-listed non-visible plain request (only `ai-respond` + a documented schemaName). */
+export function isAllowedNonStream(endpoint: string, init?: RequestInit): boolean {
+  if (endpoint !== 'ai-respond' || typeof init?.body !== 'string') return false;
+  try {
+    const name = (JSON.parse(init.body) as { schemaName?: unknown }).schemaName;
+    return typeof name === 'string' && NON_VISIBLE_AI_RESPOND_SCHEMAS.has(name);
+  } catch {
+    return false;
+  }
 }
 
 export function installStreamGuard(): void {
@@ -52,7 +73,7 @@ export function installStreamGuard(): void {
     const endpoint = endpointOf(url);
     if (endpoint) {
       window.__streamRequests!.push({ endpoint, at: Date.now() });
-      if (!wantsStream(init, input instanceof Request ? input : undefined)) {
+      if (!wantsStream(init, input instanceof Request ? input : undefined) && !isAllowedNonStream(endpoint, init)) {
         window.__streamViolations!.push({ url, endpoint, at: Date.now() });
         console.error(`STREAM_VIOLATION: ${endpoint} was called without stream:true / Accept: text/event-stream`);
       }

@@ -1,6 +1,6 @@
 /**
- * Panels backed by the new endpoints must fill in WHILE the answer is produced: Skills (text), Memory (brief) and
- * Heatmap (deal list). A dripping SSE server answers (events 150-300 ms apart); each assertion samples the DOM over
+ * Panels backed by the new endpoints must fill in WHILE the answer is produced: Skills (text), Memory (brief),
+ * Heatmap (deal list), Mood (rationale + opener), Playbooks, Video (script + storyboard) and Voice (script). A dripping SSE server answers (events 150-300 ms apart); each assertion samples the DOM over
  * time and needs growth over >= 3 snapshots. Light + dark screenshots go to $SHOTS (default /tmp).
  *   npx playwright test -c tests/playwright/panels.config.ts
  */
@@ -33,6 +33,12 @@ async function setup(page: Page, c: string, theme: 'light' | 'dark' = 'light') {
   await page.goto(`/tests/playwright/harness/panels.html?c=${c}&theme=${theme}`);
 }
 
+/** length of the first matching element's text, -1 when absent (the live box is removed when the run ends: never wait on it) */
+const lenOf = (loc: ReturnType<Page['locator']>) => async () => {
+  const t = await loc.first().textContent({ timeout: 250 }).catch(() => null);
+  return t === null ? -1 : t.length;
+};
+
 async function samples(page: Page, read: () => Promise<number>, ms = 7000): Promise<number[]> {
   const seen: number[] = [];
   const end = Date.now() + ms;
@@ -57,7 +63,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Run Skill' }).click();
     await expect(page.getByText('Thinking…').first()).toBeVisible({ timeout: 5000 });
     const out = page.locator('pre').filter({ hasText: /Thanks for being upfront|^Thanks/ });
-    const lens = await samples(page, async () => (await out.count()) ? ((await out.first().textContent()) || '').length : -1, 7000);
+    const lens = await samples(page, lenOf(out), 7000);
     expect(grows(lens), `reply length over time: ${lens}`).toBe(true);
     await expect(page.getByText('Let us run a four week pilot', { exact: false }).first()).toBeVisible();
     await expect(page.getByText(/ran for contact/)).toBeVisible();
@@ -69,7 +75,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByPlaceholder('Enter contact UUID').fill(CONTACT);
     await page.getByRole('button', { name: 'View Memory' }).click();
     const brief = page.locator('pre').filter({ hasText: /^Ada prefers/ });
-    const lens = await samples(page, async () => (await brief.count()) ? ((await brief.first().textContent()) || '').length : -1, 7000);
+    const lens = await samples(page, lenOf(brief), 7000);
     expect(grows(lens), `brief length over time: ${lens}`).toBe(true);
     await expect(page.getByText('Sent pricing').first()).toBeVisible();
     await expect(page.getByText('Short-Term')).toBeVisible();
@@ -81,10 +87,63 @@ for (const theme of ['light', 'dark'] as const) {
     await setup(page, 'heatmap', theme);
     await page.getByRole('button', { name: 'Assess Open Deals' }).click();
     const live = page.locator('pre').filter({ hasText: /rescue this week/ });
-    const lens = await samples(page, async () => (await live.count()) ? ((await live.first().textContent()) || '').length : -1, 8000);
+    const lens = await samples(page, lenOf(live), 8000);
     expect(grows(lens), `streamed reasoning length over time: ${lens}`).toBe(true);
     await expect(page.getByText('Acme expansion · 78/100')).toBeVisible();
     await expect(page.getByText('Next: Send the order form.')).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/panel-heatmap-${theme}.png`, fullPage: true });
+  });
+
+  test(`Mood (${theme}): rationale and opener type in, then the mood card replaces them`, async ({ page }) => {
+    await setup(page, 'mood', theme);
+    await page.getByPlaceholder('Enter contact UUID').fill(CONTACT);
+    await page.getByRole('button', { name: 'Preview Mood' }).click();
+    const live = page.locator('pre').filter({ hasText: /^Ada has gone quiet/ });
+    const lens = await samples(page, lenOf(live), 8000);
+    expect(grows(lens), `streamed mood text length over time: ${lens}`).toBe(true);
+    await expect(page.getByText('⚡ Urgent')).toBeVisible();
+    await expect(page.getByText('Deal risk is high and the proposal has been open')).toBeVisible();
+    await expect(page.getByText('Could we take ten minutes on Thursday')).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/panel-mood-${theme}.png`, fullPage: true });
+  });
+
+  test(`Playbooks (${theme}): summary and scripts stream in, then the playbook lists replace them`, async ({ page }) => {
+    await setup(page, 'playbooks', theme);
+    await page.getByPlaceholder('Enter contact UUID').fill(CONTACT);
+    await page.getByRole('button', { name: 'Generate Playbooks' }).click();
+    const live = page.locator('pre').filter({ hasText: /^Deals like this are won/ });
+    const lens = await samples(page, lenOf(live), 9000);
+    expect(grows(lens), `streamed playbook length over time: ${lens}`).toBe(true);
+    await expect(page.getByText('Top Scripts')).toBeVisible();
+    await expect(page.getByText('Pilot opener')).toBeVisible();
+    await expect(page.getByText('Start with one team and measure the time saved', { exact: false })).toBeVisible();
+    await expect(page.getByText('Based on 4 won and 2 lost deals.')).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/panel-playbooks-${theme}.png`, fullPage: true });
+  });
+
+  test(`Video (${theme}): title, script and storyboard stream in, then the result stays`, async ({ page }) => {
+    await setup(page, 'video', theme);
+    await page.getByPlaceholder('Enter contact UUID').fill(CONTACT);
+    await page.getByPlaceholder('https://your-landing-page.com/offer').fill('https://acme.example/offer');
+    await page.getByRole('button', { name: 'Generate Script & Storyboard' }).click();
+    const live = page.locator('pre').filter({ hasText: /^Two minute demo for Ada/ });
+    const lens = await samples(page, lenOf(live), 9000);
+    expect(grows(lens), `streamed script length over time: ${lens}`).toBe(true);
+    await expect(page.getByText('Rendering is not available')).toBeVisible();
+    await expect(page.getByText('Hi Ada, this is a short walkthrough', { exact: false })).toBeVisible();
+    await expect(page.getByText('Pilot setup form with the start date', { exact: false })).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/panel-video-${theme}.png`, fullPage: true });
+  });
+
+  test(`Voice (${theme}): voice script types in, then the result stays`, async ({ page }) => {
+    await setup(page, 'voice', theme);
+    await page.getByPlaceholder('Enter contact UUID').fill(CONTACT);
+    await page.getByPlaceholder(/Hi \{\{name\}\}/).fill('Pilot follow-up voicemail for Ada');
+    await page.getByRole('button', { name: 'Generate Voice Message' }).click();
+    const live = page.locator('pre').filter({ hasText: /^Hi Ada, it is Sam/ });
+    const lens = await samples(page, lenOf(live), 8000);
+    expect(grows(lens), `streamed voice script length over time: ${lens}`).toBe(true);
+    await expect(page.getByText('call me back this week', { exact: false })).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/panel-voice-${theme}.png`, fullPage: true });
   });
 }

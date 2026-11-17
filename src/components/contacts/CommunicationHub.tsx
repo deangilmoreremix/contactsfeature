@@ -250,14 +250,32 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         if (type === 'email') {
           researchThinking.moveToOptimizing('📧 Generating personalized email...');
 
-          const composed = await hub.runLive((h) => streamFunction('email-composer', {
+          // The email types itself into the content modal while it is written, and stays there when done.
+          const composed = await hub.runLive((h) => streamFunction<any>('email-composer', {
             contact, purpose: 'follow-up', tone: 'professional', context: { urgency: 'medium' },
             webResearch: searchResults.content, companyContext: searchResults.sources
-          }, h));
+          }, {
+            ...h,
+            onPartial: (j) => {
+              const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string; content?: string };
+              const text = p.content ?? p.body;
+              if (text || p.subject) {
+                setGeneratedContent({ type: 'email', content: text || '', subject: p.subject, timestamp: new Date() });
+                setShowContentModal(true);
+              }
+              h.onPartial?.(j);
+            }
+          }));
           if (!composed) { researchThinking.complete('Stopped'); return; }
-          const result = composed.result;
+          const result = composed.result || {};
+          setGeneratedContent({
+            type: 'email',
+            content: result.content || result.body || 'Email generated successfully.',
+            subject: result.subject || `Following up: ${contact.company}`,
+            timestamp: new Date()
+          });
+          setShowContentModal(true);
           setIsComposing(true);
-          console.log('Generated email with web research:', result);
         } else if (type === 'sms') {
           researchThinking.moveToOptimizing('📱 Generating personalized SMS...');
 
@@ -577,6 +595,7 @@ Sales Representative`
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
                     AI Generated {generatedContent.type === 'meeting' ? 'Meeting Invite' :
+                                 generatedContent.type === 'email' ? 'Email' :
                                  generatedContent.type === 'proposal' ? 'Proposal Email' :
                                  generatedContent.type === 'strategy' ? 'Communication Strategy' : 'Content'}
                   </h3>
@@ -636,7 +655,7 @@ Sales Representative`
               >
                 Copy to Clipboard
               </ModernButton>
-              {generatedContent.type === 'meeting' || generatedContent.type === 'proposal' ? (
+              {generatedContent.type === 'meeting' || generatedContent.type === 'proposal' || generatedContent.type === 'email' ? (
                 <ModernButton size="toolbar"
                   variant="primary"
                   onClick={() => {

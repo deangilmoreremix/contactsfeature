@@ -251,7 +251,7 @@ class AIIntelligenceEngine {
     // Generate communication insights
     try {
       const commStrategy = await communicationAI.generateCommunicationStrategy(contact, undefined, undefined, live);
-      if (commStrategy) {
+      if (commStrategy && commStrategy.optimalChannels.length > 0) {
         insights.push({
           source: 'communication_analysis',
           insight: {

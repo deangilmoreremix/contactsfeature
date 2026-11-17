@@ -41,7 +41,7 @@ if (fs.existsSync(nonAiFile)) for (const l of read(nonAiFile).split('\n')) {
   if (m && !l.trim().startsWith('#')) nonAi.set(m[1], m[2] || '');
 }
 
-const NL_STREAM = /runDual|stream\(|text\/event-stream|toSseReadable|streamBackgroundJob/;
+const NL_STREAM = /runDual|createSdrHandler|stream\(|text\/event-stream|toSseReadable|streamBackgroundJob/;
 const NL_AI = /createResponse|callOpenAI|responsesFetch|streamResponse|@openai\/agents|runSdrAgent|createSdrHandler|runDual|createPanelHandler/;
 const EDGE_STREAM = /respondDual|toSseStream|respondDualTask/;
 const EDGE_AI = /_shared\/openai|api\.openai\.com/;
@@ -69,6 +69,10 @@ const patterns = [
   /callEdgeFunction\(\s*['"`]([a-z0-9-]+)/g,
   /callNetlifyFunction\(\s*['"`]([a-z0-9-]+)/g,
   /functions\/v1\/([a-z0-9-]+)/g,
+  // indirect callers the literal-URL patterns above cannot see (verified against the UI):
+  /streamFunction(?:<[^>(]*>)?\(\s*['"`]([a-z0-9-]+)/g, // streamFunction<T>('adaptive-playbook', ...)
+  /functionName:\s*['"`]([a-z0-9-]+)['"`]/g,             // SDR panels: { functionName: 'cold-call-sdr' } -> fetch(`/.netlify/functions/${functionName}`)
+  /\bslug:\s*['"`]([a-z0-9-]+-sdr)['"`]/g,               // GenericSdrAgentCard configs (linkedin-sdr, ...)
 ];
 const touch = new Map(); // name -> Set(files)
 for (const file of walk(path.join(root, 'src'))) {

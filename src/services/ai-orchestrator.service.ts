@@ -567,7 +567,7 @@ class AIOrchestrator {
   }
 
   /** JSON Schema (Structured Outputs) for each request type. */
-  private schemaForRequest(type: AIRequest['type']): { name: string; schema: Record<string, unknown> } {
+  private schemaForRequest(type: AIRequest['type'], hint?: string): { name: string; schema: Record<string, unknown> } {
     const str = { type: 'string' };
     const nullableStr = { type: ['string', 'null'] };
     const strList = { type: 'array', items: { type: 'string' } };
@@ -579,6 +579,24 @@ class AIOrchestrator {
     });
 
     const confidence = { type: ['integer', 'null'], description: '0-100 integer justified by the evidence in the input, or null' };
+    if (hint === 'communication_strategy') {
+      return {
+        name: 'communication_strategy',
+        schema: obj({
+          optimalChannels: {
+            type: 'array',
+            items: obj({ channel: { type: 'string', enum: ['email', 'phone', 'linkedin', 'sms'] }, effectiveness: { type: 'integer' }, reasoning: strList })
+          },
+          timing: obj({ bestDays: strList, bestHours: strList, frequency: str, nextOptimalContact: str }),
+          messaging: obj({ preferredTone: str, keyMessages: strList, avoidTopics: strList, personalizationTriggers: strList }),
+          contentRecommendations: {
+            type: 'array',
+            items: obj({ type: { type: 'string', enum: ['case_study', 'whitepaper', 'demo', 'pricing', 'testimonial'] }, title: str, relevance: { type: 'integer' }, timing: str })
+          },
+          confidence
+        })
+      };
+    }
     switch (type) {
       case 'contact_scoring':
         return {
@@ -647,7 +665,7 @@ class AIOrchestrator {
   private async callAI(request: AIRequest): Promise<any> {
     const role = this.roleForRequest(request);
     const { instructions, input } = this.createPromptForRequest(request);
-    const { name, schema } = this.schemaForRequest(request.type);
+    const { name, schema } = this.schemaForRequest(request.type, (request.data as any)?.schemaHint);
 
     try {
       const json = await aiJson<any>({

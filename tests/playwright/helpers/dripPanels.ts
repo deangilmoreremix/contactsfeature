@@ -38,6 +38,38 @@ const DEALS = [
   { deal_id: 'cccccccc-0000-4000-8000-000000000003', title: 'Gamma renewal', stage: 'negotiation', value: 8000, contact_name: 'Cy Diaz', risk_score: 18, reason: 'Replied yesterday and agreed the scope.', next_action: 'Send the order form.', assessed: true, factors: { days_since_reply: 1 }, baseline_score: 6 },
 ];
 
+/** growing string partials: the field fills in a few words at a time */
+const growField = (base: Record<string, unknown>, key: string, text: string, step = 28): Ev[] => {
+  const out: Ev[] = [];
+  for (let i = step; i < text.length + step; i += step) out.push({ type: 'partial', json: { ...base, [key]: text.slice(0, Math.min(i, text.length)) } });
+  return out;
+};
+const MOOD = {
+  contactId: '22222222-2222-2222-2222-222222222222', mood: 'urgent', reason: 'Deal risk is high and the proposal has been open for twelve days.',
+  rationale: 'Ada has gone quiet while the proposal is open, so the tone should be direct and time-bound without sounding pushy, and it should offer one clear next step she can say yes to.',
+  sample_message: 'Hi Ada, the proposal is still open on our side. Could we take ten minutes on Thursday to settle the open points so you can decide with everything in front of you?',
+  contact: { name: 'Ada Lovelace', company: 'Analytical Engines' }, deal: { title: 'Acme expansion', stage: 'proposal' },
+};
+const PLAYBOOK = {
+  summary: 'Deals like this are won by getting a second stakeholder on a short call within a week of the proposal and by quoting a pilot instead of a full rollout.',
+  top_scripts: [
+    { name: 'Pilot opener', script: 'Ada, rather than a full rollout, would a four week pilot on one team be easier to say yes to?', when_to_use: 'After a silent proposal' },
+    { name: 'Stakeholder ask', script: 'Who else should see the numbers before you decide? I can prepare a one page summary for them.', when_to_use: 'When one contact is engaged' },
+  ],
+  objections: [{ objection: 'Budget is tight', response: 'Start with one team and measure the time saved, then let that number fund the rest.' }],
+  followups: [{ timing: 'Day 3', message: 'Short recap with the pilot scope and the date options for a call.' }],
+  data_basis: 'Based on 4 won and 2 lost deals.', win_factors: ['Second stakeholder involved', 'Pilot offered'],
+};
+const VIDEO = {
+  title: 'Two minute demo for Ada',
+  script: 'Hi Ada, this is a short walkthrough of how your new managers can ramp up faster. First I will show the playbook library, then the way progress is tracked for each store, and finally how to start a four week pilot.',
+  storyboard: [{ scene: 1, seconds: 20, visual: 'Playbook library open on the screen' }, { scene: 2, seconds: 40, visual: 'Store progress dashboard with the weekly trend' }, { scene: 3, seconds: 30, visual: 'Pilot setup form with the start date' }],
+  call_to_action: 'Book the pilot kick-off', rendering: { available: false, note: 'Rendering is not available: only the script and storyboard were written.' },
+};
+const VOICE = {
+  script: 'Hi Ada, it is Sam from SmartCRM. I wanted to leave a quick note about the pilot we talked about. If a four week trial on one team still sounds useful, call me back this week and we will set the date together.',
+};
+
 export function startDripPanels(port: number): Promise<http.Server> {
   async function play(res: http.ServerResponse, events: Ev[]) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' });
@@ -93,6 +125,32 @@ export function startDripPanels(port: number): Promise<http.Server> {
       }
       const payload = { mode: 'portfolio', summary: 'Acme is the deal to rescue this week.', deals: DEALS };
       return play(res, [{ type: 'status', phase: 'started', label: 'Thinking…', id: 'resp_h' }, ...partials, { type: 'result', data: payload }, { type: 'done', id: 'resp_h', text: '', usage: null, citations: [] }]);
+    }
+
+    const wrap = (id: string, partials: Ev[], payload: unknown) => [{ type: 'status', phase: 'started', label: 'Thinking…', id }, ...partials, { type: 'result', data: payload }, { type: 'done', id, text: '', usage: null, citations: [] }];
+
+    if (url.includes('/mood-preview')) {
+      const p1 = growField({}, 'rationale', MOOD.rationale);
+      const p2 = growField({ rationale: MOOD.rationale }, 'sample_message', MOOD.sample_message);
+      return play(res, wrap('resp_mood', [...p1, ...p2], MOOD));
+    }
+
+    if (url.includes('/playbooks-ai')) {
+      const partials: Ev[] = growField({}, 'summary', PLAYBOOK.summary, 34);
+      for (let i = 1; i <= PLAYBOOK.top_scripts.length; i += 1) partials.push({ type: 'partial', json: { summary: PLAYBOOK.summary, top_scripts: PLAYBOOK.top_scripts.slice(0, i) } });
+      partials.push({ type: 'partial', json: { summary: PLAYBOOK.summary, top_scripts: PLAYBOOK.top_scripts, objections: PLAYBOOK.objections } });
+      partials.push({ type: 'partial', json: { summary: PLAYBOOK.summary, top_scripts: PLAYBOOK.top_scripts, objections: PLAYBOOK.objections, followups: PLAYBOOK.followups } });
+      return play(res, wrap('resp_pb', partials, PLAYBOOK));
+    }
+
+    if (url.includes('/video-agent')) {
+      const partials: Ev[] = [{ type: 'partial', json: { title: VIDEO.title } }, ...growField({ title: VIDEO.title }, 'script', VIDEO.script, 34)];
+      for (let i = 1; i <= VIDEO.storyboard.length; i += 1) partials.push({ type: 'partial', json: { title: VIDEO.title, script: VIDEO.script, storyboard: VIDEO.storyboard.slice(0, i) } });
+      return play(res, wrap('resp_vid', partials, { contactId: body.contactId, videoUrl: null, ...VIDEO }));
+    }
+
+    if (url.includes('/voice-agent')) {
+      return play(res, wrap('resp_voice', growField({}, 'script', VOICE.script, 30), { contactId: body.contactId, script: VOICE.script }));
     }
 
     return json(res, { error: 'not found' }, 404);

@@ -7,6 +7,7 @@ import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOp
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
 import { ModernButton } from '../ui/ModernButton';
+import { SDRModal } from '../modals/SDRModal';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import {
   BookOpen,
@@ -36,6 +37,7 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
   setShowAISettings
 }) => {
   const [currentView, setCurrentView] = useState<PlaybookView>('selector');
+  const [showSDRModal, setShowSDRModal] = useState(false);
   const [selectedPlaybook, setSelectedPlaybook] = useState<any>(null);
 
   const handleSelectPlaybook = (playbook: any) => {
@@ -255,7 +257,7 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
                 </ModernButton>
 
                 <ModernButton size="toolbar"
-                  onClick={() => {/* Open SDR Modal */}}
+                  onClick={() => setShowSDRModal(true)}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="primary"
                 >
@@ -295,6 +297,9 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
 
       {/* Main Content */}
       {renderContent()}
+      {showSDRModal && (
+        <SDRModal isOpen={showSDRModal} onClose={() => setShowSDRModal(false)} contact={contact} />
+      )}
     </div>
   );
 };

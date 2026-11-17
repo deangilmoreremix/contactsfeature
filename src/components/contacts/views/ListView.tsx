@@ -19,6 +19,7 @@ import {
 interface ListViewProps {
   contacts: Contact[];
   onContactClick: (contact: Contact) => void;
+  onOpenSDRModal?: (contact: Contact) => void;
 }
 
 const DENSITY_CONFIG = {
@@ -27,7 +28,7 @@ const DENSITY_CONFIG = {
   spacious: { cardHeight: 200, gridMinWidth: '360px' }
 } as const;
 
-export function ListView({ contacts, onContactClick }: ListViewProps) {
+export function ListView({ contacts, onContactClick, onOpenSDRModal }: ListViewProps) {
   const [density, setDensity] = useState<ViewDensity['type']>('comfortable');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [showDensityMenu, setShowDensityMenu] = useState(false);
@@ -63,6 +64,7 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
               variant="standard"
               showMetrics={true}
               enableQuickActions={true}
+              {...(onOpenSDRModal ? { onOpenSDRModal } : {})}
             />
             <PeekButton contact={contact} className="absolute top-2 right-2 z-20 group-hover/peek:opacity-100 bg-white/80 dark:bg-gray-800/80" />
           </div>

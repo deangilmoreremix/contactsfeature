@@ -127,7 +127,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Users className="w-6 h-6" />,
       category: 'intelligence',
       agentId: 'lead-db-agent',
-      functionName: 'lead-enrichment-agent',
+      functionName: 'data-enrichment-sdr',
       capabilities: [
         'Duplicate lead detection',
         'Real-time data enrichment',

@@ -53,8 +53,8 @@ const InsightsView = ({ insights, filteredInsights, selectedCategory, feedbackGi
       </GlassCard>
     ) : (
       filteredInsights.map((insight: any) => {
-        const Icon = insightIcons[insight.type as keyof typeof insightIcons];
-        const iconColor = insightColors[insight.type as keyof typeof insightColors];
+        const Icon = insightIcons[insight.type as keyof typeof insightIcons] ?? Lightbulb;
+        const iconColor = insightColors[insight.type as keyof typeof insightColors] ?? 'bg-gray-500';
         const impactColor = impactColors[insight.impact as keyof typeof impactColors];
         const userFeedback = feedbackGiven[insight.id];
 
@@ -587,6 +587,17 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
   // While a run streams, show the cards that have arrived so far (same card layout as the final list)
   const liveInsights = live.state.active && activeView === 'insights' ? insightsFromPartial(live.state.partial) : [];
   const shownInsights = liveInsights.length > 0 ? liveInsights : filteredInsights;
+  const liveStrategyLines: string[] = (() => {
+    const p = live.state.active && activeView === 'intelligence' ? (live.state.partial as any) : undefined;
+    if (!p || typeof p !== 'object') return [];
+    const out: string[] = [];
+    for (const ch of Array.isArray(p.optimalChannels) ? p.optimalChannels : []) {
+      if (ch?.channel) out.push(`Channel: ${ch.channel}${ch.effectiveness != null ? ` (${ch.effectiveness}%)` : ''}${Array.isArray(ch.reasoning) && ch.reasoning[0] ? ` - ${ch.reasoning[0]}` : ''}`);
+    }
+    if (Array.isArray(p.timing?.bestDays) && p.timing.bestDays.length) out.push(`Best days: ${p.timing.bestDays.join(', ')}`);
+    if (Array.isArray(p.timing?.bestHours) && p.timing.bestHours.length) out.push(`Best hours: ${p.timing.bestHours.join(', ')}`);
+    return out;
+  })();
   const liveRecs = live.state.active && activeView === 'recommendations' ? recommendationsFromPartial(live.state.partial) : [];
   const shownRecs = liveRecs.length > 0 ? liveRecs : recommendations;
 
@@ -607,8 +618,8 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
 
       <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Brain className="w-7 h-7 mr-3 text-purple-600" />
             Advanced AI Intelligence Hub
@@ -616,7 +627,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           </h3>
           <p className="text-gray-600 dark:text-gray-400 dark:text-gray-300">Cross-component intelligence with predictive insights</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* View Selector */}
           <div className="flex rounded-lg border border-gray-300 overflow-hidden">
             {views.map((view) => {
@@ -784,8 +795,8 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
           </GlassCard>
           ) : (
             shownInsights.map((insight) => {
-              const Icon = insightIcons[insight.type];
-              const iconColor = insightColors[insight.type];
+              const Icon = insightIcons[insight.type as keyof typeof insightIcons] ?? Lightbulb;
+              const iconColor = insightColors[insight.type as keyof typeof insightColors] ?? 'bg-gray-500';
               const impactColor = impactColors[insight.impact];
               const userFeedback = feedbackGiven[insight.id];
               
@@ -919,6 +930,11 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ contact }) => 
                   <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                   <p className="text-gray-600 dark:text-gray-400 dark:text-gray-300">Cross-component intelligence analysis in progress...</p>
                   <p className="text-sm text-gray-500 mt-2">Correlating insights from multiple sources</p>
+                  {liveStrategyLines.length > 0 && (
+                    <ul className="text-sm text-gray-700 dark:text-gray-300 mt-3 space-y-1 text-left" data-testid="live-strategy">
+                      {liveStrategyLines.map((l, i) => <li key={i}>{l}</li>)}
+                    </ul>
+                  )}
                 </div>
               </div>
             </GlassCard>

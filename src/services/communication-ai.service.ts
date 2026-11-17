@@ -229,6 +229,7 @@ class CommunicationAIService {
       type: 'communication_analysis',
       priority: 'medium',
       data: {
+        schemaHint: 'communication_strategy',
         contact,
         interactionHistory,
         businessGoals
@@ -243,14 +244,12 @@ class CommunicationAIService {
       
       return {
         contactId: contact.id,
-        optimalChannels: response.result.optimalChannels || [
-          { channel: 'email', effectiveness: 80, reasoning: ['Primary business communication'] }
-        ],
+        optimalChannels: response.result.optimalChannels || [],
         timing: response.result.timing || {
-          bestDays: ['Tuesday', 'Wednesday', 'Thursday'],
-          bestHours: ['9AM-11AM', '2PM-4PM'],
-          frequency: 'Weekly',
-          nextOptimalContact: '2 days'
+          bestDays: [],
+          bestHours: [],
+          frequency: '',
+          nextOptimalContact: ''
         },
         messaging: response.result.messaging || {
           preferredTone: 'professional',
