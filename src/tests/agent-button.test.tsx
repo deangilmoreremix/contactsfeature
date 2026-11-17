@@ -194,7 +194,7 @@ describe('AgentButton', () => {
       await execute(button);
 
       await waitFor(() => expect(mocks.streamFunction).toHaveBeenCalled());
-      expect(mocks.streamFunction.mock.calls[0][1]).toEqual({
+      expect(mocks.streamFunction.mock.calls[0]![1]).toEqual({
         agentId: 'agent-123', dealId: 'deal-789', input: { testInput: 'value' },
       });
     });

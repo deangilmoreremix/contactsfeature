@@ -18,7 +18,6 @@ import {
   EyeOff,
   Zap,
   X,
-  BarChart3
 } from 'lucide-react';
 
 interface CommunicationSettingsProps {
@@ -31,7 +30,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
   const [twilioConfigs, setTwilioConfigs] = useState<TwilioConfig[]>([]);
   const [mailtoConfigs, setMailtoConfigs] = useState<MailtoConfig[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<any>(null);
+  useState<any>(null);
   const [testResults, setTestResults] = useState<Map<string, any>>(new Map());
   const [showPasswords, setShowPasswords] = useState<Set<string>>(new Set());
 

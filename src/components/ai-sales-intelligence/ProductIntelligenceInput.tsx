@@ -7,8 +7,7 @@ import {
   FileText,
   X,
   CheckCircle,
-  AlertCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 
 interface ProductIntelligenceInputProps {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Zap, Sparkles, Loader2, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react';
+import { Zap, Loader2, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react';
 
 export const InteractiveInstantAIResponse: React.FC = () => {
   const [userMessage, setUserMessage] = useState('');

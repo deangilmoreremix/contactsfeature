@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { webSearchService } from '../services/webSearchService';
-import { ResearchThinkingAnimation, useResearchThinking } from '../components/ui/ResearchThinkingAnimation';
-import { ResearchStatusOverlay, useResearchStatus } from '../components/ui/ResearchStatusOverlay';
+import { useResearchThinking } from '../components/ui/ResearchThinkingAnimation';
+import { useResearchStatus } from '../components/ui/ResearchStatusOverlay';
 
 interface ResearchConfig {
   includeSources?: boolean;
@@ -25,7 +25,7 @@ export const useResearchOperations = (): UseResearchOperationsReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const researchThinking = useResearchThinking();
-  const researchStatus = useResearchStatus();
+  useResearchStatus();
 
   const clearError = useCallback(() => {
     setError(null);

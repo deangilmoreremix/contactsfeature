@@ -14,8 +14,6 @@ import {
   Calendar,
   Save,
   Eye,
-  Copy,
-  Settings
 } from 'lucide-react';
 
 interface CampaignBuilderProps {
@@ -95,7 +93,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
   const dragRef = useRef<HTMLDivElement>(null);
 
   const addStep = () => {
-    const lastStep = sequence.at(-1);
+    const lastStep = sequence[sequence.length - 1];
     const newStep: CampaignStep = {
       id: `step-${Date.now()}`,
       day: lastStep ? lastStep.day + 3 : 0,
@@ -176,12 +174,12 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
           name: templateName,
           description: templateDescription,
           agent_id: agentId,
-          persona_id: preferences?.persona || 'cold_saas_founder',
+          persona_id: (preferences as { persona?: string } | undefined)?.persona || 'cold_saas_founder',
           sequence_config: sequence,
           settings: preferences || {},
           is_active: true,
           total_steps: sequence.length,
-          duration_days: sequence.at(-1)?.day ?? 0,
+          duration_days: sequence[sequence.length - 1]?.day ?? 0,
         })
         .select()
         .maybeSingle();
@@ -442,7 +440,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
               <h5 className="text-sm font-medium text-gray-900 mb-2">Campaign Overview</h5>
               <div className="space-y-1 text-sm text-gray-600">
                 <div>Total Steps: {sequence.length}</div>
-                <div>Duration: {sequence.at(-1)?.day ?? 0} days</div>
+                <div>Duration: {sequence[sequence.length - 1]?.day ?? 0} days</div>
                 <div>Channels Used: {new Set(sequence.map(s => s.type)).size}</div>
                 <div>Avg Delay: {sequence.length > 1 ?
                   Math.round(sequence.slice(1).reduce((sum, step) => sum + (step.delay || 3), 0) / (sequence.length - 1)) : 0

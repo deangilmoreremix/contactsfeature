@@ -7,12 +7,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SDRAgentConfigurator } from '../components/sdr/SDRAgentConfigurator';
 import { CampaignBuilder } from '../components/sdr/CampaignBuilder';
-import { SDRPreferencesService } from '../services/sdrPreferencesService';
 import { VoiceAgentPanel } from '../components/VoiceAgentPanel';
 import { VideoAgentPanel } from '../components/VideoAgentPanel';
 import { HeatmapPanel } from '../components/HeatmapPanel';
 import { PlaybooksPanel } from '../components/PlaybooksPanel';
-import { newOutcome } from '../lib/streaming/streamClient';
 import { getCurrentUser } from '../lib/supabase';
 
 // Mock dependencies

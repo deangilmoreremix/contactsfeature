@@ -4,15 +4,12 @@ import { AIAutoFillButton } from '../ui/AIAutoFillButton';
 import { AIResearchButton } from '../ui/AIResearchButton';
 import { useContactStore } from '../../hooks/useContactStore';
 import { ContactEnrichmentData } from '../../services/aiEnrichmentService';
-import { Contact } from '../../types';
-import { 
-  X, 
-  User, 
-  Mail, 
-  Phone, 
-  Building, 
-  Tag, 
-  Globe, 
+import {
+  X,
+  User,
+  Building,
+  Tag,
+  Globe,
   Target,
   Save,
   UserPlus,
@@ -26,17 +23,11 @@ import {
   Instagram,
   Plus,
   Database,
-  Smartphone,
-  Clock,
-  Star,
   Briefcase,
   MapPin,
-  Calendar,
   Brain,
   Sparkles,
-  Wand2,
   RefreshCw,
-  Camera
 } from 'lucide-react';
 
 interface NewContactModalProps {
@@ -308,21 +299,21 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
         lastName: formData.lastName,
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
-        phone: formData.phone || undefined,
+        ...(formData.phone ? { phone: formData.phone } : {}),
         title: formData.title,
         company: formData.company,
-        industry: formData.industry || undefined,
+        ...(formData.industry ? { industry: formData.industry } : {}),
         avatarSrc: formData.avatarSrc || `https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2`,
         sources: formData.sources.length > 0 ? formData.sources : ['Manual Entry'],
         interestLevel: formData.interestLevel,
         status: formData.status,
-        notes: formData.notes || undefined,
-        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+        ...(formData.notes ? { notes: formData.notes } : {}),
+        ...(formData.tags ? { tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean) } : {}),
         isFavorite: formData.isFavorite,
         socialProfiles: Object.fromEntries(
           Object.entries(formData.socialProfiles).filter(([_, value]) => value)
         ),
-        customFields: Object.keys(formData.customFields).length > 0 ? formData.customFields : undefined
+        ...(Object.keys(formData.customFields).length > 0 ? { customFields: formData.customFields } : {})
       };
       
       await createContact(contactData);
@@ -538,7 +529,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     />
                     {formData.email && (
                       <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                        <Brain className="w-4 h-4 text-purple-500" title="AI Research Available" />
+                        <Brain className="w-4 h-4 text-purple-500" {...{ title: "AI Research Available" }} />
                       </div>
                     )}
                   </div>
@@ -858,7 +849,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                         </div>
                         {platform.name}
                         {platform.key === 'linkedin' && formData.socialProfiles[platform.key] && (
-                          <Brain className="w-3 h-3 ml-1 text-purple-500" title="AI research available" />
+                          <Brain className="w-3 h-3 ml-1 text-purple-500" {...{ title: "AI research available" }} />
                         )}
                       </label>
                       <input

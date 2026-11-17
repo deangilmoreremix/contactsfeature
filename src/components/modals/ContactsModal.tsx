@@ -73,11 +73,9 @@ import {
   CheckCircle,
   Loader2,
   Info,
-  Mail,
-  Bot,
   Trash2,
   Package,
-  ArchiveRestore
+  ArchiveRestore,
 } from 'lucide-react';
 
 interface ContactsModalProps {
@@ -150,7 +148,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
   const [analysisProgress, setAnalysisProgress] = useState<{current: number, total: number} | null>(null);
   const [aiResults, setAiResults] = useState<{success: number, failed: number} | null>(null);
   const [analyzingContactIds, setAnalyzingContactIds] = useState<string[]>([]);
-  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  const [isLoadingContacts] = useState(false);
   
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -597,12 +595,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose, o
     } finally {
       setIsClearingData(false);
     }
-  };
-
-  const handleAnalysisComplete = (results: any, content: any) => {
-    console.log('Analysis complete:', results, content);
-    // Here you could integrate with the CRM or show success message
-    setIsProductIntelligenceOpen(false);
   };
 
   // Export functionality

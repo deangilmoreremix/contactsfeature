@@ -13,7 +13,6 @@ import {
   Building,
   Briefcase,
   Check,
-  List,
   ArrowRight,
 } from 'lucide-react';
 import type { UserProduct } from '../../types/userProduct';

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, memo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
@@ -18,14 +17,7 @@ import {
   Target,
   DollarSign,
   Activity,
-  Calendar,
-  Mail,
-  Phone,
-  MessageSquare,
-  Users,
-  Award,
   AlertTriangle,
-  Filter,
   Download,
   RefreshCw,
   Sparkles,
@@ -86,16 +78,15 @@ function kpi(data: any, type: string, unit: '%' | 'h' | 'usd'): string {
 
 export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact }) => {
    const [timeRange, setTimeRange] = useState('6m');
-   const [selectedMetric, setSelectedMetric] = useState('engagement');
    const [showPredictive, setShowPredictive] = useState(false);
    const [analyticsData, setAnalyticsData] = useState<any>(null);
    const [loading, setLoading] = useState(false);
-   const [error, setError] = useState<string | null>(null);
+   const [, setError] = useState<string | null>(null);
 
    // Research state management
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
-   const [researchSources, setResearchSources] = useState<any[]>([]);
+   const [, setResearchSources] = useState<any[]>([]);
    // Live status + partial results for the web research and the AI predictions
    const live = useLiveCall();
 
@@ -245,13 +236,6 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
     { value: '3m', label: 'Last 3 Months' },
     { value: '6m', label: 'Last 6 Months' },
     { value: '1y', label: 'Last Year' }
-  ];
-
-  const metrics = [
-    { id: 'engagement', label: 'Engagement', icon: Activity },
-    { id: 'response', label: 'Response Rate', icon: MessageSquare },
-    { id: 'pipeline', label: 'Pipeline Progress', icon: TrendingUp },
-    { id: 'channels', label: 'Channel Performance', icon: BarChart3 }
   ];
 
   return (

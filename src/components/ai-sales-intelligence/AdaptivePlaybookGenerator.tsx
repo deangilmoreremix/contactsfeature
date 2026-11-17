@@ -7,8 +7,8 @@ import { analyticsService } from '../../services/analyticsService';
 import { cacheService } from '../../services/cache.service';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { BookOpen, Sparkles, Brain, Loader2 } from 'lucide-react';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { BookOpen } from 'lucide-react';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { PlaybookHeader } from './PlaybookHeader';
 import { StreamingProgress } from './StreamingProgress';
@@ -310,41 +310,6 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
       streamingControllerRef.current = null;
     }
   }, [deal, playbookType, isStreamingMode, researchThinking, analyticsService, cacheService]);
-
-  const getCompanyProfile = (companyName: string) => {
-    // This would integrate with your CRM/company data
-    return {
-      industry: deal.industry,
-      size: deal.companySize,
-      growthStage: 'growth', // startup, growth, mature, enterprise
-      decisionMaking: 'committee', // single, committee, consensus
-      budgetCycle: 'annual',
-      technologyStack: ['crm', 'marketing_automation']
-    };
-  };
-
-  const getCompetitiveAnalysis = (competitors: string[]) => {
-    return competitors.map(competitor => ({
-      name: competitor,
-      strengths: ['Strong brand recognition', 'Established relationships'],
-      weaknesses: ['Higher pricing', 'Complex implementation'],
-      marketPosition: 'leader',
-      winProbability: 0.6
-    }));
-  };
-
-  const getSimilarDeals = (deal: Deal) => {
-    // This would query your historical deal data
-    return {
-      similarDeals: [
-        { value: deal.value, duration: 45, won: true },
-        { value: deal.value, duration: 60, won: false }
-      ],
-      averageWinRate: 0.65,
-      averageDuration: 52,
-      commonObjections: ['budget', 'timeline', 'competition']
-    };
-  };
 
 
 

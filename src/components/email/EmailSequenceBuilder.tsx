@@ -8,15 +8,11 @@ import {
   Target,
   Plus,
   Trash2,
-  Clock,
   Mail,
   ArrowRight,
   Settings,
   Play,
   Pause,
-  CheckCircle,
-  AlertCircle,
-  Zap
 } from 'lucide-react';
 
 interface EmailSequenceStep {

@@ -1,5 +1,4 @@
 import React, { memo } from 'react';
-import { AvatarUpload } from '../ui/AvatarUpload';
 import { ModernButton } from '../ui/ModernButton';
 import { useDuplicateHint } from '../../hooks/useDuplicateHint';
 import { Contact } from '../../types/contact';
@@ -30,7 +29,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
   onEditField,
   onStartEditingField,
   onSaveField,
-  onUpdate,
+  onUpdate: _onUpdate,
   lastEnrichment,
   onReviewDuplicate
 }) => {

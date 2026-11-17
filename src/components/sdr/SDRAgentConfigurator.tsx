@@ -29,7 +29,6 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
   onSave,
   onClose,
   onReset,
-  loading = false
 }) => {
   const [config, setConfig] = useState<SDRUserPreferences>(
     currentConfig ? { ...createDefaultPreferences('temp-user', agentId), ...currentConfig } :

@@ -26,9 +26,31 @@ import {
   getAutopilotLogs,
 } from '../../agents/sdr/runSdrAutopilot';
 import {
-  Target, Mail, MessageSquare, AlertTriangle, RotateCcw, Trophy, Search,
-  Bot, Play, Pause, Square, Clock, Save, RefreshCw, Info, ChevronDown, Check,
-  Phone, TrendingUp, Users, Calendar, Rocket, BarChart3, Zap, Brain, MessageCircle
+  Target,
+  Mail,
+  MessageSquare,
+  AlertTriangle,
+  RotateCcw,
+  Trophy,
+  Search,
+  Bot,
+  Play,
+  Pause,
+  Square,
+  Clock,
+  Save,
+  RefreshCw,
+  Info,
+  ChevronDown,
+  Check,
+  Phone,
+  TrendingUp,
+  Calendar,
+  Rocket,
+  BarChart3,
+  Zap,
+  Brain,
+  MessageCircle
 } from 'lucide-react';
 
 interface ContactSDRPanelProps {

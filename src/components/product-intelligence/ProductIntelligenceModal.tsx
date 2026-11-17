@@ -1,7 +1,7 @@
 import React, { useState, useCallback, memo } from 'react';
 import { LiveRunStatus } from '../ui/LiveRunStatus';
 import { useLiveCall } from '../../hooks/useLiveCall';
-import { X, AlertCircle, CheckCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { X, AlertCircle, CheckCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { ProductIntelligenceInput } from './ProductIntelligenceInput';
 import { ProductIntelligenceResults } from './ProductIntelligenceResults';
 import { GlassCard } from '../ui/GlassCard';

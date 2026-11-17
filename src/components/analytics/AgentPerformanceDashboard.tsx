@@ -185,7 +185,7 @@ export const AgentPerformanceDashboard: React.FC = () => {
                 fill="#8884d8"
                 dataKey="messages"
               >
-                {performanceData.channelBreakdown.map((entry, index) => (
+                {performanceData.channelBreakdown.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>

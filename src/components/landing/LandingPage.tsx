@@ -18,31 +18,18 @@ import {
   Sparkles,
   Brain,
   Mail,
-  Users,
   Search,
   BarChart3,
   Zap,
   MessageSquare,
-  Upload,
-  Download,
   Target,
-  Shield,
   Globe,
   Settings,
-  Phone,
-  Calendar,
-  Layers,
-  Activity,
-  PieChart,
   TrendingUp,
   CheckCircle,
-  Award,
   Eye,
-  Heart,
-  Star,
   DollarSign,
-  Book,
-  User
+  User,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -163,29 +150,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
     }
   ];
 
-  const renderInteractiveDemo = (featureId: string) => {
-    switch (featureId) {
-      case 'ai-contact-scoring':
-        return <InteractiveContactScorer />;
-      case 'ai-email-generation':
-        return <InteractiveEmailComposer />;
-      case 'smart-search-filtering':
-        return <InteractiveFilterDemo />;
-      case 'ai-insights-analytics':
-        return <InteractiveSmartSearch />;
-      case 'contact-journey-timeline':
-        return <InteractiveLiveDealAnalysis />;
-      case 'communication-hub':
-        return <InteractiveObjectionHandler />;
-      case 'ai-automation':
-        return <InteractiveInstantAIResponse />;
-      case 'contact-detail-view':
-        return <InteractiveContactDemo />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50 z-[70] overflow-y-auto">
       {/* Header */}
@@ -285,8 +249,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                       className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
                         // Fallback to a placeholder image or hide the broken image
-                        e.target.src = 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-                        e.target.style.opacity = '0.7';
+                        const img = e.currentTarget;
+                        img.src = 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                        img.style.opacity = '0.7';
                       }}
                       loading="lazy"
                     />

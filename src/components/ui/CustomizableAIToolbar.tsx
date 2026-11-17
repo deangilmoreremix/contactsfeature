@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useContactAI, useCommunicationAI } from '../../contexts/AIContext';
-import { ResearchThinkingAnimation, useResearchThinking } from './ResearchThinkingAnimation';
-import { CitationBadge } from './CitationBadge';
+import { useResearchThinking } from './ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from './ResearchStatusOverlay';
 import { SmartTooltip } from './SmartTooltip';
-import { ToolbarTooltip, GoalsTooltip } from './AITooltipContent';
+import { ToolbarTooltip } from './AITooltipContent';
 import { webSearchService } from '../../services/webSearchService';
 import { 
   BarChart3, 
@@ -87,18 +86,6 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   Phone
 };
 
-const toolMapping: Record<string, string> = {
-  'leadScoring': 'business-analyzer',
-  'emailPersonalization': 'email-composer', 
-  'contactEnrichment': 'smart-search',
-  'dealRiskAssessment': 'business-analyzer',
-  'nextBestAction': 'business-analyzer',
-  'proposalGeneration': 'proposal-generator',
-  'businessIntelligence': 'smart-search',
-  'companyHealthScoring': 'business-analyzer',
-  'opportunityIdentification': 'business-analyzer'
-};
-
 const defaultQuickActions = [
   { icon: 'BarChart3', label: 'Lead Score', toolName: 'leadScoring', variant: 'primary', featureId: 'ai_toolbar_lead_score' },
   { icon: 'Mail', label: 'Email AI', toolName: 'emailPersonalization', variant: 'secondary', featureId: 'ai_toolbar_email_ai' },
@@ -120,7 +107,7 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
-  const [researchSources, setResearchSources] = useState<any[]>([]);
+  const [, setResearchSources] = useState<any[]>([]);
 
   // Research state management
   const researchThinking = useResearchThinking();
@@ -141,7 +128,6 @@ const QuickAIButton: React.FC<QuickAIButtonProps> = ({
     if (isProcessing) return;
 
     // Check if this is mock data
-    const isMockData = entityData.isMockData || entityData.dataSource === 'mock' || entityData.createdBy === 'demo';
 
     // Allow AI features for demo contacts with mock citation data
     // if (isMockData) {
@@ -288,7 +274,7 @@ export const AIGoalsButton: React.FC<{
   size?: 'sm' | 'md';
   variant?: 'primary' | 'secondary';
   className?: string;
-}> = ({ entityType, entityId, entityData, size = 'sm', variant = 'primary', className = '' }) => {
+}> = ({ size = 'sm', className = '' }) => {
   const handleClick = () => {
     window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank');
   };
@@ -315,13 +301,11 @@ export const CustomizableAIToolbar: React.FC<CustomizableAIToolbarProps> = ({
   entityType,
   entityId,
   entityData,
-  location,
-  layout,
   size,
   showCustomizeButton = true
 }) => {
-  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
-  const [customQuickActions, setCustomQuickActions] = useState(defaultQuickActions);
+  const [, setShowCustomizeModal] = useState(false);
+  const [customQuickActions] = useState(defaultQuickActions);
 
   // Research state management
   const researchStatus = useResearchStatus();

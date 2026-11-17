@@ -11,16 +11,13 @@ import {
   Zap,
   Target,
   BarChart3,
-  Settings,
   Sparkles,
   TrendingUp,
   Clock,
   DollarSign,
   CheckCircle,
   AlertCircle,
-  Info,
   Layers,
-  RefreshCw
 } from 'lucide-react';
 
 interface SmartAIControlsProps {
@@ -37,7 +34,6 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   // Connect to new AI services
   const { 
     scoreBulkContacts, 
-    generateBulkInsights, 
     isProcessing, 
     providerStatus, 
     performanceMetrics 
@@ -58,7 +54,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   });
 
   const handleSingleAnalysis = async () => {
-    if (!contact) return;
+    if (!contact || !contactAI) return;
 
     try {
       setLiveCount(0);

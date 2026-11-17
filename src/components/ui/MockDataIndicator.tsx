@@ -1,5 +1,5 @@
 import React from 'react';
-import { Info, AlertTriangle } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { Contact } from '../../types/contact';
 
 interface MockDataIndicatorProps {

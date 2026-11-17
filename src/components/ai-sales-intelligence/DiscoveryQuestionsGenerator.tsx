@@ -218,23 +218,6 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
     }
   };
 
-  const getFocusAreas = (meetingType: string): string[] => {
-    switch (meetingType) {
-      case 'discovery':
-        return ['pain_points', 'goals', 'timeline', 'budget'];
-      case 'demo':
-        return ['current_solution', 'requirements', 'integration', 'training'];
-      case 'follow_up':
-        return ['feedback', 'objections', 'next_steps', 'timeline'];
-      case 'negotiation':
-        return ['terms', 'pricing', 'timeline', 'support'];
-      case 'closing':
-        return ['final_objections', 'implementation', 'success_metrics'];
-      default:
-        return ['general'];
-    }
-  };
-
   const copyQuestion = async (question: string, questionId: string) => {
     try {
       await navigator.clipboard.writeText(question);

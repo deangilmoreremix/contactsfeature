@@ -3,7 +3,7 @@ import { webSearchService } from '../services/webSearchService';
 import { CitationBadge } from './ui/CitationBadge';
 import { ModernButton } from './ui/ModernButton';
 import { GlassCard } from './ui/GlassCard';
-import { Loader2, Zap, Search, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Zap, Search, Clock, CheckCircle } from 'lucide-react';
 
 interface StreamingUpdate {
   type: 'progress' | 'citation' | 'content' | 'complete' | 'error';

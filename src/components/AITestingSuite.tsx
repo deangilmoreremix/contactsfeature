@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { GlassCard } from './ui/GlassCard';
 import { ModernButton } from './ui/ModernButton';
 import { AIResearchButton } from './ui/AIResearchButton';
@@ -35,7 +35,7 @@ export const AITestingSuite: React.FC = () => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [currentTest, setCurrentTest] = useState<string | null>(null);
-  const [, setOverallProgress] = useState(0);
+  useState(0);
 
   // Sample test data
   const testContact = {

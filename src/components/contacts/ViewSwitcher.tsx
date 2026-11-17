@@ -1,4 +1,3 @@
-import React from 'react';
 import { ViewType } from '../../types/view';
 import { useView } from '../../contexts/ViewContext';
 import {

@@ -475,8 +475,8 @@ Jane,Smith,jane.smith@example.com`;
         await result.current.importContacts(specialCharContacts);
       });
 
-      expect(result.current.contacts[0].firstName).toBe('José');
-      expect(result.current.contacts[0].lastName).toBe('Muñoz');
+      expect(result.current.contacts[0]!.firstName).toBe('José');
+      expect(result.current.contacts[0]!.lastName).toBe('Muñoz');
     });
 
     it('should handle quoted CSV fields', async () => {
@@ -512,7 +512,7 @@ Jane,Smith,jane.smith@example.com`;
         await result.current.importContacts(quotedContacts);
       });
 
-      expect(result.current.contacts[0].notes).toBe('This is a "quoted" note with, commas');
+      expect(result.current.contacts[0]!.notes).toBe('This is a "quoted" note with, commas');
     });
   });
 
@@ -579,7 +579,7 @@ Jane,Smith,jane.smith@example.com`;
       });
 
       expect(result.current.contacts).toHaveLength(2);
-      expect(result.current.contacts[1].id).toMatch(/^local-import-/);
+      expect(result.current.contacts[1]!.id).toMatch(/^local-import-/);
       expect(result.current.error).toBeNull();
     });
   });
@@ -724,8 +724,8 @@ Jane,Smith,jane.smith@example.com`;
         await result.current.importContacts(maliciousContacts);
       });
 
-      expect(result.current.contacts[0].firstName).toBe('John');
-      expect(result.current.contacts[0].firstName).not.toContain('<script>');
+      expect(result.current.contacts[0]!.firstName).toBe('John');
+      expect(result.current.contacts[0]!.firstName).not.toContain('<script>');
     });
 
     it('should validate file size limits', async () => {

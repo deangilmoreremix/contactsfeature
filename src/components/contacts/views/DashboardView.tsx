@@ -1,18 +1,16 @@
-import React from 'react';
 import { Contact } from '../../../types/contact';
 import { GlassCard } from '../../ui/GlassCard';
 import {
   Users,
   TrendingUp,
   Target,
-  DollarSign,
   Award,
   Activity,
   Star
 } from 'lucide-react';
 import { PinChartMenu, PinnedCharts, usePinnedCharts } from '../dashboard/PinnedCharts';
 import { useDealStore } from '../../../store/useDealStore';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardViewProps {
   contacts: Contact[];
@@ -211,9 +209,10 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
                    alt={contact.name}
                    className="w-10 h-10 rounded-full object-cover"
                    onError={(e) => {
-                     e.target.onerror = null;
-                     e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-                     e.target.style.opacity = '0.7';
+                     const img = e.currentTarget;
+                     img.onerror = null;
+                     img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                     img.style.opacity = '0.7';
                    }}
                    loading="lazy"
                  />

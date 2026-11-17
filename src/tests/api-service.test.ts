@@ -218,7 +218,7 @@ describe('Contact API Service', () => {
       const result = await contactAPI.getContacts({ status: 'prospect' });
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].status).toBe('prospect');
+      expect(result.contacts[0]!.status).toBe('prospect');
       expect(result.total).toBe(1);
     });
 
@@ -226,21 +226,21 @@ describe('Contact API Service', () => {
       const result = await contactAPI.getContacts({ interestLevel: 'hot' });
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].interestLevel).toBe('hot');
+      expect(result.contacts[0]!.interestLevel).toBe('hot');
     });
 
     it('should apply industry filter', async () => {
       const result = await contactAPI.getContacts({ industry: 'Manufacturing' });
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].industry).toBe('Manufacturing');
+      expect(result.contacts[0]!.industry).toBe('Manufacturing');
     });
 
     it('should apply search filter', async () => {
       const result = await contactAPI.getContacts({ search: 'Jane' });
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].name).toBe('Jane Smith');
+      expect(result.contacts[0]!.name).toBe('Jane Smith');
     });
 
     it('should apply pagination', async () => {
@@ -255,9 +255,9 @@ describe('Contact API Service', () => {
     it('should apply sorting', async () => {
       const result = await contactAPI.getContacts({ sortBy: 'name', sortOrder: 'asc' });
 
-      expect(result.contacts[0].name).toBe('Bob Johnson');
-      expect(result.contacts[1].name).toBe('Jane Smith');
-      expect(result.contacts[2].name).toBe('John Doe');
+      expect(result.contacts[0]!.name).toBe('Bob Johnson');
+      expect(result.contacts[1]!.name).toBe('Jane Smith');
+      expect(result.contacts[2]!.name).toBe('John Doe');
     });
 
     it('should combine multiple filters', async () => {
@@ -268,7 +268,7 @@ describe('Contact API Service', () => {
       });
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].name).toBe('John Doe');
+      expect(result.contacts[0]!.name).toBe('John Doe');
     });
   });
 
@@ -292,14 +292,14 @@ describe('Contact API Service', () => {
       const result = await contactAPI.searchContacts('Jane');
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].name).toBe('Jane Smith');
+      expect(result.contacts[0]!.name).toBe('Jane Smith');
     });
 
     it('should search across multiple fields', async () => {
       const result = await contactAPI.searchContacts('startup.io');
 
       expect(result.contacts).toHaveLength(1);
-      expect(result.contacts[0].email).toBe('jane.smith@startup.io');
+      expect(result.contacts[0]!.email).toBe('jane.smith@startup.io');
     });
 
     it('should return empty results for no matches', async () => {

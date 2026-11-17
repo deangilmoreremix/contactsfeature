@@ -379,8 +379,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       }
       
       // Create an updated contact locally
-      const updatedContact = {
-        ...contacts[contactIndex],
+      const updatedContact: Contact = {
+        ...(contacts[contactIndex] as Contact),
         ...updates,
         updatedAt: new Date().toISOString()
       };
@@ -438,7 +438,9 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         tags: contact.tags
       }));
       
-      const createdContacts = await contactAPI.createContactsBatch(formattedContacts);
+      const createdContacts = await contactAPI.createContactsBatch(
+        formattedContacts as Parameters<typeof contactAPI.createContactsBatch>[0]
+      );
       
       set(state => ({
         contacts: [...state.contacts, ...createdContacts],

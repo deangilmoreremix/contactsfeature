@@ -72,7 +72,7 @@ const App: React.FC<SmartCRMRemoteProps> = ({
   sharedData,
   initialRoute,
   onEvent,
-  onDataUpdate,
+  onDataUpdate: _onDataUpdate,
 }) => {
   // Bootstrap: derive initial view from route or default
   const getInitialView = (): AppView => {

@@ -15,6 +15,7 @@ interface NetlifyUser {
   };
   created_at?: string;
   updated_at?: string;
+  jwt?: () => Promise<string>;
 }
 
 interface NetlifyIdentity {
@@ -22,8 +23,8 @@ interface NetlifyIdentity {
   open: () => Promise<void>;
   logout: () => Promise<void>;
   currentUser: () => NetlifyUser | null;
-  on: (event: string, callback: (user?: NetlifyUser) => void) => void;
-  off: (event: string, callback: (user?: NetlifyUser) => void) => void;
+  on: (event: string, callback: (payload?: NetlifyUser | Error) => void) => void;
+  off: (event: string, callback: (payload?: NetlifyUser | Error) => void) => void;
 }
 
 declare global {
@@ -64,8 +65,8 @@ export const NetlifyAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const netlifyIdentity = window.netlifyIdentity;
     
-    const handleLogin = (u: NetlifyUser) => {
-      setUser(u);
+    const handleLogin = (u?: NetlifyUser | Error) => {
+      setUser(u as NetlifyUser);
       setIsLoggedIn(true);
     };
 
@@ -74,7 +75,7 @@ export const NetlifyAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsLoggedIn(false);
     };
 
-    const handleError = (err: Error) => {
+    const handleError = (err?: NetlifyUser | Error) => {
       console.error('Netlify Identity error:', err);
     };
 

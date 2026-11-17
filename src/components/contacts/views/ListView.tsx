@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { ViewDensity } from '../../../types/view';
 import { SmartContactCard } from '../SmartContactCard';
@@ -97,7 +97,7 @@ export function ListView({ contacts, onContactClick, onOpenSDRModal }: ListViewP
             {showDensityMenu && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
                 <div className="p-2">
-                  {Object.entries(DENSITY_CONFIG).map(([key, config]) => {
+                  {Object.keys(DENSITY_CONFIG).map((key) => {
                     const icons = { compact: Minimize2, comfortable: LayoutList, spacious: Maximize2 };
                     const Icon = icons[key as keyof typeof icons];
                     const isActive = density === key;

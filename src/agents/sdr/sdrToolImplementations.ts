@@ -131,7 +131,7 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
     }
 
     // Fetch related emails
-    const { data: emails, error: emailsError } = await supabase
+    const { data: emails } = await supabase
       .from('emails')
       .select('*')
       .eq('contact_id', leadId)
@@ -139,20 +139,20 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
       .limit(10);
 
     // Fetch tasks
-    const { data: tasks, error: tasksError } = await supabase
+    const { data: tasks } = await supabase
       .from('tasks')
       .select('*')
       .eq('contact_id', leadId)
       .order('due_date', { ascending: true });
 
     // Fetch deals
-    const { data: deals, error: dealsError } = await supabase
+    const { data: deals } = await supabase
       .from('deals')
       .select('*')
       .eq('contact_id', leadId);
 
     // Fetch notes
-    const { data: notes, error: notesError } = await supabase
+    const { data: notes } = await supabase
       .from('notes')
       .select('*')
       .eq('contact_id', leadId)
@@ -342,7 +342,7 @@ export async function scheduleMeetingForLead(args: {
       leadId: args.lead_id,
       contactEmail: lead.email || '',
       contactName,
-      timeslot: args.timeslot
+      ...(args.timeslot !== undefined ? { timeslot: args.timeslot } : {})
     });
 
     if (!meetingResult.success) {

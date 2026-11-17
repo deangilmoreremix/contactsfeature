@@ -119,7 +119,7 @@ describe('Encryption Service', () => {
       encryptionService.setEncryptedItem('test-key', testData);
 
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith('test-key', expect.any(String));
-      const stored = mockLocalStorage.setItem.mock.calls[0][1] as string;
+      const stored = mockLocalStorage.setItem.mock.calls[0]![1] as string;
       expect(stored).not.toContain('john@example.com');
       expect(encryptionService.decrypt(stored)).toEqual(testData);
     });

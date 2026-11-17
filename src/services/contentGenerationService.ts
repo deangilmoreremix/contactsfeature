@@ -278,7 +278,7 @@ ${context?.userName || 'Your Name'}`,
     ];
   }
 
-  private generateFallbackCallScripts(analysis: AnalysisResults, context?: any): CallScript[] {
+  private generateFallbackCallScripts(analysis: AnalysisResults, _context?: any): CallScript[] {
     return [
       {
         id: `script_intro_${Date.now()}`,

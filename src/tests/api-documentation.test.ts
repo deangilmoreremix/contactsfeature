@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { contactAPI } from '../services/contact-api.service';
 import { useContactStore } from '../hooks/useContactStore';
 import { encryptionService } from '../utils/encryption';
+import { asNewContact } from './helpers/contactFixtures';
 
 describe('API Documentation Validation', () => {
   describe('Contact API Service Documentation', () => {
@@ -27,7 +28,7 @@ describe('API Documentation Validation', () => {
       // Should not throw due to documentation issues, but due to validation
       expect(async () => {
         try {
-          await contactAPI.createContact(testContact);
+          await contactAPI.createContact(asNewContact(testContact));
         } catch (error: any) {
           // Should fail due to missing required fields, not documentation issues
           expect(error.message).toContain('validation');
@@ -157,14 +158,14 @@ describe('API Documentation Validation', () => {
     it('should demonstrate documented error types', () => {
       // Test that errors follow documented patterns
       expect(async () => {
-        await contactAPI.createContact({
+        await contactAPI.createContact(asNewContact({
           firstName: '',
           lastName: 'Doe',
           name: 'John Doe',
           email: 'invalid-email',
           title: 'Developer',
           company: 'Test Corp'
-        });
+        }));
       }).rejects.toThrow();
     });
 

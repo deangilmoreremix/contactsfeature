@@ -117,7 +117,7 @@ export class GuidanceEngine {
   }
 
   static getContextualHelpForCondition(condition: string, userProgress: any): ContextualHelp[] {
-    return CONTEXTUAL_HELP.filter(help => {
+    return CONTEXTUAL_HELP.filter(_help => {
       switch (condition) {
         case 'first_visit':
           return !userProgress.onboardingCompleted;

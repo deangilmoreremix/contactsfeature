@@ -107,7 +107,7 @@ describe('discovery-questions function', () => {
     await handler()(post({ contact, meetingContext: { type: 'demo', duration: 45, objective: 'Validate the integration needs' }, questionType: 'technical' }));
 
     expect(createResponse).toHaveBeenCalledTimes(1);
-    const opts = createResponse.mock.calls[0][0];
+    const opts = createResponse.mock.calls[0]![0];
     expect(opts).toMatchObject({ model: 'default', effort: 'low', schemaName: 'discovery_questions', store: false });
     expect(opts.schema.required).toEqual(['questions']);
     expect(opts.input).toContain('Generate technical discovery questions');
@@ -123,14 +123,14 @@ describe('discovery-questions function', () => {
 
     const res = await handler()(post({ contact: { id: OWN, name: 'John Doe', title: 'CTO', company: 'Tech Corp' } }));
 
-    const opts = createResponse.mock.calls[0][0];
+    const opts = createResponse.mock.calls[0]![0];
     expect(opts.input).toContain('Generate comprehensive discovery questions');
     expect(opts.input).toContain('Industry: Not specified');
     expect(opts.input).toContain('Meeting Type: discovery');
     expect(opts.input).toContain('Duration: 30 minutes');
     expect(opts.input).toContain('Objective: Understand needs and qualify opportunity');
     expect(JSON.parse(res.body)).toMatchObject({ provider: 'openai', data: { questionType: 'comprehensive' } });
-    expect(inserted['discovery_questions'][0]).toMatchObject({ question_type: 'comprehensive', ai_provider: 'openai' });
+    expect(inserted['discovery_questions']![0]).toMatchObject({ question_type: 'comprehensive', ai_provider: 'openai' });
   });
 
   it('returns an empty list when the model reply has no questions', async () => {

@@ -5,7 +5,6 @@
 
 import { useState, useCallback } from 'react';
 import { enhancedAI, EnhancedAIAnalysisRequest, SmartBulkRequest } from '../services/enhanced-ai-integration.service';
-import { taskRouter } from '../services/task-router.service';
 import { logger } from '../services/logger.service';
 import { aiOrchestrator, AIRequest } from '../services/ai-orchestrator.service';
 import { Contact } from '../types';
@@ -165,9 +164,9 @@ export const useSmartAI = () => {
       const request: SmartBulkRequest = {
         contacts,
         analysisType,
-        urgency: options?.urgency,
-        costLimit: options?.costLimit,
-        timeLimit: options?.timeLimit
+        ...(options?.urgency !== undefined ? { urgency: options.urgency } : {}),
+        ...(options?.costLimit !== undefined ? { costLimit: options.costLimit } : {}),
+        ...(options?.timeLimit !== undefined ? { timeLimit: options.timeLimit } : {})
       };
 
       const result = await enhancedAI.smartBulkAnalysis(request);

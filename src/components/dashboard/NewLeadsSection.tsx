@@ -1,6 +1,5 @@
 import React from 'react';
 import { LeadCard } from './LeadCard';
-import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Search, Filter, UserPlus } from 'lucide-react';
 

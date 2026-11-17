@@ -5,7 +5,7 @@ import { generateAutomationRule } from '../../services/automationRuleGenerator';
 import { useLiveCall } from '../../hooks/useLiveCall';
 import { LiveRunStatus } from '../ui/LiveRunStatus';
 import { objectList, asString } from '../../lib/streaming/previews';
-import { Plus, Settings, Play, Pause, Trash2, Edit } from 'lucide-react';
+import { Plus, Settings, Play, Pause, Trash2 } from 'lucide-react';
 
 export const AutomationBuilder: React.FC = () => {
   const [automations, setAutomations] = useState<ContactAutomation[]>([]);

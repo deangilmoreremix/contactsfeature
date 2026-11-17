@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { Contact } from '../../types';
 import { INTEREST_COLORS, INTEREST_LABELS, SOURCE_COLORS } from '../../utils/constants';
-import { formatLastConnected } from '../../utils/dateUtils';
 
 interface ContactMetadataProps {
   contact: Contact;

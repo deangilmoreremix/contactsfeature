@@ -26,11 +26,11 @@ export interface EmailAttachment {
 
 export interface EmailResult {
   success: boolean;
-  messageId?: string;
+  messageId?: string | undefined;
   error?: string;
   /** 'CONTENT_FLAGGED' when blocked by content moderation */
-  code?: string;
-  categories?: string[];
+  code?: string | undefined;
+  categories?: string[] | undefined;
   provider: string;
 }
 

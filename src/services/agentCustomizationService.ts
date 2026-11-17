@@ -87,9 +87,10 @@ export class AgentCustomizationService {
 
     // Modify user prompt template
     let userPrompt = this.buildUserPrompt(contact, type, context, customization);
-    if (customization.customPrompts?.userPromptTemplate) {
+    const userPromptTemplate = customization.customPrompts?.userPromptTemplate;
+    if (userPromptTemplate) {
       userPrompt = this.interpolateTemplate(
-        customization.customPrompts.userPromptTemplate,
+        userPromptTemplate,
         { contact, type, context, tone }
       );
     }
@@ -256,7 +257,7 @@ Focus on ${industry} industry trends and solutions.`
     return basePrompts[agentId] || `You are an SDR agent using ${tone} tone.`;
   }
 
-  private static buildUserPrompt(contact: any, type: string, context: string, customization: AgentCustomization): string {
+  private static buildUserPrompt(contact: any, type: string, context: string | undefined, customization: AgentCustomization): string {
     return `Generate a ${customization.customPrompts?.toneAdjustments?.[type] || type} message for this contact:
 
 Contact: ${contact.name} (${contact.title} at ${contact.company})
@@ -295,7 +296,7 @@ Make it highly personalized and effective.`;
     return prompt;
   }
 
-  private static async getVariantPerformance(agentId: string, variants: any[]) {
+  private static async getVariantPerformance(_agentId: string, variants: any[]) {
     // Implementation to get performance metrics for each variant
     // This would query the database for actual performance data
     return variants.map(variant => ({

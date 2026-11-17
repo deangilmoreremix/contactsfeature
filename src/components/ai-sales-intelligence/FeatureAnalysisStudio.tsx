@@ -190,7 +190,7 @@ export const FeatureAnalysisStudio: React.FC<FeatureAnalysisStudioProps> = ({
 
           {uploadedImages.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {uploadedImages.map((image, index) => (
+              {uploadedImages.map((_image, index) => (
                 <div key={index} className="relative">
                   <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
                     <ImageIcon className="w-6 h-6 text-gray-400" />

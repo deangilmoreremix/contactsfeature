@@ -1,23 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
-import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { webSearchService } from '../../services/webSearchService';
 import { useDocumentSummarization } from '../../hooks/useDocumentSummarization';
-import { fileStorageService, FileUploadResult, FileMetadata } from '../../services/fileStorage.service';
+import { fileStorageService, FileMetadata } from '../../services/fileStorage.service';
 import { journeyService, JourneyEvent as DbJourneyEvent, CreateJourneyEventInput } from '../../services/journeyService';
 import { isMockContact } from '../../utils/mockDataDetection';
 import { TimelineKindFilter, useTimelineKindFilter } from './TimelineKindFilter';
 import { classifyJourneyEvent, countByKind, filterByKinds } from '../../lib/timeline/filterEvents';
 import {
   Mail,
-  Phone,
-  MessageSquare,
-  Video,
-  Calendar,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -45,9 +39,9 @@ interface JourneyEvent {
   timestamp: string;
   status?: 'completed' | 'pending' | 'in_progress';
   metadata?: {
-    channel?: string;
-    sentiment?: 'positive' | 'neutral' | 'negative';
-    score?: number;
+    channel?: string | undefined;
+    sentiment?: 'positive' | 'neutral' | 'negative' | undefined;
+    score?: number | undefined;
     fileName?: string;
     fileSize?: number;
     fileType?: string;
@@ -129,13 +123,11 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     // Research state management
     const researchThinking = useResearchThinking();
     const researchStatus = useResearchStatus();
-    const [researchSources, setResearchSources] = useState<any[]>([]);
+    const [, setResearchSources] = useState<any[]>([]);
 
     // Document summarization hook
     const {
       isSummarizing,
-      error: summarizationError,
-      summaries,
       processAndSummarizeFile,
       processAndSummarizeUrl,
       getSummary,

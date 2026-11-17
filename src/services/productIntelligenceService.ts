@@ -4,7 +4,7 @@
  */
 
 import type { LiveOptions } from './liveOptions';
-import { AnalysisResults, GeneratedContent, AnalysisInput, AnalysisProgress, AnalysisError } from '../types/productIntelligence';
+import { AnalysisResults, GeneratedContent } from '../types/productIntelligence';
 import { gpt51ResponsesService } from './gpt51ResponsesService';
 import { logger } from './logger.service';
 
@@ -216,48 +216,6 @@ export class ProductIntelligenceService {
       confidence: data.confidence || 0,
       analysisId: data.analysisId || `analysis_${Date.now()}`,
       timestamp: new Date(data.timestamp || Date.now())
-    };
-  }
-
-  /**
-   * Process and validate generated content
-   */
-  private processGeneratedContent(data: any): GeneratedContent {
-    return {
-      emails: data.emails || [],
-      callScripts: data.callScripts || [],
-      smsMessages: data.smsMessages || [],
-      discoveryQuestions: data.discoveryQuestions || {
-        qualification: [],
-        discovery: [],
-        technical: [],
-        budget: [],
-        timeline: [],
-        decision: []
-      },
-      salesPlaybook: data.salesPlaybook || {
-        id: '',
-        name: '',
-        phases: [],
-        estimatedDuration: 0,
-        successRate: 0,
-        targetDealSize: 0
-      },
-      communicationOptimization: data.communicationOptimization || {
-        originalContent: '',
-        optimizedContent: '',
-        improvements: [],
-        score: 0,
-        suggestions: []
-      },
-      dealHealthAnalysis: data.dealHealthAnalysis || {
-        overallScore: 0,
-        riskLevel: 'low',
-        recommendations: [],
-        nextSteps: [],
-        warningSigns: [],
-        positiveIndicators: []
-      }
     };
   }
 

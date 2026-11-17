@@ -89,13 +89,13 @@ export interface ComposeMode {
 
 export interface DraftMessage {
   id: string;
-  conversationId?: string;
+  conversationId?: string | undefined;
   platforms: Platform[];
   recipient: string;
-  subject?: string;
+  subject?: string | undefined;
   content: string;
   attachments: string[];
-  scheduledFor?: Date;
+  scheduledFor?: Date | undefined;
   createdAt: Date;
   updatedAt: Date;
 }

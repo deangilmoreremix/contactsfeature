@@ -10,17 +10,9 @@ import { EmailForm } from './EmailForm';
 import {
   Mail,
   Send,
-  Clock,
-  Sparkles,
   X,
   Copy,
-  Save,
-  Zap,
-  Target,
-  TrendingUp,
-  Loader2,
-  FileText,
-  Calendar
+  Save
 } from 'lucide-react';
 
 interface QuickEmailComposerProps {

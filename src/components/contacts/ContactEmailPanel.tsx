@@ -3,8 +3,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { useToast } from '../ui/Toast';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { AIEmailGenerator } from '../email/AIEmailGenerator';
@@ -15,7 +14,7 @@ import { EmailScheduler } from '../email/EmailScheduler';
 import { EmailAnalytics } from '../email/EmailAnalytics';
 import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
-import { ERROR_MESSAGES, LOADING_MESSAGES } from '../../utils/constants';
+import { ERROR_MESSAGES } from '../../utils/constants';
 import { isValidEmail, safeClipboardWrite } from '../../utils/validation';
 import { useFunctionStream } from '../../hooks/useFunctionStream';
 import { streamFunction } from '../../services/functionStream';
@@ -30,12 +29,10 @@ import {
   ExternalLink,
   Send,
   Copy,
-  Save,
   Trash2,
   Brain,
   Sparkles,
   Mail as MailIcon,
-  Smartphone,
   Calendar
 } from 'lucide-react';
 
@@ -67,7 +64,7 @@ export const ContactEmailPanel: React.FC<ContactEmailPanelProps> = React.memo(({
   // Research state management
   const researchThinking = useResearchThinking();
   const researchStatus = useResearchStatus();
-  const [researchSources, setResearchSources] = useState<any[]>([]);
+  const [, setResearchSources] = useState<any[]>([]);
 
   const handleSelectTemplate = (subject: string, body: string) => {
     setEmailSubject(subject);

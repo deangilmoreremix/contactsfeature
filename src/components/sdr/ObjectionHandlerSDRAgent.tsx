@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Shield } from "lucide-react";
+import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./SDRAgentConfigurator";
 import { useSdrRun, SdrLiveBar } from "./SdrLive";
 import { Contact } from "../../types/contact";

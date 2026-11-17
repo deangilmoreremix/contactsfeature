@@ -1,7 +1,6 @@
 import { CustomFieldManager } from '../settings/CustomFieldManager';
 import React, { useState } from 'react';
 import { ModernButton } from '../ui/ModernButton';
-import { DarkModeToggle } from '../ui/DarkModeToggle';
 import UserManagement from '../../pages/UserManagement';
 import { AgentControlPanel } from '../AgentControlPanel';
 import { MessagingProvidersPanel } from '../settings/MessagingProvidersPanel';
@@ -11,14 +10,10 @@ import {
   Brain,
   Bell,
   Shield,
-  Database,
-  Palette,
-  Globe,
-  Zap,
   Save,
   RefreshCw,
   Users,
-  Mail
+  Mail,
 } from 'lucide-react';
 
 interface SettingsModalProps {

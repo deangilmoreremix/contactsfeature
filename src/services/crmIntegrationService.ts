@@ -241,7 +241,7 @@ export class CRMIntegrationService {
   /**
    * Generate workflow steps based on content and analysis
    */
-  private generateWorkflowSteps(content: GeneratedContent, analysis: AnalysisResults): WorkflowStep[] {
+  private generateWorkflowSteps(content: GeneratedContent, _analysis: AnalysisResults): WorkflowStep[] {
     const steps: WorkflowStep[] = [];
     let stepId = 1;
 

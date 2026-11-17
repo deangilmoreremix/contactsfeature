@@ -5,7 +5,6 @@ import {
   offset,
   flip,
   shift,
-  arrow,
   useHover,
   useFocus,
   useDismiss,
@@ -14,16 +13,15 @@ import {
   FloatingArrow,
   arrow as arrowMiddleware,
 } from '@floating-ui/react';
-import { GlassCard } from './GlassCard';
 import { tooltipService, TooltipConfiguration } from '../../services/tooltipService';
 
 interface SmartTooltipProps {
   content?: React.ReactNode;
   featureId?: string;
   children: React.ReactElement;
-  position?: 'top' | 'bottom' | 'left' | 'right';
+  position?: 'top' | 'bottom' | 'left' | 'right' | undefined;
   trigger?: 'hover' | 'focus' | 'click';
-  delay?: number;
+  delay?: number | undefined;
   className?: string;
   showArrow?: boolean;
   maxWidth?: string;

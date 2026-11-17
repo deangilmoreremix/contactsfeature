@@ -4,7 +4,6 @@ import { useHoverPreview } from '../../hooks/useHoverPreview';
 import { useContactMetrics } from '../../hooks/useContactMetrics';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { AgentStatusIndicator } from './AgentStatusIndicator';
-import { ModernButton } from '../ui/ModernButton';
 import {
   Mail,
   Phone,
@@ -14,7 +13,6 @@ import {
   Activity,
   Clock,
   Heart,
-  Zap,
   Sparkles,
   Target,
   BookOpen
@@ -43,8 +41,8 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
   isSelected,
   onSelect,
   onClick,
-  onEdit,
-  onAnalyze,
+  onEdit: _onEdit,
+  onAnalyze: _onAnalyze,
   isAnalyzing = false,
   variant = 'standard',
   showMetrics = true,

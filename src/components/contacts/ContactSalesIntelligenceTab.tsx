@@ -3,7 +3,7 @@ import { Contact } from '../../types/contact';
 import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
-import { Target, Settings, Brain } from 'lucide-react';
+import { Settings, Brain } from 'lucide-react';
 
 interface ContactSalesIntelligenceTabProps {
   contact: Contact;
@@ -15,9 +15,9 @@ interface ContactSalesIntelligenceTabProps {
 
 export const ContactSalesIntelligenceTab: React.FC<ContactSalesIntelligenceTabProps> = memo(({
   contact,
-  showAPIConfig,
+  showAPIConfig: _showAPIConfig,
   setShowAPIConfig,
-  showAISettings,
+  showAISettings: _showAISettings,
   setShowAISettings
 }) => {
   return (

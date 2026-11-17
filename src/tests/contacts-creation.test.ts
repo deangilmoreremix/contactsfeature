@@ -8,6 +8,7 @@ import { useContactStore } from '../hooks/useContactStore';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
 import { renderHook, act } from '@testing-library/react';
+import { asContact, asNewContact } from './helpers/contactFixtures';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -102,7 +103,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Validation failed: Invalid email format')
       );
 
-      await expect(result.current.createContact(invalidEmailContact)).rejects.toThrow('Invalid email format');
+      await expect(result.current.createContact(asNewContact(invalidEmailContact))).rejects.toThrow('Invalid email format');
 
       expect(result.current.error).toContain('Invalid email format');
     });
@@ -119,7 +120,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Validation failed: Invalid phone number format')
       );
 
-      await expect(result.current.createContact(invalidPhoneContact)).rejects.toThrow('Invalid phone number format');
+      await expect(result.current.createContact(asNewContact(invalidPhoneContact))).rejects.toThrow('Invalid phone number format');
 
       expect(result.current.error).toContain('Invalid phone number format');
     });
@@ -137,7 +138,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Validation failed: Name must be at least 2 characters')
       );
 
-      await expect(result.current.createContact(shortNameContact)).rejects.toThrow('Name must be at least 2 characters');
+      await expect(result.current.createContact(asNewContact(shortNameContact))).rejects.toThrow('Name must be at least 2 characters');
 
       expect(result.current.error).toContain('Name must be at least 2 characters');
     });
@@ -160,11 +161,11 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(sanitizedCreatedContact);
 
       await act(async () => {
-        await result.current.createContact(maliciousContact);
+        await result.current.createContact(asNewContact(maliciousContact));
       });
 
-      expect(result.current.contacts[0].firstName).toBe('John');
-      expect(result.current.contacts[0].firstName).not.toContain('<script>');
+      expect(result.current.contacts[0]!.firstName).toBe('John');
+      expect(result.current.contacts[0]!.firstName).not.toContain('<script>');
     });
 
     it('should handle special characters in names', async () => {
@@ -186,12 +187,12 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
 
       await act(async () => {
-        await result.current.createContact(specialCharContact);
+        await result.current.createContact(asNewContact(specialCharContact));
       });
 
-      expect(result.current.contacts[0].firstName).toBe('José');
-      expect(result.current.contacts[0].lastName).toBe('Muñoz');
-      expect(result.current.contacts[0].name).toBe('José Muñoz');
+      expect(result.current.contacts[0]!.firstName).toBe('José');
+      expect(result.current.contacts[0]!.lastName).toBe('Muñoz');
+      expect(result.current.contacts[0]!.name).toBe('José Muñoz');
     });
   });
 
@@ -219,7 +220,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Duplicate contact: Email already exists')
       );
 
-      await expect(result.current.createContact(duplicateEmailContact)).rejects.toThrow('Email already exists');
+      await expect(result.current.createContact(asNewContact(duplicateEmailContact))).rejects.toThrow('Email already exists');
 
       expect(result.current.error).toContain('Email already exists');
       expect(result.current.contacts).toHaveLength(1); // Should not add duplicate
@@ -244,11 +245,11 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
 
       await act(async () => {
-        await result.current.createContact(sameNameContact);
+        await result.current.createContact(asNewContact(sameNameContact));
       });
 
       expect(result.current.contacts).toHaveLength(2);
-      expect(result.current.contacts[0].email).toBe('different@example.com'); // new contacts are added at the top
+      expect(result.current.contacts[0]!.email).toBe('different@example.com'); // new contacts are added at the top
     });
 
     it('should handle case-insensitive email comparison', async () => {
@@ -265,7 +266,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Duplicate contact: Email already exists (case insensitive)')
       );
 
-      await expect(result.current.createContact(caseVariantContact)).rejects.toThrow('Email already exists');
+      await expect(result.current.createContact(asNewContact(caseVariantContact))).rejects.toThrow('Email already exists');
 
       expect(result.current.error).toContain('Email already exists');
     });
@@ -278,7 +279,7 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockCreatedContact);
 
       await act(async () => {
-        const created = await result.current.createContact(validContactData);
+        const created = await result.current.createContact(asNewContact(validContactData));
         expect(created).toEqual(mockCreatedContact);
       });
 
@@ -294,7 +295,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Network error: Unable to connect to server')
       );
 
-      await expect(result.current.createContact(validContactData)).rejects.toThrow('Network error');
+      await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Network error');
 
       expect(result.current.error).toBe('Network error: Unable to connect to server');
       expect(result.current.contacts).toHaveLength(0);
@@ -307,7 +308,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Request timeout')
       );
 
-      await expect(result.current.createContact(validContactData)).rejects.toThrow('Request timeout');
+      await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Request timeout');
 
       expect(result.current.error).toBe('Request timeout');
     });
@@ -319,7 +320,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Internal server error')
       );
 
-      await expect(result.current.createContact(validContactData)).rejects.toThrow('Internal server error');
+      await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Internal server error');
 
       expect(result.current.error).toBe('Internal server error');
     });
@@ -333,11 +334,11 @@ describe('Contact Creation Functionality', () => {
         .mockResolvedValueOnce(mockCreatedContact);
 
       // First attempt should fail
-      await expect(result.current.createContact(validContactData)).rejects.toThrow('Temporary network error');
+      await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Temporary network error');
 
       // Second attempt should succeed
       await act(async () => {
-        await result.current.createContact(validContactData);
+        await result.current.createContact(asNewContact(validContactData));
       });
 
       expect(result.current.contacts).toContain(mockCreatedContact);
@@ -350,7 +351,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Rate limit exceeded. Please try again later.')
       );
 
-      await expect(result.current.createContact(validContactData)).rejects.toThrow('Rate limit exceeded');
+      await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Rate limit exceeded');
 
       expect(result.current.error).toContain('Rate limit exceeded');
     });
@@ -369,7 +370,7 @@ describe('Contact Creation Functionality', () => {
       });
 
       await act(async () => {
-        await result.current.createContact(validContactData);
+        await result.current.createContact(asNewContact(validContactData));
       });
 
       expect(loadingState).toBe(true);
@@ -387,7 +388,7 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockCreatedContact);
 
       await act(async () => {
-        await result.current.createContact(validContactData);
+        await result.current.createContact(asNewContact(validContactData));
       });
 
       expect(result.current.error).toBeNull();
@@ -406,7 +407,7 @@ describe('Contact Creation Functionality', () => {
         new Error('Validation failed: Invalid email')
       );
 
-      await expect(result.current.createContact(invalidContact)).rejects.toThrow('Validation failed');
+      await expect(result.current.createContact(asNewContact(invalidContact))).rejects.toThrow('Validation failed');
 
       // Error should be set but contacts should remain unchanged
       expect(result.current.error).toContain('Validation failed');
@@ -419,7 +420,7 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockCreatedContact);
 
       await act(async () => {
-        const created = await result.current.createContact(validContactData);
+        const created = await result.current.createContact(asNewContact(validContactData));
         expect(created).toEqual(mockCreatedContact);
       });
 
@@ -443,8 +444,8 @@ describe('Contact Creation Functionality', () => {
 
       await act(async () => {
         const [result1, result2] = await Promise.all([
-          result.current.createContact(contact1),
-          result.current.createContact(contact2)
+          result.current.createContact(asNewContact(contact1)),
+          result.current.createContact(asNewContact(contact2))
         ]);
 
         expect(result1).toEqual(created1);
@@ -484,10 +485,10 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
 
       await act(async () => {
-        await result.current.createContact(contactWithoutName);
+        await result.current.createContact(asNewContact(contactWithoutName));
       });
 
-      expect(result.current.contacts[0].name).toBe('Alice Johnson');
+      expect(result.current.contacts[0]!.name).toBe('Alice Johnson');
     });
 
     it('should set default values for optional fields', async () => {
@@ -514,15 +515,15 @@ describe('Contact Creation Functionality', () => {
         status: 'lead'
       };
 
-      vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
+      vi.mocked(contactAPI.createContact).mockResolvedValue(asContact(createdContact));
 
       await act(async () => {
         await result.current.createContact(minimalContact as any);
       });
 
-      expect(result.current.contacts[0].sources).toEqual(['Manual']);
-      expect(result.current.contacts[0].interestLevel).toBe('medium');
-      expect(result.current.contacts[0].status).toBe('lead');
+      expect(result.current.contacts[0]!.sources).toEqual(['Manual']);
+      expect(result.current.contacts[0]!.interestLevel).toBe('medium');
+      expect(result.current.contacts[0]!.status).toBe('lead');
     });
 
     it('should handle missing optional fields gracefully', async () => {
@@ -552,15 +553,15 @@ describe('Contact Creation Functionality', () => {
         tags: undefined
       };
 
-      vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
+      vi.mocked(contactAPI.createContact).mockResolvedValue(asContact(createdContact));
 
       await act(async () => {
-        await result.current.createContact(contactWithoutOptionals);
+        await result.current.createContact(asNewContact(contactWithoutOptionals));
       });
 
-      expect(result.current.contacts[0].phone).toBeUndefined();
-      expect(result.current.contacts[0].industry).toBeUndefined();
-      expect(result.current.contacts[0].tags).toBeUndefined();
+      expect(result.current.contacts[0]!.phone).toBeUndefined();
+      expect(result.current.contacts[0]!.industry).toBeUndefined();
+      expect(result.current.contacts[0]!.tags).toBeUndefined();
     });
   });
 
@@ -571,7 +572,7 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockCreatedContact);
 
       await act(async () => {
-        await result.current.createContact(validContactData);
+        await result.current.createContact(asNewContact(validContactData));
       });
 
       // Verify store state
@@ -588,7 +589,7 @@ describe('Contact Creation Functionality', () => {
 
       vi.mocked(contactAPI.createContact).mockRejectedValue(new Error('Creation failed'));
 
-      await expect(result.current.createContact(validContactData)).rejects.toThrow('Creation failed');
+      await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Creation failed');
 
       expect(result.current.contacts).toHaveLength(0);
       expect(result.current.isLoading).toBe(false);
@@ -602,7 +603,7 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockCreatedContact);
 
       await act(async () => {
-        const created = await result.current.createContact(validContactData);
+        const created = await result.current.createContact(asNewContact(validContactData));
         expect(created).toEqual(mockCreatedContact);
       });
 
@@ -632,13 +633,13 @@ describe('Contact Creation Functionality', () => {
 
       vi.mocked(contactAPI.createContact).mockImplementation(async (contactData) => {
         const index = contacts.findIndex(c => c.email === contactData.email);
-        return mockCreatedContacts[index];
+        return asContact(mockCreatedContacts[index]!);
       });
 
       const startTime = Date.now();
 
       await act(async () => {
-        await Promise.all(contacts.map(contact => result.current.createContact(contact)));
+        await Promise.all(contacts.map(contact => result.current.createContact(asNewContact(contact))));
       });
 
       const endTime = Date.now();
@@ -656,7 +657,7 @@ describe('Contact Creation Functionality', () => {
       vi.mocked(contactAPI.createContact).mockRejectedValue(new Error('Persistent error'));
 
       for (let i = 0; i < 5; i++) {
-        await expect(result.current.createContact(validContactData)).rejects.toThrow('Persistent error');
+        await expect(result.current.createContact(asNewContact(validContactData))).rejects.toThrow('Persistent error');
       }
 
       // Store should remain clean

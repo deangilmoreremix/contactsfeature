@@ -6,8 +6,8 @@
 interface AIFeatureUsage {
   feature: string;
   action: string;
-  contactId?: string;
-  duration?: number;
+  contactId?: string | undefined;
+  duration?: number | undefined;
   success: boolean;
   timestamp: string;
   userAgent: string;
@@ -64,9 +64,9 @@ class AIAnalyticsService {
   }
 
   trackUsage(feature: string, action: string, options: {
-    contactId?: string;
-    duration?: number;
-    success?: boolean;
+    contactId?: string | undefined;
+    duration?: number | undefined;
+    success?: boolean | undefined;
   } = {}) {
     const usage: AIFeatureUsage = {
       feature,
@@ -126,7 +126,7 @@ class AIAnalyticsService {
     this.trackUsage(feature, 'button_click', { contactId, success: true });
   }
 
-  private async sendToAnalytics(usage: AIFeatureUsage) {
+  private async sendToAnalytics(_usage: AIFeatureUsage) {
     // In a real implementation, send to analytics services like Mixpanel, Amplitude, etc.
     try {
       // Example: Send to analytics endpoint
@@ -157,26 +157,24 @@ class AIAnalyticsService {
       stats.featureUsage[event.feature] = (stats.featureUsage[event.feature] || 0) + 1;
 
       // Success rate
-      if (!stats.successRate[event.feature]) {
-        stats.successRate[event.feature] = { success: 0, total: 0 };
-      }
-      stats.successRate[event.feature].total++;
+      const rate = stats.successRate[event.feature] ?? { success: 0, total: 0 };
+      stats.successRate[event.feature] = rate;
+      rate.total++;
       if (event.success) {
-        stats.successRate[event.feature].success++;
+        rate.success++;
       }
 
       // Average duration
-      if (!featureStats[event.feature]) {
-        featureStats[event.feature] = { count: 0, success: 0, durations: [] };
-      }
+      const featureStat = featureStats[event.feature] ?? { count: 0, success: 0, durations: [] };
+      featureStats[event.feature] = featureStat;
       if (event.duration) {
-        featureStats[event.feature].durations.push(event.duration);
+        featureStat.durations.push(event.duration);
       }
     });
 
     // Calculate average durations
     Object.keys(featureStats).forEach(feature => {
-      const durations = featureStats[feature].durations;
+      const durations = featureStats[feature]?.durations ?? [];
       if (durations.length > 0) {
         stats.averageDuration[feature] = durations.reduce((a, b) => a + b, 0) / durations.length;
       }

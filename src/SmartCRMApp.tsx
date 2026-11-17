@@ -12,10 +12,10 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[Contacts App] Uncaught error:', error, errorInfo);
   }
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div className="p-8 text-center">

@@ -6,14 +6,11 @@ import {
   Brain,
   Sparkles,
   Search,
-  Mail,
-  Phone,
-  MessageSquare,
   BarChart3,
   Loader2,
   CheckCircle,
   TrendingUp,
-  Zap
+  Zap,
 } from 'lucide-react';
 
 export const InteractiveContactDemo: React.FC = () => {

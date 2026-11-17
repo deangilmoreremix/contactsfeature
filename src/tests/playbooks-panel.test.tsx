@@ -3,7 +3,7 @@
  * the panel renders the final result (summary + script / objection / follow-up lists) or the error.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PlaybooksPanel } from '../components/PlaybooksPanel';
 import { newOutcome } from '../lib/streaming/streamClient';

@@ -6,9 +6,9 @@ import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Send, TrendingUp, AlertTriangle, CheckCircle, Zap, MessageSquare, Sparkles, Brain, Settings } from 'lucide-react';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { Send, AlertTriangle, CheckCircle, Zap, MessageSquare, Settings } from 'lucide-react';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { SDRAgentConfigurator } from '../sdr/SDRAgentConfigurator';
 
 interface CommunicationContext {
@@ -53,7 +53,6 @@ interface CommunicationOptimizerProps {
 }
 
 export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
-  content,
   context,
   onOptimize,
   onApplyOptimization,
@@ -67,7 +66,7 @@ export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
-  const researchStatus = useResearchStatus();
+  useResearchStatus();
 
   const optimizeCommunication = async () => {
     setLoading(true);
@@ -253,36 +252,6 @@ Best regards,
     }
   };
 
-  const getOptimizationGoals = (context: CommunicationContext) => {
-    switch (context.purpose) {
-      case 'nurture':
-        return ['engagement', 'relationship_building', 'value_demonstration'];
-      case 'qualify':
-        return ['information_gathering', 'need_identification', 'qualification'];
-      case 'close':
-        return ['urgency_creation', 'objection_handling', 'commitment'];
-      case 'follow_up':
-        return ['next_step_creation', 'momentum_maintenance'];
-      case 're_engage':
-        return ['attention_grabbing', 'value_reminder', 'reconnection'];
-      default:
-        return ['general_engagement'];
-    }
-  };
-
-  const getTargetMetrics = (type: string) => {
-    switch (type) {
-      case 'email':
-        return { openRate: 0.25, responseRate: 0.08, clickRate: 0.03 };
-      case 'call_script':
-        return { connectionRate: 0.60, conversionRate: 0.15 };
-      case 'social_message':
-        return { engagementRate: 0.08, responseRate: 0.05 };
-      default:
-        return { engagementRate: 0.10 };
-    }
-  };
-
   const applyOptimization = (suggestionId: string) => {
     setAppliedOptimizations(prev => new Set([...prev, suggestionId]));
     onApplyOptimization?.();
@@ -300,7 +269,7 @@ Best regards,
     return <AlertTriangle className="w-5 h-5 text-red-600" />;
   };
 
-  const getPerformanceIndicator = (metric: string, value: number) => {
+  const getPerformanceIndicator = (_metric: string, value: number) => {
     const colors = {
       excellent: 'text-green-600 bg-green-50',
       good: 'text-blue-600 bg-blue-50',

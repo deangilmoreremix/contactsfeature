@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Lightbulb,
   Download,
-  Share,
   Zap,
   BarChart3,
   Globe,
@@ -18,7 +17,6 @@ import {
   Mail,
   Phone,
   MessageSquare,
-  Calendar
 } from 'lucide-react';
 import { AnalysisResults, GeneratedContent } from '../../types/productIntelligence';
 import { ModernButton } from '../ui/ModernButton';

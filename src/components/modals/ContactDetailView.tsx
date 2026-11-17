@@ -35,7 +35,7 @@ import { eventsToIcs, icsFilename, serviceEventsToIcsEvents, type IcsEvent } fro
 import { downloadTextFile } from '../../lib/export/download';
 import { buildContactEvents } from '../../lib/calendar/contactEvents';
 import { canUseContactCalendar, contactCalendarService } from '../../services/contactCalendarService';
-import { readRecentContacts, recordRecentContact, type RecentContact } from '../../lib/records/recentContacts';
+import { recordRecentContact, type RecentContact } from '../../lib/records/recentContacts';
 import { useCurrentUserId } from '../../hooks/useCurrentUserId';
 
 // Lazy load tab components for better performance
@@ -77,7 +77,7 @@ export const ContactDetailView: React.FC<ContactDetailViewProps> = ({
   onOpenContact
 }) => {
   // Provide a default onUpdate function to handle cases where it's not provided
-  const handleUpdate: (id: string, updates: Partial<Contact>) => Promise<Contact> = onUpdate || ((id: string, updates: Partial<Contact>) => Promise.resolve(contact));
+  const handleUpdate: (id: string, updates: Partial<Contact>) => Promise<Contact> = onUpdate || ((_id: string, _updates: Partial<Contact>) => Promise.resolve(contact));
   // State management
   const { activeTab, changeTab } = useContactTabs(initialTab && KNOWN_TAB_IDS.has(initialTab) ? initialTab : 'overview');
   const researchStatus = useResearchStatus();

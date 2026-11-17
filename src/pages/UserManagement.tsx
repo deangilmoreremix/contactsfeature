@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Trash2, RefreshCw, Users, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -40,6 +40,7 @@ export default function UserManagement() {
       const timer = setTimeout(() => setNotification(null), 5000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [notification]);
 
   const loadUsers = async () => {
@@ -68,7 +69,7 @@ export default function UserManagement() {
     try {
       setDeleteLoading(true);
 
-      const { data, error } = await supabase.functions.invoke('admin-user-management', {
+      const { error } = await supabase.functions.invoke('admin-user-management', {
         body: { action: 'delete', userId },
       });
 

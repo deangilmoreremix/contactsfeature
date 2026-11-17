@@ -127,7 +127,7 @@ export async function buildDealSnapshot(dealId: string): Promise<CrmContext> {
   }
 }
 
-export async function buildPipelineSnapshot(workspaceId: string): Promise<CrmContext> {
+export async function buildPipelineSnapshot(_workspaceId: string): Promise<CrmContext> {
   try {
     // Fetch all open deals grouped by stage
     const { data: deals } = await supabase
@@ -172,7 +172,7 @@ export async function buildPipelineSnapshot(workspaceId: string): Promise<CrmCon
   }
 }
 
-export async function buildWorkspaceAnalyticsSnapshot(workspaceId: string): Promise<CrmContext> {
+export async function buildWorkspaceAnalyticsSnapshot(_workspaceId: string): Promise<CrmContext> {
   try {
     // This would aggregate various metrics across the workspace
     // For now, we'll provide a basic structure

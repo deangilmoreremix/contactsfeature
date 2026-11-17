@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Fuse from 'fuse.js';
 import { useDebounce } from './useDebounce';
 import { sdrAuthHeaders } from '../services/sdrClient';
@@ -19,8 +19,12 @@ export interface SmartSearchOptions<T> {
 
 export interface SearchResult<T> {
   item: T;
-  score?: number;
-  matches?: Fuse.FuseResultMatch<T>['matches'];
+  score?: number | undefined;
+  matches?: Array<{
+    indices: ReadonlyArray<[number, number]>;
+    key?: string | undefined;
+    value?: string | undefined;
+  }> | undefined;
 }
 
 export function useSmartSearch<T>({
@@ -40,7 +44,6 @@ export function useSmartSearch<T>({
   /** Required for semantic mode: maps an item to its contact id. */
   getId?: (item: T) => string;
 }) {
-  const fuseRef = useRef<Fuse<T> | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
   const debouncedQuery = useDebounce(searchQuery, 200);
@@ -141,7 +144,7 @@ export function useSmartSearch<T>({
     activeMode: (semanticResults ? 'semantic' : 'fuzzy') as 'semantic' | 'fuzzy',
     semanticError,
     totalResults: results.length,
-    hasExactMatch: results[0]?.score !== undefined ? results[0].score! < 0.1 : false,
+    hasExactMatch: (results[0]?.score ?? Infinity) < 0.1,
     highlightedIndices
   };
 }

@@ -199,12 +199,12 @@ class CacheService {
     return this.get('contact', contactId);
   }
   
-  setContactList(filters: object, contacts: any[], ttl?: number): void {
+  setContactList(filters: object, contacts: unknown, ttl?: number): void {
     this.set('contact_list', filters, contacts, ttl, ['contact', 'list']);
   }
   
-  getContactList(filters: object): any[] | null {
-    return this.get('contact_list', filters);
+  getContactList<T = any>(filters: object): T | null {
+    return this.get<T>('contact_list', filters);
   }
   
   setAIAnalysis(contactId: string, analysis: any, ttl?: number): void {

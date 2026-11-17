@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ModernButton } from '../ui/ModernButton';
-import { Bot, Mail, Calendar, Target, Settings as SettingsIcon, Play, Pause, Square } from 'lucide-react';
+import { Bot, Mail, Target, Settings as SettingsIcon, Play } from 'lucide-react';
 
 interface SDRAutopilotSettings {
   enabled: boolean;

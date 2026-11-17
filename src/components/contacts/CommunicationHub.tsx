@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { communicationAI } from '../../services/communication-ai.service';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { webSearchService } from '../../services/webSearchService';
@@ -12,7 +11,6 @@ import { useFunctionStream } from '../../hooks/useFunctionStream';
 import { streamFunction } from '../../services/functionStream';
 import { LiveOutput } from '../ui/LiveOutput';
 import { liveDisplay } from '../../lib/streaming/previewText';
-import { SDRPersonaSelector } from './SDRPersonaSelector';
 import {
   Mail,
   Phone,
@@ -21,22 +19,8 @@ import {
   Calendar,
   Send,
   Paperclip,
-  Smile,
-  MoreHorizontal,
-  Clock,
-  CheckCircle,
-  AlertCircle,
   Filter,
   Search,
-  Download,
-  Settings,
-  Linkedin,
-  Twitter,
-  Facebook,
-  Smartphone,
-  ExternalLink,
-  BarChart3,
-  TrendingUp,
   Brain,
   X
 } from 'lucide-react';
@@ -125,17 +109,15 @@ const sampleCommunications: CommunicationRecord[] = [
 ];
 
 export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) => {
-    const [activeTab, setActiveTab] = useState('timeline');
     const [selectedType, setSelectedType] = useState('all');
-    const [isComposing, setIsComposing] = useState(false);
-    const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
+    const [, setIsComposing] = useState(false);
     const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, setError] = useState<string | null>(null);
     const [generatedContent, setGeneratedContent] = useState<{
       type: 'email' | 'meeting' | 'proposal' | 'strategy';
       content: string;
-      subject?: string;
+      subject?: string | undefined;
       timestamp: Date;
     } | null>(null);
     const [showContentModal, setShowContentModal] = useState(false);
@@ -149,14 +131,7 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
      if (hub.state.error) { setError(hub.state.error); researchThinking.complete('❌ Generation failed'); }
      // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [hub.state.error]);
-   const [researchSources, setResearchSources] = useState<any[]>([]);
-
-  const tabs = [
-    { id: 'timeline', label: 'Timeline', icon: Clock },
-    { id: 'compose', label: 'Compose', icon: Send },
-    { id: 'templates', label: 'Templates', icon: Mail },
-    { id: 'analytics', label: 'Analytics', icon: MoreHorizontal }
-  ];
+   const [, setResearchSources] = useState<any[]>([]);
 
   const communicationTypes = [
     { value: 'all', label: 'All Communications' },

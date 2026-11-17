@@ -36,7 +36,6 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
   contactId,
   dealId,
   variant = 'outline',
-  size = 'sm',
   className = '',
   onSuccess,
   onError,

@@ -6,18 +6,14 @@ import { ModernButton } from '../ui/ModernButton';
 import { useToast } from '../ui/Toast';
 import { Contact } from '../../types';
 import {
-  Mail,
   Search,
-  Filter,
   Plus,
-  Edit,
   Copy,
-  Trash2,
   Loader2,
   FileText,
   CheckCircle,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react';
 
 interface EmailTemplateSelectorProps {

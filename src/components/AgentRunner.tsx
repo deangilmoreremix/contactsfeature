@@ -15,14 +15,12 @@ import {
   XCircle,
   Settings,
   MessageSquare,
-  Image as ImageIcon,
-  FileText,
   Users,
   TrendingUp,
   Database,
   Phone,
   Calendar,
-  Zap
+  Zap,
 } from 'lucide-react';
 
 interface AgentRunnerProps {

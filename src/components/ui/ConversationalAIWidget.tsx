@@ -243,7 +243,7 @@ export const ConversationalAIWidget: React.FC<ConversationalAIWidgetProps> = ({
     }
   };
 
-  const processVoiceInput = async (audioBlob: Blob) => {
+  const processVoiceInput = async (_audioBlob: Blob) => {
     setIsProcessing(true);
 
     try {

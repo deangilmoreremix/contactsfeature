@@ -4,7 +4,7 @@ import { useAIStream } from '../../hooks/useAIStream';
 import { liveDisplay } from '../../lib/streaming/previewText';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Loader2, TrendingUp, MessageSquare, Target, Zap } from 'lucide-react';
+import { TrendingUp, MessageSquare, Target, Zap } from 'lucide-react';
 
 interface Contact {
   id: string;

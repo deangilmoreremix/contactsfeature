@@ -28,7 +28,6 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
   formData,
   onAutoFill,
   className = '',
-  size = 'md'
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [autoFillMode, setAutoFillMode] = useState<'smart' | 'conservative' | 'aggressive'>('smart');

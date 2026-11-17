@@ -181,7 +181,7 @@ class CommunicationAIService {
         context
       },
       context: {
-        contactId: recipient?.id
+        ...(recipient?.id !== undefined ? { contactId: recipient.id } : {})
       }
     };
 
@@ -462,7 +462,7 @@ class CommunicationAIService {
     const wordCount = emailContent.body.split(' ').length;
     if (wordCount >= 50 && wordCount <= 200) score += 10;
     if (emailContent.body.includes('?')) score += 5;
-    if (emailContent.body.match(/\n\n/g)?.length >= 2) score += 5; // Paragraph breaks
+    if ((emailContent.body.match(/\n\n/g)?.length ?? 0) >= 2) score += 5; // Paragraph breaks
     
     return Math.max(0, Math.min(100, score));
   }

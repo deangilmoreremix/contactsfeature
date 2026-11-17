@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { productMatchingService } from '../services/productMatchingService';
 import { draftGenerationService } from '../services/draftGenerationService';
@@ -12,7 +12,6 @@ import type {
   DraftType,
   DraftTone,
   MatchTier,
-  getMatchTier,
 } from '../types/userProduct';
 
 interface MatchFilters {
@@ -166,7 +165,7 @@ export function useProductMatches(): UseProductMatchesReturn {
 
       setProgress({ completed: 0, total: contacts.length });
 
-      const calculatedMatches = await productMatchingService.batchCalculateMatches(
+      await productMatchingService.batchCalculateMatches(
         product,
         contacts as Contact[],
         user.id,

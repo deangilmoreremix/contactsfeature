@@ -1,7 +1,7 @@
 import React from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
-import { Calendar, Clock, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, TrendingUp } from 'lucide-react';
 
 const upcomingDeals = [
   {

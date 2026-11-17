@@ -54,7 +54,7 @@ describe('End-to-End Agent Execution', () => {
     db.respond('agent_runs', 'update', { data: null, error: null });
   }
 
-  const lastRunUpdate = () => db.callsFor('agent_runs', 'update').at(-1)!.payload as Record<string, any>;
+  const lastRunUpdate = () => { const calls = db.callsFor('agent_runs', 'update'); return calls[calls.length - 1]!.payload as Record<string, any>; };
 
   beforeEach(() => {
     db.reset();

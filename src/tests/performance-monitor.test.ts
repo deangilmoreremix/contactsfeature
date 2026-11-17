@@ -72,9 +72,9 @@ describe('Performance Monitor', () => {
 
       const metrics = performanceMonitor.getMetrics('test_metric');
       expect(metrics).toHaveLength(1);
-      expect(metrics[0].value).toBe(100);
-      expect(metrics[0].name).toBe('test_metric');
-      expect(metrics[0].timestamp).toBeDefined();
+      expect(metrics[0]!.value).toBe(100);
+      expect(metrics[0]!.name).toBe('test_metric');
+      expect(metrics[0]!.timestamp).toBeDefined();
     });
 
     it('should record metrics with metadata', () => {
@@ -82,7 +82,7 @@ describe('Performance Monitor', () => {
       performanceMonitor.record('search_time', 250, metadata);
 
       const metrics = performanceMonitor.getMetrics('search_time');
-      expect(metrics[0].metadata).toEqual(metadata);
+      expect(metrics[0]!.metadata).toEqual(metadata);
     });
 
     it('should maintain maximum metrics limit', () => {
@@ -107,7 +107,7 @@ describe('Performance Monitor', () => {
 
       const metrics = performanceMonitor.getMetrics('test_operation_duration');
       expect(metrics).toHaveLength(1);
-      expect(metrics[0].value).toBeGreaterThanOrEqual(150);
+      expect(metrics[0]!.value).toBeGreaterThanOrEqual(150);
     });
 
     it('should handle multiple concurrent timers', () => {
@@ -123,8 +123,8 @@ describe('Performance Monitor', () => {
       const metrics1 = performanceMonitor.getMetrics('operation1_duration');
       const metrics2 = performanceMonitor.getMetrics('operation2_duration');
 
-      expect(metrics1[0].value).toBeGreaterThanOrEqual(100);
-      expect(metrics2[0].value).toBeGreaterThanOrEqual(150);
+      expect(metrics1[0]!.value).toBeGreaterThanOrEqual(100);
+      expect(metrics2[0]!.value).toBeGreaterThanOrEqual(150);
     });
   });
 
@@ -167,8 +167,8 @@ describe('Performance Monitor', () => {
 
       const metrics = performanceMonitor.getMetrics('search_query_duration');
       expect(metrics).toHaveLength(1);
-      expect(metrics[0].value).toBeGreaterThanOrEqual(75);
-      expect(metrics[0].value).toBeLessThan(100); // Allow some tolerance
+      expect(metrics[0]!.value).toBeGreaterThanOrEqual(75);
+      expect(metrics[0]!.value).toBeLessThan(100); // Allow some tolerance
     });
 
     it('should track API response times', () => {
@@ -179,8 +179,8 @@ describe('Performance Monitor', () => {
       });
 
       const metrics = performanceMonitor.getMetrics('api_response_time');
-      expect(metrics[0].metadata?.['endpoint']).toBe('/api/contacts/search');
-      expect(metrics[0].metadata?.['statusCode']).toBe(200);
+      expect(metrics[0]!.metadata?.['endpoint']).toBe('/api/contacts/search');
+      expect(metrics[0]!.metadata?.['statusCode']).toBe(200);
     });
 
     it('should track cache hit rates', () => {
@@ -276,8 +276,8 @@ describe('Performance Monitor', () => {
 
       // The timer measures elapsed time (120ms API call + 10ms of the rest); the recorded
       // cache_check / result_processing values are separate metrics, not part of the elapsed time
-      expect(searchMetrics[0].value).toBeGreaterThanOrEqual(130);
-      expect(searchMetrics[0].value).toBeGreaterThanOrEqual(apiMetrics[0].value);
+      expect(searchMetrics[0]!.value).toBeGreaterThanOrEqual(130);
+      expect(searchMetrics[0]!.value).toBeGreaterThanOrEqual(apiMetrics[0]!.value);
     });
 
     it('should track search performance thresholds', () => {

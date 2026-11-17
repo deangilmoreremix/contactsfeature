@@ -39,7 +39,7 @@ describe('Error Scenario Coverage', () => {
   };
 
   const request = (input: Record<string, unknown> = { test: true }) => ({ agentId: mockAgent.id, userId: mockUser.id, input });
-  const lastRunUpdate = () => db.callsFor('agent_runs', 'update').at(-1)!.payload as Record<string, any>;
+  const lastRunUpdate = () => { const calls = db.callsFor('agent_runs', 'update'); return calls[calls.length - 1]!.payload as Record<string, any>; };
   const signedIn = () => { (db.auth as any).getSession = async () => ({ data: { session: { access_token: 'test-token', user: mockUser } }, error: null }); };
   const signedOut = () => { (db.auth as any).getSession = async () => ({ data: { session: null }, error: null }); };
 

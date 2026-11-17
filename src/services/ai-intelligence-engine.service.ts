@@ -6,7 +6,7 @@
 import { logger } from './logger.service';
 import { cacheService } from './cache.service';
 import { Contact } from '../types';
-import { contactAI, ContactInsight, ContactScore } from './contact-ai.service';
+import { ContactInsight } from './contact-ai.service';
 import { communicationAI } from './communication-ai.service';
 import { aiJson } from './aiClient';
 import type { LiveOptions } from './liveOptions';
@@ -177,7 +177,7 @@ class AIIntelligenceEngine {
   }
 
   recordOutcome(
-    contactId: string,
+    _contactId: string,
     action: string,
     outcome: 'success' | 'failure' | 'partial',
     context: Record<string, any>
@@ -231,12 +231,12 @@ class AIIntelligenceEngine {
 
   // Private Helper Methods
   private async gatherMultiSourceInsights(
-    contactId: string,
+    _contactId: string,
     contact: Contact,
     existingInsights: ContactInsight[],
     live?: LiveOptions
   ): Promise<Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }>> {
-    const insights = [];
+    const insights: Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }> = [];
     
     // Include existing insights
     existingInsights.forEach(insight => {
@@ -277,7 +277,7 @@ class AIIntelligenceEngine {
   }
 
   private analyzeInsightCorrelations(
-    contactId: string,
+    _contactId: string,
     insights: Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }>,
     communicationHistory: any[]
   ): any {
@@ -294,7 +294,6 @@ class AIIntelligenceEngine {
 
   private generateMetaInsight(correlation: any, contact: Contact): IntelligenceCorrelation['metaInsight'] {
     const strongSignals = correlation.strongSignals;
-    const actionableItems = correlation.actionableItems;
     
     // Generate high-level insight
     let title = 'Contact Intelligence Summary';
@@ -359,7 +358,7 @@ class AIIntelligenceEngine {
     return 'behavioral';
   }
 
-  private findApplicablePatterns(contact: Contact, context?: any): LearningPattern[] {
+  private findApplicablePatterns(contact: Contact, _context?: any): LearningPattern[] {
     return this.learningPatterns.filter(pattern => {
       return pattern.applicableContactTypes.some(type => 
         type === contact.industry || 

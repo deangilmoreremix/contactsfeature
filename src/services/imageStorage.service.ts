@@ -97,7 +97,7 @@ class ImageStorageService {
       const thumbnailFilename = `${user.id}/${timestamp}_thumb_${filename}`;
 
       // Upload main image
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(this.BUCKET_NAME)
         .upload(uniqueFilename, blob, {
           contentType: blob.type,

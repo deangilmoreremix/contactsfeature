@@ -58,15 +58,15 @@ export interface CommunicationProvider {
   healthCheck: {
     lastChecked: string;
     status: 'healthy' | 'degraded' | 'unhealthy';
-    responseTime?: number;
-    errorMessage?: string;
+    responseTime?: number | undefined;
+    errorMessage?: string | undefined;
   };
 }
 
 export interface CommunicationTestResult {
   success: boolean;
   responseTime: number;
-  errorMessage?: string;
+  errorMessage?: string | undefined;
   details?: any;
 }
 
@@ -170,7 +170,8 @@ export class CommunicationConfigService {
    * Get all configurations by type
    */
   getConfigsByType(type: 'smtp' | 'twilio' | 'mailto'): any[] {
-    return Array.from(this.configs[type].values());
+    const configs: Map<string, SMTPConfig | TwilioConfig | MailtoConfig> = this.configs[type];
+    return Array.from(configs.values());
   }
 
   /**
@@ -222,7 +223,7 @@ export class CommunicationConfigService {
       const isValidConfig = config.host && config.port && config.auth.user && config.auth.pass;
 
       return {
-        success: isValidConfig,
+        success: Boolean(isValidConfig),
         responseTime: Date.now() - startTime,
         errorMessage: isValidConfig ? undefined : 'Invalid SMTP configuration',
         details: {
@@ -265,7 +266,7 @@ export class CommunicationConfigService {
       const isValidConfig = config.accountSid && config.authToken && config.phoneNumbers.length > 0;
 
       return {
-        success: isValidConfig,
+        success: Boolean(isValidConfig),
         responseTime: Date.now() - startTime,
         errorMessage: isValidConfig ? undefined : 'Invalid Twilio configuration',
         details: {
@@ -401,8 +402,8 @@ export class CommunicationConfigService {
     name: string;
     status: 'healthy' | 'degraded' | 'unhealthy';
     lastChecked: string;
-    responseTime?: number;
-    errorMessage?: string;
+    responseTime?: number | undefined;
+    errorMessage?: string | undefined;
   }> {
     const healthStatus: Array<{
       type: string;
@@ -410,12 +411,12 @@ export class CommunicationConfigService {
       name: string;
       status: 'healthy' | 'degraded' | 'unhealthy';
       lastChecked: string;
-      responseTime?: number;
-      errorMessage?: string;
+      responseTime?: number | undefined;
+      errorMessage?: string | undefined;
     }> = [];
 
     for (const [key, provider] of this.providers) {
-      const [type, id] = key.split('_');
+      const [type = '', id = ''] = key.split('_');
       let name = '';
 
       // Get configuration name

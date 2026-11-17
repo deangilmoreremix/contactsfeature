@@ -6,7 +6,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useContactStore } from '../hooks/useContactStore';
 import { contactAPI } from '../services/contact-api.service';
-import { cacheService } from '../services/cache.service';
 import { Contact } from '../types';
 
 // Mock dependencies
@@ -20,7 +19,7 @@ vi.mock('../services/logger.service');
 
 
 describe('Contact CRUD Operations', () => {
-  let store: ReturnType<typeof useContactStore>;
+  let store: ReturnType<typeof useContactStore.getState>;
 
   const mockContact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
     firstName: 'John',

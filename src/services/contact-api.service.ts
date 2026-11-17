@@ -24,7 +24,6 @@
  * ```
  */
 
-import { httpClient } from './http-client.service';
 import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
@@ -34,7 +33,6 @@ import { encryptionService } from '../utils/encryption';
 import { Contact } from '../types/contact';
 import { normalizeContactRow } from '../lib/contacts/softDelete';
 import { contactsToCsvBlob } from '../utils/contactCsv';
-import apiConfig from '../config/api.config';
 
 export interface ContactFilters {
   search?: string;
@@ -72,34 +70,18 @@ export interface ContactStats {
 }
 
 class ContactAPIService {
-  private baseURL: string;
   private supabaseKey: string | null = null;
-  private isBackendAvailable = true;
   private isMockMode = import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development';
   
   constructor() {
     // For contact operations, use direct database access instead of Edge Functions
     // Edge Functions are more suitable for complex operations like AI enrichment
-    this.baseURL = apiConfig.contactsAPI.baseURL;
     this.supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
     this.isMockMode = false; // Use Supabase instead of local storage
 
     console.log('ContactAPI Constructor: Supabase key loaded?', !!this.supabaseKey);
     console.log('ContactAPI Constructor: isMockMode?', this.isMockMode);
     console.log('Using Supabase for contact management');
-  }
-  
-  // Get headers for Supabase requests
-  private getSupabaseHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (this.supabaseKey) {
-      headers['Authorization'] = `Bearer ${this.supabaseKey}`;
-    }
-    
-    return headers;
   }
   
   // Check if we should use fallback mode
@@ -176,7 +158,7 @@ class ContactAPIService {
         avatarSrc: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
         sources: ['Conference', 'LinkedIn'],
         interestLevel: 'hot',
-        status: 'qualified',
+        status: 'prospect',
         lastConnected: '2024-01-20',
         aiScore: 92,
         tags: ['Enterprise', 'Decision Maker'],
@@ -214,7 +196,7 @@ class ContactAPIService {
         industry: 'Manufacturing',
         avatarSrc: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
         sources: ['Cold Email'],
-        interestLevel: 'warm',
+        interestLevel: 'medium',
         status: 'prospect',
         lastConnected: '2024-01-22',
         aiScore: 65,
@@ -252,7 +234,7 @@ class ContactAPIService {
         industry: 'Retail',
         avatarSrc: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
         sources: ['Website', 'Email'],
-        interestLevel: 'warm',
+        interestLevel: 'medium',
         status: 'prospect',
         lastConnected: '2024-01-25',
         aiScore: 73,
@@ -534,10 +516,11 @@ class ContactAPIService {
   private setLocalDeletedAt(contactId: string, deletedAt: string | null): void {
     const contacts = this.getLocalContacts();
     const index = contacts.findIndex(c => c.id === contactId);
-    if (index === -1) {
+    const existing = contacts[index];
+    if (index === -1 || !existing) {
       throw new Error(`Contact with ID ${contactId} not found`);
     }
-    contacts[index] = { ...contacts[index], deletedAt, updatedAt: new Date().toISOString() };
+    contacts[index] = { ...existing, deletedAt, updatedAt: new Date().toISOString() };
     this.saveLocalContacts(contacts);
   }
 
@@ -632,7 +615,7 @@ class ContactAPIService {
       }
 
       const result: ContactListResponse = {
-        contacts: (data || []).map((row) => compositeFromRow(row)),
+        contacts: (data || []).map((row: Contact) => compositeFromRow(row)),
         total: count || 0,
         limit,
         offset,
@@ -880,10 +863,11 @@ class ContactAPIService {
     
     for (const update of updates) {
       const contactIndex = contacts.findIndex(c => c.id === update.id);
-      if (contactIndex !== -1) {
+      const existingContact = contacts[contactIndex];
+      if (contactIndex !== -1 && existingContact) {
         // Apply updates
         const updatedContact: Contact = {
-          ...contacts[contactIndex],
+          ...existingContact,
           ...update.data,
           updatedAt: new Date().toISOString()
         };

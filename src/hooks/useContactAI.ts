@@ -2,17 +2,10 @@ import { useState, useCallback, useEffect } from 'react';
 import { useContactAI as useAIContext } from '../contexts/AIContext';
 import { ContactInsight } from '../services/contact-ai.service';
 import { useContactStore } from './useContactStore';
-import { Contact } from '../types';
 import { validateContactData, sanitizeString } from '../utils/validation';
 import { ERROR_MESSAGES } from '../utils/constants';
 import type { LiveOptions } from '../services/liveOptions';
 import { insightsFromPartial } from '../lib/streaming/previews';
-
-interface AIScore {
-  overall: number;
-  reasoning?: string[];
-  confidence?: number;
-}
 
 interface UseContactAIResult {
   aiScore: number | null;

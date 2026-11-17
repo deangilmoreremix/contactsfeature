@@ -1,7 +1,6 @@
 import React from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
-import { ModernButton } from '../ui/ModernButton';
 import { Search, Bell, Settings, ChevronDown } from 'lucide-react';
 
 const navigationTabs = [

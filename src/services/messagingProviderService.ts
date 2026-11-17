@@ -94,13 +94,13 @@ export const messagingProviderService = {
   sendEmail: (input: {
     to: string;
     subject: string;
-    body_html?: string;
-    body_text?: string;
-    contact_id?: string;
-    scheduled_for?: string;
+    body_html?: string | undefined;
+    body_text?: string | undefined;
+    contact_id?: string | undefined;
+    scheduled_for?: string | undefined;
   }) =>
     call<{ success: boolean; queued?: boolean; id?: string; message_id?: string; provider?: string }>('send-email', input),
 
-  sendSms: (input: { to: string; message: string; from?: string; contactId?: string }) =>
+  sendSms: (input: { to: string; message: string; from?: string | undefined; contactId?: string | undefined }) =>
     call<{ success: boolean; messageSid?: string; provider?: string }>('send-sms', input),
 };

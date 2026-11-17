@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   Sparkles,
@@ -6,7 +6,6 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Settings,
   BookOpen,
   Zap,
   Filter,
@@ -17,15 +16,8 @@ import {
   Save,
   Edit3,
   Trash2,
-  ChevronDown,
   Lightbulb,
   MessageSquare,
-  Mail,
-  Phone,
-  FileText,
-  Users,
-  TrendingUp,
-  Target,
   ArrowRight,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -39,7 +31,7 @@ interface GTMPrompt {
   name: string;
   description?: string;
   category: string;
-  role: string;
+  role?: string | undefined;
   tags?: string[];
   prompt?: string;
 }
@@ -99,7 +91,7 @@ export default function GTMPromptHub() {
   const loadPrompts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('gtm-prompt-library', {
+      const { data } = await supabase.functions.invoke('gtm-prompt-library', {
         body: { action: 'list', category: selectedCategory === 'all' ? undefined : selectedCategory, limit: 50 }
       });
       if (data?.prompts) {
@@ -354,9 +346,9 @@ export default function GTMPromptHub() {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-medium text-gray-900">{prompt.name}</h3>
-                        {prompt.tags?.length > 0 && (
+                        {(prompt.tags?.length ?? 0) > 0 && (
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                            {prompt.tags[0]}
+                            {prompt.tags?.[0]}
                           </span>
                         )}
                       </div>

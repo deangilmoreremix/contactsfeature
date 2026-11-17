@@ -352,7 +352,8 @@ export const useAdvancedAI = () => {
   const generateIntelligenceCorrelationStreaming = useCallback(async function* (
     contact: Contact,
     includeHistory: boolean = true,
-    onProgress?: (update: StreamingUpdate) => void
+    _onProgress?: (update: StreamingUpdate) => void,
+    live?: LiveOptions
   ): AsyncGenerator<StreamingUpdate, IntelligenceCorrelation, unknown> {
     const cacheKey = `intelligence-${contact.id}-${includeHistory}`;
     const cached = cacheService.get<IntelligenceCorrelation>('AdvancedAI', { cacheKey });

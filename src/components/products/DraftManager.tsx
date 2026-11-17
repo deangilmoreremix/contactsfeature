@@ -12,11 +12,8 @@ import {
   Trash2,
   CheckCircle,
   Clock,
-  Filter,
-  X,
   ChevronDown,
   User,
-  Building,
   Package,
 } from 'lucide-react';
 import type {
@@ -75,7 +72,7 @@ export function DraftManager({ productId, contactId }: DraftManagerProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDrafts({ productId, contactId });
+    fetchDrafts({ ...(productId !== undefined ? { productId } : {}), ...(contactId !== undefined ? { contactId } : {}) });
   }, [productId, contactId, fetchDrafts]);
 
   const filteredDrafts = drafts.filter(draft => {
@@ -112,12 +109,12 @@ export function DraftManager({ productId, contactId }: DraftManagerProps) {
 
     setEditMode(false);
     setSelectedDraft(null);
-    fetchDrafts({ productId, contactId });
+    fetchDrafts({ ...(productId !== undefined ? { productId } : {}), ...(contactId !== undefined ? { contactId } : {}) });
   };
 
   const handleMarkSent = async (draftId: string) => {
     await markAsSent(draftId);
-    fetchDrafts({ productId, contactId });
+    fetchDrafts({ ...(productId !== undefined ? { productId } : {}), ...(contactId !== undefined ? { contactId } : {}) });
   };
 
   const handleDelete = async (draftId: string) => {
@@ -131,7 +128,7 @@ export function DraftManager({ productId, contactId }: DraftManagerProps) {
 
   const handleRegenerate = async (draft: ProductDraftWithDetails, newTone?: DraftTone) => {
     await regenerateDraft(draft as ProductDraft, newTone);
-    fetchDrafts({ productId, contactId });
+    fetchDrafts({ ...(productId !== undefined ? { productId } : {}), ...(contactId !== undefined ? { contactId } : {}) });
   };
 
   const formatDate = (dateStr: string) => {

@@ -4,16 +4,14 @@ import { SmartTooltip } from '../ui/SmartTooltip';
 import {
   Home,
   Users,
-  BarChart3,
   Calendar,
   Settings,
   HelpCircle,
   TrendingUp,
   FileText,
-  Star,
   CheckSquare,
   Brain,
-  Package
+  Package,
 } from 'lucide-react';
 
 interface SidebarProps {

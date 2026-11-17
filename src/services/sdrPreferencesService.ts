@@ -98,7 +98,7 @@ export class SDRPreferencesService {
         updated_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('sdr_user_preferences')
         .upsert(dbData, {
           onConflict: 'user_id,agent_id',

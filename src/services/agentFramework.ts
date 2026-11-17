@@ -76,13 +76,13 @@ class AgentFramework {
       }
 
       // Gather context data
-      const context = await this.gatherContext(request.userId, request.contactId, request.dealId);
+      const context = await this.gatherContext(request.contactId, request.dealId);
 
       // Create agent run record
       const agentRun: Omit<AgentRun, 'id' | 'created_at'> = {
         agent_id: request.agentId,
-        contact_id: request.contactId || undefined,
-        deal_id: request.dealId || undefined,
+        ...(request.contactId ? { contact_id: request.contactId } : {}),
+        ...(request.dealId ? { deal_id: request.dealId } : {}),
         user_id: request.userId,
         input_data: request.input || {},
         status: 'running'
@@ -196,7 +196,7 @@ class AgentFramework {
   /**
    * Gather context data for agent execution
    */
-  private async gatherContext(userId: string, contactId?: string, dealId?: string): Promise<AgentContext> {
+  private async gatherContext(contactId?: string, dealId?: string): Promise<AgentContext> {
     const context: AgentContext = {};
 
     try {
@@ -701,7 +701,7 @@ class AgentFramework {
   private async generateAgentResponse(
     agentConfig: AgentConfig,
     content: string,
-    toolResults: any[],
+    _toolResults: any[],
     usage: any
   ): Promise<AgentResponse> {
     return {
@@ -737,14 +737,14 @@ class AgentFramework {
     try {
       const content = JSON.parse(response.output_text);
       if (content.contact_updates && request.contactId) {
-        updates.contacts.push({
+        updates.contacts?.push({
           id: request.contactId,
           updates: content.contact_updates
         });
       }
 
       if (content.deal_updates && request.dealId) {
-        updates.deals.push({
+        updates.deals?.push({
           id: request.dealId,
           updates: content.deal_updates
         });

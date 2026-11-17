@@ -118,7 +118,7 @@ describe('communication-optimization function', () => {
 
     await handler()(post({ contact, interactionHistory, timeframe: '90d' }));
 
-    const opts = createResponse.mock.calls[0][0];
+    const opts = createResponse.mock.calls[0]![0];
     expect(opts).toMatchObject({ model: 'default', effort: 'low', schemaName: 'communication_optimization', store: false });
     expect(opts.schema.required).toEqual(['optimalTiming', 'communicationStyle', 'channelPreferences', 'engagementPatterns', 'recommendations', 'nextSteps']);
     expect(opts.input).toContain('John Doe (CTO at Tech Corp)');
@@ -131,11 +131,11 @@ describe('communication-optimization function', () => {
 
     const res = await handler()(post({ contact }));
 
-    const opts = createResponse.mock.calls[0][0];
+    const opts = createResponse.mock.calls[0]![0];
     expect(opts.input).toContain('Timeframe: 30d');
     expect(opts.input).toContain('Interaction History: []');
     expect(JSON.parse(res.body).data.optimizationType).toBe('comprehensive');
-    expect(inserted['communication_optimizations'][0]).toMatchObject({ optimization_type: 'comprehensive' });
+    expect(inserted['communication_optimizations']![0]).toMatchObject({ optimization_type: 'comprehensive' });
   });
 
   it('fills in sensible defaults for anything the model left out', async () => {
@@ -152,7 +152,7 @@ describe('communication-optimization function', () => {
       recommendations: [],
       nextSteps: [],
     });
-    expect(inserted['communication_optimizations'][0]).toMatchObject({
+    expect(inserted['communication_optimizations']![0]).toMatchObject({
       optimal_timing: { bestDay: 'Tuesday', bestTime: '10:00', timezone: 'UTC' },
       recommendations: [],
     });

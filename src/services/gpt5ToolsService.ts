@@ -20,7 +20,7 @@ interface SMSData {
 
 interface CallData {
   to: string;
-  notes?: string;
+  notes?: string | undefined;
 }
 
 export class GPT5ToolsService {

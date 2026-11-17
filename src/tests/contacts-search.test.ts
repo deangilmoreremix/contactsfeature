@@ -5,7 +5,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useContactStore } from '../hooks/useContactStore';
-import { useSearchContacts } from '../hooks/useSearchContacts';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
 
@@ -20,7 +19,7 @@ vi.mock('../services/logger.service');
 
 
 describe('Contact Search and Filtering', () => {
-  let store: ReturnType<typeof useContactStore>;
+  let store: ReturnType<typeof useContactStore.getState>;
 
   const mockContacts: Contact[] = [
     {
@@ -120,7 +119,7 @@ describe('Contact Search and Filtering', () => {
 
     it('should apply status filter', async () => {
       const mockResponse = {
-        contacts: [mockContacts[1]], // Jane Smith - prospect
+        contacts: [mockContacts[1]!], // Jane Smith - prospect
         total: 1,
         limit: 50,
         offset: 0,
@@ -132,12 +131,12 @@ describe('Contact Search and Filtering', () => {
       await store.fetchContacts({ status: 'prospect' });
 
       expect(contactAPI.getContacts).toHaveBeenCalledWith({ status: 'prospect' });
-      expect(store.contacts).toEqual([mockContacts[1]]);
+      expect(store.contacts).toEqual([mockContacts[1]!]);
     });
 
     it('should apply interest level filter', async () => {
       const mockResponse = {
-        contacts: [mockContacts[0]], // John Doe - hot
+        contacts: [mockContacts[0]!], // John Doe - hot
         total: 1,
         limit: 50,
         offset: 0,
@@ -149,7 +148,7 @@ describe('Contact Search and Filtering', () => {
       await store.fetchContacts({ interestLevel: 'hot' });
 
       expect(contactAPI.getContacts).toHaveBeenCalledWith({ interestLevel: 'hot' });
-      expect(store.contacts).toEqual([mockContacts[0]]);
+      expect(store.contacts).toEqual([mockContacts[0]!]);
     });
 
     it('should apply industry filter', async () => {
@@ -170,7 +169,7 @@ describe('Contact Search and Filtering', () => {
 
     it('should apply multiple filters simultaneously', async () => {
       const mockResponse = {
-        contacts: [mockContacts[1]], // Jane Smith - prospect + Technology
+        contacts: [mockContacts[1]!], // Jane Smith - prospect + Technology
         total: 1,
         limit: 50,
         offset: 0,
@@ -216,7 +215,7 @@ describe('Contact Search and Filtering', () => {
   describe('Contact Search', () => {
     it('should search contacts by name', async () => {
       const mockResponse = {
-        contacts: [mockContacts[0]], // John Doe
+        contacts: [mockContacts[0]!], // John Doe
         total: 1,
         limit: 50,
         offset: 0,
@@ -228,12 +227,12 @@ describe('Contact Search and Filtering', () => {
       await store.searchContacts('John');
 
       expect(contactAPI.searchContacts).toHaveBeenCalledWith('John');
-      expect(store.contacts).toEqual([mockContacts[0]]);
+      expect(store.contacts).toEqual([mockContacts[0]!]);
     });
 
     it('should search contacts by email', async () => {
       const mockResponse = {
-        contacts: [mockContacts[1]], // jane.smith@startup.io
+        contacts: [mockContacts[1]!], // jane.smith@startup.io
         total: 1,
         limit: 50,
         offset: 0,
@@ -245,12 +244,12 @@ describe('Contact Search and Filtering', () => {
       await store.searchContacts('startup.io');
 
       expect(contactAPI.searchContacts).toHaveBeenCalledWith('startup.io');
-      expect(store.contacts).toEqual([mockContacts[1]]);
+      expect(store.contacts).toEqual([mockContacts[1]!]);
     });
 
     it('should search contacts by company', async () => {
       const mockResponse = {
-        contacts: [mockContacts[2]], // Enterprise Corp
+        contacts: [mockContacts[2]!], // Enterprise Corp
         total: 1,
         limit: 50,
         offset: 0,
@@ -262,7 +261,7 @@ describe('Contact Search and Filtering', () => {
       await store.searchContacts('Enterprise');
 
       expect(contactAPI.searchContacts).toHaveBeenCalledWith('Enterprise');
-      expect(store.contacts).toEqual([mockContacts[2]]);
+      expect(store.contacts).toEqual([mockContacts[2]!]);
     });
 
     // The store always delegates to the API; the minimum query length and debouncing live in useSearchContacts.
@@ -276,12 +275,12 @@ describe('Contact Search and Filtering', () => {
     });
 
     it('should delegate short search queries to the API', async () => {
-      vi.mocked(contactAPI.searchContacts).mockResolvedValue({ contacts: [mockContacts[0]], total: 1, limit: 50, offset: 0, hasMore: false });
+      vi.mocked(contactAPI.searchContacts).mockResolvedValue({ contacts: [mockContacts[0]!], total: 1, limit: 50, offset: 0, hasMore: false });
 
       await store.searchContacts('J');
 
       expect(contactAPI.searchContacts).toHaveBeenCalledWith('J');
-      expect(store.contacts).toEqual([mockContacts[0]]);
+      expect(store.contacts).toEqual([mockContacts[0]!]);
     });
 
     it('should fallback to client-side search when API fails', async () => {
@@ -302,7 +301,7 @@ describe('Contact Search and Filtering', () => {
       const mockSearchHook = {
         query: 'John',
         debouncedQuery: 'John',
-        searchResults: [mockContacts[0]],
+        searchResults: [mockContacts[0]!],
         isSearching: false,
         error: null,
         updateQuery: vi.fn(),
@@ -354,7 +353,7 @@ describe('Contact Search and Filtering', () => {
   describe('Performance and Edge Cases', () => {
     it('should handle large result sets', async () => {
       const largeContactList = Array.from({ length: 100 }, (_, i) => ({
-        ...mockContacts[0],
+        ...mockContacts[0]!,
         id: `contact-${i}`,
         name: `Contact ${i}`,
         email: `contact${i}@example.com`
@@ -395,7 +394,7 @@ describe('Contact Search and Filtering', () => {
 
     it('should handle concurrent search requests', async () => {
       const mockResponse1 = {
-        contacts: [mockContacts[0]],
+        contacts: [mockContacts[0]!],
         total: 1,
         limit: 50,
         offset: 0,
@@ -403,7 +402,7 @@ describe('Contact Search and Filtering', () => {
       };
 
       const mockResponse2 = {
-        contacts: [mockContacts[1]],
+        contacts: [mockContacts[1]!],
         total: 1,
         limit: 50,
         offset: 0,

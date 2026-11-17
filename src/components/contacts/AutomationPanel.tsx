@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { webSearchService } from '../../services/webSearchService';
 import { useLiveCall } from '../../hooks/useLiveCall';
@@ -9,21 +8,17 @@ import { suggestionsFromPartial } from '../../lib/streaming/previews';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { analyticsService } from '../../services/analyticsService';
-import { SDRPersonaSelector } from './SDRPersonaSelector';
 import { automationPanelService, generateAutomationSuggestions, reviewRule, PanelRule, PanelAction } from '../../services/automationPanelService';
 import {
   Zap,
   Play,
   Pause,
-  Calendar,
   Mail,
   Phone,
   MessageSquare,
   Clock,
   Target,
-  AlertCircle,
   CheckCircle,
   Settings,
   Plus,
@@ -33,7 +28,6 @@ import {
   Filter,
   ArrowRight,
   Bell,
-  RefreshCw,
   Sparkles,
   Brain,
   Award,
@@ -444,7 +438,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
     const [automations, setAutomations] = useState<AutomationRule[]>([]);
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, setError] = useState<string | null>(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [draggedAction, setDraggedAction] = useState<{ automationId: string; actionIndex: number } | null>(null);
 
@@ -472,7 +466,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
    // Research state management
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
-   const [researchSources, setResearchSources] = useState<any[]>([]);
+   const [, setResearchSources] = useState<any[]>([]);
    // Live run: "Searching the web…" status, then suggestion cards appear as the model writes them
    const live = useLiveCall();
 
@@ -1793,7 +1787,7 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({ contact }) => 
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {automationTemplates.map((template, index) => (
+             {automationTemplates.map((template) => (
                <GlassCard key={template.id} className="p-6 hover:shadow-lg transition-shadow">
                  <div className="flex items-start justify-between mb-3">
                    <div className="flex-1">

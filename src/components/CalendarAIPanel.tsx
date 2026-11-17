@@ -14,7 +14,7 @@ interface CalendarEvent {
     id: string;
     name: string | null;
     email: string | null;
-  };
+  } | undefined;
 }
 
 interface CalendarListResponse {

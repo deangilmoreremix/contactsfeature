@@ -1,17 +1,12 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import {
   Zap,
   Play,
-  Square,
   Settings,
-  Plus,
-  Trash2,
-  ArrowRight,
   GitBranch,
   CheckCircle,
   AlertCircle,
@@ -23,20 +18,12 @@ import {
   Database,
   Webhook,
   Code,
-  Filter,
   Target,
   Users,
   DollarSign,
   BarChart3,
   Save,
-  Download,
-  Upload,
-  Copy,
-  Eye,
-  Edit,
   X,
-  Move,
-  RotateCcw
 } from 'lucide-react';
 import { workflowService } from '../../services/workflowService';
 import { walkWorkflow } from '../../utils/conditionEvaluator';
@@ -137,7 +124,6 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   initialWorkflow,
   onSave,
   onExecute,
-  onDuplicate
 }) => {
   const [nodes, setNodes] = useState<WorkflowNode[]>(initialWorkflow?.nodes || []);
   const [edges, setEdges] = useState<WorkflowEdge[]>(initialWorkflow?.edges || []);
@@ -165,10 +151,10 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     return () => { cancelled = true; };
   }, [workflowId, initialWorkflow]);
   const [showNodePanel, setShowNodePanel] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [, setShowSettings] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
-  const researchThinking = useResearchThinking();
+  useResearchThinking();
   const researchStatus = useResearchStatus();
 
   // Initialize with basic workflow structure if empty
@@ -385,7 +371,7 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             />
             <div
               className="w-3 h-3 bg-blue-500 rounded-full cursor-crosshair hover:bg-blue-600 transition-colors"
-              onClick={(e) => handleConnectionEnd(node.id)}
+              onClick={() => handleConnectionEnd(node.id)}
               title="Connect to this node"
             />
           </div>

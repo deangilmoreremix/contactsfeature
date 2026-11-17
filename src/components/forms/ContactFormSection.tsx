@@ -148,7 +148,6 @@ interface FormSectionContentProps {
 
 const FormSectionContent: React.FC<FormSectionContentProps> = ({
   fields,
-  contact,
   editedContact,
   onFieldChange,
   onFieldSave,

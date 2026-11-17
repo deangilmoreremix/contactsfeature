@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { Contact } from '../types/contact';
-import { logger } from '../services/logger.service';
+import { supabase } from '../../lib/supabase';
+import { Contact } from '../../types/contact';
+import { logger } from '../../services/logger.service';
 
 export interface RecordPickerProps {
   isOpen: boolean;
@@ -84,8 +84,9 @@ export function RecordPicker({ isOpen, onClose, onSelect, title = 'Select Contac
                 alt={contact.name}
                 className="w-8 h-8 rounded-full object-cover"
                 onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                  const img = e.currentTarget;
+                  img.onerror = null;
+                  img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
                 }}
               />
               <div>

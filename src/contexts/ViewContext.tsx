@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { ViewType, ViewFilterConfig, ViewSortConfig } from '../types/view';
 import { viewPreferencesService } from '../services/viewPreferences.service';
 import { logger } from '../services/logger.service';

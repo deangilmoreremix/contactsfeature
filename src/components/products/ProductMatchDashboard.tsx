@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   RefreshCw,
-  Filter,
   Download,
   Mail,
   Phone,
@@ -10,22 +9,16 @@ import {
   Linkedin,
   CheckCircle2,
   Circle,
-  User,
   Building,
   Briefcase,
   Target,
   ChevronDown,
   ChevronUp,
-  FileText,
   Sparkles,
 } from 'lucide-react';
 import type {
   UserProduct,
-  ProductContactMatchWithContact,
   DraftType,
-  getMatchTier,
-  getMatchTierColor,
-  getMatchTierLabel,
 } from '../../types/userProduct';
 import { useProductMatches, useProductDrafts } from '../../hooks/useProductMatches';
 

@@ -3,7 +3,7 @@
  * (streamSse); the panel renders the final result, the "no video rendered" note and any error.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { VideoAgentPanel } from '../components/VideoAgentPanel';
 import { newOutcome } from '../lib/streaming/streamClient';

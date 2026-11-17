@@ -5,7 +5,6 @@ import { ModernButton } from '../ui/ModernButton';
 import {
   BarChart3,
   TrendingUp,
-  TrendingDown,
   Mail,
   Eye,
   MousePointer,
@@ -17,10 +16,10 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  Zap
+  Zap,
 } from 'lucide-react';
 import { emailTrackingService, TrackedEmail, bestSendWindow } from '../../services/emailTrackingService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 interface EmailMetrics {
   totalSent: number;

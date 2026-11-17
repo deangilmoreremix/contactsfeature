@@ -5,21 +5,16 @@ import { liveDisplay } from '../../lib/streaming/previewText';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { 
-  Mail, 
-  BarChart3, 
-  ThumbsUp, 
-  AlertCircle, 
-  CheckCircle, 
-  Clock, 
+import {
+  BarChart3,
+  ThumbsUp,
+  AlertCircle,
+  CheckCircle,
   MessageSquare,
-  Loader2, 
+  Loader2,
   Sparkles,
   Target,
-  PieChart,
-  ArrowUp,
-  ArrowDown,
-  RefreshCw
+  RefreshCw,
 } from 'lucide-react';
 
 interface EmailAnalyzerProps {
@@ -59,7 +54,7 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
     
     return (
       <div className="space-y-3">
-        {Object.entries(emailAnalysis.toneAnalysis)
+        {Object.entries(emailAnalysis.toneAnalysis as Record<string, number>)
           .sort(([, a], [, b]) => b - a)
           .map(([tone, percentage]) => (
             <div key={tone} className="space-y-1">
@@ -339,7 +334,7 @@ export const EmailAnalyzer: React.FC<EmailAnalyzerProps> = ({
                     <h4 className="font-medium text-gray-900">Suggested Improvements</h4>
                   </div>
                   <div className="space-y-2">
-                    {emailAnalysis.improvements.map((improvement, index) => (
+                    {emailAnalysis.improvements.map((improvement: { type: string; description: string }, index: number) => (
                       <div 
                         key={index} 
                         className={`p-3 border rounded-lg ${getImprovementColor(improvement.type)}`}

@@ -1,17 +1,13 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { 
-  Brain, 
-  Sparkles, 
-  User, 
-  Building, 
-  Mail, 
-  TrendingUp, 
-  Target, 
+import {
+  Brain,
+  Sparkles,
+  TrendingUp,
   CheckCircle,
   Loader2,
-  Award
+  Award,
 } from 'lucide-react';
 
 export const InteractiveContactScorer: React.FC = () => {

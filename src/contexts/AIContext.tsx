@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { aiOrchestrator, AIRequest, AIResponse } from '../services/ai-orchestrator.service';
+import { aiOrchestrator } from '../services/ai-orchestrator.service';
 import { contactAI, ContactInsight, ContactScore, type BulkProgress } from '../services/contact-ai.service';
 import { communicationAI } from '../services/communication-ai.service';
 import { logger } from '../services/logger.service';
@@ -523,7 +523,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     dispatch({ type: 'UPDATE_REQUEST_PROGRESS', payload: { id: requestId, progress } });
   }, []);
 
-  const completeRequest = useCallback((requestId: string, result?: any) => {
+  const completeRequest = useCallback((requestId: string, _result?: any) => {
     dispatch({ type: 'REMOVE_ACTIVE_REQUEST', payload: requestId });
   }, []);
 

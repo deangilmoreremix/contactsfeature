@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Contact } from '../../types/contact';
-import { PlaybookSelector } from '../playbooks/PlaybookSelector';
 import { PlaybookExecutor } from '../playbooks/PlaybookExecutor';
 import { AdaptivePlaybookGenerator } from '../ai-sales-intelligence/AdaptivePlaybookGenerator';
 import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
@@ -12,10 +11,8 @@ import { SmartTooltip } from '../ui/SmartTooltip';
 import {
   BookOpen,
   Target,
-  ArrowLeft,
   Sparkles,
   Brain,
-  MessageSquare,
   TrendingUp
 } from 'lucide-react';
 
@@ -31,19 +28,14 @@ type PlaybookView = 'selector' | 'executor' | 'adaptive';
 
 export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
   contact,
-  showAPIConfig,
+  showAPIConfig: _showAPIConfig,
   setShowAPIConfig,
-  showAISettings,
+  showAISettings: _showAISettings,
   setShowAISettings
 }) => {
   const [currentView, setCurrentView] = useState<PlaybookView>('selector');
   const [showSDRModal, setShowSDRModal] = useState(false);
   const [selectedPlaybook, setSelectedPlaybook] = useState<any>(null);
-
-  const handleSelectPlaybook = (playbook: any) => {
-    setSelectedPlaybook(playbook);
-    setCurrentView('executor');
-  };
 
   const handleBackToSelector = () => {
     setSelectedPlaybook(null);

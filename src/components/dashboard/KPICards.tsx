@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
-import { TrendingUp, TrendingDown, DollarSign, Target, Users, Trophy } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, Trophy } from 'lucide-react';
 
 const kpiData = [
   {
@@ -66,7 +66,7 @@ export const KPICards: React.FC = () => {
       const progress = currentStep / steps;
 
       setAnimatedValues(prevValues =>
-        prevValues.map((currentValue, index) => {
+        prevValues.map((_currentValue, index) => {
           const target = targetValues[index] || 0;
           const difference = target - 0; // Start from 0
           return Math.floor(0 + difference * progress);

@@ -1,18 +1,16 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { ModernButton } from '../ui/ModernButton';
 import { useContactStore } from '../../hooks/useContactStore';
-import { Contact } from '../../types';
 import {
   X,
   Upload,
   Download,
-  FileText,
   AlertCircle,
   CheckCircle,
   Info,
   Users,
   Database,
-  FileSpreadsheet
+  FileSpreadsheet,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useContactFilterFields } from '../../hooks/useContactFilterFields';

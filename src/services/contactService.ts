@@ -64,7 +64,7 @@ export class ContactService {
   }
 
   // Update a contact
-  async updateContact(id: string, updates: Partial<Contact>): Promise<Contact> {
+  async updateContact(id: string, updates: Partial<Contact> & { score?: number }): Promise<Contact> {
     const { data, error } = await supabase
       .from('contacts')
       .update(updates)
@@ -250,16 +250,16 @@ export class ContactService {
       throw new Error('CSV must have at least a header row and one data row')
     }
 
-    const headers = lines[0].split(',').map(h => h.trim())
+    const headers = (lines[0] ?? '').split(',').map(h => h.trim())
     const results = { success: 0, failed: 0, errors: [] as string[] }
 
     for (let i = 1; i < lines.length; i++) {
       try {
-        const values = lines[i].split(',').map(v => v.trim())
+        const values = (lines[i] ?? '').split(',').map(v => v.trim())
         const contactData: any = {}
 
         headers.forEach((header, index) => {
-          let value = values[index] || ''
+          let value: any = values[index] || ''
 
           // Parse JSON fields
           if (['socialProfiles', 'customFields', 'tags'].includes(header)) {
@@ -294,7 +294,7 @@ export class ContactService {
         await this.createContact(contactData)
         results.success++
       } catch (error) {
-        results.errors.push(`Row ${i + 1}: ${error.message}`)
+        results.errors.push(`Row ${i + 1}: ${(error as { message?: string }).message}`)
         results.failed++
       }
     }

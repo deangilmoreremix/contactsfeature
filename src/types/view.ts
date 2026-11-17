@@ -9,9 +9,9 @@ export interface ViewFilterConfig {
   status?: string[];
   interestLevel?: string[];
   tags?: string[];
-  isFavorite?: boolean;
-  aiScoreMin?: number;
-  aiScoreMax?: number;
+  isFavorite?: boolean | undefined;
+  aiScoreMin?: number | undefined;
+  aiScoreMax?: number | undefined;
   dateFrom?: string;
   dateTo?: string;
   industry?: string[];

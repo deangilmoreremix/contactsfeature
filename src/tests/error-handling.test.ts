@@ -433,7 +433,7 @@ describe('Error Handling System', () => {
       logError(error);
 
       const logCall = consoleSpy.error.mock.calls[0];
-      expect(logCall[1]).toEqual(expect.objectContaining({
+      expect(logCall![1]).toEqual(expect.objectContaining({
         code: ERROR_CODES.UPDATE_FAILED,
         context: expect.objectContaining({
           userId: 'user123',

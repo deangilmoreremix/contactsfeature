@@ -83,7 +83,7 @@ export function getModelConfig(model: string) {
 /**
  * Validates if a task can be handled by the selected model
  */
-export function validateTaskModel(task: AiTask, model: string): boolean {
+export function validateTaskModel(_task: AiTask, _model: string): boolean {
   // All combinations are valid for now, but this could include
   // business logic like "pro tasks require pro model"
   return true;

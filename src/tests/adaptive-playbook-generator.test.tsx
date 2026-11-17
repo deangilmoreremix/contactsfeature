@@ -3,7 +3,7 @@
  * Tests playbook generation, UI interactions, and edge cases
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AdaptivePlaybookGenerator } from '../components/ai-sales-intelligence/AdaptivePlaybookGenerator';
 import { cacheService } from '../services/cache.service';

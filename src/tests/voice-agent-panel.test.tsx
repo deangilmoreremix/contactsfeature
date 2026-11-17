@@ -3,7 +3,7 @@
  * (streamSse); the panel renders the final result or the error.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { VoiceAgentPanel } from '../components/VoiceAgentPanel';
 import { newOutcome } from '../lib/streaming/streamClient';

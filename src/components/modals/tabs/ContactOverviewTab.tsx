@@ -1,9 +1,7 @@
 import React, { memo } from 'react';
 import { Contact } from '../../../types';
-import { AvatarUpload } from '../../ui/AvatarUpload';
 import { ModernButton } from '../../ui/ModernButton';
 import { ContactEnrichmentData } from '../../../services/aiEnrichmentService';
-import { contactService } from '../../../services/contactService';
 import {
   User,
   Mail,
@@ -56,7 +54,6 @@ const socialPlatforms = [
 ];
 
 export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
-  contact,
   editedContact,
   isEditing,
   setIsEditing,

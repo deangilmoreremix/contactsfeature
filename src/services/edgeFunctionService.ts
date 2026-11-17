@@ -23,7 +23,7 @@ export class EdgeFunctionService {
     return result
   }
 
-  async enrichContact(data: any, type: string = 'comprehensive') {
+  async enrichContact(data: any, _type: string = 'comprehensive') {
     const { data: result, error } = await supabase.functions.invoke('contacts', {
       body: { action: 'enrich', data }
     })

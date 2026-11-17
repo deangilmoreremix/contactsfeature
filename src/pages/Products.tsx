@@ -12,7 +12,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useUserProducts } from '../hooks/useUserProducts';
-import { useProductMatches, useProductDrafts } from '../hooks/useProductMatches';
 import { ProductCard } from '../components/products/ProductCard';
 import { ProductWizard } from '../components/products/ProductWizard';
 import { ProductMatchDashboard } from '../components/products/ProductMatchDashboard';
@@ -197,14 +196,6 @@ export default function Products({ onNavigateBack }: ProductsProps) {
         ? prev.filter(id => id !== productId)
         : [...prev, productId]
     );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedProducts.length === filteredProducts.length) {
-      setSelectedProducts([]);
-    } else {
-      setSelectedProducts(filteredProducts.map(p => p.id));
-    }
   };
 
   const handleBulkArchive = async () => {

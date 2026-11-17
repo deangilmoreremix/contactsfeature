@@ -336,7 +336,7 @@ describe('Contact API Service', () => {
 
     expect(result.contacts).toHaveLength(1);
     expect(result.total).toBe(1);
-    expect(result.contacts[0].name).toBe('John Doe');
+    expect(result.contacts[0]!.name).toBe('John Doe');
   });
 });
 
@@ -426,7 +426,7 @@ describe('AI Integration Service', () => {
     expect(result.summary.total).toBe(1);
     expect(result.summary.successful).toBe(1);
     expect(result.summary.failed).toBe(0);
-    expect(result.results[0].score).toBe(85);
+    expect(result.results[0]!.score).toBe(85);
   });
 });
 

@@ -20,7 +20,6 @@ import {
   Phone,
   MapPin,
   Camera,
-  RefreshCw
 } from 'lucide-react';
 
 interface AIResearchButtonProps {
@@ -47,7 +46,7 @@ interface AIResearchButtonProps {
   onDataFound: (data: ContactEnrichmentData) => void;
   className?: string;
   variant?: 'primary' | 'outline' | 'glass' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'toolbar';
   showConfidence?: boolean;
   disabled?: boolean;
 }

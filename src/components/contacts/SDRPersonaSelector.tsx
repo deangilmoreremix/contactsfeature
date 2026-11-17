@@ -13,7 +13,6 @@ import {
   MessageSquare,
   Zap,
   Building,
-  Globe,
   Star,
   RotateCcw,
   ShoppingCart,

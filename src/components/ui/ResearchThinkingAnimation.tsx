@@ -4,7 +4,7 @@ import { Brain, Search, Sparkles, CheckCircle, Loader2, AlertTriangle } from 'lu
 interface ResearchThinkingAnimationProps {
   stage: 'researching' | 'analyzing' | 'synthesizing' | 'optimizing' | 'complete' | 'error';
   message: string;
-  progress?: number;
+  progress?: number | undefined;
   showCitations?: boolean;
   size?: 'sm' | 'md' | 'lg';
   estimatedTime?: number;

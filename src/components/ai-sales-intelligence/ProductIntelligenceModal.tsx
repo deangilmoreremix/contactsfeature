@@ -6,17 +6,12 @@ import { ErrorBoundary } from '../ui/ErrorBoundary';
 import {
   X,
   Upload,
-  Link,
   FileText,
   Brain,
   CheckCircle,
   AlertCircle,
   Loader2,
-  Sparkles,
   Target,
-  Users,
-  TrendingUp,
-  DollarSign
 } from 'lucide-react';
 import {
   AnalysisInput,

@@ -8,6 +8,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useContactStore } from '../../hooks/useContactStore';
 import { contactAPI } from '../../services/contact-api.service';
 import { Contact } from '../../types';
+import { asNewContact } from '../helpers/contactFixtures';
 
 vi.mock('../../services/contact-api.service');
 vi.mock('../../services/cache.service');
@@ -225,7 +226,7 @@ describe('Real Data Integration Tests', () => {
       const mockResponse: Contact = {
         ...contact,
         id: 'real-tech-contact-1',
-        name: `${contact.firstName} ${contact.lastName}`,
+        name: `${contact!.firstName} ${contact!.lastName}`,
         avatarSrc: 'https://example.com/avatar.jpg',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -234,14 +235,14 @@ describe('Real Data Integration Tests', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockResponse);
 
       await act(async () => {
-        const created = await result.current.createContact(contact);
+        const created = await result.current.createContact(asNewContact(contact));
         expect(created).toEqual(mockResponse);
       });
 
       expect(contactAPI.createContact).toHaveBeenCalledWith(contact);
       expect(result.current.contacts).toContain(mockResponse);
-      expect(result.current.contacts[0].industry).toBe('Technology');
-      expect(result.current.contacts[0].tags).toEqual(['CTO', 'Technology', 'Startup']);
+      expect(result.current.contacts[0]!.industry).toBe('Technology');
+      expect(result.current.contacts[0]!.tags).toEqual(['CTO', 'Technology', 'Startup']);
     });
 
     it('should create healthcare industry contacts with proper validation', async () => {
@@ -261,13 +262,13 @@ describe('Real Data Integration Tests', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockResponse);
 
       await act(async () => {
-        const created = await result.current.createContact(contact);
+        const created = await result.current.createContact(asNewContact(contact));
         expect(created.name).toBe('Dr. Emily Johnson');
         expect(created.industry).toBe('Healthcare');
         expect(created.sources).toEqual(['Medical Conference', 'Referral']);
       });
 
-      expect(result.current.contacts[0].title).toBe('Chief Medical Officer');
+      expect(result.current.contacts[0]!.title).toBe('Chief Medical Officer');
     });
 
     it('should handle finance industry contacts with complex data', async () => {
@@ -287,12 +288,12 @@ describe('Real Data Integration Tests', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(mockResponse);
 
       await act(async () => {
-        await result.current.createContact(contact);
+        await result.current.createContact(asNewContact(contact));
       });
 
-      expect(result.current.contacts[0].company).toBe('Global Investment Bank');
-      expect(result.current.contacts[0].industry).toBe('Financial Services');
-      expect(result.current.contacts[0].sources).toEqual(['Networking Event', 'LinkedIn']);
+      expect(result.current.contacts[0]!.company).toBe('Global Investment Bank');
+      expect(result.current.contacts[0]!.industry).toBe('Financial Services');
+      expect(result.current.contacts[0]!.sources).toEqual(['Networking Event', 'LinkedIn']);
     });
   });
 
@@ -313,7 +314,7 @@ describe('Real Data Integration Tests', () => {
           industry,
           interestLevel: interestLevel as 'hot' | 'medium' | 'low',
           status: status as 'lead' | 'prospect' | 'customer',
-          tags: tags.replace(/"/g, '').split(','),
+          tags: tags!.replace(/"/g, '').split(','),
           sources: ['CSV Import']
         };
       });
@@ -334,9 +335,9 @@ describe('Real Data Integration Tests', () => {
       });
 
       expect(result.current.contacts).toHaveLength(3);
-      expect(result.current.contacts[0].industry).toBe('Technology');
-      expect(result.current.contacts[1].company).toBe('BigTech Corp');
-      expect(result.current.contacts[2].industry).toBe('Healthcare');
+      expect(result.current.contacts[0]!.industry).toBe('Technology');
+      expect(result.current.contacts[1]!.company).toBe('BigTech Corp');
+      expect(result.current.contacts[2]!.industry).toBe('Healthcare');
     });
 
     it('should handle CSV with special characters and international data', async () => {
@@ -354,7 +355,7 @@ describe('Real Data Integration Tests', () => {
           industry: parts[6],
           interestLevel: parts[7] as 'hot' | 'medium' | 'low',
           status: parts[8] as 'lead' | 'prospect' | 'customer',
-          tags: parts[9].split(','),
+          tags: parts[9]!.split(','),
           notes: parts[10],
           sources: ['CSV Import']
         };
@@ -376,10 +377,10 @@ describe('Real Data Integration Tests', () => {
       });
 
       expect(result.current.contacts).toHaveLength(2);
-      expect(result.current.contacts[0].firstName).toBe('José');
-      expect(result.current.contacts[0].company).toBe('Empresa Española S.A.');
-      expect(result.current.contacts[1].firstName).toBe('François');
-      expect(result.current.contacts[1].notes).toContain('besoin d\'analyse détaillée');
+      expect(result.current.contacts[0]!.firstName).toBe('José');
+      expect(result.current.contacts[0]!.company).toBe('Empresa Española S.A.');
+      expect(result.current.contacts[1]!.firstName).toBe('François');
+      expect(result.current.contacts[1]!.notes).toContain('besoin d\'analyse détaillée');
     });
 
     it('should handle large CSV datasets efficiently', async () => {
@@ -399,7 +400,7 @@ describe('Real Data Integration Tests', () => {
           industry,
           interestLevel: interestLevel as 'hot' | 'medium' | 'low',
           status: status as 'lead' | 'prospect' | 'customer',
-          tags: tags.replace(/"/g, '').split(','),
+          tags: tags!.replace(/"/g, '').split(','),
           sources: ['Bulk CSV Import']
         };
       });
@@ -472,7 +473,7 @@ describe('Real Data Integration Tests', () => {
       // Only complete rows are imported: Bob has no last name and the third row has no valid email
       expect(validContacts).toHaveLength(1);
       expect(result.current.contacts).toHaveLength(1);
-      expect(result.current.contacts[0].firstName).toBe('Alice');
+      expect(result.current.contacts[0]!.firstName).toBe('Alice');
     });
   });
 
@@ -548,7 +549,7 @@ describe('Real Data Integration Tests', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
 
       await act(async () => {
-        await result.current.createContact(contact);
+        await result.current.createContact(asNewContact(contact));
       });
 
       expect(result.current.contacts).toHaveLength(1);
@@ -572,8 +573,8 @@ describe('Real Data Integration Tests', () => {
         await result.current.updateContact(createdContact.id, updates);
       });
 
-      expect(result.current.contacts[0].title).toBe('Chief Technology Officer');
-      expect(result.current.contacts[0].tags).toContain('High Priority');
+      expect(result.current.contacts[0]!.title).toBe('Chief Technology Officer');
+      expect(result.current.contacts[0]!.tags).toContain('High Priority');
 
       // 3. Export contacts
       const mockBlob = new Blob(['export,data'], { type: 'text/csv' });
@@ -636,7 +637,7 @@ describe('Real Data Integration Tests', () => {
         new Error('Network Error: Failed to connect to server')
       );
 
-      await expect(result.current.createContact(realWorldContacts.techContacts[0]))
+      await expect(result.current.createContact(asNewContact(realWorldContacts.techContacts[0])))
         .rejects.toThrow('Network Error');
 
       expect(result.current.error).toContain('Network Error');
@@ -661,7 +662,7 @@ describe('Real Data Integration Tests', () => {
       vi.mocked(contactAPI.createContact).mockResolvedValueOnce(createdContact);
 
       await act(async () => {
-        await result.current.createContact(contact);
+        await result.current.createContact(asNewContact(contact));
       });
 
       expect(result.current.contacts).toHaveLength(1);
@@ -671,7 +672,7 @@ describe('Real Data Integration Tests', () => {
         new Error('Duplicate contact: Email already exists')
       );
 
-      await expect(result.current.createContact(contact))
+      await expect(result.current.createContact(asNewContact(contact)))
         .rejects.toThrow('Email already exists');
 
       expect(result.current.contacts).toHaveLength(1); // Should not add duplicate
@@ -691,7 +692,7 @@ describe('Real Data Integration Tests', () => {
         new Error('Validation failed: Invalid email format, firstName and lastName are required')
       );
 
-      await expect(result.current.createContact(invalidContact))
+      await expect(result.current.createContact(asNewContact(invalidContact)))
         .rejects.toThrow('Validation failed');
 
       expect(result.current.error).toContain('Validation failed');
@@ -727,7 +728,7 @@ describe('Real Data Integration Tests', () => {
       const startTime = Date.now();
 
       await act(async () => {
-        await Promise.all(operations.map(op => result.current.createContact(op)));
+        await Promise.all(operations.map(op => result.current.createContact(asNewContact(op))));
       });
 
       const endTime = Date.now();

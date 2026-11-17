@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ModernButton } from './ui/ModernButton';
-import { GlassCard } from './ui/GlassCard';
 import {
   buildPrompt,
   FEATURE_BENEFITS,
@@ -21,29 +19,11 @@ import { imageStorageService, type SavedImage } from "../services/imageStorage.s
 import { SavedImagesGallery } from "./SavedImagesGallery";
 import { aspectToSize, generateImages } from "../services/imageGenerationService";
 import {
-  X,
-  Wand2,
-  Sparkles,
-  Download,
-  Upload,
-  Image as ImageIcon,
-  Settings,
-  Palette,
-  FileText,
-  Smartphone,
-  Monitor,
-  Shirt,
-  History,
-  Trash2,
-  RotateCcw,
-  Copy,
-  Heart,
-  Edit,
   Loader2,
   Users,
   MessageSquare,
   Share2,
-  Zap
+  Zap,
 } from 'lucide-react';
 
 /** --- CONFIG --- */
@@ -88,7 +68,7 @@ type Props = {
   contactData?: any; // Optional contact context
 };
 
-export default function ImageGenerationModal({ open, onClose, contactData }: Props) {
+export default function ImageGenerationModal({ open, onClose }: Props) {
   const [feature, setFeature] = useState<FeatureKey>("Enhanced Contacts");
   const [format, setFormat] = useState<FormatKey>("Poster");
   const [benefit, setBenefit] = useState(FEATURE_BENEFITS["Enhanced Contacts"]);
@@ -150,6 +130,7 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
       setSelectedHistoryId(null);
       setSavedImages([]);
       setSavingImage(null);
+      return undefined;
     }
   }, [open]);
 
@@ -393,18 +374,6 @@ export default function ImageGenerationModal({ open, onClose, contactData }: Pro
     setCollaborativeSession({
       id: sessionId,
       participants: ['You'],
-      currentPrompt: promptText,
-      lastActivity: Date.now(),
-      sharedImages: []
-    });
-    setShowCollaborationPanel(true);
-  }, [promptText]);
-
-  const joinCollaborativeSession = useCallback((sessionId: string) => {
-    // In a real implementation, this would connect to a WebSocket or real-time service
-    setCollaborativeSession({
-      id: sessionId,
-      participants: ['You', 'Collaborator 1'],
       currentPrompt: promptText,
       lastActivity: Date.now(),
       sharedImages: []

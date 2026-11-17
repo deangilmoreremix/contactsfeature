@@ -5,11 +5,8 @@
  * and ensures data consistency across different storage backends.
  */
 
-import { supabase } from './supabaseClient';
 import { contactAPI } from './contact-api.service';
-import { cacheService } from './cache.service';
 import { logger } from './logger.service';
-import { Contact } from '../types';
 
 interface SyncOperation {
   id: string;
@@ -321,7 +318,7 @@ class DataSyncService {
    * Handle conflict resolution
    */
   async resolveConflict(
-    operation: SyncOperation,
+    _operation: SyncOperation,
     serverData: any,
     localData: any,
     strategy: 'server-wins' | 'local-wins' | 'merge' | 'manual'

@@ -21,6 +21,16 @@ import type { UserProduct, ProductContactMatch } from '../../types/userProduct';
 import { gpt52ProductIntelligenceService, AIMatchAnalysis, TalkingPoint, Objection } from '../../services/gpt52ProductIntelligenceService';
 import { productMatchingService } from '../../services/productMatchingService';
 
+/** AI columns persisted on product_contact_matches (not yet part of the shared ProductContactMatch type). */
+type AIMatchColumns = ProductContactMatch & {
+  ai_confidence?: number | undefined;
+  ai_reasoning?: string | undefined;
+  ai_talking_points?: unknown;
+  ai_objections?: unknown;
+  predicted_conversion?: number | undefined;
+  optimal_outreach_time?: string | undefined;
+};
+
 interface AIProductInsightsPanelProps {
   product: UserProduct;
   contact: Contact;
@@ -46,15 +56,16 @@ export function AIProductInsightsPanel({
   const [reasoningEffort, setReasoningEffort] = useState<'low' | 'medium' | 'high'>('medium');
 
   useEffect(() => {
-    if (match?.ai_confidence && match?.ai_reasoning) {
+    const aiMatch: AIMatchColumns | undefined = match;
+    if (aiMatch?.ai_confidence && aiMatch?.ai_reasoning) {
       setAiAnalysis({
-        aiConfidence: match.ai_confidence,
-        aiReasoning: match.ai_reasoning,
-        semanticScore: match.ai_confidence,
-        talkingPoints: (match.ai_talking_points as TalkingPoint[]) || [],
-        anticipatedObjections: (match.ai_objections as Objection[]) || [],
-        predictedConversion: match.predicted_conversion || 0,
-        optimalOutreachTime: match.optimal_outreach_time || '',
+        aiConfidence: aiMatch.ai_confidence,
+        aiReasoning: aiMatch.ai_reasoning,
+        semanticScore: aiMatch.ai_confidence,
+        talkingPoints: (aiMatch.ai_talking_points as TalkingPoint[]) || [],
+        anticipatedObjections: (aiMatch.ai_objections as Objection[]) || [],
+        predictedConversion: aiMatch.predicted_conversion || 0,
+        optimalOutreachTime: aiMatch.optimal_outreach_time || '',
         competitivePositioning: '',
         personalizationInsights: []
       });

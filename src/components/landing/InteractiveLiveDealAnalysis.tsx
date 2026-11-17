@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { DollarSign, Target, Loader2, CheckCircle, AlertCircle, TrendingUp, Clock, Users } from 'lucide-react';
+import { Target, Loader2, CheckCircle, AlertCircle, TrendingUp, Clock, Users } from 'lucide-react';
 
 export const InteractiveLiveDealAnalysis: React.FC = () => {
   const [dealValue, setDealValue] = useState(50000);

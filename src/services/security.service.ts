@@ -203,7 +203,7 @@ class SecurityService {
   /**
    * Sanitize HTML content
    */
-  sanitizeHTML(dirty: string, options?: any): string {
+  sanitizeHTML(dirty: string, _options?: any): string {
     // Enhanced HTML sanitization without external library
     return dirty
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags

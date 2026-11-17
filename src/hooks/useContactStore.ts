@@ -15,10 +15,9 @@ import { recordContactDiff } from '../services/contactTimelineService';
 import { automationService } from '../services/automation.service';
 import { logger } from '../services/logger.service';
 import { sampleContacts } from './sampleContacts';
-import { useDebounce } from './useDebounce';
 import { softDeleteInState, restoreInState, destroyInState, excludeDeleted } from '../lib/contacts/softDelete';
 import { buildDuplicateContact } from '../lib/contacts/duplicateContact';
-import { handleError, logError, withErrorHandling, ERROR_CODES, createError } from '../utils/errorHandling';
+import { handleError, logError, withErrorHandling, ERROR_CODES, ContactError } from '../utils/errorHandling';
 
 interface ContactState {
   contacts: Contact[];
@@ -229,11 +228,11 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
         const contactIndex = get().contacts.findIndex(c => c.id === id);
         if (contactIndex === -1) {
-          throw createError(ERROR_CODES.CONTACT_NOT_FOUND, `Contact with ID ${id} not found`);
+          throw new ContactError(`Contact with ID ${id} not found`, ERROR_CODES.CONTACT_NOT_FOUND);
         }
 
         const updatedContact: Contact = {
-          ...get().contacts[contactIndex],
+          ...(get().contacts[contactIndex] as Contact),
           ...updates,
           updatedAt: new Date().toISOString()
         };
@@ -265,7 +264,10 @@ export const useContactStore = create<ContactStore>((set, get) => ({
     set((state) => ({
       contacts: state.contacts
         .filter((c) => !trashedIds.has(c.id))
-        .map((c) => (saved[c.id] !== undefined ? { ...c, position: saved[c.id] } : c)),
+        .map((c) => {
+          const savedPosition = saved[c.id];
+          return savedPosition !== undefined ? { ...c, position: savedPosition } : c;
+        }),
       trashedContacts: trashed,
     }));
   },
@@ -403,7 +405,9 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       }));
       
       try {
-        const createdContacts = await contactAPI.createContactsBatch(formattedContacts);
+        const createdContacts = await contactAPI.createContactsBatch(
+          formattedContacts as Parameters<typeof contactAPI.createContactsBatch>[0]
+        );
         
         set(state => ({
           contacts: [...state.contacts, ...createdContacts],

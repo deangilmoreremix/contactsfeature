@@ -16,11 +16,11 @@ export interface SMSData {
 
 export interface SMSResult {
   success: boolean;
-  messageId?: string;
-  error?: string;
+  messageId?: string | undefined;
+  error?: string | undefined;
   /** 'CONTENT_FLAGGED' when blocked by content moderation */
-  code?: string;
-  categories?: string[];
+  code?: string | undefined;
+  categories?: string[] | undefined;
   cost?: number;
   status?: string;
 }

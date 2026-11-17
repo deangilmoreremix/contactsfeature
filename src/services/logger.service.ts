@@ -14,11 +14,23 @@ interface LogEntry {
     requestId?: string;
     service?: string;
     operation?: string;
+    requestType?: string;
+    attempt?: number;
+    [key: string]: unknown;
   };
   error?: {
     name: string;
     message: string;
-    stack?: string;
+    stack?: string | undefined;
+  } | undefined;
+}
+
+function toLogError(error: unknown): NonNullable<LogEntry['error']> {
+  const e = error as Partial<Error>;
+  return {
+    name: e.name as string,
+    message: e.message as string,
+    stack: e.stack,
   };
 }
 
@@ -31,7 +43,7 @@ class LoggerService {
     message: string,
     data?: any,
     context?: LogEntry['context'],
-    error?: Error
+    error?: unknown
   ): LogEntry {
     return {
       timestamp: new Date().toISOString(),
@@ -42,11 +54,7 @@ class LoggerService {
         sessionId: this.getSessionId(),
         ...context,
       },
-      error: error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      } : undefined,
+      error: error ? toLogError(error) : undefined,
     };
   }
   
@@ -69,7 +77,7 @@ class LoggerService {
     }
     
     // Console logging in development
-    if (import.meta.env.DEV === 'development') {
+    if ((import.meta.env.DEV as unknown) === 'development') {
       const logMethod = entry.level === 'error' ? 'error' : 
                       entry.level === 'warn' ? 'warn' : 'log';
       console[logMethod](`[${entry.level.toUpperCase()}]`, entry.message, entry.data || '');
@@ -114,7 +122,7 @@ class LoggerService {
     this.addLog(this.createLogEntry('warn', message, data, context));
   }
   
-  error(message: string, error?: Error, data?: any, context?: LogEntry['context']): void {
+  error(message: string, error?: unknown, data?: any, context?: LogEntry['context']): void {
     this.addLog(this.createLogEntry('error', message, data, context, error));
   }
   

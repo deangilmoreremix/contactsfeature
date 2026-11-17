@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useContactStore } from './useContactStore';
-import { Contact, ContactCreateRequest } from '../types';
-import { safeClipboardWrite } from '../utils/validation';
+import { Contact } from '../types';
 
 interface UseContactActionsResult {
   handleExport: (contact: Contact) => Promise<void>;

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { GlassCard } from '../../ui/GlassCard';
 import { ModernButton } from '../../ui/ModernButton';
@@ -19,7 +19,6 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar as CalendarIcon,
   Mail,
   Phone,
   Video,
@@ -48,7 +47,6 @@ const eventTypeColors = {
 
 export function CalendarView({ contacts, onContactClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
 
   const updateContact = useContactStore((st) => st.updateContact);
   const allFields = useContactFilterFields();

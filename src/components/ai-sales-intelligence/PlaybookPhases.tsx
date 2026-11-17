@@ -40,7 +40,7 @@ export const PlaybookPhases: React.FC<PlaybookPhasesProps> = ({
   onExecutePhase
 }) => {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
-  const [draggedPhase, setDraggedPhase] = useState<string | null>(null);
+  const [, setDraggedPhase] = useState<string | null>(null);
 
   const getPhaseIcon = (phaseName: string) => {
     if (phaseName.toLowerCase().includes('discovery')) return <Users className="w-5 h-5" />;
@@ -67,7 +67,7 @@ export const PlaybookPhases: React.FC<PlaybookPhasesProps> = ({
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, targetPhaseId: string) => {
+  const handleDrop = (e: React.DragEvent, _targetPhaseId: string) => {
     e.preventDefault();
     // Drag and drop logic would be implemented here
     setDraggedPhase(null);

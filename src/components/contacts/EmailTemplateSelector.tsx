@@ -1,5 +1,4 @@
 import React, { memo } from 'react';
-import { ModernButton } from '../ui/ModernButton';
 import { FileText } from 'lucide-react';
 
 interface EmailTemplate {

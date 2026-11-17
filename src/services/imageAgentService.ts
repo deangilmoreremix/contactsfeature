@@ -272,9 +272,9 @@ class ImageAgentService {
       if (generated.failed) logger.warn('Some image variants failed', { failed: generated.failed, requested: count });
 
       const images: SavedImage[] = [];
-      for (let i = 0; i < dataUrls.length; i++) {
+      for (const [i, dataUrl] of dataUrls.entries()) {
         const saved = await imageStorageService.saveGeneratedImage(
-          dataUrls[i],
+          dataUrl,
           `${request.agent_id || 'agent'}-${request.feature || 'image'}-${Date.now()}-v${i + 1}.png`,
           {
             prompt: request.prompt,

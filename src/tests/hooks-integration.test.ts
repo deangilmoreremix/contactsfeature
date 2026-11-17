@@ -10,6 +10,7 @@ import { useSearchContacts } from '../hooks/useSearchContacts';
 import { useDebounce } from '../hooks/useDebounce';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
+import { asContact, asNewContact } from './helpers/contactFixtures';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -115,10 +116,10 @@ describe('React Hooks Integration', () => {
         updatedAt: '2024-01-03T00:00:00Z'
       };
 
-      vi.mocked(contactAPI.createContact).mockResolvedValue(createdContact);
+      vi.mocked(contactAPI.createContact).mockResolvedValue(asContact(createdContact));
 
       await act(async () => {
-        await result.current.createContact(newContact);
+        await result.current.createContact(asNewContact(newContact));
       });
 
       expect(contactAPI.createContact).toHaveBeenCalledWith(newContact);
@@ -131,13 +132,13 @@ describe('React Hooks Integration', () => {
 
       // Set up initial contact
       act(() => {
-        result.current.contacts = [mockContacts[0]];
+        result.current.contacts = [mockContacts[0]!];
         result.current.totalCount = 1;
       });
 
       const updates = { title: 'Senior Software Engineer', phone: '+1 555 999 8888' };
       const updatedContact = {
-        ...mockContacts[0],
+        ...mockContacts[0]!,
         ...updates,
         updatedAt: expect.any(String)
       };
@@ -145,10 +146,10 @@ describe('React Hooks Integration', () => {
       vi.mocked(contactAPI.updateContact).mockResolvedValue(updatedContact);
 
       await act(async () => {
-        await result.current.updateContact(mockContacts[0].id, updates);
+        await result.current.updateContact(mockContacts[0]!.id, updates);
       });
 
-      expect(contactAPI.updateContact).toHaveBeenCalledWith(mockContacts[0].id, updates);
+      expect(contactAPI.updateContact).toHaveBeenCalledWith(mockContacts[0]!.id, updates);
       expect(result.current.contacts[0]).toEqual(updatedContact);
     });
 
@@ -159,18 +160,18 @@ describe('React Hooks Integration', () => {
       act(() => {
         result.current.contacts = [...mockContacts];
         result.current.totalCount = 2;
-        result.current.selectedContact = mockContacts[0];
+        result.current.selectedContact = mockContacts[0]!;
       });
 
       vi.mocked(contactAPI.deleteContact).mockResolvedValue(undefined);
 
       await act(async () => {
-        await result.current.deleteContact(mockContacts[0].id);
+        await result.current.deleteContact(mockContacts[0]!.id);
       });
 
-      expect(contactAPI.deleteContact).toHaveBeenCalledWith(mockContacts[0].id);
+      expect(contactAPI.deleteContact).toHaveBeenCalledWith(mockContacts[0]!.id);
       expect(result.current.contacts).toHaveLength(1);
-      expect(result.current.contacts[0]).toEqual(mockContacts[1]);
+      expect(result.current.contacts[0]).toEqual(mockContacts[1]!);
       expect(result.current.totalCount).toBe(1);
       expect(result.current.selectedContact).toBeNull();
     });
@@ -179,10 +180,10 @@ describe('React Hooks Integration', () => {
       const { result } = renderHook(() => useContactStore());
 
       act(() => {
-        result.current.selectContact(mockContacts[0]);
+        result.current.selectContact(mockContacts[0]!);
       });
 
-      expect(result.current.selectedContact).toEqual(mockContacts[0]);
+      expect(result.current.selectedContact).toEqual(mockContacts[0]!);
 
       act(() => {
         result.current.selectContact(null);
@@ -247,7 +248,7 @@ describe('React Hooks Integration', () => {
       const { result } = renderHook(() => useSearchContacts());
 
       const mockResponse = {
-        contacts: [mockContacts[0]],
+        contacts: [mockContacts[0]!],
         total: 1,
         limit: 50,
         offset: 0,
@@ -270,7 +271,7 @@ describe('React Hooks Integration', () => {
       });
 
       expect(contactAPI.searchContacts).toHaveBeenCalledWith('John');
-      expect(result.current.searchResults).toEqual([mockContacts[0]]);
+      expect(result.current.searchResults).toEqual([mockContacts[0]!]);
       expect(result.current.hasResults).toBe(true);
       expect(result.current.resultCount).toBe(1);
     });
@@ -397,7 +398,7 @@ describe('React Hooks Integration', () => {
 
       // Search should work with store data
       const mockResponse = {
-        contacts: [mockContacts[0]],
+        contacts: [mockContacts[0]!],
         total: 1,
         limit: 50,
         offset: 0,
@@ -411,7 +412,7 @@ describe('React Hooks Integration', () => {
       });
 
       await waitFor(() => {
-        expect(searchResult.current.searchResults).toEqual([mockContacts[0]]);
+        expect(searchResult.current.searchResults).toEqual([mockContacts[0]!]);
       });
     });
 
@@ -420,12 +421,12 @@ describe('React Hooks Integration', () => {
 
       // Mock responses
       const createResponse = {
-        ...mockContacts[0],
+        ...mockContacts[0]!,
         id: 'created-1'
       };
 
       const updateResponse = {
-        ...mockContacts[0],
+        ...mockContacts[0]!,
         title: 'Updated Title'
       };
 
@@ -435,7 +436,7 @@ describe('React Hooks Integration', () => {
       // Perform concurrent operations
       await act(async () => {
         const [created, updated] = await Promise.all([
-          result.current.createContact({
+          result.current.createContact(asNewContact({
             firstName: 'Test',
             lastName: 'User',
             name: 'Test User',
@@ -445,8 +446,8 @@ describe('React Hooks Integration', () => {
             sources: ['Test'],
             interestLevel: 'medium',
             status: 'lead'
-          }),
-          result.current.updateContact(mockContacts[0].id, { title: 'Updated Title' })
+          })),
+          result.current.updateContact(mockContacts[0]!.id, { title: 'Updated Title' })
         ]);
 
         expect(created).toEqual(createResponse);
@@ -463,14 +464,14 @@ describe('React Hooks Integration', () => {
 
       // Create contact
       const newContact = {
-        ...mockContacts[0],
+        ...mockContacts[0]!,
         id: 'test-1'
       };
 
       vi.mocked(contactAPI.createContact).mockResolvedValue(newContact);
 
       await act(async () => {
-        await result.current.createContact(mockContacts[0]);
+        await result.current.createContact(asNewContact(mockContacts[0]!));
       });
 
       expect(result.current.contacts).toHaveLength(1);
@@ -488,7 +489,7 @@ describe('React Hooks Integration', () => {
         await result.current.updateContact('test-1', { title: 'Senior Engineer' });
       });
 
-      expect(result.current.contacts[0].title).toBe('Senior Engineer');
+      expect(result.current.contacts[0]!.title).toBe('Senior Engineer');
       expect(result.current.totalCount).toBe(1);
 
       // Delete contact
@@ -508,7 +509,7 @@ describe('React Hooks Integration', () => {
       const { result } = renderHook(() => useContactStore());
 
       const largeDataset = Array.from({ length: 1000 }, (_, i) => ({
-        ...mockContacts[0],
+        ...mockContacts[0]!,
         id: `contact-${i}`,
         name: `Contact ${i}`,
         email: `contact${i}@example.com`
@@ -544,11 +545,11 @@ describe('React Hooks Integration', () => {
       // Set some state
       act(() => {
         result.current.contacts = mockContacts;
-        result.current.selectedContact = mockContacts[0];
+        result.current.selectedContact = mockContacts[0]!;
       });
 
       expect(result.current.contacts).toHaveLength(2);
-      expect(result.current.selectedContact).toEqual(mockContacts[0]);
+      expect(result.current.selectedContact).toEqual(mockContacts[0]!);
 
       // Unmount should not crash
       expect(() => unmount()).not.toThrow();
@@ -560,7 +561,7 @@ describe('React Hooks Integration', () => {
       // Simulate rapid operations
       for (let i = 0; i < 10; i++) {
         const contact = {
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: `rapid-${i}`,
           name: `Rapid Contact ${i}`
         };
@@ -568,7 +569,7 @@ describe('React Hooks Integration', () => {
         vi.mocked(contactAPI.createContact).mockResolvedValue(contact);
 
         await act(async () => {
-          await result.current.createContact(mockContacts[0]);
+          await result.current.createContact(asNewContact(mockContacts[0]!));
         });
       }
 

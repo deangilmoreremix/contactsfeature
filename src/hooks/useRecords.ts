@@ -52,10 +52,10 @@ export interface UseRecordsQueryResult<T> {
   hasPreviousPage: boolean;
 }
 
-function applyFilters(query: any, filters: FilterConfig[], logic: 'AND' | 'OR' = 'AND') {
+function applyFilters(query: any, filters: FilterConfig[], _logic: 'AND' | 'OR' = 'AND') {
   if (!filters || filters.length === 0) return query;
 
-  filters.forEach((filter, index) => {
+  filters.forEach((filter, _index) => {
     const { field, operator, value } = filter;
     
     switch (operator) {
@@ -117,7 +117,7 @@ function applySearch(query: any, searchQuery: string, searchFields: (keyof any)[
   if (!searchQuery || searchFields.length === 0) return query;
   
   const orConditions = searchFields
-    .map(field => `${field}.ilike.%${searchQuery}%`)
+    .map(field => `${String(field)}.ilike.%${searchQuery}%`)
     .join(',');
   
   return query.or(orConditions);
@@ -191,7 +191,7 @@ export function useFindManyRecords<T>({
       if (fetchError) throw fetchError;
 
       if (isMountedRef.current) {
-        setRecords(data || []);
+        setRecords((data || []) as unknown as T[]);
         setTotalCount(count || 0);
         setPaginationState({
           page,
@@ -236,11 +236,6 @@ export function useFindManyRecords<T>({
 
   const fetchMore = useCallback(async () => {
     if (!paginationState.hasNextPage || loading) return;
-    
-    const newPagination = {
-      ...pagination,
-      page: (pagination?.page || 0) + 1
-    };
     
     setPaginationState(prev => ({
       ...prev,
@@ -301,7 +296,7 @@ export function useFindOneRecord<T>({
       if (fetchError) throw fetchError;
 
       if (isMountedRef.current) {
-        setRecord(data);
+        setRecord(data as unknown as T);
       }
     } catch (err) {
       if (isMountedRef.current) {
@@ -356,7 +351,7 @@ export function useCreateOneRecord<T>({
     try {
       const { data: result, error: createError } = await supabase
         .from(tableName)
-        .insert(data)
+        .insert(data as Record<string, unknown>)
         .select()
         .single();
 
@@ -417,7 +412,7 @@ export function useUpdateOneRecord<T>({
     try {
       const { data: result, error: updateError } = await supabase
         .from(tableName)
-        .update(data)
+        .update(data as Record<string, unknown>)
         .eq('id', id)
         .select()
         .single();

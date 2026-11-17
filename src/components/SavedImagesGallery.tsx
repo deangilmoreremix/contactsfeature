@@ -7,7 +7,6 @@ import {
   X,
   Download,
   Trash2,
-  Eye,
   Calendar,
   FileText,
   Image as ImageIcon,
@@ -16,7 +15,7 @@ import {
   Bot,
   Sparkles,
   RotateCcw,
-  Filter
+  Filter,
 } from 'lucide-react';
 
 interface SavedImagesGalleryProps {

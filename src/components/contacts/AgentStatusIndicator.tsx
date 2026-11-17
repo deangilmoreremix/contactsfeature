@@ -10,7 +10,7 @@ interface AgentStatusIndicatorProps {
 
 export const AgentStatusIndicator: React.FC<AgentStatusIndicatorProps> = ({
   isActive,
-  lastInteraction,
+  lastInteraction: _lastInteraction,
   className = ''
 }) => {
   if (!isActive) return null;

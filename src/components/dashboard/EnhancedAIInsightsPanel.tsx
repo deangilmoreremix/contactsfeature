@@ -1,27 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAI } from '../../contexts/AIContext';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartAIControls } from '../ai/SmartAIControls';
-import { 
-  Brain, 
-  TrendingUp, 
-  AlertTriangle, 
-  Target, 
-  Clock, 
-  DollarSign, 
+import {
+  Brain,
+  TrendingUp,
+  AlertTriangle,
+  Clock,
+  DollarSign,
   Zap,
   BarChart3,
   Lightbulb,
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  Star,
   Settings,
   Layers,
   Sparkles,
   CheckCircle,
-  Activity
+  Activity,
 } from 'lucide-react';
 
 export const EnhancedAIInsightsPanel: React.FC = () => {
@@ -32,11 +30,10 @@ export const EnhancedAIInsightsPanel: React.FC = () => {
   const { 
     providerStatus, 
     performanceMetrics, 
-    isProcessing, 
     clearAllCache 
   } = useAI();
   
-  const [taskRecommendations, setTaskRecommendations] = useState<Record<string, any>>({});
+  useState<Record<string, any>>({});
 
   const generateInsights = () => {
     setIsAnalyzing(true);

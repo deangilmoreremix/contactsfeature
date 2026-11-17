@@ -29,6 +29,7 @@ export const SocialMessageGenerator: React.FC<SocialMessageGeneratorProps> = ({
   className = ''
 }) => {
   interface Personalized { message: string; platform: string; purpose?: string; tone?: string; characterCount: number; characterLimit: { min: number; max: number; ideal: number }; confidence?: number; model?: string }
+  const [platform, setPlatform] = useState('linkedin');
   const gen = useFunctionStream<Personalized>();
   const isGenerating = gen.isStreaming;
   const error = gen.state.error;
@@ -39,7 +40,6 @@ export const SocialMessageGenerator: React.FC<SocialMessageGeneratorProps> = ({
       ? { message: livePart.message, platform, characterCount: livePart.message.length, characterLimit: livePart.characterLimit ?? { min: 0, max: 280 * 10, ideal: 0 } }
       : null);
   
-  const [platform, setPlatform] = useState('linkedin');
   const [purpose, setPurpose] = useState('introduction');
   const [tone, setTone] = useState('professional');
   const [length, setLength] = useState('medium');

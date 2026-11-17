@@ -5,7 +5,6 @@ import { SDRModal } from '../modals/SDRModal';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import {
-  Play,
   CheckCircle,
   Clock,
   Users,
@@ -17,7 +16,7 @@ import {
   TrendingUp,
   Zap,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
 } from 'lucide-react';
 
 interface PlaybookExecutorProps {
@@ -35,7 +34,7 @@ export const PlaybookExecutor: React.FC<PlaybookExecutorProps> = ({
   // Mock excellent customer progress - show realistic completion
   const [completedPhases, setCompletedPhases] = useState<Set<number>>(new Set([0, 1]));
   const [showSDRModal, setShowSDRModal] = useState(false);
-  const [selectedAction, setSelectedAction] = useState<string>('');
+  const [, setSelectedAction] = useState<string>('');
 
   // Mock execution data showing excellent customer results
   const mockExecutionData = {

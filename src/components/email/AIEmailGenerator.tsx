@@ -5,7 +5,7 @@ import { liveDisplay } from '../../lib/streaming/previewText';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types';
-import { Mail, Sparkles, Settings, Save, CheckCircle, AlertCircle, Loader2, Copy, ExternalLink } from 'lucide-react';
+import { Mail, Sparkles, Settings, Save, CheckCircle, AlertCircle, Loader2, Copy } from 'lucide-react';
 
 interface AIEmailGeneratorProps {
   contact: Contact;

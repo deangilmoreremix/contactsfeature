@@ -11,18 +11,8 @@ import {
   Phone,
   PhoneCall,
   PhoneOff,
-  Clock,
-  MessageSquare,
   Calendar,
-  FileText,
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  X,
-  CheckCircle,
-  AlertCircle,
-  Loader2
+  X
 } from 'lucide-react';
 
 interface QuickCallHandlerProps {

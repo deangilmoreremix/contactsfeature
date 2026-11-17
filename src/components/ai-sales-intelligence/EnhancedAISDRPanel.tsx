@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentButton } from './AgentButton';
@@ -10,9 +10,6 @@ import {
   Calendar,
   Rocket,
   Settings,
-  Briefcase,
-  Wrench,
-  Mic,
   MessageSquare,
   Mail,
   BarChart3,
@@ -20,12 +17,8 @@ import {
   Brain,
   Bot,
   Sparkles,
-  ArrowRight,
-  Clock,
-  DollarSign,
   CheckCircle,
-  AlertCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 
 interface AISDRFeature {
@@ -48,7 +41,7 @@ interface AISDRFeature {
 export const EnhancedAISDRPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'outreach' | 'intelligence' | 'automation' | 'analysis'>('all');
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
-  const [agentMetrics, setAgentMetrics] = useState<Record<string, any>>({});
+  useState<Record<string, any>>({});
 
   const aiSdrFeatures: AISDRFeature[] = [
     // Enhanced SDR Agents

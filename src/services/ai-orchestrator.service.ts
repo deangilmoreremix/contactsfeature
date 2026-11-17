@@ -6,11 +6,8 @@
 import { logger } from './logger.service';
 import { cleanConfidence } from './aiNormalize';
 import { cacheService } from './cache.service';
-import { rateLimiter } from './rate-limiter.service';
-import { httpClient } from './http-client.service';
 import { aiJson, AIRole } from './aiClient';
 import type { LiveOptions } from './liveOptions';
-import { Contact } from '../types/contact';
 
 export interface AIRequest {
   id: string;
@@ -189,7 +186,7 @@ class AIOrchestrator {
     const request = this.requestQueue.shift()!;
 
     try {
-      const response = await this.executeRequest(request);
+      await this.executeRequest(request);
       logger.info('AI request completed successfully', undefined, {
         requestId: request.id,
         service: 'ai-orchestrator',
@@ -370,7 +367,6 @@ class AIOrchestrator {
   }
 
   private async callProvider(provider: AIProvider, request: AIRequest): Promise<any> {
-    const enableSupabaseBackup = import.meta.env['VITE_AI_ENABLE_SUPABASE_BACKUP'] !== 'false';
     const requestTimeout = request.options?.timeout || parseInt(import.meta.env['VITE_AI_FALLBACK_TIMEOUT'] || '60000');
     const maxRetries = parseInt(import.meta.env['VITE_AI_MAX_RETRY_ATTEMPTS'] || '2');
     const debugFallback = import.meta.env['VITE_AI_DEBUG_FALLBACK'] === 'true';
@@ -437,118 +433,6 @@ class AIOrchestrator {
 
     } else {
       throw new Error(`Unsupported provider type: ${provider.type}`);
-    }
-  }
-
-  private async callSupabaseEdgeFunction(provider: AIProvider, request: AIRequest): Promise<any> {
-    const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
-    const supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase configuration missing for edge function fallback');
-    }
-
-    // Map request types to edge function endpoints
-    const endpointMap: Record<string, string> = {
-      'contact_scoring': 'ai-enrichment',
-      'contact_enrichment': 'ai-enrichment',
-      'email_generation': 'email-composer',
-      'email_analysis': 'email-analyzer',
-      'insights_generation': 'ai-insights',
-      'communication_analysis': 'communication-optimization',
-      'automation_suggestions': 'adaptive-playbook',
-      'predictive_analytics': 'sales-forecasting',
-      'relationship_mapping': 'ai-enrichment'
-    };
-
-    const endpoint = endpointMap[request.type];
-    if (!endpoint) {
-      throw new Error(`No edge function endpoint mapping for request type: ${request.type}`);
-    }
-
-    logger.info(`Using Supabase edge function fallback: ${endpoint}`, undefined, {
-      requestId: request.id,
-      service: 'ai-orchestrator',
-      operation: 'supabase_edge_function'
-    });
-
-    const response = await httpClient.post(
-      `${supabaseUrl}/functions/v1/${endpoint}`,
-      {
-        ...request.data,
-        aiProvider: 'openai', // Default to OpenAI for edge functions
-        options: request.options
-      },
-      {
-        headers: { 'Authorization': `Bearer ${supabaseKey}` },
-        timeout: request.options?.timeout || 30000
-      }
-    );
-
-    // Transform Supabase response to match our expected format
-    return this.transformSupabaseResponse(response.data, request.type);
-  }
-
-  private transformSupabaseResponse(supabaseData: any, requestType: string): any {
-    // Transform Supabase edge function responses to match our internal format
-    if (!supabaseData || !supabaseData.success) {
-      throw new Error('Invalid response from Supabase edge function');
-    }
-
-    const data = supabaseData.data || supabaseData;
-
-    switch (requestType) {
-      case 'contact_scoring':
-        return {
-          result: {
-            score: data.score ?? data.overall ?? null,
-            breakdown: data.breakdown || {
-              fitScore: null,
-              engagementScore: null,
-              conversionProbability: null,
-              urgencyScore: null
-            },
-            reasoning: data.reasoning || [],
-            recommendations: data.recommendations || [],
-            nextBestActions: data.nextBestActions || []
-          },
-          model: 'supabase-edge-function',
-          confidence: cleanConfidence(data.confidence)
-        };
-
-      case 'insights_generation':
-        return {
-          result: {
-            insights: (data.insights || []).map((insight: any) => ({
-              id: `supabase_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              type: insight.type || 'recommendation',
-              title: insight.title || 'AI Insight',
-              description: insight.description || '',
-              confidence: cleanConfidence(insight.confidence),
-              impact: insight.impact || 'medium',
-              category: insight.category || 'General',
-              actionable: insight.actionable || false,
-              suggestedActions: insight.suggestedActions || [],
-              dataPoints: insight.dataPoints || []
-            }))
-          },
-          model: 'supabase-edge-function',
-          confidence: null
-        };
-
-      case 'contact_enrichment':
-        return {
-          result: data,
-          model: 'supabase-edge-function',
-          confidence: cleanConfidence(data?.confidence)
-        };
-
-      default:
-        return {
-          result: data,
-          model: 'supabase-edge-function',
-          confidence: cleanConfidence(data?.confidence)
-        };
     }
   }
 

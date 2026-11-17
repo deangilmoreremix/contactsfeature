@@ -1,7 +1,6 @@
 import React, { memo, useState } from 'react';
 import { Edit, MoreHorizontal, Mail, Phone, User } from 'lucide-react';
 import { Contact } from '../../types';
-import { ModernButton } from '../ui/ModernButton';
 
 interface ContactActionsProps {
   contact: Contact;
