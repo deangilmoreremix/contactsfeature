@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { AvatarUpload } from '../ui/AvatarUpload';
 import { Contact } from '../../types/contact';
-import { useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import type { ContactEnrichmentData } from '../../services/aiEnrichmentService';
 import { enrichContactWithWebSearch, type EnrichmentOutcome, type EnrichmentResult } from '../../services/contactEnrichment';
 import { StreamingOutput } from '../ui/StreamingOutput';
@@ -239,6 +239,14 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
 
   return (
     <div className="w-80 bg-gradient-to-b from-gray-50 via-white to-gray-50 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+      {/* Research progress / errors for the AI Web Research, Enrich and AI Auto-Enrich buttons (closing it re-enables them) */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
       {/* Fixed Header with AI Features */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">

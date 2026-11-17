@@ -91,3 +91,9 @@ export const withErrorBoundary = <P extends object>(
     </ErrorBoundary>
   );
 };
+
+/**
+ * Boundary for AI-powered panels and cards (imported by AIEnhancedContactCard and AIInsightsPanel).
+ * Same behaviour as ErrorBoundary: a failing AI widget shows the retry fallback instead of taking the page down.
+ */
+export const AIErrorBoundary = ErrorBoundary;
