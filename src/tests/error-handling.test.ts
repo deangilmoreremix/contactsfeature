@@ -378,7 +378,7 @@ describe('Error Handling System', () => {
       });
 
       expect(notFoundError.code).toBe(ERROR_CODES.CONTACT_NOT_FOUND);
-      expect(notFoundError.context?.contactId).toBe('non-existent');
+      expect(notFoundError.context?.['contactId']).toBe('non-existent');
 
       // Simulate validation error
       const validationError = new ValidationError('Invalid contact data', {
@@ -386,7 +386,7 @@ describe('Error Handling System', () => {
         phone: ['Must be numeric']
       });
 
-      expect(validationError.fieldErrors.email).toEqual(['Invalid format']);
+      expect(validationError.fieldErrors['email']).toEqual(['Invalid format']);
       expect(validationError.code).toBe(ERROR_CODES.VALIDATION_FAILED);
     });
 
@@ -407,7 +407,7 @@ describe('Error Handling System', () => {
         operation: 'databaseQuery'
       });
 
-      expect(networkError.context?.cause).toBe(rootCause);
+      expect(networkError.context?.['cause']).toBe(rootCause);
       expect(networkError.message).toBe('API request failed');
     });
   });

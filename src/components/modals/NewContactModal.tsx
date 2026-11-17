@@ -146,25 +146,25 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
     const newErrors: Record<string, string> = {};
     
     if (!formData.email) {
-      newErrors.email = 'Email is required';
+      newErrors['email'] = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors['email'] = 'Invalid email format';
     }
     
     if (!formData.firstName) {
-      newErrors.firstName = 'First name is required';
+      newErrors['firstName'] = 'First name is required';
     }
     
     if (!formData.lastName) {
-      newErrors.lastName = 'Last name is required';
+      newErrors['lastName'] = 'Last name is required';
     }
     
     if (!formData.company) {
-      newErrors.company = 'Company is required';
+      newErrors['company'] = 'Company is required';
     }
     
     if (!formData.title) {
-      newErrors.title = 'Title is required';
+      newErrors['title'] = 'Title is required';
     }
     
     // Validate social profile URLs
@@ -483,12 +483,12 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.firstName ? 'border-red-500' : 'border-gray-300'
+                      errors['firstName'] ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter first name"
                   />
-                  {errors.firstName && (
-                    <p className="text-sm text-red-600 mt-1">{errors.firstName}</p>
+                  {errors['firstName'] && (
+                    <p className="text-sm text-red-600 mt-1">{errors['firstName']}</p>
                   )}
                 </div>
                 
@@ -501,12 +501,12 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.lastName ? 'border-red-500' : 'border-gray-300'
+                      errors['lastName'] ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter last name"
                   />
-                  {errors.lastName && (
-                    <p className="text-sm text-red-600 mt-1">{errors.lastName}</p>
+                  {errors['lastName'] && (
+                    <p className="text-sm text-red-600 mt-1">{errors['lastName']}</p>
                   )}
                 </div>
 
@@ -532,7 +532,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       className={`w-full px-3 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.email ? 'border-red-500' : 'border-gray-300'
+                        errors['email'] ? 'border-red-500' : 'border-gray-300'
                       }`}
                       placeholder="Enter email address"
                     />
@@ -542,8 +542,8 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                       </div>
                     )}
                   </div>
-                  {errors.email && (
-                    <p className="text-sm text-red-600 mt-1">{errors.email}</p>
+                  {errors['email'] && (
+                    <p className="text-sm text-red-600 mt-1">{errors['email']}</p>
                   )}
                 </div>
                 
@@ -624,12 +624,12 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     value={formData.company}
                     onChange={(e) => handleInputChange('company', e.target.value)}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.company ? 'border-red-500' : 'border-gray-300'
+                      errors['company'] ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter company name"
                   />
-                  {errors.company && (
-                    <p className="text-sm text-red-600 mt-1">{errors.company}</p>
+                  {errors['company'] && (
+                    <p className="text-sm text-red-600 mt-1">{errors['company']}</p>
                   )}
                 </div>
                 
@@ -642,12 +642,12 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.title ? 'border-red-500' : 'border-gray-300'
+                      errors['title'] ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter job title"
                   />
-                  {errors.title && (
-                    <p className="text-sm text-red-600 mt-1">{errors.title}</p>
+                  {errors['title'] && (
+                    <p className="text-sm text-red-600 mt-1">{errors['title']}</p>
                   )}
                 </div>
                 
@@ -1003,11 +1003,11 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
             </div>
 
             {/* Error Message */}
-            {errors.submit && (
+            {errors['submit'] && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center space-x-3">
                   <AlertCircle className="w-5 h-5 text-red-500" />
-                  <p className="text-red-700">{errors.submit}</p>
+                  <p className="text-red-700">{errors['submit']}</p>
                 </div>
               </div>
             )}

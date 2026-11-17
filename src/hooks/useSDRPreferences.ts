@@ -61,7 +61,7 @@ export function useSDRPreferences(agentId: string) {
     model: preferences.aiSettings.model,
     temperature: preferences.aiSettings.temperature,
     maxTokens: preferences.aiSettings.maxTokens,
-    customInstructions: preferences.customPrompts?.general || '',
+    customInstructions: preferences.customPrompts?.['general'] || '',
     companyName: preferences.branding?.companyName || '',
     signature: preferences.branding?.signature || '',
     personalizationLevel: preferences.personalizationLevel,

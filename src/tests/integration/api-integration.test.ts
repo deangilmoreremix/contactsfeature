@@ -12,10 +12,10 @@ import { Contact } from '../../types';
 
 // Test configuration - these should be set in CI/CD environment
 const TEST_CONFIG = {
-  supabaseUrl: process.env.VITE_SUPABASE_URL || 'test-url',
-  supabaseKey: process.env.VITE_SUPABASE_ANON_KEY || 'test-key',
-  enableRealApi: process.env.ENABLE_REAL_API_TESTS === 'true',
-  testDatabase: process.env.TEST_DATABASE_NAME || 'test_contacts'
+  supabaseUrl: process.env['VITE_SUPABASE_URL'] || 'test-url',
+  supabaseKey: process.env['VITE_SUPABASE_ANON_KEY'] || 'test-key',
+  enableRealApi: process.env['ENABLE_REAL_API_TESTS'] === 'true',
+  testDatabase: process.env['TEST_DATABASE_NAME'] || 'test_contacts'
 };
 
 // Skip these tests if real API is not enabled

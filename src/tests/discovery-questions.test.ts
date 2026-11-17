@@ -47,9 +47,9 @@ const createResponse = vi.fn();
 const streamResponse = vi.fn();
 
 beforeAll(() => {
-  process.env.OPENAI_API_KEY = 'test';
-  process.env.SUPABASE_URL = 'http://localhost:54321';
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 'x';
+  process.env['OPENAI_API_KEY'] = 'test';
+  process.env['SUPABASE_URL'] = 'http://localhost:54321';
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] = 'x';
   const sc = path.join(fnDir, '_supabaseClient.js');
   require.cache[sc] = {
     id: sc, filename: sc, loaded: true,
@@ -96,7 +96,7 @@ describe('discovery-questions function', () => {
     expect(payload.data).toMatchObject({ questions, questionType: 'technical', meetingContext });
     expect(typeof payload.data.generated).toBe('string');
 
-    expect(inserted.discovery_questions).toEqual([
+    expect(inserted['discovery_questions']).toEqual([
       expect.objectContaining({ contact_id: OWN, question_type: 'technical', questions, meeting_context: meetingContext, ai_provider: 'openai' }),
     ]);
   });
@@ -130,7 +130,7 @@ describe('discovery-questions function', () => {
     expect(opts.input).toContain('Duration: 30 minutes');
     expect(opts.input).toContain('Objective: Understand needs and qualify opportunity');
     expect(JSON.parse(res.body)).toMatchObject({ provider: 'openai', data: { questionType: 'comprehensive' } });
-    expect(inserted.discovery_questions[0]).toMatchObject({ question_type: 'comprehensive', ai_provider: 'openai' });
+    expect(inserted['discovery_questions'][0]).toMatchObject({ question_type: 'comprehensive', ai_provider: 'openai' });
   });
 
   it('returns an empty list when the model reply has no questions', async () => {
@@ -149,7 +149,7 @@ describe('discovery-questions function', () => {
 
     expect(res.statusCode).toBe(500);
     expect(JSON.parse(res.body)).toMatchObject({ success: false, error: 'Discovery questions generation failed' });
-    expect(inserted.discovery_questions).toBeUndefined();
+    expect(inserted['discovery_questions']).toBeUndefined();
   });
 
   it('answers 500 when the model call fails', async () => {
@@ -159,7 +159,7 @@ describe('discovery-questions function', () => {
 
     expect(res.statusCode).toBe(500);
     expect(JSON.parse(res.body)).toMatchObject({ success: false, details: 'upstream down' });
-    expect(inserted.discovery_questions).toBeUndefined();
+    expect(inserted['discovery_questions']).toBeUndefined();
   });
 
   it('rejects non-POST requests with 405 without calling the model', async () => {

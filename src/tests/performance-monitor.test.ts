@@ -179,8 +179,8 @@ describe('Performance Monitor', () => {
       });
 
       const metrics = performanceMonitor.getMetrics('api_response_time');
-      expect(metrics[0].metadata?.endpoint).toBe('/api/contacts/search');
-      expect(metrics[0].metadata?.statusCode).toBe(200);
+      expect(metrics[0].metadata?.['endpoint']).toBe('/api/contacts/search');
+      expect(metrics[0].metadata?.['statusCode']).toBe(200);
     });
 
     it('should track cache hit rates', () => {
@@ -207,7 +207,7 @@ describe('Performance Monitor', () => {
       expect(attempts).toHaveLength(5);
 
       // Check that debounced attempts are marked
-      const debouncedAttempts = attempts.filter(m => m.metadata?.debounced);
+      const debouncedAttempts = attempts.filter(m => m.metadata?.['debounced']);
       expect(debouncedAttempts).toHaveLength(4);
     });
   });
@@ -297,8 +297,8 @@ describe('Performance Monitor', () => {
       expect(average).toBeGreaterThan(500); // Should be around 850ms
 
       // Check individual performance
-      const fastSearch = metrics.find(m => m.metadata?.query === 'fast');
-      const slowSearch = metrics.find(m => m.metadata?.query === 'slow');
+      const fastSearch = metrics.find(m => m.metadata?.['query'] === 'fast');
+      const slowSearch = metrics.find(m => m.metadata?.['query'] === 'slow');
 
       expect(fastSearch?.value).toBe(50);
       expect(slowSearch?.value).toBe(2000);

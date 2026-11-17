@@ -216,7 +216,7 @@ private loadTokens(): void {
       };
 
       if (useAuth && this.authToken) {
-        headers.Authorization = `Bearer ${this.authToken}`;
+        headers['Authorization'] = `Bearer ${this.authToken}`;
       }
 
       // Log request
@@ -228,7 +228,7 @@ private loadTokens(): void {
         config.url;
 
       console.log(`Making ${config.method} request to: ${fetchUrl}`, {
-        hasAuth: !!headers.Authorization,
+        hasAuth: !!headers['Authorization'],
         method: config.method
       });
       

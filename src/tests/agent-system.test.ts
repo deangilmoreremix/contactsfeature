@@ -52,7 +52,7 @@ describe('SmartCRM Agent System', () => {
     (db.auth as any).getSession = async () => ({ data: { session: { access_token: 't' } }, error: null });
     db.respond('agent_metadata', 'select', ({ filters }) => {
       const byId = filters.find(([k]) => k === 'eq:id');
-      return { data: byId ? seedAgents.find(a => a.id === byId[1]) ?? null : seedAgents, error: null };
+      return { data: byId ? seedAgents.find(a => a['id'] === byId[1]) ?? null : seedAgents, error: null };
     });
     db.respond('agent_runs', 'select', { data: [], error: null });
     db.respond('agent_runs', 'insert', { data: { id: 'run-1', status: 'running', created_at: new Date().toISOString() }, error: null });
@@ -148,16 +148,16 @@ describe('SmartCRM Agent System', () => {
       const metadata = netlifyAdapter.getFunctionMetadata('generate-demo-visuals');
 
       expect(metadata).toBeDefined();
-      expect(metadata?.parameters.properties.prompt).toBeDefined();
-      expect(metadata?.parameters.properties.contact_id).toBeDefined();
+      expect(metadata?.parameters.properties['prompt']).toBeDefined();
+      expect(metadata?.parameters.properties['contact_id']).toBeDefined();
     });
 
     it('should integrate with email composer', async () => {
       const metadata = netlifyAdapter.getFunctionMetadata('email-composer');
 
       expect(metadata).toBeDefined();
-      expect(metadata?.parameters.properties.contact).toBeDefined();
-      expect(metadata?.parameters.properties.generate_images).toBeDefined();
+      expect(metadata?.parameters.properties['contact']).toBeDefined();
+      expect(metadata?.parameters.properties['generate_images']).toBeDefined();
     });
   });
 

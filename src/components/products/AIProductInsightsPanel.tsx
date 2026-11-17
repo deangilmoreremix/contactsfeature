@@ -270,13 +270,13 @@ export function AIProductInsightsPanel({
                     {aiAnalysis.talkingPoints.length}
                   </span>
                 </div>
-                {expandedSections.talkingPoints ? (
+                {expandedSections['talkingPoints'] ? (
                   <ChevronUp className="w-4 h-4 text-gray-400" />
                 ) : (
                   <ChevronDown className="w-4 h-4 text-gray-400" />
                 )}
               </button>
-              {expandedSections.talkingPoints && (
+              {expandedSections['talkingPoints'] && (
                 <div className="p-4 space-y-3">
                   {aiAnalysis.talkingPoints.length > 0 ? (
                     aiAnalysis.talkingPoints.map((point, index) => (
@@ -309,13 +309,13 @@ export function AIProductInsightsPanel({
                     {aiAnalysis.anticipatedObjections.length}
                   </span>
                 </div>
-                {expandedSections.objections ? (
+                {expandedSections['objections'] ? (
                   <ChevronUp className="w-4 h-4 text-gray-400" />
                 ) : (
                   <ChevronDown className="w-4 h-4 text-gray-400" />
                 )}
               </button>
-              {expandedSections.objections && (
+              {expandedSections['objections'] && (
                 <div className="p-4 space-y-3">
                   {aiAnalysis.anticipatedObjections.length > 0 ? (
                     aiAnalysis.anticipatedObjections.map((obj, index) => (
@@ -352,13 +352,13 @@ export function AIProductInsightsPanel({
                     <Lightbulb className="w-4 h-4 text-violet-600" />
                     <span className="font-medium text-gray-900">Personalization Insights</span>
                   </div>
-                  {expandedSections.insights ? (
+                  {expandedSections['insights'] ? (
                     <ChevronUp className="w-4 h-4 text-gray-400" />
                   ) : (
                     <ChevronDown className="w-4 h-4 text-gray-400" />
                   )}
                 </button>
-                {expandedSections.insights && (
+                {expandedSections['insights'] && (
                   <div className="p-4">
                     <ul className="space-y-2">
                       {aiAnalysis.personalizationInsights.map((insight, index) => (

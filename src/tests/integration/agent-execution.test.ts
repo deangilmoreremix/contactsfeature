@@ -112,7 +112,7 @@ describe('End-to-End Agent Execution', () => {
     expect(vi.mocked(streamFunction).mock.calls[0]![0]).toBe('/.netlify/functions/email-composer');
     expect(vi.mocked(streamFunction).mock.calls[0]![1]).toEqual(emailArgs);
     // The tool call is stored on the run record
-    expect(lastRunUpdate().tool_calls).toEqual([expect.objectContaining({ type: 'function', name: 'email-composer', arguments: emailArgs })]);
+    expect(lastRunUpdate()['tool_calls']).toEqual([expect.objectContaining({ type: 'function', name: 'email-composer', arguments: emailArgs })]);
   });
 
   it('should execute several requested tools in the order the agent asked for them', async () => {
@@ -141,7 +141,7 @@ describe('End-to-End Agent Execution', () => {
       '/.netlify/functions/ai-enrichment',
       '/.netlify/functions/email-composer'
     ]);
-    expect(lastRunUpdate().tool_calls.map((tc: { name: string }) => tc.name)).toEqual(['ai-enrichment', 'email-composer']);
+    expect(lastRunUpdate()['tool_calls'].map((tc: { name: string }) => tc.name)).toEqual(['ai-enrichment', 'email-composer']);
   });
 
   it('should validate agent execution results structure', async () => {

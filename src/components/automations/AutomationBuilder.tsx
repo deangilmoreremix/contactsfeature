@@ -205,9 +205,9 @@ const AutomationForm: React.FC<{
         onPartial: (partial) => {
           opts.onPartial?.(partial);
           const p = (partial ?? {}) as Record<string, unknown>;
-          const name = asString(p.name);
+          const name = asString(p['name']);
           if (name) setFormData((f) => ({ ...f, name }));
-          setDraftActions(objectList(p.actions).map((a) => asString(a.type)).filter(Boolean));
+          setDraftActions(objectList(p['actions']).map((a) => asString(a['type'])).filter(Boolean));
         },
       }));
       if (!rule) return;

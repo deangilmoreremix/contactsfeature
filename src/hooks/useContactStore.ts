@@ -465,7 +465,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       logger.error('Failed to export contacts', error as Error);
       
       // Local fallback in development/fallback mode
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
+      if (import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development') {
         const contacts = get().contacts;
         let content: string | object = '';
         

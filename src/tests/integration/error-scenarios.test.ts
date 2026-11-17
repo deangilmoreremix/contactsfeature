@@ -97,7 +97,7 @@ describe('Error Scenario Coverage', () => {
 
       // The run completes; the failed call is still recorded on it
       expect(result.run.status).toBe('completed');
-      expect(lastRunUpdate().tool_calls).toEqual([expect.objectContaining({ name: 'email-composer' })]);
+      expect(lastRunUpdate()['tool_calls']).toEqual([expect.objectContaining({ name: 'email-composer' })]);
     });
 
     it('should not run unknown tools', async () => {

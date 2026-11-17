@@ -33,11 +33,11 @@ vi.mock('../lib/supabase', async (importOriginal) => {
   fake.auth.getSession = async () => ({ data: { session: { access_token: 'test-token' } as unknown }, error: null });
   const channel = () => {
     const ch: Record<string, unknown> = {};
-    ch.on = () => ch;
-    ch.subscribe = () => ch;
-    ch.track = async () => undefined;
-    ch.presenceState = () => ({});
-    ch.unsubscribe = () => undefined;
+    ch['on'] = () => ch;
+    ch['subscribe'] = () => ch;
+    ch['track'] = async () => undefined;
+    ch['presenceState'] = () => ({});
+    ch['unsubscribe'] = () => undefined;
     return ch;
   };
   return {

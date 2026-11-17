@@ -47,9 +47,9 @@ const createResponse = vi.fn();
 const streamResponse = vi.fn();
 
 beforeAll(() => {
-  process.env.OPENAI_API_KEY = 'test';
-  process.env.SUPABASE_URL = 'http://localhost:54321';
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 'x';
+  process.env['OPENAI_API_KEY'] = 'test';
+  process.env['SUPABASE_URL'] = 'http://localhost:54321';
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] = 'x';
   const sc = path.join(fnDir, '_supabaseClient.js');
   require.cache[sc] = {
     id: sc, filename: sc, loaded: true,
@@ -99,7 +99,7 @@ describe('communication-optimization function', () => {
     expect(payload.data).toMatchObject({ ...fullReply, optimizationType: 'timing' });
     expect(typeof payload.data.analyzed).toBe('string');
 
-    expect(inserted.communication_optimizations).toEqual([
+    expect(inserted['communication_optimizations']).toEqual([
       expect.objectContaining({
         contact_id: OWN,
         optimization_type: 'timing',
@@ -135,7 +135,7 @@ describe('communication-optimization function', () => {
     expect(opts.input).toContain('Timeframe: 30d');
     expect(opts.input).toContain('Interaction History: []');
     expect(JSON.parse(res.body).data.optimizationType).toBe('comprehensive');
-    expect(inserted.communication_optimizations[0]).toMatchObject({ optimization_type: 'comprehensive' });
+    expect(inserted['communication_optimizations'][0]).toMatchObject({ optimization_type: 'comprehensive' });
   });
 
   it('fills in sensible defaults for anything the model left out', async () => {
@@ -152,7 +152,7 @@ describe('communication-optimization function', () => {
       recommendations: [],
       nextSteps: [],
     });
-    expect(inserted.communication_optimizations[0]).toMatchObject({
+    expect(inserted['communication_optimizations'][0]).toMatchObject({
       optimal_timing: { bestDay: 'Tuesday', bestTime: '10:00', timezone: 'UTC' },
       recommendations: [],
     });
@@ -177,7 +177,7 @@ describe('communication-optimization function', () => {
 
     expect(res.statusCode).toBe(500);
     expect(JSON.parse(res.body)).toMatchObject({ success: false, error: 'Communication optimization failed' });
-    expect(inserted.communication_optimizations).toBeUndefined();
+    expect(inserted['communication_optimizations']).toBeUndefined();
   });
 
   it('answers 500 when the model call fails', async () => {
@@ -187,7 +187,7 @@ describe('communication-optimization function', () => {
 
     expect(res.statusCode).toBe(500);
     expect(JSON.parse(res.body)).toMatchObject({ success: false, details: 'upstream down' });
-    expect(inserted.communication_optimizations).toBeUndefined();
+    expect(inserted['communication_optimizations']).toBeUndefined();
   });
 
   it('rejects non-POST requests with 405 without calling the model', async () => {

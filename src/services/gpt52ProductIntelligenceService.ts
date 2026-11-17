@@ -582,7 +582,7 @@ Analyze semantic fit beyond keyword matching. Consider:
 
     return {
       subject: contentType === 'email' ? `Quick question about ${contact.company || 'your team'}` : undefined,
-      body: `${greetings[tone] || greetings.professional}
+      body: `${greetings[tone] || greetings['professional']}
 
 I wanted to reach out because I believe ${product.name} could be valuable for ${contact.company || 'your organization'}.
 

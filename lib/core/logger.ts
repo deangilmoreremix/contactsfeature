@@ -1,7 +1,7 @@
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 const LOG_LEVEL_MAP: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
-const MIN_LEVEL = LOG_LEVEL_MAP[(process.env.LOG_LEVEL as LogLevel) || "info"] || 1;
+const MIN_LEVEL = LOG_LEVEL_MAP[(process.env['LOG_LEVEL'] as LogLevel) || "info"] || 1;
 
 const PII_PATTERNS = [
   { regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, replacement: "[EMAIL_REDACTED]" },
@@ -49,8 +49,8 @@ function emit(level: LogLevel, msg: string, meta?: unknown): void {
     msg: redactPII(msg),
   };
 
-  if (_correlationId) entry.correlationId = _correlationId;
-  if (meta) entry.meta = redactObject(meta);
+  if (_correlationId) entry['correlationId'] = _correlationId;
+  if (meta) entry['meta'] = redactObject(meta);
 
   const method = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
   method(JSON.stringify(entry));

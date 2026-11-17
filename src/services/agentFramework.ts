@@ -621,7 +621,7 @@ class AgentFramework {
 
       case 'generate-demo-visuals':
         return await this.callNetlifyFunction('generate-image', {
-          prompt: args?.prompt || '',
+          prompt: args?.['prompt'] || '',
           n: 3,
           size: '1536x1024'
         });

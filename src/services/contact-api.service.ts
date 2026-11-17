@@ -75,7 +75,7 @@ class ContactAPIService {
   private baseURL: string;
   private supabaseKey: string | null = null;
   private isBackendAvailable = true;
-  private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
+  private isMockMode = import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development';
   
   constructor() {
     // For contact operations, use direct database access instead of Edge Functions

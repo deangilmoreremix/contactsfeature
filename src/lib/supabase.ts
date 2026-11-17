@@ -3,15 +3,18 @@
  * Centralized Supabase client setup with proper error handling
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+/** Untyped-schema client (no generated Database types): table rows are `any`, not `never`. */
+export type AppSupabaseClient = SupabaseClient<any, 'public', any>;
 
 // Environment variables
 const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
 const supabaseAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 
 // Track if client has been initialized
-let supabaseInstance: ReturnType<typeof createClient> | null = null;
-let placeholderInstance: ReturnType<typeof createClient> | null = null;
+let supabaseInstance: AppSupabaseClient | null = null;
+let placeholderInstance: AppSupabaseClient | null = null;
 
 /** False when VITE_SUPABASE_* are missing (demo mode): realtime/presence must not try to connect. */
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
@@ -56,7 +59,7 @@ function getSupabaseClient() {
   return supabaseInstance;
 }
 
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+export const supabase = new Proxy({} as AppSupabaseClient, {
   get(_, prop) {
     const client = getSupabaseClient();
     const value = (client as any)[prop];

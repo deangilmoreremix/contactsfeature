@@ -147,15 +147,15 @@ export const useDocumentSummarization = () => {
         }
         const d = json.data;
         const summary: DocumentSummary = {
-          summary: d.summary,
-          keyPoints: d.keyPoints ?? [],
-          actionItems: d.actionItems ?? [],
-          documentType: d.documentType ?? 'other',
-          sentiment: d.sentiment ?? 'neutral',
-          confidence: d.confidence ?? 0,
-          model: d.model ?? 'openai',
-          wordCount: d.wordCount ?? null,
-          truncated: !!d.truncated,
+          summary: d['summary'],
+          keyPoints: d['keyPoints'] ?? [],
+          actionItems: d['actionItems'] ?? [],
+          documentType: d['documentType'] ?? 'other',
+          sentiment: d['sentiment'] ?? 'neutral',
+          confidence: d['confidence'] ?? 0,
+          model: d['model'] ?? 'openai',
+          wordCount: d['wordCount'] ?? null,
+          truncated: !!d['truncated'],
           processingTime: Date.now() - startTime,
         };
         setState((prev) => {
@@ -165,7 +165,7 @@ export const useDocumentSummarization = () => {
           live.delete(fileId);
           return { ...prev, isSummarizing: false, summaries: new Map(prev.summaries).set(fileId, summary), stages, live };
         });
-        logger.info('Document analysed', { fileId, fileName: file.name, extraction: d.extraction });
+        logger.info('Document analysed', { fileId, fileName: file.name, extraction: d['extraction'] });
         return summary;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to analyse document';

@@ -93,7 +93,7 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
           activity_type: activityType,
           description,
           metadata,
-          user_name: user?.user_metadata?.full_name || user?.email || 'System'
+          user_name: user?.user_metadata?.['full_name'] || user?.email || 'System'
         })
         .select()
         .single();

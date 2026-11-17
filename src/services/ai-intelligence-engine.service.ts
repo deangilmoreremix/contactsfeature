@@ -188,19 +188,19 @@ class AIIntelligenceEngine {
       patternType: outcome === 'success' ? 'success' : 'failure',
       conditions: {
         action,
-        contactInterestLevel: context.interestLevel,
-        contactIndustry: context.industry,
-        dealStage: context.dealStage,
-        communicationHistory: context.communicationHistory?.length || 0
+        contactInterestLevel: context['interestLevel'],
+        contactIndustry: context['industry'],
+        dealStage: context['dealStage'],
+        communicationHistory: context['communicationHistory']?.length || 0
       },
       outcomes: {
         result: outcome,
-        responseTime: context.responseTime,
-        engagementIncrease: context.engagementIncrease
+        responseTime: context['responseTime'],
+        engagementIncrease: context['engagementIncrease']
       },
       frequency: 1,
       confidence: 70,
-      applicableContactTypes: [context.industry, context.interestLevel],
+      applicableContactTypes: [context['industry'], context['interestLevel']],
     };
 
     this.learningPatterns.push(pattern);

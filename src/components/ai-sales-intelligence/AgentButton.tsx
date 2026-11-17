@@ -24,8 +24,8 @@ interface AgentButtonProps {
 /** The agent's answer as readable text: its output_text, else what streamed, else a text-like field of the payload. */
 function finalText(result: AgentExecutionResult, streamed: string): string {
   const r = result as unknown as Record<string, unknown>;
-  const data = (r.data ?? {}) as Record<string, unknown>;
-  const candidates = [result.response?.output_text, r.content, r.text, r.summary, data.text, data.summary, streamed];
+  const data = (r['data'] ?? {}) as Record<string, unknown>;
+  const candidates = [result.response?.output_text, r['content'], r['text'], r['summary'], data['text'], data['summary'], streamed];
   const hit = candidates.find((c): c is string => typeof c === 'string' && c.trim().length > 0 && !/^\s*[{[]/.test(c));
   return hit ?? '';
 }

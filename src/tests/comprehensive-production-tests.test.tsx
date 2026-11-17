@@ -547,7 +547,7 @@ describe('SmartCRM Dashboard - Comprehensive Production Tests', () => {
       console = mockConsole as any;
 
       // Simulate production code
-      if (process.env.NODE_ENV === 'production') {
+      if (process.env['NODE_ENV'] === 'production') {
         console.log('This should not execute');
       }
 

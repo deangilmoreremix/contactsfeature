@@ -90,7 +90,7 @@ class AIEnrichmentService {
 
     const out: ContactEnrichmentData = { ...hints, enrichmentType: 'real', isMockData: false };
     out.confidence = p.matched ? Math.max(0, Math.min(100, Number(p.confidence) || 0)) : 0;
-    const firstName = str(p.firstName), lastName = str(p.lastName);
+    const firstName = str(p['firstName']), lastName = str(p['lastName']);
     if (firstName) out.firstName = firstName;
     if (lastName) out.lastName = lastName;
     if (firstName || lastName) out.name = [firstName, lastName].filter(Boolean).join(' ');
@@ -98,7 +98,7 @@ class AIEnrichmentService {
       const v = str(p[k]);
       if (v) out[k] = v;
     }
-    const city = str(p.city), state = str(p.state), country = str(p.country);
+    const city = str(p['city']), state = str(p['state']), country = str(p['country']);
     if (city || state || country) {
       out.location = { ...(city ? { city } : {}), ...(state ? { state } : {}), ...(country ? { country } : {}) };
     }
