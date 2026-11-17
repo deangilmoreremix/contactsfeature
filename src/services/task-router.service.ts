@@ -5,8 +5,7 @@
 
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
-import { cacheService } from './cache.service';
-import apiConfig, { AIModel, getModelsByCapability } from '../config/api.config';
+import apiConfig, { AIModel } from '../config/api.config';
 
 export interface TaskRequirements {
   accuracy: 'low' | 'medium' | 'high' | 'critical';
@@ -22,7 +21,7 @@ export interface TaskContext {
             'opportunity_analysis' | 'risk_assessment' | 'engagement_prediction';
   requirements: TaskRequirements;
   contactData?: any;
-  businessContext?: string;
+  businessContext?: string | undefined;
   urgency?: 'low' | 'medium' | 'high' | 'critical';
   batchSize?: number;
   retryCount?: number;
@@ -147,11 +146,10 @@ class TaskRouterService {
     // Combine and sort all options
     const allOptions = [...openaiOptions].sort((a, b) => b.score - a.score);
     
-    if (allOptions.length === 0) {
+    const bestOption = allOptions[0];
+    if (!bestOption) {
       throw new Error('No available models for the specified task');
     }
-
-    const bestOption = allOptions[0];
     const fallbackOptions = allOptions.slice(1, 4).map(option => ({
       provider: option.provider,
       model: option.model,
@@ -340,7 +338,8 @@ class TaskRouterService {
     // Check OpenAI
     try {
       const openaiConfig = apiConfig.aiProviders.openai;
-      availability.openai = openaiConfig.enabled && !!openaiConfig.apiKey;
+      // The browser never holds an API key; AIProviderConfig has no apiKey, so this is always false.
+      availability.openai = openaiConfig.enabled && !!(openaiConfig as { apiKey?: string }).apiKey;
     } catch (error) {
       logger.warn('OpenAI availability check failed', error);
     }
@@ -460,6 +459,7 @@ class TaskRouterService {
     // Get top recommendations
     const allModels = [...profile.openaiModels].sort((a, b) => b.score - a.score);
     const top = allModels[0];
+    if (!top) return null;
     const alternatives = allModels.slice(1, 4);
 
     return {

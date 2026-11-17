@@ -16,8 +16,8 @@ export interface EnhancedAIAnalysisRequest {
                      'relationship_mapping' | 'sentiment_analysis' | 'lead_qualification' | 
                      'opportunity_analysis' | 'risk_assessment' | 'engagement_prediction'>;
   urgency?: 'low' | 'medium' | 'high' | 'critical';
-  requirements?: Partial<import('./task-router.service').TaskRequirements>;
-  businessContext?: string;
+  requirements?: Partial<import('./task-router.service').TaskRequirements> | undefined;
+  businessContext?: string | undefined;
   /** Live progress callbacks (insights / recommendations appear as they are written). */
   live?: LiveOptions;
 }
@@ -128,8 +128,6 @@ class EnhancedAIIntegrationService {
 
   async smartBulkAnalysis(request: SmartBulkRequest): Promise<any> {
     const { contacts, analysisType, urgency = 'medium', costLimit, timeLimit } = request;
-    const startTime = Date.now();
-    
     logger.info(`Starting smart bulk analysis`, {
       contactCount: contacts.length,
       analysisType,
@@ -164,7 +162,7 @@ class EnhancedAIIntegrationService {
     
     if (costLimit && estimatedCost > costLimit) {
       // Try to find a cheaper model
-      const cheaperContext = { ...taskContext, requirements: { ...taskContext.requirements, cost: 'free' } };
+      const cheaperContext = { ...taskContext, requirements: { ...taskContext.requirements, cost: 'free' as const } };
       const cheaperSelection = await taskRouter.selectOptimalModel(cheaperContext);
       
       if (cheaperSelection.expectedCost * contacts.length <= costLimit) {
@@ -290,7 +288,7 @@ class EnhancedAIIntegrationService {
     urgency: string, 
     customRequirements?: any
   ): import('./task-router.service').TaskRequirements {
-    const baseRequirements = {
+    const baseRequirements: import('./task-router.service').TaskRequirements = {
       accuracy: urgency === 'critical' ? 'critical' as const : urgency === 'high' ? 'high' as const : 'medium' as const,
       speed: urgency === 'critical' ? 'fast' as const : 'medium' as const,
       cost: 'low' as const,
@@ -319,7 +317,7 @@ class EnhancedAIIntegrationService {
     return { ...baseRequirements, ...customRequirements };
   }
 
-  private getOptimalBatchSize(provider: string, totalContacts: number): number {
+  private getOptimalBatchSize(_provider: string, totalContacts: number): number {
     // Optimize batch size based on provider and total volume
     return Math.min(10, Math.ceil(totalContacts / 10)); // conservative OpenAI batches
   }

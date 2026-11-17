@@ -21,7 +21,7 @@ class PerformanceMonitor {
       name,
       value,
       timestamp: Date.now(),
-      metadata
+      ...(metadata !== undefined && { metadata })
     });
 
     // Keep only recent metrics

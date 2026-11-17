@@ -369,7 +369,7 @@ describe('AdaptivePlaybookGenerator', () => {
     });
 
     it('should handle missing deal value', () => {
-      const dealWithoutValue = { ...mockDeal, value: undefined };
+      const { value: _value, ...dealWithoutValue } = mockDeal;
 
       render(
         <AdaptivePlaybookGenerator
@@ -384,7 +384,7 @@ describe('AdaptivePlaybookGenerator', () => {
     });
 
     it('should handle missing industry', () => {
-      const dealWithoutIndustry = { ...mockDeal, industry: undefined };
+      const { industry: _industry, ...dealWithoutIndustry } = mockDeal;
 
       render(
         <AdaptivePlaybookGenerator

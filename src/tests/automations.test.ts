@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { automationService } from '../services/automation.service';
 import { contactAPI } from '../services/contact-api.service';
+import type { ContactAutomation } from '../types/automation';
+import { asContact } from './helpers/contactFixtures';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -46,7 +48,7 @@ describe('Automation Service', () => {
       };
 
       // Mock getting active automations
-      const mockAutomations = [{
+      const mockAutomations: ContactAutomation[] = [{
         id: 'auto1',
         name: 'Test Automation',
         type: 'scoring' as const,
@@ -65,7 +67,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue(mockAutomations);
 
-      await automationService.processContactAutomation(mockContact, 'contact_created');
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_created');
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_created');
       expect(updateSpy).toHaveBeenCalledWith('1', { status: 'prospect' });
@@ -81,7 +83,7 @@ describe('Automation Service', () => {
       };
 
       // Mock getting active automations
-      const mockAutomations = [{
+      const mockAutomations: ContactAutomation[] = [{
         id: 'auto1',
         name: 'Test Automation',
         type: 'scoring' as const,
@@ -95,7 +97,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue(mockAutomations);
 
-      await automationService.processContactAutomation(mockContact, 'contact_created');
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_created');
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_created');
       expect(messagingProviderService.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
@@ -118,7 +120,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue([]);
 
-      await automationService.processContactAutomation(mockContact, 'contact_updated', changedFields);
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_updated', changedFields);
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_updated');
     });
@@ -133,7 +135,7 @@ describe('Automation Service', () => {
       vi.spyOn(automationService, 'getActiveAutomations').mockRejectedValue(new Error('Database error'));
 
       // Should not throw
-      await expect(automationService.processContactAutomation(mockContact, 'contact_created')).resolves.not.toThrow();
+      await expect(automationService.processContactAutomation(asContact(mockContact), 'contact_created')).resolves.not.toThrow();
     });
 
     it('should skip automations when conditions are not met', async () => {
@@ -145,7 +147,7 @@ describe('Automation Service', () => {
       };
 
       // Mock getting active automations with conditions that won't be met
-      const mockAutomations = [{
+      const mockAutomations: ContactAutomation[] = [{
         id: 'auto1',
         name: 'Test Automation',
         type: 'scoring' as const,
@@ -164,7 +166,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue(mockAutomations);
 
-      await automationService.processContactAutomation(mockContact, 'contact_created');
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_created');
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_created');
       expect(updateSpy).not.toHaveBeenCalled(); // Should not execute action because condition is not met

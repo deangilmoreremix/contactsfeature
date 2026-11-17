@@ -12,6 +12,7 @@ import { VideoAgentPanel } from '../components/VideoAgentPanel';
 import { HeatmapPanel } from '../components/HeatmapPanel';
 import { PlaybooksPanel } from '../components/PlaybooksPanel';
 import { getCurrentUser } from '../lib/supabase';
+import type { SDRUserPreferences } from '../types/sdr-preferences';
 
 // Mock dependencies
 vi.mock('../services/sdrPreferencesService', () => ({
@@ -67,6 +68,7 @@ vi.mock('../lib/streaming/streamClient', async (orig) => ({
 }));
 
 describe('SDR Agent User Controls System', () => {
+  // Fixture predates the current SDRUserPreferences shape (legacy model id, old competitorStrategy): typed at this boundary
   const mockUserPreferences = {
     userId: 'demo-user',
     agentId: 'voice-agent',
@@ -107,13 +109,13 @@ describe('SDR Agent User Controls System', () => {
     customPrompts: {
       general: 'Use professional language and focus on value proposition.'
     }
-  };
+ } as unknown as SDRUserPreferences;
 
   const mockCampaignSequence = [
     {
       id: 'step-1',
       day: 0,
-      type: 'email',
+      type: 'email' as const,
       template: 'introduction',
       subject: 'Introduction to SmartCRM',
       delay: 3,
@@ -122,7 +124,7 @@ describe('SDR Agent User Controls System', () => {
     {
       id: 'step-2',
       day: 3,
-      type: 'linkedin',
+      type: 'linkedin' as const,
       template: 'follow-up',
       delay: 5,
       conditions: []
@@ -330,7 +332,7 @@ describe('SDR Agent User Controls System', () => {
       // The remove buttons are icon-only (lucide Trash2)
       const removeButtons = Array.from(document.querySelectorAll('button')).filter(b => b.querySelector('svg.lucide-trash2, svg.lucide-trash-2'));
       expect(removeButtons).toHaveLength(2);
-      fireEvent.click(removeButtons[0]);
+      fireEvent.click(removeButtons[0]!);
 
       expect(screen.getAllByText(/^Day \d+$/)).toHaveLength(1);
       expect(screen.getByText('Day 3')).toBeInTheDocument();

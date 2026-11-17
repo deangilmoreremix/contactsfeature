@@ -125,15 +125,6 @@ describe('Cache Service', () => {
 
 describe('Validation Service', () => {
   test('should validate contact data successfully', () => {
-    const validContact = {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@example.com',
-      title: 'Engineer',
-      company: 'Tech Corp',
-      interestLevel: 'medium',
-      status: 'lead',
-    };
 
     // Mock validation
     const result = {
@@ -146,15 +137,6 @@ describe('Validation Service', () => {
   });
 
   test('should fail validation for invalid email', () => {
-    const invalidContact = {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'invalid-email',
-      title: 'Engineer',
-      company: 'Tech Corp',
-      interestLevel: 'medium',
-      status: 'lead',
-    };
 
     // Mock validation failure
     const result = {
@@ -169,12 +151,6 @@ describe('Validation Service', () => {
   });
 
   test('should sanitize input data', () => {
-    const unsanitizedContact = {
-      firstName: '  John  ',
-      lastName: '  Doe  ',
-      email: '  JOHN.DOE@EXAMPLE.COM  ',
-      phone: '  +1-555-0123  ',
-    };
 
     // Mock sanitization
     const sanitized = {

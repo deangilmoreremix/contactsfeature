@@ -3,7 +3,7 @@
  * Centralized HTTP client with interceptors, rate limiting, error handling, and retries
  */
 
-import apiConfig, { ApiEndpoint } from '../config/api.config';
+import apiConfig from '../config/api.config';
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
 import { cacheService } from './cache.service';
@@ -91,7 +91,7 @@ private loadTokens(): void {
       throw new Error('No refresh token available');
     }
     
-    const response = await this.makeRequest({
+    const response = await this.makeRequest<{ accessToken: string; refreshToken?: string }>({
       method: 'POST',
       url: `${apiConfig.auth.endpoint.baseURL}/refresh`,
       data: { refreshToken: this.refreshToken },
@@ -184,10 +184,10 @@ private loadTokens(): void {
     try {
       // Check cache first for GET requests
       if (config.method === 'GET' && config.cache?.key) {
-        const cached = cacheService.get<T>('http_cache', config.cache.key);
+        const cached = cacheService.get<ApiResponse<T>>('http_cache', config.cache.key);
         if (cached) {
           logger.debug(`Cache hit for ${config.method} ${config.url}`, { requestId });
-          return cached as ApiResponse<T>;
+          return cached;
         }
       }
 
@@ -239,7 +239,7 @@ private loadTokens(): void {
       const response = await fetch(fetchUrl, {
         method: config.method,
         headers: { ...headers },
-        body: ['GET', 'HEAD'].includes(config.method) ? undefined : config.data ? JSON.stringify(config.data) : undefined,
+        ...(['GET', 'HEAD'].includes(config.method) ? {} : config.data ? { body: JSON.stringify(config.data) } : {}),
         signal: controller.signal,
       });
       
@@ -347,7 +347,7 @@ private loadTokens(): void {
     return this.makeRequest({
       method: 'GET',
       url: endpoint,
-      params,
+      ...(params !== undefined ? { params } : {}),
       ...options,
     });
   }

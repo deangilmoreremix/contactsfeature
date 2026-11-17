@@ -80,11 +80,11 @@ export async function aiRespond<T = unknown>(req: AIRequest): Promise<AIResponse
 
 export interface AIStreamHandlers extends StreamHandlers {
   /** Legacy shorthand: called with each text chunk. */
-  onDelta?: (text: string, fullText: string) => void;
+  onDelta?: ((text: string, fullText: string) => void) | undefined;
   /** Keep the run alive past the serverless time limit and resume if the connection drops. */
-  background?: boolean;
+  background?: boolean | undefined;
   /** Ask for reasoning-summary events (shown as an optional "Thinking" panel). */
-  reasoningSummary?: boolean;
+  reasoningSummary?: boolean | undefined;
 }
 
 const MAX_RESUMES = 6;

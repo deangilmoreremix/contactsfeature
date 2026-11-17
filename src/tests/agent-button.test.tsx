@@ -183,7 +183,7 @@ describe('AgentButton', () => {
 
       await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(mockExecutionResult));
       expect(mocks.streamFunction).toHaveBeenCalledTimes(1);
-      const [url, body, opts] = mocks.streamFunction.mock.calls[0];
+      const [url, body, opts] = mocks.streamFunction.mock.calls[0]!;
       expect(url).toBe(RUNNER);
       expect(body).toEqual({ agentId: 'agent-123', contactId: 'contact-456', input: { testInput: 'value' } });
       expect(opts).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
@@ -207,7 +207,7 @@ describe('AgentButton', () => {
       await execute(button);
 
       await waitFor(() => expect(mocks.streamFunction).toHaveBeenCalled());
-      const [url, body] = mocks.streamFunction.mock.calls[0];
+      const [url, body] = mocks.streamFunction.mock.calls[0]!;
       expect(url).toBe('/.netlify/functions/cold-email-sdr');
       expect(body).toEqual({ contactId: 'contact-456', input: { testInput: 'value' } });
     });
