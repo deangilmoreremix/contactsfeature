@@ -173,7 +173,7 @@ Required in `.env`:
 
 - `npm run dev` -- Start Vite dev server
 - `npm run build` -- Production build
-- `npm run typecheck` -- TypeScript validation
+- `npm run typecheck` -- TypeScript validation (strict, `tsconfig.app.json`; must stay at 0 errors, enforced by `scripts/check-stack.sh`)
 - `npm run lint` -- ESLint
 - `npm run test:functions` -- Test Netlify functions
 

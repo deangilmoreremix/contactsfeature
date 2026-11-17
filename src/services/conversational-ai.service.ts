@@ -13,6 +13,7 @@ import {
   REALTIME_TOOLS, interpretRealtimeEvent, applyTranscriptAction, parseToolArgs, executeRealtimeTool,
   isTokenExpired, reconnectDelay, MAX_RECONNECTS, describeVoiceError,
 } from './realtimeVoice';
+import type { TranscriptMessage } from './realtimeVoice';
 
 export interface ConversationMessage {
   id: string;
@@ -171,7 +172,7 @@ class ConversationalAIService {
     const answer = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token.value}`, 'Content-Type': 'application/sdp' },
-      body: offer.sdp
+      ...(offer.sdp !== undefined ? { body: offer.sdp } : {})
     });
     if (!answer.ok) throw new Error(answer.status === 401 ? 'Voice session expired, please try again' : `Voice connection was rejected (${answer.status})`);
     await pc.setRemoteDescription({ type: 'answer', sdp: await answer.text() });
@@ -247,7 +248,7 @@ class ConversationalAIService {
       case 'user_transcript':
       case 'assistant_delta':
       case 'assistant_done':
-        if (context) context.conversationHistory = applyTranscriptAction(context.conversationHistory, action) as ConversationMessage[];
+        if (context) context.conversationHistory = applyTranscriptAction(context.conversationHistory as TranscriptMessage[], action) as ConversationMessage[];
         break;
       case 'function_call':
         await this.handleFunctionCall(action, sessionId);
@@ -308,7 +309,8 @@ class ConversationalAIService {
   }
 
   // Execute CRM functions
-  private async executeCRMFunction(functionCall: any, context: ConversationContext): Promise<any> {
+  // Kept (not called yet): dispatcher for the CRM function handlers below. `protected` so the unused-member check stays quiet.
+  protected async executeCRMFunction(functionCall: any, context: ConversationContext): Promise<any> {
     const { name, arguments: args } = functionCall;
     const params = JSON.parse(args);
 
@@ -1053,7 +1055,6 @@ class ConversationalAIService {
     };
 
     this.mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
       // Process audio blob for real-time API
     };
 
@@ -1067,19 +1068,6 @@ class ConversationalAIService {
       return new Blob(this.audioChunks, { type: 'audio/wav' });
     }
     return null;
-  }
-
-  // Convert blob to base64 for API
-  private async blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
   }
 
   // Get system instructions for the AI
@@ -1101,333 +1089,6 @@ You can help users with:
 Always be helpful, accurate, and provide actionable insights. Use the available functions to perform tasks when appropriate, and explain your actions clearly to the user.
 
 When using functions, provide clear explanations of what you're doing and why. If multiple steps are needed, break them down clearly.`;
-  }
-
-  // Get all function definitions for the real-time API
-  private getAllFunctionDefinitions(): any[] {
-    return [
-      // 🎯 Contact Analysis & Scoring Functions
-      {
-        type: 'function',
-        name: 'analyze_contact_profile',
-        description: 'Analyze a contact\'s potential as a client with detailed scoring and insights',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactId: { type: 'string', description: 'Contact identifier' },
-            contactData: {
-              type: 'object',
-              properties: {
-                name: { type: 'string' },
-                title: { type: 'string' },
-                company: { type: 'string' },
-                industry: { type: 'string' },
-                interestLevel: { type: 'string', enum: ['hot', 'medium', 'low', 'cold'] }
-              },
-              required: ['name']
-            },
-            analysisDepth: {
-              type: 'string',
-              enum: ['basic', 'detailed', 'comprehensive'],
-              default: 'detailed'
-            }
-          },
-          required: ['contactId', 'contactData']
-        }
-      },
-      {
-        type: 'function',
-        name: 'analyze_bulk_engagement',
-        description: 'Analyze engagement levels for multiple contacts',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactIds: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Array of contact IDs to analyze'
-            },
-            timeframe: {
-              type: 'string',
-              description: 'Analysis timeframe',
-              default: '30d'
-            },
-            segment: {
-              type: 'string',
-              description: 'Contact segment to analyze',
-              enum: ['all', 'hot', 'medium', 'cold', 'enterprise', 'smb']
-            }
-          },
-          required: ['contactIds']
-        }
-      },
-      {
-        type: 'function',
-        name: 'bulk_score_inactive_contacts',
-        description: 'Score contacts who haven\'t been contacted recently',
-        parameters: {
-          type: 'object',
-          properties: {
-            daysInactive: {
-              type: 'number',
-              description: 'Days since last contact',
-              default: 30
-            },
-            minScore: {
-              type: 'number',
-              description: 'Minimum score threshold',
-              default: 60
-            },
-            createTasks: {
-              type: 'boolean',
-              description: 'Automatically create follow-up tasks',
-              default: true
-            }
-          }
-        }
-      },
-
-      // 🔍 Contact Enrichment Functions
-      {
-        type: 'function',
-        name: 'enrich_contact_profile',
-        description: 'Enrich contact profile with web research and social media data',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactId: { type: 'string', description: 'Contact identifier' },
-            contactData: {
-              type: 'object',
-              properties: {
-                name: { type: 'string' },
-                title: { type: 'string' },
-                company: { type: 'string' },
-                email: { type: 'string' }
-              },
-              required: ['name']
-            },
-            enrichmentTypes: {
-              type: 'array',
-              items: {
-                type: 'string',
-                enum: ['social_profiles', 'company_info', 'professional_background', 'news', 'contact_info']
-              },
-              default: ['social_profiles', 'company_info']
-            }
-          },
-          required: ['contactId', 'contactData']
-        }
-      },
-      {
-        type: 'function',
-        name: 'bulk_enrich_contacts',
-        description: 'Enrich multiple contacts with missing information',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactIds: {
-              type: 'array',
-              items: { type: 'string' }
-            },
-            enrichmentPriority: {
-              type: 'string',
-              enum: ['missing_data', 'social_profiles', 'company_updates', 'all'],
-              default: 'missing_data'
-            },
-            maxContacts: {
-              type: 'number',
-              description: 'Maximum contacts to process',
-              default: 50
-            }
-          },
-          required: ['contactIds']
-        }
-      },
-      {
-        type: 'function',
-        name: 'verify_social_profiles',
-        description: 'Verify and validate social media profiles for a contact',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactId: { type: 'string' },
-            profiles: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  platform: { type: 'string', enum: ['linkedin', 'twitter', 'facebook', 'instagram'] },
-                  url: { type: 'string' }
-                }
-              }
-            }
-          },
-          required: ['contactId']
-        }
-      },
-
-      // 📧 Communication & Email Functions
-      {
-        type: 'function',
-        name: 'optimize_email_timing',
-        description: 'Determine optimal email sending time for a contact',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactId: { type: 'string' },
-            emailType: {
-              type: 'string',
-              enum: ['cold', 'followup', 'nurture', 'sales'],
-              default: 'followup'
-            },
-            urgency: {
-              type: 'string',
-              enum: ['low', 'medium', 'high'],
-              default: 'medium'
-            }
-          },
-          required: ['contactId']
-        }
-      },
-      {
-        type: 'function',
-        name: 'generate_personalized_email',
-        description: 'Generate personalized email content',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactId: { type: 'string' },
-            contactData: {
-              type: 'object',
-              properties: {
-                name: { type: 'string' },
-                title: { type: 'string' },
-                company: { type: 'string' },
-                email: { type: 'string' }
-              }
-            },
-          }
-        }
-      },
-
-      // 🎤 Voice-Specific Functions
-      {
-        type: 'function',
-        name: 'transcribe_voice_note',
-        description: 'Convert voice notes to contact updates',
-        parameters: {
-          type: 'object',
-          properties: {
-            audioData: { type: 'string', description: 'Base64 encoded audio data' },
-            contactId: { type: 'string' },
-            noteType: {
-              type: 'string',
-              enum: ['meeting', 'call', 'general'],
-              default: 'general'
-            }
-          },
-          required: ['audioData']
-        }
-      },
-      {
-        type: 'function',
-        name: 'voice_command_analysis',
-        description: 'Analyze voice commands for intent and context',
-        parameters: {
-          type: 'object',
-          properties: {
-            audioData: { type: 'string', required: true },
-            commandHistory: { type: 'array' },
-            userPreferences: { type: 'object' }
-          },
-          required: ['audioData']
-        }
-      },
-      {
-        type: 'function',
-        name: 'voice_sentiment_analysis',
-        description: 'Analyze sentiment in voice interactions',
-        parameters: {
-          type: 'object',
-          properties: {
-            audioData: { type: 'string', required: true },
-            contactId: { type: 'string', required: true },
-            interactionType: {
-              type: 'string',
-              enum: ['call', 'meeting', 'voicemail'],
-              required: true
-            }
-          },
-          required: ['audioData', 'contactId', 'interactionType']
-        }
-      },
-      {
-        type: 'function',
-        name: 'voice_meeting_summary',
-        description: 'Generate summaries from voice meeting recordings',
-        parameters: {
-          type: 'object',
-          properties: {
-            audioData: { type: 'string', required: true },
-            participants: { type: 'array', required: true },
-            meetingType: { type: 'string', required: true },
-            actionItems: { type: 'boolean', default: true }
-          },
-          required: ['audioData', 'participants', 'meetingType']
-        }
-      },
-      {
-        type: 'function',
-        name: 'voice_prospect_qualification',
-        description: 'Qualify prospects based on voice interaction analysis',
-        parameters: {
-          type: 'object',
-          properties: {
-            audioData: { type: 'string', required: true },
-            contactData: { type: 'object', required: true },
-            qualificationCriteria: {
-              type: 'array',
-              default: ['budget', 'timeline', 'authority']
-            }
-          },
-          required: ['audioData', 'contactData']
-        }
-      },
-
-      // 🤖 Smart Functions
-      {
-        type: 'function',
-        name: 'create_smart_contact',
-        description: 'AI-assisted contact creation with validation',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactData: { type: 'object', required: true },
-            autoEnrich: { type: 'boolean', default: true },
-            validateData: { type: 'boolean', default: true },
-            createTasks: { type: 'boolean', default: false }
-          },
-          required: ['contactData']
-        }
-      },
-      {
-        type: 'function',
-        name: 'generate_contact_insights',
-        description: 'Generate actionable insights and recommendations',
-        parameters: {
-          type: 'object',
-          properties: {
-            contactId: { type: 'string', required: true },
-            insightTypes: {
-              type: 'array',
-              default: ['opportunities', 'recommendations', 'risks']
-            },
-            maxInsights: { type: 'number', default: 5 }
-          },
-          required: ['contactId']
-        }
-      }
-    ];
   }
 }
 

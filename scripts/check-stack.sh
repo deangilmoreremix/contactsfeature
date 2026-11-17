@@ -27,4 +27,6 @@ if [ -n "$direct" ]; then echo "✗ direct api.openai.com calls outside shared h
 node scripts/check-streaming.cjs || FAIL=1
 # Census gate: every UI-reachable AI endpoint streams; no calls to missing functions.
 node scripts/ai-census.cjs --check || FAIL=1
+# strict TypeScript (tsconfig.app.json): `tsc -p .` checks nothing, so point at the app config
+npx tsc --noEmit -p tsconfig.app.json >/tmp/tsc-gate.txt 2>&1 && echo '✓ typecheck (tsconfig.app.json)' || { echo "✗ typecheck: $(grep -c 'error TS' /tmp/tsc-gate.txt) errors (see npm run typecheck)"; FAIL=1; }
 exit $FAIL

@@ -31,3 +31,4 @@ email-manager           # data ops only (send via provider, history read, open/c
 automation-manager      # CRUD only (stored automation rules); rule PLANNING is the ai-task `automation-ai`
 analytics-manager       # CRUD only (analytics rows)
 journey-manager         # CRUD + deterministic month grouping/counts of journey events; narrative timelines are the ai-task `timeline-generator`
+trigger-autopilot      # background autopilot pipeline (queues a draft email in the next step, no user-facing answer); same class as sdr-autopilot, scheduled/state-only
