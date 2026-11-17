@@ -39,15 +39,6 @@ export class EdgeFunctionService {
     return result
   }
 
-  // AI Enrichment
-  async enrichContactData(contactData: any, enrichmentType: string = 'comprehensive') {
-    const { data: result, error } = await supabase.functions.invoke('ai-enrichment', {
-      body: { contactData, enrichmentType }
-    })
-    if (error) throw error
-    return result
-  }
-
   // Smart Scoring
   async calculateContactScore(contactData: any, criteria: any = {}, live?: TaskLive) {
     return streamTask<any>('smart-score', { contactData, scoringCriteria: criteria }, live)

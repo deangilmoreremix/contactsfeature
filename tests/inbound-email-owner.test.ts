@@ -12,7 +12,7 @@ const inserted: Record<string, any[]> = {};
 
 function reset() {
   rows.messaging_providers = [
-    { user_id: 'u1', channel: 'email', from_address: 'sales@alpha.com' },
+    { user_id: 'u1', channel: 'email', from_address: 'Sales@Alpha.com' },
     { user_id: 'u2', channel: 'email', from_address: 'hello@beta.com' },
     { user_id: 'u1', channel: 'sms', from_address: '+15550001' },
     { user_id: 'u1', channel: 'email', from_address: 'dup@both.com' },
@@ -36,6 +36,11 @@ function fakeSupabase() {
       const q: any = {
         select: () => q, order: () => q, limit: () => q, is: () => q, not: () => q,
         in: (k: string, v: any[]) => { data = data.filter((r) => v.includes(r[k])); return q; },
+        or: (expr: string) => {
+          const pats = [...expr.matchAll(/(\w+)\.ilike\."([^"]*)"/g)].map((m) => ({ k: m[1], v: m[2].toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[_%]/g, '.') }));
+          data = data.filter((r) => pats.some((p) => new RegExp(`^${p.v}$`).test(String(r[p.k] || '').toLowerCase())));
+          return q;
+        },
         eq: (k: string, v: any) => { data = data.filter((r) => r[k] === v); return q; },
         insert: (row: any) => { (inserted[table] ||= []).push(row); return q; },
         update: () => q, upsert: () => q, delete: () => q,

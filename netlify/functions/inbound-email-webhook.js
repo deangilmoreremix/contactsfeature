@@ -33,7 +33,8 @@ async function resolveRecipientOwner(to) {
     .from('messaging_providers')
     .select('user_id, from_address')
     .eq('channel', 'email')
-    .in('from_address', addrs);
+    // case-insensitive (stored from_address may be mixed case); wildcards in ilike are re-filtered by exact compare below
+    .or(addrs.map((a) => `from_address.ilike."${a.replace(/[\\"]/g, '')}"`).join(','));
   const owners = new Set((data || []).filter((r) => addrs.includes(String(r.from_address || '').toLowerCase())).map((r) => r.user_id));
   return owners.size === 1 ? [...owners][0] : null;
 }

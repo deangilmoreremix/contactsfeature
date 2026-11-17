@@ -155,7 +155,7 @@ function parseSse(raw: string) {
   return { events, done };
 }
 
-const VOLATILE = new Set(['generated', 'timestamp', 'executedAt', 'generatedAt', 'analyzed']);
+const VOLATILE = new Set(['enrichedAt', 'scheduledAt', 'generated', 'timestamp', 'executedAt', 'generatedAt', 'analyzed']);
 function normalize(v: any): any {
   if (Array.isArray(v)) return v.map(normalize);
   if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => !VOLATILE.has(k)).map(([k, x]) => [k, normalize(x)]));
@@ -230,6 +230,22 @@ const cases: Case[] = [
     text: 'Plan: 1) send recap 2) book demo',
     writes: 2, // agent_runs + contacts update
     extra: (_e, json) => expect(json).toMatchObject({ success: true, contactId: CID, response: 'Plan: 1) send recap 2) book demo' }),
+  },
+  {
+    name: 'ai-enrichment (real AI lead brief, was a data stub)',
+    file: 'ai-enrichment.js',
+    body: { contactId: CID, operation: 'lead-scoring' },
+    text: { summary: 'Warm CTO lead', leadScore: 64, scoreReasons: ['CTO title'], intentSignals: [], recommendedActions: ['call'], dataGaps: ['no budget'] },
+    writes: 0, expectPartialOption: true,
+    extra: (_e, json) => expect(json).toMatchObject({ contactId: CID, operation: 'lead-scoring', leadScore: 64, summary: 'Warm CTO lead', gtmPromptUsed: false }),
+  },
+  {
+    name: 'video-call-scheduler (real AI meeting brief, was a data stub)',
+    file: 'video-call-scheduler.js',
+    body: { contactId: CID },
+    text: { agenda: ['Intro'], suggestedSlots: ['Tue 10:00-10:30'], prepNotes: ['generic slots'], followUpDraft: 'Thanks Ann' },
+    writes: 0, expectPartialOption: true,
+    extra: (_e, json) => expect(json).toMatchObject({ contactId: CID, calendarEventId: null, agenda: ['Intro'], followUpDraft: 'Thanks Ann', duration: 30 }),
   },
   {
     name: 'Agents-SDK handler: linkedin-sdr',

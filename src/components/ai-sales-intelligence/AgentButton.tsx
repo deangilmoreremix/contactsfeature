@@ -70,10 +70,12 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         .from('agent_metadata')
         .select('*')
         .eq('id', agentId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      setAgent(data);
+      // No metadata row (or an unexpected shape): still usable, labelled by its id
+      const row = data && !Array.isArray(data) && typeof (data as AgentConfig).name === 'string' ? (data as AgentConfig) : null;
+      setAgent(row ?? ({ id: agentId, name: agentId } as AgentConfig));
     } catch (err) {
       console.error('Failed to load agent metadata:', err);
       setError('Failed to load agent');

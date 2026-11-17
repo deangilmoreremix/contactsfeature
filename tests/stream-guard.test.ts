@@ -20,11 +20,11 @@ describe('stream guard helpers', () => {
   it('polices the previously blind UI-reachable dual-mode endpoints', () => {
     for (const n of ['linkedin-sdr', 'whatsapp-sdr', 'event-based-sdr', 'referral-sdr', 'newsletter-sdr', 'high-intent-sdr',
       'data-enrichment-sdr', 'competitor-aware-sdr', 'adaptive-playbook', 'communication-optimization', 'discovery-questions',
-      'cold-call-sdr', 'deal-analysis-agent', 'proposal-generator', 'email-deliverability-agent']) {
+      'cold-call-sdr', 'deal-analysis-agent', 'proposal-generator', 'email-deliverability-agent', 'ai-enrichment', 'video-call-scheduler']) {
       expect(endpointOf(`/.netlify/functions/${n}`)).toBe(n);
     }
-    // verified NOT dual-mode (plain data ops) -> not policed
-    for (const n of ['video-call-scheduler', 'communication-manager', 'ai-enrichment']) expect(endpointOf(`/.netlify/functions/${n}`)).toBeNull();
+    // verified NOT AI (plain CRUD) -> not policed
+    for (const n of ['communication-manager']) expect(endpointOf(`/.netlify/functions/${n}`)).toBeNull();
   });
   it('ai-respond is a violation unless it is an allow-listed non-visible caller (ai-task-queue)', () => {
     const plain = (b: object): RequestInit => ({ body: JSON.stringify(b) });

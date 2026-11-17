@@ -28,6 +28,8 @@ export async function openApp(page: Page, theme: 'light' | 'dark' = 'light', ope
     }));
     try { localStorage.setItem('theme', t); localStorage.setItem('darkMode', t === 'dark' ? 'true' : 'false'); } catch { /* ignore */ }
   }, theme);
+  page.on('pageerror', (e) => console.log(`[pageerror] ${e.message.split('\n')[0]}`));
+  page.on('console', (m) => { if (m.type() === 'error' && !/WebSocket connection/.test(m.text())) console.log('[console.error] ' + m.text().split('\n').slice(0, 3).join(' / ').slice(0, 300)); });
   await page.goto('/');
   await page.waitForSelector('h3', { timeout: 20_000 });
   const skip = page.locator('button').filter({ hasText: 'Skip welcome experience' }).first();

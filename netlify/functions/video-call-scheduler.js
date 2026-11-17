@@ -1,12 +1,17 @@
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions, parseJsonOr } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('video-call-scheduler');
 
-exports.handler = withAuth(async (event, user) => {
+const BRIEF_SCHEMA = S.obj({ agenda: S.strArr, suggestedSlots: S.strArr, prepNotes: S.strArr, followUpDraft: S.str });
+
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -52,27 +57,36 @@ exports.handler = withAuth(async (event, user) => {
       calendarEventId = eventRow ? eventRow.id : null;
     }
 
-    const response = {
-      contactId,
-      calendarEventId,
-      meetingTitle: title || `Meeting with ${contactName}`,
-      scheduledTime: startTime,
-      duration: duration || 30,
-      gtmPromptUsed,
-      contactName,
-      company,
-      scheduledAt: new Date().toISOString(),
-    };
+    const meeting = { title: title || `Meeting with ${contactName}`, when: startTime || null, duration: Number(duration) > 0 ? Number(duration) : 30 };
+    const prompt = `${gtmBlock}Prepare a meeting brief for ${contactName} at ${company}. Meeting: ${JSON.stringify(meeting)}.
+Contact: ${JSON.stringify({ title: contact.title, industry: contact.industry, notes: contact.notes, status: contact.status })}
+Use only this data; do not invent facts. If no time was given, suggestedSlots lists generic suggestions of the form "Tue 10:00-10:30" for the contact's likely business hours and says so in prepNotes.
+Return JSON with "agenda" (array), "suggestedSlots" (array), "prepNotes" (array) and "followUpDraft" (a short follow-up email body).`;
 
-    log.info('Video call scheduled', { contactId, calendarEventId, gtmPromptUsed });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify(response),
-    };
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: 'default', maxTokens: 1200, schema: BRIEF_SCHEMA, schemaName: 'meeting_brief' }),
+      finalize: (content) => {
+        const brief = parseJsonOr(content, null);
+        if (!brief || typeof brief !== 'object') throw new Error('AI did not return structured JSON');
+        log.info('Video call scheduled', { contactId, calendarEventId, gtmPromptUsed });
+        return {
+          contactId,
+          calendarEventId,
+          meetingTitle: meeting.title,
+          scheduledTime: startTime,
+          duration: meeting.duration,
+          gtmPromptUsed,
+          contactName,
+          company,
+          ...brief,
+          scheduledAt: new Date().toISOString(),
+        };
+      },
+    });
   } catch (error) {
     log.error('Video call scheduling failed', { contactId, error: error.message });
     return errorResponse(500, 'Video call scheduling failed');
   }
-});
+}));

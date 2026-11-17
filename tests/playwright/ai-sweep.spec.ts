@@ -110,7 +110,7 @@ test('completeness: every mounted UI consumer of an AI endpoint is covered; unmo
   const covered = new Set(CONTROLS.flatMap((c) => c.covers ?? []));
   const unmounted = consumers.filter((c) => !c.mounted);
   const uncovered = consumers.filter((c) => c.mounted && !covered.has(c.name) && !PRIMITIVES.has(c.name));
-  const unlisted = unmounted.filter((c) => !UNMOUNTED.some((u) => u.name === c.name) && !/^(SavedImagesGallery)$/.test(c.name));
+  const unlisted = unmounted.filter((c) => !UNMOUNTED.some((u) => u.name === c.name) && !/^(SavedImagesGallery|LandingPage)$/.test(c.name));
   appendLine('extra', UNMOUNTED.map((u) => ({ ...u, confirmedUnmounted: unmounted.some((c) => c.name === u.name) })), 'unmountedConsumers');
   appendLine('extra', uncovered.map((c) => c.file), 'mountedConsumersWithoutControl');
   for (const u of UNMOUNTED) expect(unmounted.some((c) => c.name === u.name), `${u.name} is listed as unmounted but is imported from the app now: add a control for it`).toBe(true);

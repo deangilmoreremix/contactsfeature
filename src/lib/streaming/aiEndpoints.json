@@ -2,6 +2,7 @@
   "generated": "scripts/ai-census.cjs",
   "endpoints": [
     "adaptive-playbook",
+    "ai-enrichment",
     "ai-insights",
     "ai-stream",
     "ai-task",
@@ -49,6 +50,7 @@
     "skills-api",
     "social-selling-agent",
     "video-agent",
+    "video-call-scheduler",
     "voice-agent",
     "whatsapp-sdr",
     "win-back-sdr"

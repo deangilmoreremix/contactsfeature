@@ -209,56 +209,6 @@ export class ContactService {
     }
   }
 
-  // Enrich contact data using AI
-  async enrichContactData(contactId: string): Promise<Contact> {
-    const contact = await this.getContactById(contactId)
-    if (!contact) {
-      throw new Error('Contact not found')
-    }
-
-    try {
-      // Call AI enrichment Edge Function
-      const { data: enrichedData, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          contactData: contact,
-          enrichmentType: 'comprehensive'
-        }
-      })
-
-      if (error) throw error
-
-      // The edge function responds with { success, data: {...} }
-      const enriched = (enrichedData && (enrichedData as any).data) || {}
-
-      // Update contact with enriched data (fills only empty fields)
-      const updates: Partial<Contact> = {}
-
-      if (enriched.phone && !contact.phone) {
-        updates.phone = enriched.phone
-      }
-
-      if (enriched.industry && !contact.industry) {
-        updates.industry = enriched.industry
-      }
-
-      if (enriched.socialProfiles) {
-        updates.socialProfiles = {
-          ...contact.socialProfiles,
-          ...enriched.socialProfiles
-        }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        return await this.updateContact(contactId, updates)
-      }
-
-      return contact
-    } catch (error) {
-      console.error('Error enriching contact data:', error)
-      throw error
-    }
-  }
-
   // Calculate contact score
   async calculateContactScore(contactId: string, live?: TaskLive): Promise<number> {
     const contact = await this.getContactById(contactId)

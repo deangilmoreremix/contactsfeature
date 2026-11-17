@@ -77,7 +77,7 @@ netlify/functions/   # Serverless backend (82 functions)
   _supabaseClient.js # Shared Supabase client
 
 supabase/
-  functions/         # 29 Edge Functions (Deno)
+  functions/         # 28 Edge Functions (Deno)
   migrations/        # Database migrations with RLS
   config.toml        # Supabase local config
 

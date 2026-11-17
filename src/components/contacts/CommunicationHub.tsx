@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { communicationAI } from '../../services/communication-ai.service';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
@@ -335,15 +336,21 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
       setLoading(true);
       setError(null);
 
-      const out = await hub.runLive((h) => streamFunction<any>('communication-manager', {
-        action: 'get', contactId: contact.id || 'test-contact-123', data: { action: 'strategy' }
-      }, h));
-      if (!out) return;
-      const result = out.result || {};
+      const strategy = await hub.runLive((h) => communicationAI.generateCommunicationStrategy(contact, undefined, undefined, h));
+      if (!strategy) return;
+      const lines = [
+        ...strategy.optimalChannels.map((c) => `Channel: ${c.channel} (${c.effectiveness}%)${c.reasoning[0] ? ` - ${c.reasoning[0]}` : ''}`),
+        strategy.timing.bestDays.length ? `Best days: ${strategy.timing.bestDays.join(', ')}` : '',
+        strategy.timing.bestHours.length ? `Best hours: ${strategy.timing.bestHours.join(', ')}` : '',
+        strategy.timing.frequency ? `Frequency: ${strategy.timing.frequency}` : '',
+        strategy.messaging.preferredTone ? `Tone: ${strategy.messaging.preferredTone}` : '',
+        ...strategy.messaging.keyMessages.map((m) => `Key message: ${m}`),
+        ...strategy.messaging.avoidTopics.map((m) => `Avoid: ${m}`),
+      ].filter(Boolean);
 
       setGeneratedContent({
         type: 'strategy',
-        content: result.strategy || 'Communication strategy generated successfully. Key recommendations: Maintain weekly touchpoints, focus on relationship building, and leverage multiple channels for engagement.',
+        content: lines.join('\n') || 'The model did not return a strategy for this contact.',
         timestamp: new Date()
       });
       setShowContentModal(true);

@@ -92,6 +92,11 @@ const person = (n: number, first: string, last: string, title: string, company: 
   title, company, industry, interestLevel: 'medium', status: 'prospect', sources: ['Email'], tags: [], isFavorite: false, notes: '', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z',
 });
 /** rows returned for /rest/v1/contacts (the fake Supabase) */
+/** one open deal for the first contact so DealHealthPanel offers "Run Health Analysis" */
+const DEALS = [{
+  id: '00000000-0000-4000-8000-0000000000d1', user_id: 'user-1', contact_id: '00000000-0000-4000-8000-000000000001', title: 'ACME Retail rollout', stage: 'proposal', value: 42000,
+  risk_score: null, objection_level: 2, stage_stagnation: 9, days_since_reply: 6, expected_close_date: null, closed_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-05T00:00:00Z',
+}];
 const CONTACTS = [
   person(1, 'Brooklyn', 'Simmons', 'Retail Operations Manager', 'ACME Retail', 'Retail'),
   person(2, 'Cameron', 'Williamson', 'VP of Sales', 'Northwind Traders', 'Software'),
@@ -179,8 +184,10 @@ export function startAiSweepDrip(port: number): Promise<http.Server & { log: Dri
     if (u.pathname.startsWith('/rest/v1/')) {
       for await (const _c of req) { /* drain */ }
       const isContacts = u.pathname === '/rest/v1/contacts' && req.method === 'GET';
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Range', 'Content-Range': isContacts ? `0-${CONTACTS.length - 1}/${CONTACTS.length}` : '*/0' });
-      res.end(JSON.stringify(isContacts ? CONTACTS : []));
+      const isDeals = u.pathname === '/rest/v1/deals' && req.method === 'GET';
+      const rows: unknown[] = isContacts ? CONTACTS : isDeals ? DEALS : [];
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Range', 'Content-Range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' });
+      res.end(JSON.stringify(rows));
       return;
     }
     let raw = '';
