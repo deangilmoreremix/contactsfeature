@@ -191,7 +191,7 @@ export function normalizeConversion(raw: unknown): Array<{ timeframe: string; pr
   if (!Array.isArray(list)) return [];
   return list
     .map((i: any) => ({ timeframe: cleanString(i?.timeframe), probability: cleanConfidence(i?.probability), confidence: cleanConfidence(i?.confidence), keyFactors: cleanStringArray(i?.keyFactors).slice(0, 5) }))
-    .filter((i: any) => i.timeframe);
+    .filter((i): i is typeof i & { timeframe: string } => !!i.timeframe);
 }
 
 export const RESPONSE_TIME_SCHEMA: Record<string, unknown> = {

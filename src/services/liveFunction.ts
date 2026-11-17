@@ -57,7 +57,7 @@ export async function streamFunction<T = unknown>(
 
   let plain = await once<T>(url, headers, payload, handlers, outcome);
   let resumes = 0;
-  while (plain === undefined && !outcome.done && !outcome.error && outcome.result === undefined && body.background === true && outcome.responseId && resumes < MAX_RESUMES && !handlers.signal?.aborted) {
+  while (plain === undefined && !outcome.done && !outcome.error && outcome.result === undefined && body['background'] === true && outcome.responseId && resumes < MAX_RESUMES && !handlers.signal?.aborted) {
     resumes += 1;
     await new Promise((r) => setTimeout(r, Math.min(500 * resumes, 3000)));
     plain = await once<T>(url, headers, { ...payload, resume: { responseId: outcome.responseId, startingAfter: outcome.lastSeq ?? undefined } }, handlers, outcome);

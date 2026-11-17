@@ -23,14 +23,14 @@ export type StreamEvent =
   | { type: 'error'; message: string; seq?: number };
 
 export interface StreamHandlers {
-  onEvent?: (e: StreamEvent) => void;
-  onDelta?: (text: string, fullText: string) => void;
-  onStatus?: (label: string, e: Extract<StreamEvent, { type: 'status' }>) => void;
-  onPartial?: (json: unknown) => void;
-  onReasoning?: (text: string) => void;
-  onImage?: (e: Extract<StreamEvent, { type: 'image' }>) => void;
-  onResult?: (data: unknown) => void;
-  signal?: AbortSignal;
+  onEvent?: (((e: StreamEvent) => void) | undefined);
+  onDelta?: (((text: string, fullText: string) => void) | undefined);
+  onStatus?: (((label: string, e: Extract<StreamEvent, { type: 'status' }>) => void) | undefined);
+  onPartial?: (((json: unknown) => void) | undefined);
+  onReasoning?: (((text: string) => void) | undefined);
+  onImage?: (((e: Extract<StreamEvent, { type: 'image' }>) => void) | undefined);
+  onResult?: (((data: unknown) => void) | undefined);
+  signal?: AbortSignal | undefined;
 }
 
 export interface StreamOutcome {

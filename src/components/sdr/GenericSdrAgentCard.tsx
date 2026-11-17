@@ -24,7 +24,7 @@ export interface GenericSdrAgentConfig {
 }
 
 interface Props {
-  contact?: Contact;
+  contact?: Contact | undefined;
   config: GenericSdrAgentConfig;
 }
 

@@ -5,12 +5,12 @@ import type { AIStreamState } from '../../hooks/useAIStream';
 
 interface Props {
   state: Pick<AIStreamState, 'status' | 'text' | 'label' | 'steps' | 'reasoning'>;
-  onStop?: () => void;
+  onStop?: (() => void) | undefined;
   /** Text to show instead of the raw stream (e.g. a formatted preview of partial JSON). */
-  display?: string;
-  placeholder?: string;
-  showReasoning?: boolean;
-  className?: string;
+  display?: string | undefined;
+  placeholder?: string | undefined;
+  showReasoning?: boolean | undefined;
+  className?: string | undefined;
 }
 
 /**

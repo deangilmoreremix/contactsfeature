@@ -38,7 +38,8 @@ const NAME_RE = /\/(?:\.netlify\/functions|functions\/v1)\/([a-z0-9-]+)/;
 
 export function endpointOf(url: string): string | null {
   const m = NAME_RE.exec(url);
-  return m && (ENDPOINTS.has(m[1]) || POLICED_EXTRA.has(m[1])) && !EXEMPT.has(m[1]) ? m[1] : null;
+  const name = m?.[1];
+  return name !== undefined && (ENDPOINTS.has(name) || POLICED_EXTRA.has(name)) && !EXEMPT.has(name) ? name : null;
 }
 
 export function wantsStream(init?: RequestInit, request?: Request): boolean {

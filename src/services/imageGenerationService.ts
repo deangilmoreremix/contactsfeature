@@ -57,7 +57,7 @@ const MAX_PARALLEL_STREAMS = 4;
 export function aspectToSize(aspect?: string): ImageSize {
   const m = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(aspect || '');
   if (!m) return '1024x1024';
-  const ratio = parseFloat(m[1]) / parseFloat(m[2]);
+  const ratio = parseFloat(m[1] ?? '') / parseFloat(m[2] ?? '');
   if (ratio > 1.2) return '1536x1024';
   if (ratio < 0.85) return '1024x1536';
   return '1024x1024';
@@ -65,14 +65,14 @@ export function aspectToSize(aspect?: string): ImageSize {
 
 type Json = Record<string, any>;
 
-async function authedPost(url: string, payload: unknown, signal?: AbortSignal): Promise<Json> {
+async function authedPost(url: string, payload: unknown, signal?: AbortSignal | undefined): Promise<Json> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Please sign in to generate images');
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
     body: JSON.stringify(payload),
-    signal,
+    ...(signal ? { signal } : {}),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Image generation failed (${res.status})`);
@@ -115,8 +115,8 @@ export async function generateImages(opts: GenerateImageOptions): Promise<Genera
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       try {
         const json = await authedPost(FN, { ...rest, n: 1, referenceImages }, signal);
-        model = json.model || model;
-        const first = (json.images || [])[0];
+        model = json['model'] || model;
+        const first = (json['images'] || [])[0];
         settle(i, first ? toDataUrl(first) : undefined, first ? undefined : 'No image returned');
       } catch (e) {
         if (signal?.aborted) throw e;
@@ -126,7 +126,7 @@ export async function generateImages(opts: GenerateImageOptions): Promise<Genera
   } else {
     // Live path: one SSE stream per variant, at most MAX_PARALLEL_STREAMS at a time.
     const slots = new Map<string, number>();
-    const fallback: Array<{ index: number; responseId?: string }> = [];
+    const fallback: Array<{ index: number; responseId?: string | undefined }> = [];
     const mime = (rest as { outputFormat?: string }).outputFormat || 'png';
 
     const streamVariant = async (index: number) => {
@@ -172,10 +172,10 @@ export async function generateImages(opts: GenerateImageOptions): Promise<Genera
       const group = needStart.slice(from, from + MAX_PER_REQUEST);
       try {
         const json = await authedPost(FN, { ...rest, n: group.length }, signal);
-        model = json.model || model;
-        const jobs: Array<{ responseId: string }> = json.jobs || [];
-        jobs.forEach((j, k) => slots.set(j.responseId, group[k]));
-        for (let k = jobs.length; k < group.length; k++) settle(group[k], undefined, 'Could not start this variant');
+        model = json['model'] || model;
+        const jobs: Array<{ responseId: string }> = json['jobs'] || [];
+        jobs.forEach((j, k) => { const slot = group[k]; if (slot !== undefined) slots.set(j.responseId, slot); });
+        for (let k = jobs.length; k < group.length; k++) { const slot = group[k]; if (slot !== undefined) settle(slot, undefined, 'Could not start this variant'); }
       } catch (e) {
         if (signal?.aborted) throw e;
         for (const idx of group) settle(idx, undefined, e instanceof Error ? e.message : undefined);
@@ -192,7 +192,7 @@ export async function generateImages(opts: GenerateImageOptions): Promise<Genera
       await Promise.all([...pending].map(async (id) => {
         try {
           const json = await authedPost(STATUS_FN, { responseIds: [id] }, signal);
-          const job = (json.jobs || [])[0];
+          const job = (json['jobs'] || [])[0];
           if (!job || job.status === 'queued' || job.status === 'in_progress') return;
           pending.delete(id);
           const img = job.status === 'completed' && job.images?.[0];

@@ -64,10 +64,13 @@ export function applyTranscriptAction(history: TranscriptMessage[], action: Real
     if (idx === -1) {
       if (action.kind === 'assistant_done' && !action.text) return history;
       next.push({ id, role: 'assistant', content: action.text, timestamp: now(), partial: action.kind === 'assistant_delta' });
-    } else if (action.kind === 'assistant_delta') {
-      next[idx] = { ...next[idx], content: next[idx].content + action.text, partial: true };
     } else {
-      next[idx] = { ...next[idx], content: action.text || next[idx].content, partial: false };
+      const cur = next[idx];
+      if (cur) {
+        next[idx] = action.kind === 'assistant_delta'
+          ? { ...cur, content: cur.content + action.text, partial: true }
+          : { ...cur, content: action.text || cur.content, partial: false };
+      }
     }
     return next;
   }
@@ -110,7 +113,7 @@ async function assertContact(deps: ToolDeps, contactId: unknown): Promise<string
 export async function executeRealtimeTool(name: string, args: Record<string, unknown>, deps: ToolDeps): Promise<unknown> {
   switch (name) {
     case 'get_contact': {
-      const id = await assertContact(deps, args.contactId);
+      const id = await assertContact(deps, args['contactId']);
       const { data, error } = await deps.db.from('contacts').select('*').eq('id', id).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) throw new Error('Contact not found');
@@ -118,8 +121,8 @@ export async function executeRealtimeTool(name: string, args: Record<string, unk
       return Object.fromEntries(keep.filter((k) => data[k] != null && data[k] !== '').map((k) => [k, data[k]]));
     }
     case 'add_note': {
-      const id = await assertContact(deps, args.contactId);
-      const content = str(args.content, 4000);
+      const id = await assertContact(deps, args['contactId']);
+      const content = str(args['content'], 4000);
       if (!content) throw new Error('content is required');
       const { data, error } = await deps.db.from('notes')
         .insert({ contact_id: id, content, note_type: 'voice', created_by: deps.userId }).select('id').maybeSingle();
@@ -127,13 +130,13 @@ export async function executeRealtimeTool(name: string, args: Record<string, unk
       return { ok: true, noteId: data?.id ?? null };
     }
     case 'create_task': {
-      const id = await assertContact(deps, args.contactId);
-      const title = str(args.title, 300);
+      const id = await assertContact(deps, args['contactId']);
+      const title = str(args['title'], 300);
       if (!title) throw new Error('title is required');
-      const priority = ['low', 'medium', 'high', 'urgent'].includes(args.priority as string) ? (args.priority as string) : 'medium';
+      const priority = ['low', 'medium', 'high', 'urgent'].includes(args['priority'] as string) ? (args['priority'] as string) : 'medium';
       let due: string | null = null;
-      if (typeof args.dueDate === 'string' && args.dueDate) {
-        const d = new Date(args.dueDate);
+      if (typeof args['dueDate'] === 'string' && args['dueDate']) {
+        const d = new Date(args['dueDate']);
         if (Number.isNaN(d.getTime())) throw new Error('dueDate must be a valid ISO date-time');
         due = d.toISOString();
       }
@@ -143,14 +146,14 @@ export async function executeRealtimeTool(name: string, args: Record<string, unk
       return { ok: true, taskId: data?.id ?? null };
     }
     case 'schedule_meeting': {
-      const id = await assertContact(deps, args.contactId);
-      const when = typeof args.scheduledFor === 'string' ? new Date(args.scheduledFor) : null;
+      const id = await assertContact(deps, args['contactId']);
+      const when = typeof args['scheduledFor'] === 'string' ? new Date(args['scheduledFor']) : null;
       if (!when || Number.isNaN(when.getTime())) throw new Error('scheduledFor must be a valid ISO date-time');
       const res = await deps.post('calendar-schedule', {
         contactId: id,
         scheduledFor: when.toISOString(),
-        ...(Number(args.durationMinutes) > 0 ? { durationMinutes: Number(args.durationMinutes) } : {}),
-        ...(str(args.title, 200) ? { title: str(args.title, 200) } : {}),
+        ...(Number(args['durationMinutes']) > 0 ? { durationMinutes: Number(args['durationMinutes']) } : {}),
+        ...(str(args['title'], 200) ? { title: str(args['title'], 200) } : {}),
       });
       return { ok: true, eventId: res?.event?.id ?? null, scheduledFor: res?.event?.scheduled_for ?? when.toISOString(), contactNotified: !!res?.notified, notifyNote: res?.reason ?? null };
     }

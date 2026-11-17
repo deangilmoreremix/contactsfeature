@@ -39,7 +39,7 @@ export const turnRecordFilterGroupsIntoGqlOperationFilter = ({
   filters: Omit<RecordFilter, 'id'>[];
   fieldMetadataItemById: Map<string, FieldShared>;
   recordFilterGroups: RecordFilterGroup[];
-  currentRecordFilterGroupId?: string;
+  currentRecordFilterGroupId?: string | undefined;
 }): RecordGqlOperationFilter | undefined => {
   const currentRecordFilterGroup = recordFilterGroups.find(
     (recordFilterGroup) => recordFilterGroup.id === currentRecordFilterGroupId,

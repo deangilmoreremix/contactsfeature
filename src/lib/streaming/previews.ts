@@ -31,8 +31,8 @@ export function enrichmentSources(partial: unknown): PreviewSource[] {
     try { host = new URL(u).hostname; } catch { /* partial URL: keep as typed */ }
     out.push({ url: u, title: asString(title) || host });
   };
-  objectList(partial.evidence).forEach((e) => add(e.sourceUrl, ''));
-  objectList(partial.recentNews).forEach((n) => add(n.url, n.headline));
+  objectList(partial['evidence']).forEach((e) => add(e['sourceUrl'], ''));
+  objectList(partial['recentNews']).forEach((n) => add(n['url'], n['headline']));
   return out;
 }
 
@@ -40,16 +40,16 @@ export function enrichmentSources(partial: unknown): PreviewSource[] {
 export function enrichmentPreview(partial: unknown): string {
   if (!isObj(partial)) return '';
   const lines: string[] = [];
-  const summary = asString(partial.summary);
+  const summary = asString(partial['summary']);
   if (summary) lines.push(summary);
-  const p = isObj(partial.profile) ? partial.profile : {};
-  const role = [asString(p.jobTitle), asString(p.company)].filter(Boolean).join(' at ');
+  const p = isObj(partial['profile']) ? partial['profile'] : {};
+  const role = [asString(p['jobTitle']), asString(p['company'])].filter(Boolean).join(' at ');
   if (role) lines.push(role);
-  const industry = asString(p.industry);
+  const industry = asString(p['industry']);
   if (industry) lines.push(`Industry: ${industry}`);
-  const location = asString(p.location);
+  const location = asString(p['location']);
   if (location) lines.push(`Location: ${location}`);
-  stringList(partial.talkingPoints).forEach((t) => lines.push(`• ${t}`));
+  stringList(partial['talkingPoints']).forEach((t) => lines.push(`• ${t}`));
   return lines.join('\n');
 }
 
@@ -75,16 +75,16 @@ const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T):
 export function healthFromPartial(partial: unknown): HealthView {
   const p = isObj(partial) ? partial : {};
   return {
-    healthScore: typeof p.healthScore === 'number' ? Math.max(0, Math.min(100, Math.round(p.healthScore))) : null,
-    riskLevel: RISKS.includes(p.riskLevel as never) ? (p.riskLevel as HealthView['riskLevel']) : null,
+    healthScore: typeof p['healthScore'] === 'number' ? Math.max(0, Math.min(100, Math.round(p['healthScore']))) : null,
+    riskLevel: RISKS.includes(p['riskLevel'] as never) ? (p['riskLevel'] as HealthView['riskLevel']) : null,
     // an indicator is shown as soon as its name starts streaming; its score fills in afterwards
-    indicators: objectList(p.indicators).filter((i) => asString(i.name)).map((i) => ({
-      name: asString(i.name), score: Math.max(0, Math.min(100, Math.round(asNumber(i.score)))), status: pick(i.status, STATUSES, 'warning'), rationale: asString(i.rationale),
+    indicators: objectList(p['indicators']).filter((i) => asString(i['name'])).map((i) => ({
+      name: asString(i['name']), score: Math.max(0, Math.min(100, Math.round(asNumber(i['score'])))), status: pick(i['status'], STATUSES, 'warning'), rationale: asString(i['rationale']),
     })),
-    risks: objectList(p.risks).filter((r) => asString(r.factor)).map((r) => ({ factor: asString(r.factor), severity: pick(r.severity, SEVERITIES, 'medium'), mitigation: asString(r.mitigation) })),
-    recommendations: stringList(p.recommendations),
-    nextActions: objectList(p.nextActions).filter((a) => asString(a.action)).map((a) => ({ action: asString(a.action), priority: pick(a.priority, PRIORITIES, 'medium'), timeline: asString(a.timeline) })),
-    dataGaps: stringList(p.dataGaps),
+    risks: objectList(p['risks']).filter((r) => asString(r['factor'])).map((r) => ({ factor: asString(r['factor']), severity: pick(r['severity'], SEVERITIES, 'medium'), mitigation: asString(r['mitigation']) })),
+    recommendations: stringList(p['recommendations']),
+    nextActions: objectList(p['nextActions']).filter((a) => asString(a['action'])).map((a) => ({ action: asString(a['action']), priority: pick(a['priority'], PRIORITIES, 'medium'), timeline: asString(a['timeline']) })),
+    dataGaps: stringList(p['dataGaps']),
   };
 }
 
@@ -101,15 +101,15 @@ export interface ForecastView {
 
 export function forecastFromPartial(partial: unknown): ForecastView {
   const p = isObj(partial) ? partial : {};
-  const pr = isObj(p.projectedWonNext90Days) ? p.projectedWonNext90Days : {};
+  const pr = isObj(p['projectedWonNext90Days']) ? p['projectedWonNext90Days'] : {};
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
   return {
-    projected: { low: n(pr.low), expected: n(pr.expected), high: n(pr.high) },
-    confidence: ['low', 'medium', 'high'].includes(p.confidence as string) ? (p.confidence as ForecastView['confidence']) : null,
-    insights: stringList(p.insights),
-    risks: stringList(p.risks),
-    recommendedActions: stringList(p.recommendedActions),
-    caveats: stringList(p.caveats),
+    projected: { low: n(pr['low']), expected: n(pr['expected']), high: n(pr['high']) },
+    confidence: ['low', 'medium', 'high'].includes(p['confidence'] as string) ? (p['confidence'] as ForecastView['confidence']) : null,
+    insights: stringList(p['insights']),
+    risks: stringList(p['risks']),
+    recommendedActions: stringList(p['recommendedActions']),
+    caveats: stringList(p['caveats']),
   };
 }
 
@@ -126,12 +126,12 @@ export interface PredictionView {
 /** Partial `{predictions:[…]}` -> prediction cards as each one starts streaming (type first, then value/reasoning). */
 export function predictionsFromPartial(partial: unknown): PredictionView[] {
   const p = isObj(partial) ? partial : {};
-  return objectList(p.predictions).filter((x) => asString(x.predictionType)).map((x) => ({
-    predictionType: asString(x.predictionType),
-    value: typeof x.value === 'number' ? x.value : null,
-    confidence: typeof x.confidence === 'number' ? x.confidence : null,
-    timeframe: asString(x.timeframe),
-    reasoning: stringList(x.reasoning),
+  return objectList(p['predictions']).filter((x) => asString(x['predictionType'])).map((x) => ({
+    predictionType: asString(x['predictionType']),
+    value: typeof x['value'] === 'number' ? x['value'] : null,
+    confidence: typeof x['confidence'] === 'number' ? x['confidence'] : null,
+    timeframe: asString(x['timeframe']),
+    reasoning: stringList(x['reasoning']),
   }));
 }
 
@@ -166,16 +166,16 @@ const LEVELS = ['low', 'medium', 'high'] as const;
 export function insightsFromPartial(partial: unknown): InsightView[] {
   return titledItems(partial, 'insights').map((i, idx) => ({
     id: `live-insight-${idx}`,
-    type: pick(i.type, INSIGHT_TYPES, 'recommendation'),
-    title: asString(i.title),
-    description: asString(i.description),
-    confidence: Math.max(0, Math.min(100, Math.round(asNumber(i.confidence)))),
-    impact: pick(i.impact, LEVELS, 'medium'),
-    category: asString(i.category) || 'General',
-    actionable: i.actionable === true,
-    suggestedActions: stringList(i.suggestedActions),
+    type: pick(i['type'], INSIGHT_TYPES, 'recommendation'),
+    title: asString(i['title']),
+    description: asString(i['description']),
+    confidence: Math.max(0, Math.min(100, Math.round(asNumber(i['confidence'])))),
+    impact: pick(i['impact'], LEVELS, 'medium'),
+    category: asString(i['category']) || 'General',
+    actionable: i['actionable'] === true,
+    suggestedActions: stringList(i['suggestedActions']),
     relatedContacts: [],
-    dataPoints: stringList(i.dataPoints),
+    dataPoints: stringList(i['dataPoints']),
   }));
 }
 
@@ -196,16 +196,16 @@ export interface RecommendationView {
 export function recommendationsFromPartial(partial: unknown): RecommendationView[] {
   return titledItems(partial, 'recommendations').map((r, idx) => ({
     id: `live-rec-${idx}`,
-    type: pick(r.type, ['action', 'communication', 'automation', 'content'] as const, 'action'),
-    title: asString(r.title),
-    description: asString(r.description),
-    reasoning: stringList(r.reasoning),
-    expectedOutcome: asString(r.expectedOutcome),
-    priority: asNumber(r.priority),
-    urgency: pick(r.urgency, ['immediate', 'this_week', 'this_month', 'future'] as const, 'future'),
-    effort: pick(r.effort, LEVELS, 'medium'),
-    impact: pick(r.impact, LEVELS, 'medium'),
-    confidence: typeof r.confidence === 'number' ? r.confidence : null,
+    type: pick(r['type'], ['action', 'communication', 'automation', 'content'] as const, 'action'),
+    title: asString(r['title']),
+    description: asString(r['description']),
+    reasoning: stringList(r['reasoning']),
+    expectedOutcome: asString(r['expectedOutcome']),
+    priority: asNumber(r['priority']),
+    urgency: pick(r['urgency'], ['immediate', 'this_week', 'this_month', 'future'] as const, 'future'),
+    effort: pick(r['effort'], LEVELS, 'medium'),
+    impact: pick(r['impact'], LEVELS, 'medium'),
+    confidence: typeof r['confidence'] === 'number' ? r['confidence'] : null,
   }));
 }
 
@@ -226,12 +226,12 @@ export function suggestionsFromPartial(partial: unknown): SuggestionView[] {
   const now = new Date().toISOString();
   return titledItems(partial, 'suggestions').map((s, idx) => ({
     id: `live-suggestion-${idx}`,
-    title: asString(s.title),
-    type: pick(s.type, ['new_rule', 'optimize_existing', 'merge_rules'] as const, 'new_rule'),
-    priority: pick(s.priority, PRIORITIES, 'medium'),
-    description: asString(s.description),
-    trigger: asString(s.trigger),
-    reasoning: stringList(s.reasoning),
+    title: asString(s['title']),
+    type: pick(s['type'], ['new_rule', 'optimize_existing', 'merge_rules'] as const, 'new_rule'),
+    priority: pick(s['priority'], PRIORITIES, 'medium'),
+    description: asString(s['description']),
+    trigger: asString(s['trigger']),
+    reasoning: stringList(s['reasoning']),
     createdAt: now,
   }));
 }

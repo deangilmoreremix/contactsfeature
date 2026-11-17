@@ -20,7 +20,7 @@ let seq = 0;
 const listeners = new Set<Listener>();
 
 function emit() {
-  const current = entries.length ? entries[entries.length - 1] : null;
+  const current = entries[entries.length - 1] ?? null;
   listeners.forEach((l) => l(current));
 }
 
@@ -33,7 +33,7 @@ export function pushUndo(label: string, undo: UndoEntry['undo'], now: number = D
 }
 
 export function currentUndo(): UndoEntry | null {
-  return entries.length ? entries[entries.length - 1] : null;
+  return entries[entries.length - 1] ?? null;
 }
 
 /** Removes an entry without running it (toast timed out or was dismissed). */

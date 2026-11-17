@@ -1,4 +1,3 @@
-import React from 'react';
 import { Eye } from 'lucide-react';
 import type { Contact } from '../../types/contact';
 import { useContactPeekStore } from '../../store/contactPeekStore';

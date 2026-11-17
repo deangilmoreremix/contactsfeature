@@ -80,7 +80,7 @@ export const messagingProviderService = {
     provider: ProviderId;
     credentials: Record<string, string>;
     from_address: string;
-    from_name?: string;
+    from_name?: string | undefined;
     display_name?: string;
     make_default?: boolean;
   }) => call<{ provider: MessagingProvider }>('messaging-providers', { action: 'save', ...input }),
