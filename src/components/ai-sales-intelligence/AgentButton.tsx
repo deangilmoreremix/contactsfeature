@@ -100,7 +100,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         }, opts));
         if (!run) return; // stopped by the user
         result = (run.result ?? {}) as AgentExecutionResult;
-        setResultText(finalText(result, run.outcome.text));
+        setResultText(finalText(result, run.outcome?.text ?? ""));
       } else {
         // Generic runner: dispatches the agent id to its dual-mode function server-side (allow-list) and streams
         // the agent's own answer through; ownership of the contact / deal is checked there.
@@ -112,7 +112,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         }, opts));
         if (!run) return; // stopped by the user
         result = (run.result ?? {}) as AgentExecutionResult;
-        setResultText(finalText(result, run.outcome.text));
+        setResultText(finalText(result, run.outcome?.text ?? ""));
       }
 
       setExecutionResult(result);
