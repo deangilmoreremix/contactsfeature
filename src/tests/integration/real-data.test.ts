@@ -4,11 +4,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useContactStore } from '../../hooks/useContactStore';
 import { contactAPI } from '../../services/contact-api.service';
 import { Contact } from '../../types';
-import { asNewContact } from '../helpers/contactFixtures';
+import { asContact, asContacts, asNewContact } from '../helpers/contactFixtures';
 
 vi.mock('../../services/contact-api.service');
 vi.mock('../../services/cache.service');
@@ -20,19 +20,6 @@ const mockLocalStorage = {
   setItem: vi.fn(() => null),
   removeItem: vi.fn(() => null),
   clear: vi.fn(() => null),
-};
-
-const mockDocument = {
-  createElement: vi.fn(() => ({
-    click: vi.fn(),
-    setAttribute: vi.fn(),
-    download: '',
-    href: ''
-  })),
-  body: {
-    appendChild: vi.fn(),
-    removeChild: vi.fn(),
-  },
 };
 
 const mockURL = {
@@ -220,13 +207,13 @@ describe('Real Data Integration Tests', () => {
     it('should create contacts from real tech industry data', async () => {
       const { result } = renderHook(() => useContactStore());
 
-      const contact = realWorldContacts.techContacts[0];
+      const contact = realWorldContacts.techContacts[0]!;
 
       // Mock successful API response
       const mockResponse: Contact = {
         ...contact,
         id: 'real-tech-contact-1',
-        name: `${contact!.firstName} ${contact!.lastName}`,
+        name: `${contact.firstName} ${contact.lastName}`,
         avatarSrc: 'https://example.com/avatar.jpg',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -248,7 +235,7 @@ describe('Real Data Integration Tests', () => {
     it('should create healthcare industry contacts with proper validation', async () => {
       const { result } = renderHook(() => useContactStore());
 
-      const contact = realWorldContacts.healthcareContacts[0];
+      const contact = realWorldContacts.healthcareContacts[0]!;
 
       const mockResponse: Contact = {
         ...contact,
@@ -274,7 +261,7 @@ describe('Real Data Integration Tests', () => {
     it('should handle finance industry contacts with complex data', async () => {
       const { result } = renderHook(() => useContactStore());
 
-      const contact = realWorldContacts.financeContacts[0];
+      const contact = realWorldContacts.financeContacts[0]!;
 
       const mockResponse: Contact = {
         ...contact,
@@ -328,7 +315,7 @@ describe('Real Data Integration Tests', () => {
         updatedAt: new Date().toISOString()
       }));
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(csvContacts);
@@ -370,7 +357,7 @@ describe('Real Data Integration Tests', () => {
         updatedAt: new Date().toISOString()
       }));
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(csvContacts);
@@ -414,7 +401,7 @@ describe('Real Data Integration Tests', () => {
         updatedAt: new Date().toISOString()
       }));
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       const startTime = Date.now();
 
@@ -536,7 +523,7 @@ describe('Real Data Integration Tests', () => {
       const { result } = renderHook(() => useContactStore());
 
       // 1. Create contact
-      const contact = realWorldContacts.techContacts[0];
+      const contact = realWorldContacts.techContacts[0]!;
       const createdContact: Contact = {
         ...contact,
         id: 'lifecycle-test-1',
@@ -637,7 +624,7 @@ describe('Real Data Integration Tests', () => {
         new Error('Network Error: Failed to connect to server')
       );
 
-      await expect(result.current.createContact(asNewContact(realWorldContacts.techContacts[0])))
+      await expect(result.current.createContact(asNewContact(realWorldContacts.techContacts[0]!)))
         .rejects.toThrow('Network Error');
 
       expect(result.current.error).toContain('Network Error');
@@ -647,7 +634,7 @@ describe('Real Data Integration Tests', () => {
     it('should handle duplicate detection in real scenarios', async () => {
       const { result } = renderHook(() => useContactStore());
 
-      const contact = realWorldContacts.techContacts[0];
+      const contact = realWorldContacts.techContacts[0]!;
 
       // First creation succeeds
       const createdContact: Contact = {
@@ -682,7 +669,7 @@ describe('Real Data Integration Tests', () => {
       const { result } = renderHook(() => useContactStore());
 
       const invalidContact = {
-        ...realWorldContacts.techContacts[0],
+        ...realWorldContacts.techContacts[0]!,
         email: 'invalid-email-format',
         firstName: '',
         lastName: ''
@@ -705,7 +692,7 @@ describe('Real Data Integration Tests', () => {
       const { result } = renderHook(() => useContactStore());
 
       const operations = Array.from({ length: 10 }, (_, i) => ({
-        ...realWorldContacts.techContacts[0],
+        ...realWorldContacts.techContacts[0]!,
         email: `concurrent${i}@example.com`,
         firstName: `Concurrent${i}`
       }));
@@ -722,7 +709,7 @@ describe('Real Data Integration Tests', () => {
       vi.mocked(contactAPI.createContact)
         .mockImplementation(async (contactData) => {
           const index = operations.findIndex(op => op.email === contactData.email);
-          return mockResponses[index];
+          return asContact(mockResponses[index]!);
         });
 
       const startTime = Date.now();
@@ -762,7 +749,7 @@ describe('Real Data Integration Tests', () => {
         updatedAt: new Date().toISOString()
       }));
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(bulkData);

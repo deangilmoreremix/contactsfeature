@@ -11,3 +11,5 @@ export const asNewContact = (fixture: object): NewContactInput => fixture as unk
 
 /** Same idea for fixtures handed to code that expects a full `Contact`. */
 export const asContact = (fixture: object): Contact => fixture as unknown as Contact;
+
+export const asContacts = (fixtures: object[]): Contact[] => fixtures as unknown as Contact[];

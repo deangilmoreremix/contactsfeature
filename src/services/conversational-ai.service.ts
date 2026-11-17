@@ -452,7 +452,7 @@ class ConversationalAIService {
   }
 
   // Function implementations (delegate to AI Orchestrator)
-  private async analyzeContactProfile(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeContactProfile(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_scoring',
       priority: 'medium',
@@ -461,7 +461,7 @@ class ConversationalAIService {
     });
   }
 
-  private async analyzeBulkEngagement(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeBulkEngagement(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'communication_analysis',
       priority: 'medium',
@@ -470,7 +470,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkScoreInactiveContacts(params: any, context: ConversationContext): Promise<any> {
+  private async bulkScoreInactiveContacts(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_scoring',
       priority: 'medium',
@@ -479,7 +479,7 @@ class ConversationalAIService {
     });
   }
 
-  private async enrichContactProfile(params: any, context: ConversationContext): Promise<any> {
+  private async enrichContactProfile(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -488,7 +488,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkEnrichContacts(params: any, context: ConversationContext): Promise<any> {
+  private async bulkEnrichContacts(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -497,7 +497,7 @@ class ConversationalAIService {
     });
   }
 
-  private async verifySocialProfiles(params: any, context: ConversationContext): Promise<any> {
+  private async verifySocialProfiles(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -506,7 +506,7 @@ class ConversationalAIService {
     });
   }
 
-  private async optimizeEmailTiming(params: any, context: ConversationContext): Promise<any> {
+  private async optimizeEmailTiming(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'communication_analysis',
       priority: 'medium',
@@ -515,7 +515,7 @@ class ConversationalAIService {
     });
   }
 
-  private async generatePersonalizedEmail(params: any, context: ConversationContext): Promise<any> {
+  private async generatePersonalizedEmail(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'email_generation',
       priority: 'medium',
@@ -524,7 +524,7 @@ class ConversationalAIService {
     });
   }
 
-  private async analyzeEmailPerformance(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeEmailPerformance(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'communication_analysis',
       priority: 'medium',
@@ -533,7 +533,7 @@ class ConversationalAIService {
     });
   }
 
-  private async analyzeContactJourney(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeContactJourney(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'predictive_analytics',
       priority: 'medium',
@@ -542,7 +542,7 @@ class ConversationalAIService {
     });
   }
 
-  private async predictNextBestAction(params: any, context: ConversationContext): Promise<any> {
+  private async predictNextBestAction(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'predictive_analytics',
       priority: 'high',
@@ -551,7 +551,7 @@ class ConversationalAIService {
     });
   }
 
-  private async generateJourneySummary(params: any, context: ConversationContext): Promise<any> {
+  private async generateJourneySummary(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -560,7 +560,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkAnalyzeSegment(params: any, context: ConversationContext): Promise<any> {
+  private async bulkAnalyzeSegment(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'predictive_analytics',
       priority: 'medium',
@@ -569,7 +569,7 @@ class ConversationalAIService {
     });
   }
 
-  private async smartExportSegment(params: any, context: ConversationContext): Promise<any> {
+  private async smartExportSegment(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -578,7 +578,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkApplyTags(params: any, context: ConversationContext): Promise<any> {
+  private async bulkApplyTags(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'automation_suggestions',
       priority: 'medium',
@@ -587,7 +587,7 @@ class ConversationalAIService {
     });
   }
 
-  private async findSimilarContacts(params: any, context: ConversationContext): Promise<any> {
+  private async findSimilarContacts(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -596,7 +596,7 @@ class ConversationalAIService {
     });
   }
 
-  private async searchByEngagement(params: any, context: ConversationContext): Promise<any> {
+  private async searchByEngagement(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'communication_analysis',
       priority: 'medium',
@@ -605,7 +605,7 @@ class ConversationalAIService {
     });
   }
 
-  private async rankByEngagement(params: any, context: ConversationContext): Promise<any> {
+  private async rankByEngagement(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -614,7 +614,7 @@ class ConversationalAIService {
     });
   }
 
-  private async intelligentImport(params: any, context: ConversationContext): Promise<any> {
+  private async intelligentImport(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -623,7 +623,7 @@ class ConversationalAIService {
     });
   }
 
-  private async exportForMarketing(params: any, context: ConversationContext): Promise<any> {
+  private async exportForMarketing(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -632,7 +632,7 @@ class ConversationalAIService {
     });
   }
 
-  private async importLinkedInConnections(params: any, context: ConversationContext): Promise<any> {
+  private async importLinkedInConnections(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -641,7 +641,7 @@ class ConversationalAIService {
     });
   }
 
-  private async predictConversionProbability(params: any, context: ConversationContext): Promise<any> {
+  private async predictConversionProbability(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'predictive_analytics',
       priority: 'high',
@@ -650,7 +650,7 @@ class ConversationalAIService {
     });
   }
 
-  private async analyzeSegmentTrends(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeSegmentTrends(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'predictive_analytics',
       priority: 'medium',
@@ -659,7 +659,7 @@ class ConversationalAIService {
     });
   }
 
-  private async generateAcquisitionReport(params: any, context: ConversationContext): Promise<any> {
+  private async generateAcquisitionReport(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -668,7 +668,7 @@ class ConversationalAIService {
     });
   }
 
-  private async researchCompanyNews(params: any, context: ConversationContext): Promise<any> {
+  private async researchCompanyNews(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -677,7 +677,7 @@ class ConversationalAIService {
     });
   }
 
-  private async discoverSocialProfiles(params: any, context: ConversationContext): Promise<any> {
+  private async discoverSocialProfiles(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -686,7 +686,7 @@ class ConversationalAIService {
     });
   }
 
-  private async analyzeIndustryTrends(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeIndustryTrends(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -695,7 +695,7 @@ class ConversationalAIService {
     });
   }
 
-  private async updateContactField(params: any, context: ConversationContext): Promise<any> {
+  private async updateContactField(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -704,7 +704,7 @@ class ConversationalAIService {
     });
   }
 
-  private async mergeDuplicateContacts(params: any, context: ConversationContext): Promise<any> {
+  private async mergeDuplicateContacts(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'insights_generation',
       priority: 'medium',
@@ -713,7 +713,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkUpdateMissingFields(params: any, context: ConversationContext): Promise<any> {
+  private async bulkUpdateMissingFields(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -722,7 +722,7 @@ class ConversationalAIService {
     });
   }
 
-  private async verifySocialProfile(params: any, context: ConversationContext): Promise<any> {
+  private async verifySocialProfile(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -731,7 +731,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkFindSocialProfiles(params: any, context: ConversationContext): Promise<any> {
+  private async bulkFindSocialProfiles(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'contact_enrichment',
       priority: 'medium',
@@ -740,7 +740,7 @@ class ConversationalAIService {
     });
   }
 
-  private async analyzeSocialEngagement(params: any, context: ConversationContext): Promise<any> {
+  private async analyzeSocialEngagement(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'communication_analysis',
       priority: 'medium',
@@ -749,7 +749,7 @@ class ConversationalAIService {
     });
   }
 
-  private async createNurtureSequence(params: any, context: ConversationContext): Promise<any> {
+  private async createNurtureSequence(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'automation_suggestions',
       priority: 'medium',
@@ -758,7 +758,7 @@ class ConversationalAIService {
     });
   }
 
-  private async automateFollowupSequence(params: any, context: ConversationContext): Promise<any> {
+  private async automateFollowupSequence(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'automation_suggestions',
       priority: 'medium',
@@ -767,7 +767,7 @@ class ConversationalAIService {
     });
   }
 
-  private async generateSegmentedContent(params: any, context: ConversationContext): Promise<any> {
+  private async generateSegmentedContent(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'email_generation',
       priority: 'medium',
@@ -776,7 +776,7 @@ class ConversationalAIService {
     });
   }
 
-  private async bulkCreateFollowupTasks(params: any, context: ConversationContext): Promise<any> {
+  private async bulkCreateFollowupTasks(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'automation_suggestions',
       priority: 'medium',
@@ -785,7 +785,7 @@ class ConversationalAIService {
     });
   }
 
-  private async scheduleMilestoneReminders(params: any, context: ConversationContext): Promise<any> {
+  private async scheduleMilestoneReminders(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'automation_suggestions',
       priority: 'medium',
@@ -794,7 +794,7 @@ class ConversationalAIService {
     });
   }
 
-  private async prioritizeTasksByValue(params: any, context: ConversationContext): Promise<any> {
+  private async prioritizeTasksByValue(params: any, _context: ConversationContext): Promise<any> {
     return aiOrchestrator.submitRequest({
       type: 'automation_suggestions',
       priority: 'medium',
@@ -804,7 +804,7 @@ class ConversationalAIService {
   }
 
   // Voice-Specific Function Implementations
-  private async transcribeVoiceNote(params: any, context: ConversationContext): Promise<any> {
+  private async transcribeVoiceNote(params: any, _context: ConversationContext): Promise<any> {
     const { audioData, contactId, noteType } = params;
 
     return aiOrchestrator.submitRequest({
@@ -820,7 +820,7 @@ class ConversationalAIService {
     });
   }
 
-  private async voiceCommandAnalysis(params: any, context: ConversationContext): Promise<any> {
+  private async voiceCommandAnalysis(params: any, _context: ConversationContext): Promise<any> {
     const { audioData, commandHistory, userPreferences } = params;
 
     return aiOrchestrator.submitRequest({
@@ -836,7 +836,7 @@ class ConversationalAIService {
     });
   }
 
-  private async voiceSentimentAnalysis(params: any, context: ConversationContext): Promise<any> {
+  private async voiceSentimentAnalysis(params: any, _context: ConversationContext): Promise<any> {
     const { audioData, contactId, interactionType } = params;
 
     return aiOrchestrator.submitRequest({
@@ -852,7 +852,7 @@ class ConversationalAIService {
     });
   }
 
-  private async voiceMeetingSummary(params: any, context: ConversationContext): Promise<any> {
+  private async voiceMeetingSummary(params: any, _context: ConversationContext): Promise<any> {
     const { audioData, participants, meetingType, actionItems } = params;
 
     return aiOrchestrator.submitRequest({
@@ -869,7 +869,7 @@ class ConversationalAIService {
     });
   }
 
-  private async voiceProspectQualification(params: any, context: ConversationContext): Promise<any> {
+  private async voiceProspectQualification(params: any, _context: ConversationContext): Promise<any> {
     const { audioData, contactData, qualificationCriteria } = params;
 
     return aiOrchestrator.submitRequest({
@@ -886,7 +886,7 @@ class ConversationalAIService {
   }
 
   // Additional Smart Functions
-  private async createSmartContact(params: any, context: ConversationContext): Promise<any> {
+  private async createSmartContact(params: any, _context: ConversationContext): Promise<any> {
     const { contactData, autoEnrich, validateData, createTasks } = params;
 
     return aiOrchestrator.submitRequest({
@@ -903,7 +903,7 @@ class ConversationalAIService {
     });
   }
 
-  private async generateContactInsights(params: any, context: ConversationContext): Promise<any> {
+  private async generateContactInsights(params: any, _context: ConversationContext): Promise<any> {
     const { contactId, insightTypes, maxInsights } = params;
 
     return aiOrchestrator.submitRequest({

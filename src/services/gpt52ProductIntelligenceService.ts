@@ -1,4 +1,4 @@
-import { gpt51ResponsesService, GPT51Request, GPT51Response } from './gpt51ResponsesService';
+import { gpt51ResponsesService, GPT51Response } from './gpt51ResponsesService';
 import { webSearchService } from './webSearchService';
 import { logger } from './logger.service';
 import { supabase } from '../lib/supabase';
@@ -45,13 +45,17 @@ export interface EnrichmentResult {
 }
 
 export interface AIContentGeneration {
-  subject?: string;
+  subject?: string | undefined;
   body: string;
   callToAction: string;
   personalizationTokens: Record<string, string>;
   reasoning: string;
   alternativeVersions?: string[];
 }
+
+/** Snake_case fields that older payloads may carry; they are not part of the typed Contact/Match models. */
+type LegacyContactFields = { job_title?: string; company_size?: string; lead_score?: number };
+type LegacyMatchFields = { ai_enrichment_data?: Record<string, unknown>; ai_talking_points?: unknown[] };
 
 type ReasoningEffort = 'none' | 'low' | 'medium' | 'high';
 
@@ -213,7 +217,9 @@ Provide suggestions to improve targeting and positioning. Return as JSON array:
       productId: product.id
     });
 
-    const enrichmentData = match.ai_enrichment_data || {};
+    const legacyContact = contact as Contact & LegacyContactFields;
+    const legacyMatch = match as ProductContactMatch & LegacyMatchFields;
+    const enrichmentData = legacyMatch.ai_enrichment_data || {};
 
     const prompt = `Generate a highly personalized ${contentType} for this sales outreach:
 
@@ -224,14 +230,14 @@ PRODUCT:
 
 CONTACT:
 - Name: ${contact.name}
-- Title: ${contact.title || contact.job_title || 'Unknown'}
+- Title: ${contact.title || legacyContact.job_title || 'Unknown'}
 - Company: ${contact.company || 'Unknown'}
 - Industry: ${contact.industry || 'Unknown'}
 
 MATCH CONTEXT:
 - Match Score: ${match.match_score}%
 - Key Reasons: ${match.match_reasons?.map((r: any) => r.reason).join('; ') || 'Not analyzed'}
-- Talking Points: ${JSON.stringify(match.ai_talking_points || [])}
+- Talking Points: ${JSON.stringify(legacyMatch.ai_talking_points || [])}
 
 ENRICHMENT DATA:
 ${JSON.stringify(enrichmentData, null, 2)}
@@ -405,6 +411,7 @@ Provide helpful guidance. If making suggestions, return as JSON:
   }
 
   private buildMatchAnalysisPrompt(product: UserProduct, contact: Contact): string {
+    const legacyContact = contact as Contact & LegacyContactFields;
     return `Analyze the sales fit between this product and contact:
 
 PRODUCT:
@@ -419,11 +426,11 @@ PRODUCT:
 
 CONTACT:
 - Name: ${contact.name}
-- Title: ${contact.title || contact.job_title || 'Unknown'}
+- Title: ${contact.title || legacyContact.job_title || 'Unknown'}
 - Company: ${contact.company || 'Unknown'}
 - Industry: ${contact.industry || 'Unknown'}
-- Company Size: ${contact.company_size || 'Unknown'}
-- Lead Score: ${contact.lead_score || 0}
+- Company Size: ${legacyContact.company_size || 'Unknown'}
+- Lead Score: ${legacyContact.lead_score || 0}
 - Status: ${contact.status || 'Unknown'}
 - Tags: ${contact.tags?.join(', ') || 'None'}
 - Notes: ${contact.notes || 'None'}
@@ -442,7 +449,6 @@ Analyze semantic fit beyond keyword matching. Consider:
     userPrompt: string;
   }> {
     const companyName = contact.company || 'Unknown Company';
-    const contactName = contact.name;
 
     return [
       {
@@ -499,7 +505,7 @@ Analyze semantic fit beyond keyword matching. Consider:
 
     const hasTitleMatch = product.target_titles?.some(
       t => contact.title?.toLowerCase().includes(t.toLowerCase()) ||
-           contact.job_title?.toLowerCase().includes(t.toLowerCase())
+           (contact as Contact & LegacyContactFields).job_title?.toLowerCase().includes(t.toLowerCase())
     );
 
     const baseScore = 50 + (hasIndustryMatch ? 20 : 0) + (hasTitleMatch ? 15 : 0);
@@ -570,7 +576,6 @@ Analyze semantic fit beyond keyword matching. Consider:
     tone: string
   ): AIContentGeneration {
     const firstName = contact.name?.split(' ')[0] || 'there';
-    const companyRef = contact.company ? ` at ${contact.company}` : '';
 
     const greetings: Record<string, string> = {
       formal: `Dear ${contact.name || 'Professional'},`,

@@ -34,7 +34,7 @@ export interface QueuedTask {
   status: 'queued' | 'processing' | 'completed' | 'failed';
   progress: number;
   result?: any;
-  error?: string;
+  error?: string | undefined;
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
@@ -133,6 +133,7 @@ class AITaskQueueService {
 
     for (let i = 0; i < this.queue.length && batch.length < maxBatchSize; i++) {
       const task = this.queue[i];
+      if (!task) continue;
       
       // Check if task can be added to current batch
       if (this.canBatchWith(task, batch)) {
@@ -146,10 +147,10 @@ class AITaskQueueService {
   }
 
   private canBatchWith(task: QueuedTask, batch: QueuedTask[]): boolean {
-    if (batch.length === 0) return true;
+    const firstTask = batch[0];
+    if (!firstTask) return true;
     
     // Can batch tasks of the same type with similar priority
-    const firstTask = batch[0];
     return task.type === firstTask.type && 
            task.priority === firstTask.priority &&
            task.options.provider === firstTask.options.provider;
@@ -195,6 +196,7 @@ class AITaskQueueService {
       // Handle results
       results.forEach((result, index) => {
         const task = batch[index];
+        if (!task) return;
         
         if (result.success) {
           this.completeTask(task, result.data);
@@ -232,11 +234,12 @@ class AITaskQueueService {
   }
 
   private async executeBatch(batch: QueuedTask[]): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
-    const taskType = batch[0].type;
+    const taskType = batch[0]?.type;
     
     // Progress tracking
     const updateProgress = (taskIndex: number, progress: number) => {
       const task = batch[taskIndex];
+      if (!task) return;
       task.progress = progress;
       if (task.callbacks.onProgress) {
         task.callbacks.onProgress(progress);
@@ -272,8 +275,7 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 25);
       
       try {
@@ -300,8 +302,7 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 30);
       
       try {
@@ -328,8 +329,7 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 20);
       
       try {
@@ -356,8 +356,7 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 15);
       
       try {
@@ -384,8 +383,7 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 35);
       
       try {
@@ -426,7 +424,7 @@ class AITaskQueueService {
     });
   }
 
-  private failTask(task: QueuedTask, error: string): void {
+  private failTask(task: QueuedTask, error: string | undefined): void {
     task.attempts++;
     
     // Retry if attempts haven't exceeded max
@@ -485,7 +483,7 @@ class AITaskQueueService {
     });
   }
 
-  private getEndpointForTaskType(taskType: string): string {
+  private getEndpointForTaskType(taskType: string | undefined): string {
     const endpoints: Record<string, string> = {
       'scoring': '/smart-score',
       'enrichment': '/smart-enrichment',
@@ -494,7 +492,7 @@ class AITaskQueueService {
       'analysis': '/email-analyzer'
     };
     
-    return endpoints[taskType] || '/ai-generic';
+    return (taskType !== undefined ? endpoints[taskType] : undefined) || '/ai-generic';
   }
 
   private sleep(ms: number): Promise<void> {

@@ -8,6 +8,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useContactStore } from '../hooks/useContactStore';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
+import { asContacts } from './helpers/contactFixtures';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -20,24 +21,6 @@ const mockLocalStorage = {
   setItem: vi.fn(() => null),
   removeItem: vi.fn(() => null),
   clear: vi.fn(() => null),
-};
-
-const mockDocument = {
-  createElement: vi.fn(() => ({
-    click: vi.fn(),
-    setAttribute: vi.fn(),
-    download: '',
-    href: ''
-  })),
-  body: {
-    appendChild: vi.fn(),
-    removeChild: vi.fn(),
-  },
-};
-
-const mockURL = {
-  createObjectURL: vi.fn(() => 'mock-blob-url'),
-  revokeObjectURL: vi.fn(() => {}),
 };
 
 // Set up global mocks
@@ -123,26 +106,20 @@ describe('Contact Import/Export Functionality', () => {
   });
 
   describe('CSV Import', () => {
-    const validCsvData = `firstName,lastName,email,phone,title,company,industry,interestLevel,status,tags
-John,Doe,john.doe@example.com,+1 555 123 4567,Software Engineer,Tech Corp,Technology,hot,lead,"developer,react"
-Jane,Smith,jane.smith@example.com,+1 555 987 6543,CEO,StartupIO,Technology,medium,prospect,"ceo,startup"`;
 
-    const invalidCsvData = `firstName,lastName,email
-John,Doe,invalid-email
-Jane,Smith,jane.smith@example.com`;
 
     it('should successfully import valid CSV data', async () => {
       const { result } = renderHook(() => useContactStore());
 
       const mockImportedContacts = [
         {
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: 'imported-1',
           createdAt: expect.any(String),
           updatedAt: expect.any(String)
         },
         {
-          ...mockContacts[1],
+          ...mockContacts[1]!,
           id: 'imported-2',
           createdAt: expect.any(String),
           updatedAt: expect.any(String)
@@ -248,7 +225,7 @@ Jane,Smith,jane.smith@example.com`;
         updatedAt: expect.any(String)
       }));
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(largeBatch);
@@ -268,34 +245,13 @@ Jane,Smith,jane.smith@example.com`;
   });
 
   describe('JSON Import', () => {
-    const validJsonData = JSON.stringify([
-      {
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@example.com',
-        phone: '+1 555 123 4567',
-        title: 'Software Engineer',
-        company: 'Tech Corp',
-        industry: 'Technology',
-        interestLevel: 'hot',
-        status: 'lead',
-        tags: ['developer', 'react']
-      }
-    ]);
-
-    const invalidJsonData = `[
-      {
-        "firstName": "John",
-        "email": "invalid-email"
-      }
-    ]`;
 
     it('should successfully import valid JSON data', async () => {
       const { result } = renderHook(() => useContactStore());
 
       const mockImportedContacts = [
         {
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: 'json-import-1',
           createdAt: expect.any(String),
           updatedAt: expect.any(String)
@@ -469,7 +425,7 @@ Jane,Smith,jane.smith@example.com`;
         }
       ];
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(specialCharContacts);
@@ -506,7 +462,7 @@ Jane,Smith,jane.smith@example.com`;
         }
       ];
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(quotedContacts);
@@ -555,7 +511,7 @@ Jane,Smith,jane.smith@example.com`;
 
       // Set up existing contact
       act(() => {
-        useContactStore.setState({ contacts: [mockContacts[0]], totalCount: 1 });
+        useContactStore.setState({ contacts: [mockContacts[0]!], totalCount: 1 });
       });
 
       const conflictingContact = {
@@ -613,7 +569,7 @@ Jane,Smith,jane.smith@example.com`;
         .mockRejectedValueOnce(new Error('Temporary network error'))
         .mockResolvedValueOnce([
           {
-            ...mockContacts[0],
+            ...mockContacts[0]!,
             id: 'retry-1',
             createdAt: expect.any(String),
             updatedAt: expect.any(String)
@@ -621,11 +577,11 @@ Jane,Smith,jane.smith@example.com`;
         ]);
 
       // First attempt: the API fails, the contact is kept locally
-      await expectLocalImportFallback(result, [mockContacts[0]]);
+      await expectLocalImportFallback(result, [mockContacts[0]!]);
 
       // Second attempt: the API succeeds and its contact is added
       await act(async () => {
-        await result.current.importContacts([mockContacts[0]]);
+        await result.current.importContacts([mockContacts[0]!]);
       });
 
       expect(result.current.contacts).toHaveLength(2);
@@ -643,7 +599,7 @@ Jane,Smith,jane.smith@example.com`;
         loadingState = useContactStore.getState().isLoading;
         await new Promise(resolve => setTimeout(resolve, 10));
         return [{
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: 'loading-1',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -651,7 +607,7 @@ Jane,Smith,jane.smith@example.com`;
       });
 
       await act(async () => {
-        await result.current.importContacts([mockContacts[0]]);
+        await result.current.importContacts([mockContacts[0]!]);
       });
 
       expect(loadingState).toBe(true);
@@ -718,7 +674,7 @@ Jane,Smith,jane.smith@example.com`;
         }
       ];
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(maliciousContacts);
