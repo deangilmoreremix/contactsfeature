@@ -153,7 +153,6 @@ export const UNMOUNTED: Array<{ name: string; endpoints: string; covered: string
   { name: 'AgentRunner', endpoints: 'agent-runner', covered: 'not covered by a harness' },
   { name: 'SmartAIControls', endpoints: 'ai-stream', covered: 'not covered by a harness' },
   { name: 'EnhancedAISDRPanel', endpoints: 'sdr agents', covered: 'not covered by a harness' },
-  { name: 'CustomizableAIToolbar', endpoints: 'ai-stream', covered: 'not covered by a harness' },
 ];
 /** mounted UI files that only host/show a stream (primitives) or are reached through a parent already covered */
 export const PRIMITIVES = new Set(['StreamingOutput', 'LiveOutput', 'LiveRunStatus', 'SdrLive', 'AIErrorToaster', 'ContactDetailView', 'AIAutoFillButton', 'EmailTemplateSelector', 'ContactEmailPanel', 'LandingPage' /* marketing card id 'ai-enrichment', not a request */]);
