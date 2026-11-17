@@ -1,11 +1,11 @@
 /**
-import { SMARTCRM_DEFAULT_MODEL } from '../config/ai';
  * Agent Service
  * Handles agent metadata loading, run history management, and entity updates
  */
 
 import { supabase } from './supabaseClient';
 import { logger } from './logger.service';
+import { SMARTCRM_DEFAULT_MODEL } from '../config/ai';
 import type {
   AgentConfig,
   AgentRun,
