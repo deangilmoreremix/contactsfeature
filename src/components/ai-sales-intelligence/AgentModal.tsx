@@ -75,12 +75,13 @@ export const AgentModal: React.FC<AgentModalProps> = ({
         return (
           <div className="flex items-center">
             <input
+              id={`agent-field-${key}`}
               type="checkbox"
               checked={inputData[key] || false}
               onChange={(e) => handleInputChange(key, e.target.checked)}
               className="mr-2"
             />
-            <label className="text-sm text-gray-700">
+            <label htmlFor={`agent-field-${key}`} className="text-sm text-gray-700">
               {schema.description || key}
             </label>
           </div>

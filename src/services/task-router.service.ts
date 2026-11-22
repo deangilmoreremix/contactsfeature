@@ -338,8 +338,9 @@ class TaskRouterService {
     // Check OpenAI
     try {
       const openaiConfig = apiConfig.aiProviders.openai;
-      // The browser never holds an API key; AIProviderConfig has no apiKey, so this is always false.
-      availability.openai = openaiConfig.enabled && !!(openaiConfig as { apiKey?: string }).apiKey;
+      // The browser never holds an API key: OpenAI is reached through the server proxy (ai-respond / ai-stream),
+      // so the provider is available whenever it is enabled in the config.
+      availability.openai = openaiConfig.enabled;
     } catch (error) {
       logger.warn('OpenAI availability check failed', error);
     }

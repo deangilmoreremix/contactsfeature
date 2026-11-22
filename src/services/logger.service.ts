@@ -77,7 +77,7 @@ class LoggerService {
     }
     
     // Console logging in development
-    if ((import.meta.env.DEV as unknown) === 'development') {
+    if (import.meta.env.DEV) {
       const logMethod = entry.level === 'error' ? 'error' : 
                       entry.level === 'warn' ? 'warn' : 'log';
       console[logMethod](`[${entry.level.toUpperCase()}]`, entry.message, entry.data || '');

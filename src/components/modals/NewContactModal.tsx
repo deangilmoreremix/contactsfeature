@@ -375,7 +375,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
   }
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="ncm-title" className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col shadow-2xl text-gray-900">
         {/* Header with AI Features */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 flex-shrink-0">
@@ -384,7 +384,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               <UserPlus className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <h2 id="ncm-title" className="text-2xl font-bold text-gray-900 flex items-center">
                 New Contact
                 <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
               </h2>
@@ -466,10 +466,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-firstName" className="block text-sm font-medium text-gray-700 mb-2">
                     First Name *
                   </label>
-                  <input
+                  <input id="ncm-firstName"
                     type="text"
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
@@ -484,10 +484,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-lastName" className="block text-sm font-medium text-gray-700 mb-2">
                     Last Name *
                   </label>
-                  <input
+                  <input id="ncm-lastName"
                     type="text"
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
@@ -502,10 +502,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-birthday" className="block text-sm font-medium text-gray-700 mb-2">
                     Birthday
                   </label>
-                  <input
+                  <input id="ncm-birthday"
                     type="date"
                     value={formData.birthday}
                     onChange={(e) => handleInputChange('birthday', e.target.value)}
@@ -514,11 +514,11 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-email" className="block text-sm font-medium text-gray-700 mb-2">
                     Email *
                   </label>
                   <div className="relative">
-                    <input
+                    <input id="ncm-email"
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
@@ -539,10 +539,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-phone" className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number
                   </label>
-                  <input
+                  <input id="ncm-phone"
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
@@ -552,10 +552,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-preferredContact" className="block text-sm font-medium text-gray-700 mb-2">
                     Preferred Contact Method
                   </label>
-                  <select
+                  <select id="ncm-preferredContact"
                     value={formData.preferredContact}
                     onChange={(e) => handleInputChange('preferredContact', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -607,10 +607,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-company" className="block text-sm font-medium text-gray-700 mb-2">
                     Company *
                   </label>
-                  <input
+                  <input id="ncm-company"
                     type="text"
                     value={formData.company}
                     onChange={(e) => handleInputChange('company', e.target.value)}
@@ -625,10 +625,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-title" className="block text-sm font-medium text-gray-700 mb-2">
                     Job Title *
                   </label>
-                  <input
+                  <input id="ncm-title"
                     type="text"
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
@@ -643,10 +643,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-industry" className="block text-sm font-medium text-gray-700 mb-2">
                     Industry
                   </label>
-                  <select
+                  <select id="ncm-industry"
                     value={formData.industry}
                     onChange={(e) => handleInputChange('industry', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -659,10 +659,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-department" className="block text-sm font-medium text-gray-700 mb-2">
                     Department
                   </label>
-                  <input
+                  <input id="ncm-department"
                     type="text"
                     value={formData.department}
                     onChange={(e) => handleInputChange('department', e.target.value)}
@@ -682,10 +682,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-address" className="block text-sm font-medium text-gray-700 mb-2">
                     Address
                   </label>
-                  <input
+                  <input id="ncm-address"
                     type="text"
                     value={formData.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
@@ -695,10 +695,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-city" className="block text-sm font-medium text-gray-700 mb-2">
                     City
                   </label>
-                  <input
+                  <input id="ncm-city"
                     type="text"
                     value={formData.city}
                     onChange={(e) => handleInputChange('city', e.target.value)}
@@ -708,10 +708,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-state" className="block text-sm font-medium text-gray-700 mb-2">
                     State/Province
                   </label>
-                  <input
+                  <input id="ncm-state"
                     type="text"
                     value={formData.state}
                     onChange={(e) => handleInputChange('state', e.target.value)}
@@ -721,10 +721,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-country" className="block text-sm font-medium text-gray-700 mb-2">
                     Country
                   </label>
-                  <input
+                  <input id="ncm-country"
                     type="text"
                     value={formData.country}
                     onChange={(e) => handleInputChange('country', e.target.value)}
@@ -734,10 +734,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-zipCode" className="block text-sm font-medium text-gray-700 mb-2">
                     ZIP/Postal Code
                   </label>
-                  <input
+                  <input id="ncm-zipCode"
                     type="text"
                     value={formData.zipCode}
                     onChange={(e) => handleInputChange('zipCode', e.target.value)}
@@ -779,10 +779,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-status" className="block text-sm font-medium text-gray-700 mb-2">
                     Status
                   </label>
-                  <select
+                  <select id="ncm-status"
                     value={formData.status}
                     onChange={(e) => handleInputChange('status', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -965,10 +965,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-tags" className="block text-sm font-medium text-gray-700 mb-2">
                     Tags (comma-separated)
                   </label>
-                  <input
+                  <input id="ncm-tags"
                     type="text"
                     value={formData.tags}
                     onChange={(e) => handleInputChange('tags', e.target.value)}
@@ -979,10 +979,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-notes" className="block text-sm font-medium text-gray-700 mb-2">
                     Notes
                   </label>
-                  <textarea
+                  <textarea id="ncm-notes"
                     value={formData.notes}
                     onChange={(e) => handleInputChange('notes', e.target.value)}
                     rows={4}

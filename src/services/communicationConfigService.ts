@@ -416,7 +416,10 @@ export class CommunicationConfigService {
     }> = [];
 
     for (const [key, provider] of this.providers) {
-      const [type = '', id = ''] = key.split('_');
+      // ids may contain underscores: split on the FIRST one only
+      const sep = key.indexOf('_');
+      const type = sep === -1 ? key : key.slice(0, sep);
+      const id = sep === -1 ? '' : key.slice(sep + 1);
       let name = '';
 
       // Get configuration name

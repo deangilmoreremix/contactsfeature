@@ -37,17 +37,19 @@ Object.defineProperty(global, 'localStorage', {
  * The store never throws for a rejected import batch: it keeps the contacts locally (`local-import-*` ids)
  * and logs the API error, so the user does not lose the file they just imported.
  */
-async function expectLocalImportFallback(
+/** A rejected batch must surface as an error and must NOT add local stand-in contacts (createContactsBatch stores locally itself when Supabase is not configured). */
+async function expectImportRejected(
   result: { current: ReturnType<typeof useContactStore.getState> },
   contacts: any[]
 ) {
+  const before = result.current.contacts.length;
+  const beforeTotal = result.current.totalCount;
   await act(async () => {
-    await result.current.importContacts(contacts);
+    await expect(result.current.importContacts(contacts)).rejects.toThrow();
   });
-  expect(result.current.contacts).toHaveLength(contacts.length);
-  result.current.contacts.forEach(c => expect(c.id).toMatch(/^local-import-/));
-  expect(result.current.totalCount).toBe(contacts.length);
-  expect(result.current.error).toBeNull();
+  expect(result.current.contacts).toHaveLength(before);
+  expect(result.current.totalCount).toBe(beforeTotal);
+  expect(result.current.error).toEqual(expect.any(String));
   expect(result.current.isLoading).toBe(false);
 }
 
@@ -170,7 +172,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Batch validation failed: Contact 1: Invalid email format')
       );
 
-      await expectLocalImportFallback(result, []);
+      await expectImportRejected(result, [{ firstName: 'Bad', lastName: 'Email', email: 'not-an-email' }]);
     });
 
     it('should handle empty CSV files', async () => {
@@ -180,6 +182,8 @@ describe('Contact Import/Export Functionality', () => {
         await result.current.importContacts([]);
       });
 
+      // nothing to import: no API call, no error
+      expect(contactAPI.createContactsBatch).not.toHaveBeenCalled();
       expect(result.current.contacts).toHaveLength(0);
       expect(result.current.error).toBeNull();
     });
@@ -200,7 +204,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Validation failed: Missing required fields')
       );
 
-      await expectLocalImportFallback(result, invalidContacts);
+      await expectImportRejected(result, invalidContacts);
     });
 
     it('should handle large CSV imports', async () => {
@@ -296,7 +300,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Validation failed: Missing required fields')
       );
 
-      await expectLocalImportFallback(result, malformedData);
+      await expectImportRejected(result, malformedData);
     });
   });
 
@@ -396,7 +400,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Validation failed: Missing firstName, lastName')
       );
 
-      await expectLocalImportFallback(result, invalidCsvContacts);
+      await expectImportRejected(result, invalidCsvContacts);
     });
 
     it('should handle special characters in CSV', async () => {
@@ -503,7 +507,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Duplicate email detected: john@example.com')
       );
 
-      await expectLocalImportFallback(result, duplicateContacts);
+      await expectImportRejected(result, duplicateContacts);
     });
 
     it('should handle existing contact conflicts', async () => {
@@ -529,14 +533,10 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Contact with email john.doe@example.com already exists')
       );
 
-      // The store does not de-duplicate itself; when the API rejects the batch the contact is kept locally too
-      await act(async () => {
-        await result.current.importContacts([conflictingContact]);
-      });
-
-      expect(result.current.contacts).toHaveLength(2);
-      expect(result.current.contacts[1]!.id).toMatch(/^local-import-/);
-      expect(result.current.error).toBeNull();
+      // The API rejects the duplicate: the error surfaces and the existing contact list is untouched
+      await expectImportRejected(result, [conflictingContact]);
+      expect(result.current.contacts).toHaveLength(1);
+      expect(result.current.contacts[0]!.id).toBe(mockContacts[0]!.id);
     });
   });
 
@@ -548,7 +548,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Network timeout')
       );
 
-      await expectLocalImportFallback(result, mockContacts);
+      await expectImportRejected(result, mockContacts);
     });
 
     it('should handle network errors during export', async () => {
@@ -576,16 +576,17 @@ describe('Contact Import/Export Functionality', () => {
           }
         ]);
 
-      // First attempt: the API fails, the contact is kept locally
-      await expectLocalImportFallback(result, [mockContacts[0]!]);
+      // First attempt: the API fails, nothing is added and the error is reported
+      await expectImportRejected(result, [mockContacts[0]!]);
 
       // Second attempt: the API succeeds and its contact is added
       await act(async () => {
         await result.current.importContacts([mockContacts[0]!]);
       });
 
-      expect(result.current.contacts).toHaveLength(2);
+      expect(result.current.contacts).toHaveLength(1);
       expect(result.current.contacts.map(c => c.id)).toContain('retry-1');
+      expect(result.current.error).toBeNull();
     });
   });
 
@@ -642,7 +643,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Import validation failed')
       );
 
-      await expectLocalImportFallback(result, mockContacts);
+      await expectImportRejected(result, mockContacts);
     });
   });
 
@@ -702,7 +703,7 @@ describe('Contact Import/Export Functionality', () => {
         new Error('Batch size exceeds limit of 100 contacts')
       );
 
-      await expectLocalImportFallback(result, largeBatch);
+      await expectImportRejected(result, largeBatch);
     });
   });
 });

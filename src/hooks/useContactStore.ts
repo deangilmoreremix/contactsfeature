@@ -384,6 +384,10 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   },
 
   importContacts: async (newContacts) => {
+    if (newContacts.length === 0) {
+      set({ error: null });
+      return;
+    }
     set({ isLoading: true, error: null });
     
     try {
@@ -404,39 +408,19 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         tags: contact.tags
       }));
       
-      try {
-        const createdContacts = await contactAPI.createContactsBatch(
-          formattedContacts as Parameters<typeof contactAPI.createContactsBatch>[0]
-        );
-        
-        set(state => ({
-          contacts: [...state.contacts, ...createdContacts],
-          isLoading: false,
-          totalCount: state.totalCount + createdContacts.length
-        }));
-        
-        logger.info('Contacts imported successfully', { count: createdContacts.length });
-      } catch (apiError) {
-        logger.error('API import failed, falling back to local import', apiError);
-        
-        // Local fallback
-        const now = new Date().toISOString();
-        const mockImportedContacts = formattedContacts.map((contact, index) => ({
-          ...contact,
-          id: `local-import-${Date.now()}-${index}`,
-          createdAt: now,
-          updatedAt: now,
-          avatarSrc: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2'
-        }));
-        
-        set(state => ({
-          contacts: [...state.contacts, ...mockImportedContacts],
-          isLoading: false,
-          totalCount: state.totalCount + mockImportedContacts.length
-        }));
-        
-        logger.info('Contacts imported locally', { count: mockImportedContacts.length });
-      }
+      // createContactsBatch already stores locally when Supabase is not configured; any error here is a real
+      // failure (validation or database) and must reach the user instead of silently importing fake local rows.
+      const createdContacts = await contactAPI.createContactsBatch(
+        formattedContacts as Parameters<typeof contactAPI.createContactsBatch>[0]
+      );
+
+      set(state => ({
+        contacts: [...state.contacts, ...createdContacts],
+        isLoading: false,
+        totalCount: state.totalCount + createdContacts.length
+      }));
+
+      logger.info('Contacts imported successfully', { count: createdContacts.length });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to import contacts';
       set({ error: errorMessage, isLoading: false });

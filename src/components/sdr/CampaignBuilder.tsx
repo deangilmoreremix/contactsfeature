@@ -21,6 +21,8 @@ interface CampaignBuilderProps {
   agentName: string;
   initialSequence?: SDRCampaignTemplate['sequence'];
   preferences?: Partial<SDRUserPreferences>;
+  /** Outbound persona id stored with the campaign (see src/agents/personas.ts); defaults to the SaaS-founder persona. */
+  personaId?: string;
   onSave?: (template: SDRCampaignTemplate) => void;
   onPreview?: (sequence: SDRCampaignTemplate['sequence']) => void;
   onClose?: () => void;
@@ -59,6 +61,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
   agentName,
   initialSequence = [],
   preferences,
+  personaId,
   onSave,
   onPreview,
   onClose
@@ -174,7 +177,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
           name: templateName,
           description: templateDescription,
           agent_id: agentId,
-          persona_id: (preferences as { persona?: string } | undefined)?.persona || 'cold_saas_founder',
+          persona_id: personaId || 'cold_saas_founder',
           sequence_config: sequence,
           settings: preferences || {},
           is_active: true,
@@ -358,6 +361,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                       {/* Actions */}
                       <button
                         onClick={() => removeStep(step.id)}
+                        aria-label={`Remove step ${index + 1}`}
                         className="p-1 text-red-500 hover:bg-red-50 rounded"
                         disabled={sequence.length === 1}
                       >
