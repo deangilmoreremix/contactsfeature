@@ -76,7 +76,8 @@ export function normalizeGeneratedRule(raw: any): GeneratedRule {
   return { name: raw.name.trim().slice(0, 120), description: String(raw.description || ''), trigger, conditions, actions };
 }
 
-export async function generateAutomationRule(prompt: string, live?: LiveOptions): Promise<GeneratedRule> {
+/** `live` is REQUIRED (user-visible call: must stream; omission would be a STREAM_VIOLATION). */
+export async function generateAutomationRule(prompt: string, live: LiveOptions): Promise<GeneratedRule> {
   const raw = await aiJson<unknown>({
     role: 'default',
     schemaName: 'automation_rule',

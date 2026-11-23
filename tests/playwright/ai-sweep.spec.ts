@@ -76,6 +76,7 @@ for (const c of CONTROLS) {
       res = await clickAndSample(page, () => target.click({ force: true }), (c.then ?? []).map((t) => async () => { await t(page).click({ force: true }); }));
     }
     await page.screenshot({ path: `${SHOTS}/ai-sweep-${c.id}.png` }).catch(() => undefined);
+    if (c.verify) await c.verify(page);
 
     const a = analyse(res);
     const asserted = res.log.filter((e) => !NON_GENERATIVE.has(e.endpoint));

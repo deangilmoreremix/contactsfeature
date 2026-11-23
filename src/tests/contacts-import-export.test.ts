@@ -326,6 +326,21 @@ describe('Contact Import/Export Functionality', () => {
       clickSpy.mockRestore();
     });
 
+    it('forwards filters to the API when given, and none when omitted', async () => {
+      const { result } = renderHook(() => useContactStore());
+      vi.mocked(contactAPI.exportContacts).mockResolvedValue(new Blob(['x'], { type: 'text/csv' }));
+
+      await act(async () => {
+        await result.current.exportContacts('json', { ids: ['a', 'b'], status: 'lead' });
+      });
+      expect(contactAPI.exportContacts).toHaveBeenLastCalledWith({ ids: ['a', 'b'], status: 'lead' }, 'json');
+
+      await act(async () => {
+        await result.current.exportContacts('csv');
+      });
+      expect(contactAPI.exportContacts).toHaveBeenLastCalledWith({}, 'csv');
+    });
+
     it('should export contacts as CSV', async () => {
       const { result } = renderHook(() => useContactStore());
 

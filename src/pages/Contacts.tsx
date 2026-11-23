@@ -59,7 +59,9 @@ export default function Contacts() {
 
   const handleExport = async (format: 'csv' | 'json') => {
     try {
-      await exportContacts(format);
+      // Export what the user is looking at: when view filters or a search are active, pass the visible ids
+      const narrowed = activeFiltersCount > 0 || searchQuery.trim().length > 0;
+      await exportContacts(format, narrowed ? { ids: filteredContacts.map(c => c.id) } : undefined);
     } catch (error) {
       console.error('Export failed:', error);
     }

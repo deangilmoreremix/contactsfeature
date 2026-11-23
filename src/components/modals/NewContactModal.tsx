@@ -411,7 +411,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
 
         {/* Form Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* AI-Enhanced Basic Information */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
@@ -625,10 +625,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
                 </div>
                 
                 <div>
-                  <label htmlFor="ncm-title" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="ncm-jobTitle" className="block text-sm font-medium text-gray-700 mb-2">
                     Job Title *
                   </label>
-                  <input id="ncm-title"
+                  <input id="ncm-jobTitle"
                     type="text"
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
@@ -757,10 +757,10 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ isOpen, onClos
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <label id="ncm-interest-level-label" className="block text-sm font-medium text-gray-700 mb-3">
                     Interest Level
                   </label>
-                  <div className="space-y-3">
+                  <div className="space-y-3" role="radiogroup" aria-labelledby="ncm-interest-level-label">
                     {interestLevels.map((level) => (
                       <label key={level.value} className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition-colors">
                         <input

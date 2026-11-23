@@ -126,8 +126,8 @@ const SUGGESTION_SCHEMA = {
   },
 } as const;
 
-/** Real AI suggestions (OpenAI Responses via the ai-respond proxy). No scores are invented. */
-export async function generateAutomationSuggestions(input: { contactSummary: string; webContext?: string; existingRules: string[] }, live?: LiveOptions): Promise<AiSuggestion[]> {
+/** Real AI suggestions (OpenAI Responses via ai-stream). No scores are invented. `live` is REQUIRED so the call always streams. */
+export async function generateAutomationSuggestions(input: { contactSummary: string; webContext?: string; existingRules: string[] }, live: LiveOptions): Promise<AiSuggestion[]> {
   const out = await aiJson<{ suggestions: Array<Omit<AiSuggestion, 'id' | 'createdAt'>> }>({
     role: 'default',
     schemaName: 'automation_suggestions',
@@ -140,8 +140,8 @@ export async function generateAutomationSuggestions(input: { contactSummary: str
   return (out.suggestions || []).map((s, i) => ({ ...s, id: `suggestion-${Date.now()}-${i}`, createdAt: now }));
 }
 
-/** AI review of one rule; returns improvement notes (never changes the rule or its stats). */
-export async function reviewRule(rule: PanelRule, live?: LiveOptions): Promise<{ summary: string; improvements: string[] }> {
+/** AI review of one rule; returns improvement notes (never changes the rule or its stats). `live` is REQUIRED so the call always streams. */
+export async function reviewRule(rule: PanelRule, live: LiveOptions): Promise<{ summary: string; improvements: string[] }> {
   return aiJson({
     role: 'fast',
     schemaName: 'rule_review',

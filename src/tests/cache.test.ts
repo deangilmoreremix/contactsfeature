@@ -110,6 +110,17 @@ describe('Cache Service', () => {
       vi.advanceTimersByTime(300001);
       expect(cacheService.get('test', 'zero-ttl')).toBeNull();
     });
+
+    it('a zero TTL never means "no expiry": nothing stored with 0 survives past the default TTL', () => {
+      cacheService.set('test', 'zero-a', 'a', 0);
+      cacheService.setContact('zero-contact', { id: 'zero-contact' }, 0);
+      vi.advanceTimersByTime(299999);
+      expect(cacheService.get('test', 'zero-a')).toBe('a');
+      expect(cacheService.getContact('zero-contact')).not.toBeNull();
+      vi.advanceTimersByTime(2);
+      expect(cacheService.get('test', 'zero-a')).toBeNull();
+      expect(cacheService.getContact('zero-contact')).toBeNull();
+    });
   });
 
   describe('Cache Eviction and Size Limits', () => {

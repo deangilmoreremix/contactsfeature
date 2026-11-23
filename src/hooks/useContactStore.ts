@@ -10,7 +10,7 @@
 
 import { create } from 'zustand';
 import { Contact } from '../types';
-import { contactAPI } from '../services/contact-api.service';
+import { contactAPI, type ContactFilters } from '../services/contact-api.service';
 import { recordContactDiff } from '../services/contactTimelineService';
 import { automationService } from '../services/automation.service';
 import { logger } from '../services/logger.service';
@@ -49,7 +49,7 @@ interface ContactActions {
   clearContacts: () => Promise<void>;
   selectContact: (contact: Contact | null) => void;
   importContacts: (contacts: any[]) => Promise<void>;
-  exportContacts: (format: 'csv' | 'json') => Promise<void>;
+  exportContacts: (format: 'csv' | 'json', filters?: ContactFilters) => Promise<void>;
   searchContacts: (query: string) => Promise<void>;
 }
 
@@ -429,11 +429,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
     }
   },
 
-  exportContacts: async (format: 'csv' | 'json' = 'csv') => {
+  exportContacts: async (format: 'csv' | 'json' = 'csv', filters: ContactFilters = {}) => {
     try {
-      // Get current filters from state (implement if needed)
-      const filters = {};
-      
       const blob = await contactAPI.exportContacts(filters, format);
       
       // Create download link

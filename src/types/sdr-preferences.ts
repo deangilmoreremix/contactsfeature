@@ -3,6 +3,14 @@
  * Types and interfaces for user-customizable SDR agent behavior
  */
 
+import { OUTBOUND_PERSONAS } from '../agents/personas';
+
+export const DEFAULT_PERSONA_ID = 'cold_saas_founder';
+
+/** Returns the id if it names a known outbound persona, otherwise the default persona id. */
+export const resolvePersonaId = (id: unknown): string =>
+  typeof id === 'string' && OUTBOUND_PERSONAS.some((p) => p.id === id) ? id : DEFAULT_PERSONA_ID;
+
 export interface SDRUserPreferences {
   userId: string;
   agentId: string;
@@ -47,6 +55,7 @@ export interface SDRUserPreferences {
     temperature: number;        // 0.0 - 1.0
     maxTokens: number;          // 500 - 2000
     reasoningEffort?: 'low' | 'medium' | 'high';
+    personaId?: string | undefined; // outbound persona id (src/agents/personas.ts); stored in ai_settings jsonb
   };
 
   // Timing Rules
@@ -309,10 +318,13 @@ export const createDefaultPreferences = (
       companyName: '',
       signature: ''
     },
-    aiSettings: defaults?.aiSettings || {
-      model: 'thinking',
-      temperature: 0.7,
-      maxTokens: 1000
+    aiSettings: {
+      ...(defaults?.aiSettings || {
+        model: 'thinking',
+        temperature: 0.7,
+        maxTokens: 1000
+      }),
+      personaId: resolvePersonaId(defaults?.aiSettings?.personaId)
     },
     timingRules: defaults?.timingRules || {
       businessHoursOnly: true,

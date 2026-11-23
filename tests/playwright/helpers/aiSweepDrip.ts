@@ -103,6 +103,20 @@ const CONTACTS = [
   person(3, 'Darlene', 'Robertson', 'Head of Growth', 'Globex Corporation', 'Media'),
 ];
 
+/**
+ * What gpt51ResponsesService.analyzeProductIntelligence parses out of `output_text` (parseJsonLoose): an object with
+ * company / product / market / contacts / recommendations, shaped like src/types/productIntelligence.ts so the results
+ * step (ProductIntelligenceResults) renders. The plain-text ai-stream answer is not JSON, which made the analysis throw.
+ */
+const PRODUCT_INTELLIGENCE = {
+  company: { name: 'ACME Retail', industry: 'Retail software', size: '200-500 employees', founded: 2012, location: 'Austin, TX', description: 'ACME Retail builds store operations software for regional chains.', website: 'https://acme.example', socialProfiles: { linkedin: 'https://linkedin.com/company/acme-retail' } },
+  product: { name: 'ACME Ops Cloud', category: 'Retail operations platform', pricing: { model: 'subscription', ranges: { min: 99, max: 499, currency: 'USD' }, examples: ['Starter $99/mo', 'Scale $499/mo'] }, features: ['Shift scheduling', 'Store task manager', 'Manager ramp-up playbooks'], targetMarket: 'Regional retail chains with 10+ stores', competitiveAdvantages: ['Fast setup', 'Built for store managers'], useCases: ['Onboard new managers', 'Standardise store checklists'] },
+  market: { size: '$12B', growth: '9% CAGR', competitors: ['RivalCo', 'StoreSync'], trends: ['Frontline digitisation'], opportunities: ['Mid-market chains'], threats: ['Large suite vendors'] },
+  contacts: [{ name: 'Brooklyn Simmons', title: 'Retail Operations Manager', email: 'brooklyn@acme.example', linkedin: 'https://linkedin.com/in/example', confidence: 88, role: 'decision-maker' }],
+  recommendations: ['Lead with manager ramp-up time', 'Reference the twelve new stores'],
+};
+const PRODUCT_INTELLIGENCE_TEXT = JSON.stringify(PRODUCT_INTELLIGENCE);
+
 type Script = (body: any, url: URL) => Ev[];
 const LONG = 'A specific, personalised line that references the contact, the company and a recent trigger so the reader sees why this message is for them and what the next step is.';
 /** the 8 Agents-SDK SDR agents: field keys come from src/components/sdr/<Agent>SDRAgent.tsx */
@@ -110,6 +124,9 @@ const agentScript = (id: string, extra: Record<string, unknown>): Script => () =
 const SCRIPTS: Record<string, Script> = {
   'ai-stream': (body) => {
     if (body?.schema) { const o = synth(body.schema) as Record<string, unknown>; return growing(o, undefined, 'r_ai'); }
+    if (typeof body?.input === 'string' && /provide structured intelligence/i.test(body.input)) {
+      return [started('r_ai'), { type: 'status', tool: 'web_search', phase: 'searching', label: 'Searching the web…' }, ...chunks(PRODUCT_INTELLIGENCE_TEXT, 12), done('r_ai', PRODUCT_INTELLIGENCE_TEXT)];
+    }
     return [started('r_ai'), { type: 'status', tool: 'web_search', phase: 'searching', label: 'Searching the web…' }, ...chunks(TEXT), done('r_ai', TEXT)];
   },
   'linkedin-sdr': agentScript('r_li', { connectionNote: LONG, followUpMessage: LONG + ' Happy to share a short example if useful.', talkingPoints: ['Store expansion', 'Ops hiring'] }),

@@ -93,14 +93,37 @@ describe('SmartCRM Dashboard - Comprehensive Production Tests', () => {
         expect(createContact).not.toHaveBeenCalled();
       });
 
-      it('should not submit a malformed email (blocked by the browser\'s type=email validation)', () => {
+      it('shows the app\'s own message for a malformed email instead of the browser blocking submit', async () => {
         render(<NewContactModal isOpen={true} onClose={() => {}} />);
 
         fillRequiredFields({ email: 'invalid-email' });
         fireEvent.click(screen.getByRole('button', { name: /create contact/i }));
 
-        expect(screen.getByPlaceholderText('Enter email address')).toBeInvalid();
+        await waitFor(() => expect(screen.getByText('Invalid email format')).toBeInTheDocument());
+        expect(screen.getByLabelText('Email *')).toHaveAttribute('type', 'email');
         expect(createContact).not.toHaveBeenCalled();
+      });
+
+      it('submits a valid form when fields are bound by label', async () => {
+        render(<NewContactModal isOpen={true} onClose={() => {}} />);
+
+        fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Jane' } });
+        fireEvent.change(screen.getByLabelText('Last Name *'), { target: { value: 'Smith' } });
+        fireEvent.change(screen.getByLabelText('Email *'), { target: { value: 'jane@acme.com' } });
+        fireEvent.change(screen.getByLabelText('Company *'), { target: { value: 'Acme' } });
+        fireEvent.change(screen.getByLabelText('Job Title *'), { target: { value: 'CTO' } });
+        fireEvent.click(screen.getByRole('button', { name: /create contact/i }));
+
+        await waitFor(() => expect(createContact).toHaveBeenCalledTimes(1));
+        expect(screen.queryByText('Invalid email format')).not.toBeInTheDocument();
+      });
+
+      it('gives the interest level radio group an accessible name', () => {
+        render(<NewContactModal isOpen={true} onClose={() => {}} />);
+
+        const group = screen.getByRole('radiogroup', { name: 'Interest Level' });
+        expect(group).toBeInTheDocument();
+        expect(screen.getAllByRole('radio').length).toBeGreaterThan(1);
       });
 
       it('should create the contact from the form values', async () => {

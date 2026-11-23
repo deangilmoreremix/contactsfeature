@@ -411,11 +411,8 @@ describeConditional('API Integration Tests', () => {
       const mockBlob = new Blob(['filtered,data'], { type: 'text/csv' });
       vi.mocked(contactAPI.exportContacts).mockResolvedValue(mockBlob);
 
-      // The store's exportContacts currently takes only the format; the filtered form is what this (skipped by default) suite expects
-      const exportFiltered = result.current.exportContacts as unknown as (format: 'csv' | 'json', filters: { industry: string }) => Promise<void>;
-
       await act(async () => {
-        await exportFiltered('csv', { industry: 'Technology' });
+        await result.current.exportContacts('csv', { industry: 'Technology' });
       });
 
       expect(contactAPI.exportContacts).toHaveBeenCalledWith({ industry: 'Technology' }, 'csv');

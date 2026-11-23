@@ -35,6 +35,8 @@ export interface Control {
   popup?: boolean;
   /** UI files (src/components, src/pages) this control exercises; used by the mounted-consumer completeness check */
   covers?: string[];
+  /** assertions run after the click + stream have settled (throw/expect to fail the control) */
+  verify?: (page: Page) => Promise<void>;
   /** an input to fill before clicking */
   fill?: Array<{ find: (page: Page) => Locator; value: string }>;
 }
@@ -58,7 +60,13 @@ export const CONTROLS: Control[] = [
   { id: 'list.ai-score-all', group: 'Contacts list', tab: 'list', find: btn(/AI Score All/), expected: ['ai-stream'], covers: ['ContactsModal'], inline: true },
   { id: 'list.product-intelligence', group: 'Contacts list', tab: 'list',
     before: async (page) => { await page.getByRole('button', { name: 'AI Product Intelligence' }).click(); await page.waitForTimeout(800); await page.getByPlaceholder('https://example.com').fill('https://acme.example'); },
-    find: btn('Start AI Analysis'), expected: [], covers: ['ProductIntelligenceModal'] },
+    find: btn('Start AI Analysis'), expected: [], covers: ['ProductIntelligenceModal'],
+    // the drip stub must satisfy analyzeProductIntelligence: the results step renders, no error step / message
+    verify: async (page) => {
+      await page.getByRole('heading', { name: 'AI Product Intelligence Results' }).waitFor({ state: 'visible', timeout: 15_000 });
+      const err = await page.getByText(/Analysis failed|Failed to analyze web content|An error occurred during analysis/).count();
+      if (err) throw new Error('Product Intelligence showed an error although the results step rendered');
+    } },
   { id: 'list.new-contact.research-by-email', group: 'Contacts list', tab: 'list', covers: ['AIResearchButton'],
     before: async (page) => { await page.getByRole('button', { name: 'New Contact' }).first().click(); await page.waitForTimeout(800); await page.locator('input[type="email"]').first().fill('test@acme.example'); await page.getByRole('button', { name: /AI Auto-Fill/ }).click(); await page.waitForTimeout(500); },
     find: btn(/Research by Email/), expected: [] },
@@ -149,7 +157,7 @@ export const UNMOUNTED: Array<{ name: string; endpoints: string; covered: string
   { name: 'SalesForecastingWidget', endpoints: 'sales-forecasting', covered: 'tests/playwright/streaming-panels.spec.ts (streaming.config.ts harness)' },
   { name: 'FeatureAnalysisStudio', endpoints: 'ai-task', covered: 'tests/playwright/callers-streaming.spec.ts (callers harness)' },
   { name: 'AISalesIntelligencePanel', endpoints: 'ai-stream', covered: 'tests/playwright/callers-streaming.spec.ts (lead-nurturing)' },
-  { name: 'AutomationBuilder', endpoints: 'ai-respond (non-visible rule generator)', covered: 'not covered by a harness' },
+  { name: 'AutomationBuilder', endpoints: 'ai-stream (generateAutomationRule, live)', covered: 'not covered by a harness' },
   { name: 'AgentRunner', endpoints: 'agent-runner', covered: 'not covered by a harness' },
   { name: 'SmartAIControls', endpoints: 'ai-stream', covered: 'not covered by a harness' },
   { name: 'EnhancedAISDRPanel', endpoints: 'sdr agents', covered: 'not covered by a harness' },

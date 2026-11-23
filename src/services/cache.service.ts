@@ -82,6 +82,13 @@ class CacheService {
       : 0;
   }
   
+  /**
+   * Store a value.
+   *
+   * @param ttl Time to live in milliseconds. Omitted, `undefined` or `0` all mean "use the service default TTL"
+   *   (5 minutes unless set in the constructor); `0` does NOT mean "no expiry" and not "expire immediately".
+   *   There is no never-expires mode. No caller in the app passes 0 (audited), pass a large TTL instead.
+   */
   set<T>(
     namespace: string,
     identifier: string | object,

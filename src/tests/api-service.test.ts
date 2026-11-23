@@ -38,6 +38,8 @@ describe('Contact API Service', () => {
     tags: ['developer', 'react']
   };
 
+  const blobText = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsText(b); });
+
   const mockCreatedContact: Contact = {
     ...mockContact,
     id: 'test-contact-1',
@@ -369,11 +371,21 @@ describe('Contact API Service', () => {
       expect(blob.type).toBe('application/json');
     });
 
+    it('should export only the contacts whose ids are requested', async () => {
+      const other = { ...mockCreatedContact, id: 'other-id', email: 'other@example.com' };
+      storage.contacts = [mockCreatedContact, other];
+
+      const filtered = JSON.parse(await blobText(await contactAPI.exportContacts({ ids: ['other-id'] }, 'json')));
+      expect(filtered.map((c: { id: string }) => c.id)).toEqual(['other-id']);
+
+      const all = JSON.parse(await blobText(await contactAPI.exportContacts({}, 'json')));
+      expect(all).toHaveLength(2);
+    });
+
     it('should apply filters during export', async () => {
       const blob = await contactAPI.exportContacts({ status: 'lead' }, 'csv');
 
       expect(blob).toBeInstanceOf(Blob);
-      // The actual filtering would be tested in the getContacts method
     });
   });
 

@@ -35,6 +35,8 @@ import { normalizeContactRow } from '../lib/contacts/softDelete';
 import { contactsToCsvBlob } from '../utils/contactCsv';
 
 export interface ContactFilters {
+  /** Restrict to these contact ids (used by export to honour client-side view filters / selection). */
+  ids?: string[];
   search?: string;
   interestLevel?: string;
   status?: string;
@@ -890,6 +892,10 @@ class ContactAPIService {
   
   // Export Operations
   async exportContacts(filters: ContactFilters = {}, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
+    const { ids, ...queryFilters } = filters;
+    filters = queryFilters;
+    const idSet = ids ? new Set(ids) : null;
+    const pick = (contacts: Contact[]) => (idSet ? contacts.filter(c => idSet.has(c.id)) : contacts);
     if (this.shouldUseFallback()) {
       // Local storage fallback
       logger.info('Using local storage for contact export');
@@ -898,11 +904,11 @@ class ContactAPIService {
       const result = await this.getContacts(filters);
 
       if (format === 'json') {
-        const jsonString = JSON.stringify(result.contacts, null, 2);
+        const jsonString = JSON.stringify(pick(result.contacts), null, 2);
         return new Blob([jsonString], { type: 'application/json' });
       } else {
         // CSV export (escaped + formula-injection safe)
-        return contactsToCsvBlob(result.contacts);
+        return contactsToCsvBlob(pick(result.contacts));
       }
     }
 
@@ -917,11 +923,11 @@ class ContactAPIService {
       const result = await this.getContacts(allFilters);
 
       if (format === 'json') {
-        const jsonString = JSON.stringify(result.contacts, null, 2);
+        const jsonString = JSON.stringify(pick(result.contacts), null, 2);
         return new Blob([jsonString], { type: 'application/json' });
       } else {
         // CSV export (escaped + formula-injection safe)
-        return contactsToCsvBlob(result.contacts);
+        return contactsToCsvBlob(pick(result.contacts));
       }
     } catch (error) {
       logger.error('Contact export failed', error as Error);

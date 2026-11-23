@@ -152,3 +152,22 @@ describe('AI rule normalisation', () => {
     expect((RULE_SCHEMA as any).additionalProperties).toBe(false);
   });
 });
+
+describe('automation AI services stream (live is required)', () => {
+  it('forwards the live callbacks to aiJson for every user-visible call and requires them at compile time', async () => {
+    vi.resetModules();
+    const aiJson = vi.fn(async () => ({ suggestions: [], summary: '', improvements: [], name: 'n', trigger: { type: 'manual' }, conditions: [], actions: [] }));
+    vi.doMock('../src/services/aiClient', () => ({ aiJson }));
+    const live = { onStatus: () => {} };
+    const { generateAutomationRule } = await import('../src/services/automationRuleGenerator');
+    const { generateAutomationSuggestions, reviewRule } = await import('../src/services/automationPanelService');
+    await generateAutomationRule('p', live).catch(() => {});
+    await generateAutomationSuggestions({ contactSummary: 'c', existingRules: [] }, live);
+    await reviewRule({ name: 'r', trigger: 'x', actions: [] } as any, live);
+    expect(aiJson).toHaveBeenCalledTimes(3);
+    for (const call of aiJson.mock.calls as unknown as any[][]) expect(call[1]).toBe(live);
+    // @ts-expect-error live is required: omitting it must not compile
+    void (() => generateAutomationRule('p'));
+    vi.doUnmock('../src/services/aiClient');
+  });
+});

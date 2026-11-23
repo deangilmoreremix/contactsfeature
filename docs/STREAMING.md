@@ -36,3 +36,6 @@ AI_SWEEP_SKIP_BUILD=1 npx playwright test -c tests/playwright/ai-sweep.config.ts
 AI_SWEEP_ONLY='^sdr\.' npx playwright test -c tests/playwright/ai-sweep.config.ts # subset by control id
 ```
 Report: `$AI_SWEEP_REPORT` (JSON, default in the session scratchpad) plus a printed table; light/dark screenshots of a subset go to `$SHOTS`. Ports: app 5311 (`AI_SWEEP_PORT`), drip server 5312 (`AI_SWEEP_DRIP_PORT`). Set `CHROME_PATH` to use another browser (default `/usr/bin/google-chrome`, `--no-sandbox`).
+
+## Unmounted AI panels
+Components that consume an AI endpoint but are intentionally not mounted in the app (so the sweep cannot click them) are listed, with the harness that covers each and how to mount one, in [UNMOUNTED_PANELS.md](./UNMOUNTED_PANELS.md).
