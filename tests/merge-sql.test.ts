@@ -117,6 +117,27 @@ describe('merge_contacts', () => {
     expect(audit.rows[0].metadata.snapshots).toHaveLength(2);
   });
 
+  it('moves sequence enrollments to the winner (ON DELETE CASCADE would otherwise stop the outreach) and drops duplicates', async () => {
+    await seed();
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS sequence_enrollments (
+        id uuid DEFAULT gen_random_uuid() PRIMARY KEY, user_id uuid, sequence_id uuid NOT NULL,
+        contact_id uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE, status text NOT NULL DEFAULT 'active');
+      TRUNCATE sequence_enrollments;
+      INSERT INTO sequence_enrollments (user_id, sequence_id, contact_id, status) VALUES
+        ('${U}', '${id(800)}', '${id(2)}', 'active'),   -- loser only: must move to the winner
+        ('${U}', '${id(801)}', '${id(2)}', 'active'),   -- loser and winner both in 801: loser's is dropped
+        ('${U}', '${id(801)}', '${id(1)}', 'active');
+    `);
+    const r = await db.query<{ r: any }>(`SELECT merge_contacts('${id(1)}', ARRAY['${id(2)}']::uuid[]) AS r`);
+    expect(r.rows[0]!.r.repointed).toMatchObject({ sequence_enrollments: 1 });
+    const rows = await db.query<any>(`SELECT sequence_id, contact_id FROM sequence_enrollments ORDER BY sequence_id`);
+    expect(rows.rows).toEqual([
+      { sequence_id: id(800), contact_id: id(1) },
+      { sequence_id: id(801), contact_id: id(1) },
+    ]);
+  });
+
   it('applies per-field overrides', async () => {
     await seed();
     await db.query(`SELECT merge_contacts('${id(1)}', ARRAY['${id(2)}']::uuid[], '{"email":"${id(2)}","firstname":"${id(2)}"}')`);

@@ -72,6 +72,7 @@ exports.handler = stream(withAuth(async (event, user) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }

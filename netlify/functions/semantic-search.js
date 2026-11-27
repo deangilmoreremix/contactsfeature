@@ -1,7 +1,7 @@
 /**
  * Netlify Function: semantic contact search with pgvector.
  * POST { query, limit?: 20 } -> { results: [{ contact, score }], embedded: n, pending: n }
- * Embeds missing/stale contacts (content_hash) in small batches per call, so large databases
+ * Embeds missing/stale contacts (content_hash) in small batches per call, scanning ALL of the owner's contacts in pages, so large databases
  * converge over a few searches; `pending` tells the client how many are still not indexed.
  */
 const crypto = require('crypto');
@@ -10,7 +10,21 @@ const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const responses = require('./_responses');
 
 const BATCH = 64;
-const MAX_CONTACTS = 2000;
+const PAGE_SIZE = 1000;
+/** Upper bound on contacts scanned per search (20 pages); beyond it the response says `truncated: true`. */
+const MAX_CONTACTS = 20000;
+
+/** Read every row a query returns, PAGE_SIZE at a time (PostgREST caps one response), up to `cap` rows. */
+async function fetchAllPages(buildQuery, cap = MAX_CONTACTS) {
+  const rows = [];
+  for (let from = 0; from < cap; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery().order('id', { ascending: true }).range(from, Math.min(from + PAGE_SIZE, cap) - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE_SIZE) return { rows, truncated: false };
+  }
+  return { rows, truncated: true };
+}
 
 /** Text used to embed a contact (tolerates both name/firstname schemas). */
 function contactContent(c) {
@@ -36,14 +50,13 @@ exports.handler = withAuth(async (event, user) => {
   if (!process.env.OPENAI_API_KEY) return errorResponse(503, 'Semantic search is unavailable: OPENAI_API_KEY is not configured');
 
   try {
-    const { data: contacts, error: cErr } = await supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null).limit(MAX_CONTACTS);
-    if (cErr) throw new Error(cErr.message);
-    const list = contacts || [];
-    const byId = new Map(list.map((c) => [c.id, c]));
+    // Page through ALL of the owner's contacts (not just the first slice) so every contact can be indexed.
+    const { rows: list, truncated: contactsTruncated } = await fetchAllPages(
+      () => supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null));
 
-    const { data: existing, error: eErr } = await supabase.from('contact_embeddings').select('contact_id, content_hash').eq('user_id', user.id).limit(MAX_CONTACTS);
-    if (eErr) throw new Error(eErr.message);
-    const have = new Map((existing || []).map((r) => [r.contact_id, r.content_hash]));
+    const { rows: existing } = await fetchAllPages(
+      () => supabase.from('contact_embeddings').select('contact_id, content_hash').eq('user_id', user.id));
+    const have = new Map(existing.map((r) => [r.contact_id, r.content_hash]));
 
     const stale = [];
     for (const c of list) {
@@ -71,6 +84,14 @@ exports.handler = withAuth(async (event, user) => {
     });
     if (mErr) throw new Error(mErr.message);
 
+    // Load the matched contacts by id (owner-scoped), independent of which contacts were scanned for indexing above.
+    const matchIds = (matches || []).map((m) => m.contact_id);
+    const byId = new Map();
+    if (matchIds.length) {
+      const { data: matched, error: mcErr } = await supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null).in('id', matchIds);
+      if (mcErr) throw new Error(mcErr.message);
+      for (const c of matched || []) byId.set(c.id, c);
+    }
     const results = (matches || [])
       .filter((m) => byId.has(m.contact_id))
       .map((m) => ({ contact: byId.get(m.contact_id), score: m.similarity }));
@@ -78,7 +99,7 @@ exports.handler = withAuth(async (event, user) => {
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
-      body: JSON.stringify({ results, embedded: todo.length, pending: Math.max(stale.length - todo.length, 0) }),
+      body: JSON.stringify({ results, embedded: todo.length, pending: Math.max(stale.length - todo.length, 0), ...(contactsTruncated ? { truncated: true } : {}) }),
     };
   } catch (e) {
     return errorResponse(500, `Semantic search failed: ${e.message}`);

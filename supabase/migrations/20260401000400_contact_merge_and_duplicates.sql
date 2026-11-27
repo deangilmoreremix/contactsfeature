@@ -82,7 +82,7 @@ DECLARE
   c_child_tables constant text[] := ARRAY[
     'contact_timeline', 'contact_attachments', 'custom_field_values', 'contact_enrichments',
     'deals', 'contact_agent_settings', 'emails', 'agent_logs', 'agent_threads', 'agent_runs',
-    'autopilot_state', 'calendar_events', 'contact_notes', 'contact_tasks'
+    'autopilot_state', 'calendar_events', 'contact_notes', 'contact_tasks', 'sequence_enrollments'
   ];
   v_loser_count int := coalesce(array_length(p_losers, 1), 0);
   v_win jsonb;
@@ -183,6 +183,20 @@ BEGIN
 
   IF p_dry_run THEN
     RETURN jsonb_build_object('dry_run', true, 'winner_id', p_winner, 'merged', v_merged);
+  END IF;
+
+  -- 0. A loser already enrolled in a sequence the winner is also in (active/paused) is dropped, so merging cannot make the
+  --    winner receive the same sequence twice. Every other enrollment is re-pointed to the winner below
+  --    (sequence_enrollments.contact_id is ON DELETE CASCADE: without this the outreach would silently stop).
+  IF to_regclass('public.sequence_enrollments') IS NOT NULL THEN
+    DELETE FROM sequence_enrollments le
+     WHERE le.contact_id = ANY (p_losers)
+       AND EXISTS (
+         SELECT 1 FROM sequence_enrollments we
+          WHERE we.contact_id = p_winner
+            AND we.sequence_id = le.sequence_id
+            AND we.status IN ('active', 'paused')
+       );
   END IF;
 
   -- 1. Re-point related rows (before deleting the losers so ON DELETE CASCADE can't remove them).
