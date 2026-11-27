@@ -138,6 +138,7 @@ exports.handler = stream(withAuth(async (event, user) => {
     console.error('Adaptive playbook generation failed:', error);
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         success: false,
         error: 'Adaptive playbook generation failed',

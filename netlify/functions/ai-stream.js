@@ -7,7 +7,7 @@
 const { stream } = require('@netlify/functions');
 const { authenticateRequest, CORS_HEADERS } = require('./_auth');
 const { streamResponse, retrieveResponse } = require('./_responses');
-const { buildOptions, underRateLimit, logUsage, withinTokenBudget, ownerMetadata, userOwnsResponse } = require('./_aiProxy');
+const { buildOptions, underRateLimit, logUsage, withinTokenBudget, ownerMetadata, userOwnsResponse, RESPONSE_ID_RE } = require('./_aiProxy');
 const { userOwnsConversation } = require('./_conversations');
 
 const { SSE_HEADERS: BASE_SSE, toSseReadable } = require('./_stream/sse');
@@ -46,7 +46,7 @@ exports.handler = stream(async (event) => {
 
   // Resume an earlier background stream (ownership verified through the response metadata).
   if (body.resume && typeof body.resume.responseId === 'string') {
-    if (!/^resp_[A-Za-z0-9]+$/.test(body.resume.responseId)) return plain(400, 'Invalid responseId');
+    if (!RESPONSE_ID_RE.test(body.resume.responseId)) return plain(400, 'Invalid responseId');
     try {
       const run = await retrieveResponse(body.resume.responseId);
       if (!run.metadata || run.metadata.user_id !== user.id) return plain(404, 'Run not found');

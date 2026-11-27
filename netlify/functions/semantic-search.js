@@ -12,7 +12,7 @@ const responses = require('./_responses');
 const BATCH = 64;
 const PAGE_SIZE = 1000;
 /** Upper bound on contacts scanned per search (20 pages); beyond it the response says `truncated: true`. */
-const MAX_CONTACTS = 20000;
+const MAX_CONTACTS = Number(process.env.SEMANTIC_SEARCH_MAX_ROWS) || 20000; // env override exists so tests can reach the cap cheaply
 
 /**
  * Read every row a query returns, PAGE_SIZE at a time (PostgREST caps one response), up to `cap` rows.
@@ -58,7 +58,7 @@ exports.handler = withAuth(async (event, user) => {
     const { rows: list, truncated: contactsTruncated } = await fetchAllPages(
       () => supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null), 'id');
 
-    const { rows: existing } = await fetchAllPages(
+    const { rows: existing, truncated: embeddingsTruncated } = await fetchAllPages(
       () => supabase.from('contact_embeddings').select('contact_id, content_hash').eq('user_id', user.id), 'contact_id');
     const have = new Map(existing.map((r) => [r.contact_id, r.content_hash]));
 
@@ -103,7 +103,7 @@ exports.handler = withAuth(async (event, user) => {
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
-      body: JSON.stringify({ results, embedded: todo.length, pending: Math.max(stale.length - todo.length, 0), ...(contactsTruncated ? { truncated: true } : {}) }),
+      body: JSON.stringify({ results, embedded: todo.length, pending: Math.max(stale.length - todo.length, 0), ...(contactsTruncated || embeddingsTruncated ? { truncated: true } : {}) }),
     };
   } catch (e) {
     return errorResponse(500, `Semantic search failed: ${e.message}`);

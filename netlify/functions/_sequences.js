@@ -105,8 +105,11 @@ async function advanceEnrollment(supabase, enrollment, now = new Date()) {
 
   // A contact moved to the trash (contacts.deleted_at) must not receive further steps. Pause (not fail) the enrollment so
   // nothing is lost; it is not picked up again because advanceDue only reads status 'active'.
+  // next_run_at is KEPT: the `resume` action in sequence-enroll.js only flips status back to 'active', so a resumed
+  // enrollment is simply overdue and runs on the next scheduler pass. Restoring the contact does NOT resume it by itself;
+  // resuming stays an explicit user action.
   if (contact && contact.deleted_at) {
-    await patchOnly({ status: 'paused', next_run_at: null, last_error: 'Contact is in the trash' });
+    await patchOnly({ status: 'paused', last_error: 'Contact is in the trash' });
     return { action: 'contact_trashed' };
   }
 

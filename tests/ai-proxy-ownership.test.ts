@@ -63,6 +63,8 @@ describe('userOwnsResponse', () => {
     expect(await userOwnsResponse('u1', NOMETA)).toBe(false);          // created before ownership stamping: not usable
     expect(await userOwnsResponse('u1', 'resp_doesnotexist123')).toBe(false); // retrieval fails
     expect(await userOwnsResponse('u1', 'not-a-response-id')).toBe(false);
+    expect(await userOwnsResponse('u1', 'resp_has-hyphen-or_underscore1')).toBe(false); // OpenAI ids are alphanumeric only
+    expect(require('../netlify/functions/_aiProxy.js').RESPONSE_ID_RE.test('resp_abc')).toBe(false); // too short
     expect(await userOwnsResponse('u1', undefined as any)).toBe(false);
   });
 });

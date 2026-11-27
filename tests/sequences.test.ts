@@ -87,7 +87,9 @@ describe('advanceEnrollment (db)', () => {
     const r = await S.advanceEnrollment(trashed, { id: 'e1', user_id: 'u1', sequence_id: 's1', contact_id: 'c1', current_step: 0, created_at: now.toISOString() }, now);
     expect(r).toEqual({ action: 'contact_trashed' });
     expect(calls.inserts).toHaveLength(0);
-    expect(calls.updates.at(-1).row).toMatchObject({ status: 'paused', next_run_at: null, last_error: 'Contact is in the trash' });
+    expect(calls.updates.at(-1).row).toMatchObject({ status: 'paused', last_error: 'Contact is in the trash' });
+    // the due time is kept (not nulled): `resume` only flips status back to active, so a null due time would strand the enrollment
+    expect(calls.updates.at(-1).row).not.toHaveProperty('next_run_at');
   });
 
   it('does nothing for an enrollment whose sequence is paused', async () => {

@@ -122,7 +122,8 @@ async function withinTokenBudget(options, deps = {}) {
   }
 }
 
-const RESPONSE_ID_RE = /^resp_[A-Za-z0-9_-]{8,}$/;
+/** OpenAI response ids are `resp_` + alphanumerics. The one pattern used by the proxy and the stream-resume check. */
+const RESPONSE_ID_RE = /^resp_[A-Za-z0-9]{8,}$/;
 
 /** Metadata stamped on every STORED proxy response so `previousResponseId` can later be tied back to its owner. */
 function ownerMetadata(userId, purpose) {
@@ -145,4 +146,4 @@ async function userOwnsResponse(userId, responseId, deps = {}) {
   }
 }
 
-module.exports = { withinTokenBudget, MAX_INPUT_TOKENS, buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE, ownerMetadata, userOwnsResponse };
+module.exports = { withinTokenBudget, MAX_INPUT_TOKENS, buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE, RESPONSE_ID_RE, ownerMetadata, userOwnsResponse };

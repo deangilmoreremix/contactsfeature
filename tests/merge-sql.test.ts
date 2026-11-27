@@ -138,6 +138,29 @@ describe('merge_contacts', () => {
     ]);
   });
 
+  it('drops a loser enrollment when the winner already has ANY enrollment in that sequence (e.g. completed), so no duplicate sends', async () => {
+    await seed();
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS sequence_enrollments (
+        id uuid DEFAULT gen_random_uuid() PRIMARY KEY, user_id uuid, sequence_id uuid NOT NULL,
+        contact_id uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE, status text NOT NULL DEFAULT 'active');
+      TRUNCATE sequence_enrollments;
+      INSERT INTO sequence_enrollments (user_id, sequence_id, contact_id, status) VALUES
+        ('${U}', '${id(810)}', '${id(1)}', 'completed'),  -- winner already finished sequence 810
+        ('${U}', '${id(810)}', '${id(2)}', 'active'),     -- loser still active in 810: would re-send steps the winner got
+        ('${U}', '${id(811)}', '${id(1)}', 'failed'),
+        ('${U}', '${id(811)}', '${id(2)}', 'active'),
+        ('${U}', '${id(812)}', '${id(2)}', 'active');     -- loser only: moves to the winner
+    `);
+    await db.query(`SELECT merge_contacts('${id(1)}', ARRAY['${id(2)}']::uuid[])`);
+    const rows = await db.query<any>(`SELECT sequence_id, contact_id, status FROM sequence_enrollments ORDER BY sequence_id`);
+    expect(rows.rows).toEqual([
+      { sequence_id: id(810), contact_id: id(1), status: 'completed' },
+      { sequence_id: id(811), contact_id: id(1), status: 'failed' },
+      { sequence_id: id(812), contact_id: id(1), status: 'active' },
+    ]);
+  });
+
   it('applies per-field overrides', async () => {
     await seed();
     await db.query(`SELECT merge_contacts('${id(1)}', ARRAY['${id(2)}']::uuid[], '{"email":"${id(2)}","firstname":"${id(2)}"}')`);

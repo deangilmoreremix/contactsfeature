@@ -185,8 +185,9 @@ BEGIN
     RETURN jsonb_build_object('dry_run', true, 'winner_id', p_winner, 'merged', v_merged);
   END IF;
 
-  -- 0. A loser already enrolled in a sequence the winner is also in (active/paused) is dropped, so merging cannot make the
-  --    winner receive the same sequence twice. Every other enrollment is re-pointed to the winner below
+  -- 0. A loser enrolled in a sequence the winner already has an enrollment in (ANY status: active, paused, completed,
+  --    failed, cancelled) is dropped, so merging cannot make the winner receive the same sequence twice. Every other
+  --    enrollment is re-pointed to the winner below
   --    (sequence_enrollments.contact_id is ON DELETE CASCADE: without this the outreach would silently stop).
   IF to_regclass('public.sequence_enrollments') IS NOT NULL THEN
     DELETE FROM sequence_enrollments le
@@ -195,7 +196,6 @@ BEGIN
          SELECT 1 FROM sequence_enrollments we
           WHERE we.contact_id = p_winner
             AND we.sequence_id = le.sequence_id
-            AND we.status IN ('active', 'paused')
        );
   END IF;
 

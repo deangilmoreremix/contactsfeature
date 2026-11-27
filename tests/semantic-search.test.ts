@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const N = 2500;
 const pad = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const contacts = Array.from({ length: N }, (_, i) => ({ id: pad(i), user_id: 'u1', name: `Person ${i}`, company: `Co ${i}`, deleted_at: null }));
+let embeddingRows: any[] = [];
 const upserts: any[][] = [];
 const embedCalls: string[][] = [];
 const rangeLog: Array<[number, number]> = [];
@@ -21,7 +22,7 @@ function fakeSupabase() {
   const from = (table: string) => {
     // real column sets: contact_embeddings has NO `id` column (primary key is contact_id)
     const columns: Record<string, string[]> = { contacts: ['id', 'user_id', 'name', 'company', 'deleted_at'], contact_embeddings: ['contact_id', 'user_id', 'content_hash', 'embedding', 'updated_at'] };
-    let data: any[] = table === 'contacts' ? [...contacts] : [];
+    let data: any[] = table === 'contacts' ? [...contacts] : table === 'contact_embeddings' ? [...embeddingRows] : [];
     let badColumn: string | null = null;
     let rangeFrom = 0; let rangeTo = Infinity;
     const q: any = {
@@ -71,5 +72,25 @@ describe('semantic-search with a large contact base', () => {
     expect(body.results).toHaveLength(1);
     expect(body.results[0].contact.id).toBe(MATCH_ID);
     expect(body.results[0].score).toBe(0.9);
+  });
+});
+
+describe('truncated flag', () => {
+  it('is reported when the EMBEDDINGS list alone hits the row cap (not only the contacts list)', async () => {
+    const modulePath = path.resolve('netlify/functions/semantic-search.js');
+    delete require.cache[modulePath];
+    process.env.SEMANTIC_SEARCH_MAX_ROWS = '3000'; // above the 2,500 contacts, at/below the embeddings below
+    // 3,000 embedding rows for contacts that exist: the embeddings scan reaches the cap, the contacts scan does not
+    embeddingRows = Array.from({ length: 3000 }, (_, i) => ({ contact_id: pad(i % N), user_id: 'u1', content_hash: 'stale', embedding: '[0.1]', updated_at: 'x' }));
+    try {
+      const { handler } = require(modulePath);
+      const res = await handler({ httpMethod: 'POST', headers: { authorization: 'Bearer good' }, body: JSON.stringify({ query: 'person' }) });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).truncated).toBe(true);
+    } finally {
+      delete process.env.SEMANTIC_SEARCH_MAX_ROWS;
+      embeddingRows = [];
+      delete require.cache[modulePath];
+    }
   });
 });
