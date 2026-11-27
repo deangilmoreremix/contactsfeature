@@ -19,16 +19,27 @@ const rangeLog: Array<[number, number]> = [];
 
 function fakeSupabase() {
   const from = (table: string) => {
+    // real column sets: contact_embeddings has NO `id` column (primary key is contact_id)
+    const columns: Record<string, string[]> = { contacts: ['id', 'user_id', 'name', 'company', 'deleted_at'], contact_embeddings: ['contact_id', 'user_id', 'content_hash', 'embedding', 'updated_at'] };
     let data: any[] = table === 'contacts' ? [...contacts] : [];
+    let badColumn: string | null = null;
     let rangeFrom = 0; let rangeTo = Infinity;
     const q: any = {
       select: () => q, is: () => q,
       eq: (k: string, v: unknown) => { data = data.filter((r) => r[k] === v); return q; },
       in: (k: string, v: unknown[]) => { data = data.filter((r) => v.includes(r[k])); return q; },
-      order: () => { data = [...data].sort((a, b) => String(a.id).localeCompare(String(b.id))); return q; },
+      order: (col: string) => {
+        if (!columns[table]!.includes(col)) badColumn = col; // PostgREST would reject this query
+        data = [...data].sort((a, b) => String(a[col]).localeCompare(String(b[col])));
+        return q;
+      },
       range: (f: number, t: number) => { rangeFrom = f; rangeTo = t; rangeLog.push([f, t]); return q; },
       upsert: (rows: any[]) => { upserts.push(rows); return Promise.resolve({ error: null }); },
-      then: (res: any, rej: any) => Promise.resolve({ data: data.slice(rangeFrom, rangeTo === Infinity ? undefined : rangeTo + 1), error: null }).then(res, rej),
+      then: (res: any, rej: any) => Promise.resolve(
+        badColumn
+          ? { data: null, error: { message: `column ${table}.${badColumn} does not exist` } }
+          : { data: data.slice(rangeFrom, rangeTo === Infinity ? undefined : rangeTo + 1), error: null },
+      ).then(res, rej),
     };
     return q;
   };

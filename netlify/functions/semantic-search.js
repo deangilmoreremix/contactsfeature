@@ -14,11 +14,15 @@ const PAGE_SIZE = 1000;
 /** Upper bound on contacts scanned per search (20 pages); beyond it the response says `truncated: true`. */
 const MAX_CONTACTS = 20000;
 
-/** Read every row a query returns, PAGE_SIZE at a time (PostgREST caps one response), up to `cap` rows. */
-async function fetchAllPages(buildQuery, cap = MAX_CONTACTS) {
+/**
+ * Read every row a query returns, PAGE_SIZE at a time (PostgREST caps one response), up to `cap` rows.
+ * `orderBy` must be a unique column of the queried table (contacts: id; contact_embeddings: contact_id, its primary key)
+ * so pages are stable and never skip or repeat rows.
+ */
+async function fetchAllPages(buildQuery, orderBy, cap = MAX_CONTACTS) {
   const rows = [];
   for (let from = 0; from < cap; from += PAGE_SIZE) {
-    const { data, error } = await buildQuery().order('id', { ascending: true }).range(from, Math.min(from + PAGE_SIZE, cap) - 1);
+    const { data, error } = await buildQuery().order(orderBy, { ascending: true }).range(from, Math.min(from + PAGE_SIZE, cap) - 1);
     if (error) throw new Error(error.message);
     rows.push(...(data || []));
     if (!data || data.length < PAGE_SIZE) return { rows, truncated: false };
@@ -52,10 +56,10 @@ exports.handler = withAuth(async (event, user) => {
   try {
     // Page through ALL of the owner's contacts (not just the first slice) so every contact can be indexed.
     const { rows: list, truncated: contactsTruncated } = await fetchAllPages(
-      () => supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null));
+      () => supabase.from('contacts').select('*').eq('user_id', user.id).is('deleted_at', null), 'id');
 
     const { rows: existing } = await fetchAllPages(
-      () => supabase.from('contact_embeddings').select('contact_id, content_hash').eq('user_id', user.id));
+      () => supabase.from('contact_embeddings').select('contact_id, content_hash').eq('user_id', user.id), 'contact_id');
     const have = new Map(existing.map((r) => [r.contact_id, r.content_hash]));
 
     const stale = [];
