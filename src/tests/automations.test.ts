@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { automationService } from '../services/automation.service';
 import { contactAPI } from '../services/contact-api.service';
+import type { ContactAutomation } from '../types/automation';
+import { asContact } from './helpers/contactFixtures';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -11,6 +13,24 @@ vi.mock('../services/logger.service', () => ({
     warn: vi.fn()
   }
 }));
+
+// Supabase + provider layer are mocked: rules/runs are DB-backed now.
+const db = vi.hoisted(() => {
+  const state: any = { rows: [], inserted: [], updated: null, deleted: null, error: null };
+  const chain: any = {
+    select: () => chain, eq: () => chain, order: () => chain, limit: () => chain, insert: (r: any) => { state.inserted.push(r); return chain; },
+    update: (r: any) => { state.updated = r; return chain; }, delete: () => { state.deleted = true; return chain; },
+    maybeSingle: () => Promise.resolve({ data: state.single ?? null, error: state.error }),
+    then: (res: any) => Promise.resolve({ data: state.rows, error: state.error }).then(res),
+  };
+  return { state, chain };
+});
+vi.mock('../lib/supabase', () => ({
+  supabase: { from: () => db.chain, auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) } },
+}));
+vi.mock('../services/messagingProviderService', () => ({ messagingProviderService: { sendEmail: vi.fn().mockResolvedValue({ success: true, provider: 'resend' }) } }));
+vi.mock('../services/sdrClient', () => ({ sdrAuthHeaders: vi.fn().mockResolvedValue({}) }));
+import { messagingProviderService } from '../services/messagingProviderService';
 
 describe('Automation Service', () => {
   beforeEach(() => {
@@ -28,7 +48,7 @@ describe('Automation Service', () => {
       };
 
       // Mock getting active automations
-      const mockAutomations = [{
+      const mockAutomations: ContactAutomation[] = [{
         id: 'auto1',
         name: 'Test Automation',
         type: 'scoring' as const,
@@ -47,7 +67,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue(mockAutomations);
 
-      await automationService.processContactAutomation(mockContact, 'contact_created');
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_created');
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_created');
       expect(updateSpy).toHaveBeenCalledWith('1', { status: 'prospect' });
@@ -63,38 +83,28 @@ describe('Automation Service', () => {
       };
 
       // Mock getting active automations
-      const mockAutomations = [{
+      const mockAutomations: ContactAutomation[] = [{
         id: 'auto1',
         name: 'Test Automation',
         type: 'scoring' as const,
         trigger: { type: 'contact_created' as const },
         conditions: [],
-        actions: [{ type: 'send_email', config: { templateId: 'welcome', automationId: 'auto1' } }],
+        actions: [{ type: 'send_email', config: { subject: 'Hi {{name}}', body: 'Hello {{name}}' } }],
         isActive: true,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z'
       }];
 
-      // Mock fetch for Netlify function call
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true })
-      });
-
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue(mockAutomations);
 
-      await automationService.processContactAutomation(mockContact, 'contact_created');
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_created');
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_created');
-      expect(global.fetch).toHaveBeenCalledWith('/.netlify/functions/send-contact-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact: mockContact,
-          templateId: 'welcome',
-          automationId: 'auto1'
-        })
-      });
+      expect(messagingProviderService.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+        to: 'test@example.com', subject: 'Hi Test Contact', body_text: 'Hello Test Contact', contact_id: '1'
+      }));
+      // the run is recorded in automation_runs
+      expect(db.state.inserted.at(-1)).toMatchObject({ rule_id: 'auto1', contact_id: '1', status: 'completed' });
     });
 
     it('should process contact update automations with changed fields', async () => {
@@ -110,7 +120,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue([]);
 
-      await automationService.processContactAutomation(mockContact, 'contact_updated', changedFields);
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_updated', changedFields);
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_updated');
     });
@@ -125,7 +135,7 @@ describe('Automation Service', () => {
       vi.spyOn(automationService, 'getActiveAutomations').mockRejectedValue(new Error('Database error'));
 
       // Should not throw
-      await expect(automationService.processContactAutomation(mockContact, 'contact_created')).resolves.not.toThrow();
+      await expect(automationService.processContactAutomation(asContact(mockContact), 'contact_created')).resolves.not.toThrow();
     });
 
     it('should skip automations when conditions are not met', async () => {
@@ -137,7 +147,7 @@ describe('Automation Service', () => {
       };
 
       // Mock getting active automations with conditions that won't be met
-      const mockAutomations = [{
+      const mockAutomations: ContactAutomation[] = [{
         id: 'auto1',
         name: 'Test Automation',
         type: 'scoring' as const,
@@ -156,7 +166,7 @@ describe('Automation Service', () => {
 
       vi.spyOn(automationService, 'getActiveAutomations').mockResolvedValue(mockAutomations);
 
-      await automationService.processContactAutomation(mockContact, 'contact_created');
+      await automationService.processContactAutomation(asContact(mockContact), 'contact_created');
 
       expect(automationService.getActiveAutomations).toHaveBeenCalledWith('contact_created');
       expect(updateSpy).not.toHaveBeenCalled(); // Should not execute action because condition is not met
@@ -164,55 +174,45 @@ describe('Automation Service', () => {
   });
 
 
-  describe('CRUD Operations', () => {
-    it('should create automation', async () => {
-      const automationData = {
-        name: 'Test Automation',
-        type: 'scoring' as const,
-        trigger: { type: 'contact_created' as const },
-        conditions: [],
-        actions: [],
-        isActive: true
-      };
+  describe('CRUD Operations (Supabase backed)', () => {
+    const row = { id: 'r1', name: 'Test Automation', type: 'scoring', trigger: { type: 'contact_created' }, conditions: [], actions: [], is_active: true, created_at: 'c', updated_at: 'u' };
+    beforeEach(() => { vi.restoreAllMocks(); db.state.rows = []; db.state.single = null; db.state.error = null; db.state.inserted = []; db.state.updated = null; db.state.deleted = null; });
 
-      const result = await automationService.createAutomation(automationData);
-
-      expect(result).toMatchObject({
-        ...automationData,
-        id: expect.stringContaining('automation_'),
-        createdAt: expect.any(String),
-        updatedAt: expect.any(String)
-      });
+    it('creates an automation row for the signed-in user', async () => {
+      db.state.single = row;
+      const result = await automationService.createAutomation({ name: 'Test Automation', type: 'scoring', trigger: { type: 'contact_created' }, conditions: [], actions: [], isActive: true });
+      expect(db.state.inserted[0]).toMatchObject({ user_id: 'u1', name: 'Test Automation', is_active: true });
+      expect(result).toMatchObject({ id: 'r1', isActive: true });
     });
 
-    it('should update automation', async () => {
-      const updates = { name: 'Updated Automation', isActive: false };
-
-      const result = await automationService.updateAutomation('auto1', updates);
-
-      expect(result).toEqual({});
-      // In real implementation, this would return the updated automation
+    it('updates mapped fields', async () => {
+      db.state.single = { ...row, is_active: false };
+      const result = await automationService.updateAutomation('r1', { isActive: false });
+      expect(db.state.updated).toMatchObject({ is_active: false });
+      expect(result.isActive).toBe(false);
     });
 
-    it('should delete automation', async () => {
-      await expect(automationService.deleteAutomation('auto1')).resolves.not.toThrow();
+    it('fails loudly when the automation does not exist', async () => {
+      await expect(automationService.updateAutomation('nope', { name: 'x' })).rejects.toThrow(/not found/);
     });
 
-    it('should get active automations', async () => {
-      // Clear any previous state that might affect this test
-      vi.clearAllMocks();
-
-      const result = await automationService.getActiveAutomations();
-
-      expect(result).toEqual([]);
-      // In real implementation, this would return automations from database
+    it('deletes and surfaces database errors', async () => {
+      await expect(automationService.deleteAutomation('r1')).resolves.not.toThrow();
+      expect(db.state.deleted).toBe(true);
+      db.state.error = { message: 'boom' };
+      await expect(automationService.deleteAutomation('r1')).rejects.toThrow('boom');
     });
 
-    it('should get automation history', async () => {
+    it('returns only active rules for the requested trigger', async () => {
+      db.state.rows = [row, { ...row, id: 'r2', trigger: { type: 'contact_updated' } }];
+      const result = await automationService.getActiveAutomations('contact_created');
+      expect(result.map((r) => r.id)).toEqual(['r1']);
+    });
+
+    it('reads execution history from automation_runs', async () => {
+      db.state.rows = [{ id: 'x', rule_id: 'r1', contact_id: 'c1', trigger: 'contact_created', status: 'failed', results: {}, error: 'nope', executed_at: 't' }];
       const result = await automationService.getAutomationHistory();
-
-      expect(result).toEqual([]);
-      // In real implementation, this would return execution history
+      expect(result[0]).toMatchObject({ automationId: 'r1', status: 'failed', error: 'nope' });
     });
   });
 });

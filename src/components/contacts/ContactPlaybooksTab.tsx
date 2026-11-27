@@ -1,20 +1,18 @@
 import React, { useState } from 'react';
 import { Contact } from '../../types/contact';
-import { PlaybookSelector } from '../playbooks/PlaybookSelector';
 import { PlaybookExecutor } from '../playbooks/PlaybookExecutor';
 import { AdaptivePlaybookGenerator } from '../ai-sales-intelligence/AdaptivePlaybookGenerator';
 import { CommunicationOptimizer } from '../ai-sales-intelligence/CommunicationOptimizer';
 import { DiscoveryQuestionsGenerator } from '../ai-sales-intelligence/DiscoveryQuestionsGenerator';
 import { DealHealthPanel } from '../ai-sales-intelligence/DealHealthPanel';
 import { ModernButton } from '../ui/ModernButton';
+import { SDRModal } from '../modals/SDRModal';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import {
   BookOpen,
   Target,
-  ArrowLeft,
   Sparkles,
   Brain,
-  MessageSquare,
   TrendingUp
 } from 'lucide-react';
 
@@ -30,18 +28,14 @@ type PlaybookView = 'selector' | 'executor' | 'adaptive';
 
 export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
   contact,
-  showAPIConfig,
+  showAPIConfig: _showAPIConfig,
   setShowAPIConfig,
-  showAISettings,
+  showAISettings: _showAISettings,
   setShowAISettings
 }) => {
   const [currentView, setCurrentView] = useState<PlaybookView>('selector');
+  const [showSDRModal, setShowSDRModal] = useState(false);
   const [selectedPlaybook, setSelectedPlaybook] = useState<any>(null);
-
-  const handleSelectPlaybook = (playbook: any) => {
-    setSelectedPlaybook(playbook);
-    setCurrentView('executor');
-  };
 
   const handleBackToSelector = () => {
     setSelectedPlaybook(null);
@@ -172,32 +166,8 @@ export const ContactPlaybooksTab: React.FC<ContactPlaybooksTabProps> = ({
               {/* Deal Health Panel Card */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
                 <DealHealthPanel
-                  deal={{
-                    id: contact.id,
-                    name: `${contact.firstName} ${contact.lastName}`.trim() || contact.name,
-                    value: contact.aiScore ? contact.aiScore * 1000 : 0,
-                    company: contact.company,
-                    stage: contact.status || 'prospect',
-                    closeDate: '',
-                    competitors: [],
-                    stakeholders: [],
-                    lastActivity: contact.updatedAt
-                  }}
-                  onRunAnalysis={() => console.log('Run analysis')}
-                  onGenerateReport={() => {
-                    const report = `
-Deal Health Report for ${contact.name}
-
-Overall Health Score: ${contact.aiScore || 75}/100
-Risk Level: Low
-Next Steps: Schedule follow-up meeting
-                    `;
-                    navigator.clipboard.writeText(report);
-                    alert('Health report copied to clipboard!');
-                  }}
-                  onViewRecommendations={() => {
-                    alert('View recommendations clicked');
-                  }}
+                  contactId={contact.id}
+                  contactName={`${contact.firstName} ${contact.lastName}`.trim() || contact.name}
                 />
               </div>
             </div>
@@ -260,7 +230,7 @@ Next Steps: Schedule follow-up meeting
                 Quick Actions
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <ModernButton
+                <ModernButton size="toolbar"
                   onClick={() => setCurrentView('selector')}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="outline"
@@ -269,7 +239,7 @@ Next Steps: Schedule follow-up meeting
                   <span>Browse Recurring Revenue Playbooks</span>
                 </ModernButton>
 
-                <ModernButton
+                <ModernButton size="toolbar"
                   onClick={() => setCurrentView('adaptive')}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="outline"
@@ -278,8 +248,8 @@ Next Steps: Schedule follow-up meeting
                   <span>Generate AI Playbook</span>
                 </ModernButton>
 
-                <ModernButton
-                  onClick={() => {/* Open SDR Modal */}}
+                <ModernButton size="toolbar"
+                  onClick={() => setShowSDRModal(true)}
                   className="flex items-center justify-center space-x-2 h-12"
                   variant="primary"
                 >
@@ -319,6 +289,9 @@ Next Steps: Schedule follow-up meeting
 
       {/* Main Content */}
       {renderContent()}
+      {showSDRModal && (
+        <SDRModal isOpen={showSDRModal} onClose={() => setShowSDRModal(false)} contact={contact} />
+      )}
     </div>
   );
 };

@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { buildSdrAgent } = require('./_aiClients');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
+
+const OUTPUT_SCHEMA = S.obj({ subject: S.str, body: S.str, next_action: S.str });
 
 const log = createLogger('run-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   const correlationId = generateCorrelationId();
   log.setCorrelationId(correlationId);
 
@@ -62,7 +67,7 @@ exports.handler = withAuth(async (event, user) => {
       contact,
     });
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const prefsBlock = buildPreferencesPromptBlock(prefs);
 
@@ -78,69 +83,68 @@ ${prefsBlock}
 
 Generate the next outreach message for step ${currentStep}. Return JSON with "subject", "body", and "next_action" fields.`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens: 1500 }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens: 1500, schema: OUTPUT_SCHEMA, schemaName: 'sdr_autopilot_step' }),
+      // DB writes (autopilot step, email draft) happen here, once, after the model finished.
+      finalize: async (content) => {
+        const parsed = parseJSONResponse(content, {
+          subject: `Follow up - Step ${currentStep}`,
+          body: content,
+          next_action: 'follow_up',
+        });
 
-    const parsed = parseJSONResponse(content, {
-      subject: `Follow up - Step ${currentStep}`,
-      body: content,
-      next_action: 'follow_up',
+        const nextStep = currentStep + 1;
+        const isComplete = nextStep > sequenceLength;
+
+        if (autopilotRow) {
+          const updatedState = {
+            ...(autopilotRow.state_json || {}),
+            current_step: isComplete ? sequenceLength : nextStep,
+            last_executed_at: new Date().toISOString(),
+            last_result: { subject: parsed.subject, next_action: parsed.next_action },
+          };
+
+          await supabase
+            .from('autopilot_state')
+            .update({
+              state_json: updatedState,
+              status: isComplete ? 'completed' : 'active',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('lead_id', contactId)
+            .eq('agent_type', 'sdr_autopilot');
+        }
+
+        await supabase.from('emails').insert({
+          contact_id: contactId,
+          from_email: 'sdr@smartcrm.ai',
+          to_email: contact.email,
+          subject: parsed.subject,
+          body_text: parsed.body,
+          status: 'draft',
+          is_inbound: false,
+          agent_type: 'sdr_autopilot',
+          user_id: user.id,
+        }).then(null, (err) => log.warn('Failed to save email draft', { error: err.message }));
+
+        log.info('Agent run completed', { contactId, step: currentStep, isComplete });
+
+        return {
+          contactId,
+          step: currentStep,
+          sequenceLength,
+          subject: parsed.subject,
+          body: parsed.body,
+          next_action: parsed.next_action,
+          isComplete,
+          nextStep: isComplete ? null : nextStep,
+        };
+      },
     });
-
-    const nextStep = currentStep + 1;
-    const isComplete = nextStep > sequenceLength;
-
-    if (autopilotRow) {
-      const updatedState = {
-        ...(autopilotRow.state_json || {}),
-        current_step: isComplete ? sequenceLength : nextStep,
-        last_executed_at: new Date().toISOString(),
-        last_result: { subject: parsed.subject, next_action: parsed.next_action },
-      };
-
-      await supabase
-        .from('autopilot_state')
-        .update({
-          state_json: updatedState,
-          status: isComplete ? 'completed' : 'active',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('lead_id', contactId)
-        .eq('agent_type', 'sdr_autopilot');
-    }
-
-    await supabase.from('emails').insert({
-      contact_id: contactId,
-      from_email: 'sdr@smartcrm.ai',
-      to_email: contact.email,
-      subject: parsed.subject,
-      body_text: parsed.body,
-      status: 'draft',
-      is_inbound: false,
-      agent_type: 'sdr_autopilot',
-      user_id: user.id,
-    }).then(null, (err) => log.warn('Failed to save email draft', { error: err.message }));
-
-    log.info('Agent run completed', { contactId, step: currentStep, isComplete });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        step: currentStep,
-        sequenceLength,
-        subject: parsed.subject,
-        body: parsed.body,
-        next_action: parsed.next_action,
-        isComplete,
-        nextStep: isComplete ? null : nextStep,
-      }),
-    };
   } catch (error) {
     log.error('Agent execution failed', { contactId, error: error.message });
     return errorResponse(500, 'SDR agent execution failed');
   }
-});
+}));

@@ -3,7 +3,8 @@
  * Handles web scraping, document analysis, and intelligence generation using GPT-5.1 Responses API
  */
 
-import { AnalysisResults, GeneratedContent, AnalysisInput, AnalysisProgress, AnalysisError } from '../types/productIntelligence';
+import type { LiveOptions } from './liveOptions';
+import { AnalysisResults, GeneratedContent } from '../types/productIntelligence';
 import { gpt51ResponsesService } from './gpt51ResponsesService';
 import { logger } from './logger.service';
 
@@ -21,12 +22,12 @@ export class ProductIntelligenceService {
   /**
    * Analyze web content from URLs using GPT-5.1
    */
-  async analyzeWebContent(urls: string[], context?: string): Promise<AnalysisResults> {
+  async analyzeWebContent(urls: string[], context?: string, live?: LiveOptions): Promise<AnalysisResults> {
     try {
       logger.info('Starting web content analysis with GPT-5.1', { urls, context });
 
       // Use GPT-5.1 for advanced analysis with high reasoning
-      const analysis = await gpt51ResponsesService.analyzeProductIntelligence(urls, [], context);
+      const analysis = await gpt51ResponsesService.analyzeProductIntelligence(urls, [], context, live);
 
       const result: AnalysisResults = {
         company: analysis.company,
@@ -215,48 +216,6 @@ export class ProductIntelligenceService {
       confidence: data.confidence || 0,
       analysisId: data.analysisId || `analysis_${Date.now()}`,
       timestamp: new Date(data.timestamp || Date.now())
-    };
-  }
-
-  /**
-   * Process and validate generated content
-   */
-  private processGeneratedContent(data: any): GeneratedContent {
-    return {
-      emails: data.emails || [],
-      callScripts: data.callScripts || [],
-      smsMessages: data.smsMessages || [],
-      discoveryQuestions: data.discoveryQuestions || {
-        qualification: [],
-        discovery: [],
-        technical: [],
-        budget: [],
-        timeline: [],
-        decision: []
-      },
-      salesPlaybook: data.salesPlaybook || {
-        id: '',
-        name: '',
-        phases: [],
-        estimatedDuration: 0,
-        successRate: 0,
-        targetDealSize: 0
-      },
-      communicationOptimization: data.communicationOptimization || {
-        originalContent: '',
-        optimizedContent: '',
-        improvements: [],
-        score: 0,
-        suggestions: []
-      },
-      dealHealthAnalysis: data.dealHealthAnalysis || {
-        overallScore: 0,
-        riskLevel: 'low',
-        recommendations: [],
-        nextSteps: [],
-        warningSigns: [],
-        positiveIndicators: []
-      }
     };
   }
 

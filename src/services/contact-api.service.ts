@@ -24,16 +24,19 @@
  * ```
  */
 
-import { httpClient } from './http-client.service';
 import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
 import { supabase } from './supabaseClient';
+import { compositeFromRow, compositeToRow } from '../lib/fields/compositeFields';
 import { encryptionService } from '../utils/encryption';
 import { Contact } from '../types/contact';
-import apiConfig from '../config/api.config';
+import { normalizeContactRow } from '../lib/contacts/softDelete';
+import { contactsToCsvBlob } from '../utils/contactCsv';
 
 export interface ContactFilters {
+  /** Restrict to these contact ids (used by export to honour client-side view filters / selection). */
+  ids?: string[];
   search?: string;
   interestLevel?: string;
   status?: string;
@@ -47,6 +50,8 @@ export interface ContactFilters {
   offset?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  /** Soft delete: 'exclude' (default) hides deleted contacts, 'only' lists the Trash. */
+  deleted?: 'exclude' | 'only';
 }
 
 export interface ContactListResponse {
@@ -67,15 +72,12 @@ export interface ContactStats {
 }
 
 class ContactAPIService {
-  private baseURL: string;
   private supabaseKey: string | null = null;
-  private isBackendAvailable = true;
-  private isMockMode = import.meta.env.DEV || import.meta.env.VITE_ENV === 'development';
+  private isMockMode = import.meta.env.DEV || import.meta.env['VITE_ENV'] === 'development';
   
   constructor() {
     // For contact operations, use direct database access instead of Edge Functions
     // Edge Functions are more suitable for complex operations like AI enrichment
-    this.baseURL = apiConfig.contactsAPI.baseURL;
     this.supabaseKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
     this.isMockMode = false; // Use Supabase instead of local storage
 
@@ -84,20 +86,12 @@ class ContactAPIService {
     console.log('Using Supabase for contact management');
   }
   
-  // Get headers for Supabase requests
-  private getSupabaseHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (this.supabaseKey) {
-      headers['Authorization'] = `Bearer ${this.supabaseKey}`;
-    }
-    
-    return headers;
-  }
-  
   // Check if we should use fallback mode
+  /** True when contacts are stored in the database (not the browser-only demo fallback). */
+  usesDatabase(): boolean {
+    return !this.shouldUseFallback();
+  }
+
   private shouldUseFallback(): boolean {
     const fallback = !this.supabaseKey || this.isMockMode; // Use Supabase if key is available
     console.log('ContactAPI shouldUseFallback:', fallback, 'supabaseKey:', !!this.supabaseKey, 'isMockMode:', this.isMockMode);
@@ -166,7 +160,7 @@ class ContactAPIService {
         avatarSrc: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
         sources: ['Conference', 'LinkedIn'],
         interestLevel: 'hot',
-        status: 'qualified',
+        status: 'prospect',
         lastConnected: '2024-01-20',
         aiScore: 92,
         tags: ['Enterprise', 'Decision Maker'],
@@ -204,7 +198,7 @@ class ContactAPIService {
         industry: 'Manufacturing',
         avatarSrc: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
         sources: ['Cold Email'],
-        interestLevel: 'warm',
+        interestLevel: 'medium',
         status: 'prospect',
         lastConnected: '2024-01-22',
         aiScore: 65,
@@ -242,7 +236,7 @@ class ContactAPIService {
         industry: 'Retail',
         avatarSrc: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
         sources: ['Website', 'Email'],
-        interestLevel: 'warm',
+        interestLevel: 'medium',
         status: 'prospect',
         lastConnected: '2024-01-25',
         aiScore: 73,
@@ -337,7 +331,7 @@ class ContactAPIService {
       logger.info('Using Supabase for contact creation');
       const { data, error } = await supabase
         .from('contacts')
-        .insert([sanitized])
+        .insert([compositeToRow(sanitized)])
         .select()
         .single();
 
@@ -346,10 +340,11 @@ class ContactAPIService {
         throw error;
       }
 
+      const created = compositeFromRow(data);
       // Cache the new contact
-      cacheService.setContact(data.id, data);
+      cacheService.setContact(created.id, created);
 
-      return data;
+      return created;
     } catch (error) {
       logger.error('Contact creation failed', error as Error);
       throw error;
@@ -384,7 +379,7 @@ class ContactAPIService {
       throw new Error('No updates provided');
     }
 
-    const sanitized = validationService.sanitizeContact(updates);
+    const sanitized = validationService.sanitizePartialContact(updates);
 
     // Check if using fallback mode
     const usingFallback = this.shouldUseFallback();
@@ -427,7 +422,7 @@ class ContactAPIService {
       try {
         const { data, error } = await supabase
           .from('contacts')
-          .update(sanitized)
+          .update(compositeToRow(sanitized))
           .eq('id', contactId)
           .select()
           .single();
@@ -437,15 +432,16 @@ class ContactAPIService {
           throw error;
         }
 
+        const updated = compositeFromRow(data);
         // Update cache
-        cacheService.setContact(contactId, data);
+        cacheService.setContact(contactId, updated);
 
         // Invalidate related cache entries
         cacheService.invalidateAllContacts();
 
         logger.info('Contact updated successfully via Supabase', { contactId, updates: Object.keys(updates) });
 
-        return data;
+        return updated;
       } catch (error) {
         logger.error('Contact update failed', error as Error);
         throw error;
@@ -453,24 +449,83 @@ class ContactAPIService {
     }
   }
   
+  /**
+   * Soft delete: moves the contact to the Trash (sets deleted_at / deletedAt). Use
+   * restoreContact to bring it back and destroyContact to remove it for good.
+   */
   async deleteContact(contactId: string): Promise<void> {
-    // Local storage fallback
-    logger.info('Using local storage for contact deletion');
+    const deletedAt = new Date().toISOString();
+    if (this.shouldUseFallback()) {
+      logger.info('Using local storage for contact soft deletion');
+      this.setLocalDeletedAt(contactId, deletedAt);
+    } else {
+      const { error } = await supabase.from('contacts').update({ deleted_at: deletedAt }).eq('id', contactId);
+      if (error) {
+        logger.error('Supabase contact soft delete failed', error);
+        throw error;
+      }
+    }
+    cacheService.invalidateContact(contactId);
+    cacheService.invalidateAllContacts();
+    logger.info('Contact moved to trash', { contactId });
+  }
+
+  /** Bring a contact back from the Trash. */
+  async restoreContact(contactId: string): Promise<void> {
+    if (this.shouldUseFallback()) {
+      this.setLocalDeletedAt(contactId, null);
+    } else {
+      const { error } = await supabase.from('contacts').update({ deleted_at: null }).eq('id', contactId);
+      if (error) {
+        logger.error('Supabase contact restore failed', error);
+        throw error;
+      }
+    }
+    cacheService.invalidateContact(contactId);
+    cacheService.invalidateAllContacts();
+    logger.info('Contact restored from trash', { contactId });
+  }
+
+  /** Permanently delete a contact (from the Trash). Cannot be undone. */
+  async destroyContact(contactId: string): Promise<void> {
+    if (this.shouldUseFallback()) {
+      const contacts = this.getLocalContacts();
+      const remaining = contacts.filter(c => c.id !== contactId);
+      if (remaining.length === contacts.length) {
+        throw new Error(`Contact with ID ${contactId} not found`);
+      }
+      this.saveLocalContacts(remaining);
+    } else {
+      const { error } = await supabase.from('contacts').delete().eq('id', contactId);
+      if (error) {
+        logger.error('Supabase contact permanent delete failed', error);
+        throw error;
+      }
+    }
+    cacheService.invalidateContact(contactId);
+    cacheService.invalidateAllContacts();
+    logger.info('Contact permanently deleted', { contactId });
+  }
+
+  /** Contacts currently in the Trash (newest deletion first). */
+  async getDeletedContacts(): Promise<Contact[]> {
+    const result = await this.getContacts({ deleted: 'only', limit: 500 });
+    return result.contacts
+      .map(c => normalizeContactRow(c) as Contact)
+      .sort((a, b) => String(b.deletedAt ?? '').localeCompare(String(a.deletedAt ?? '')));
+  }
+
+  private setLocalDeletedAt(contactId: string, deletedAt: string | null): void {
     const contacts = this.getLocalContacts();
-    const filteredContacts = contacts.filter(c => c.id !== contactId);
-    
-    if (filteredContacts.length === contacts.length) {
+    const index = contacts.findIndex(c => c.id === contactId);
+    const existing = contacts[index];
+    if (index === -1 || !existing) {
       throw new Error(`Contact with ID ${contactId} not found`);
     }
-    
-    this.saveLocalContacts(filteredContacts);
-    
-    // Remove from cache
-    cacheService.invalidateContact(contactId);
-    
-    logger.info('Contact deleted successfully', { contactId });
+    contacts[index] = { ...existing, deletedAt, updatedAt: new Date().toISOString() };
+    this.saveLocalContacts(contacts);
   }
-  
+
   /**
    * Retrieve contacts with optional filtering, sorting, and pagination
    *
@@ -537,9 +592,12 @@ class ContactAPIService {
     try {
       logger.info('Using Supabase for contacts list');
 
-      let query = supabase
+      let query: any = supabase
         .from('contacts')
         .select('*', { count: 'exact' });
+
+      // Soft delete: the active list never contains deleted rows; the Trash asks for them explicitly.
+      query = filters.deleted === 'only' ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null);
 
       // Apply filters to query
       query = this.applySupabaseFilters(query, filters);
@@ -559,7 +617,7 @@ class ContactAPIService {
       }
 
       const result: ContactListResponse = {
-        contacts: data || [],
+        contacts: (data || []).map((row: Contact) => compositeFromRow(row)),
         total: count || 0,
         limit,
         offset,
@@ -578,7 +636,9 @@ class ContactAPIService {
 
 
   private applyFilters(contacts: Contact[], filters: ContactFilters): Contact[] {
-    let filteredContacts = [...contacts];
+    let filteredContacts = filters.deleted === 'only'
+      ? contacts.filter(c => !!c.deletedAt)
+      : contacts.filter(c => !c.deletedAt);
 
     if (filters.search) {
       const search = filters.search.toLowerCase();
@@ -595,6 +655,10 @@ class ContactAPIService {
 
     if (filters.status && filters.status !== 'all') {
       filteredContacts = filteredContacts.filter(c => c.status === filters.status);
+    }
+
+    if (filters.industry) {
+      filteredContacts = filteredContacts.filter(c => c.industry === filters.industry);
     }
 
     if (filters.hasAIScore !== undefined) {
@@ -646,6 +710,10 @@ class ContactAPIService {
 
     if (filters.status && filters.status !== 'all') {
       query = query.eq('status', filters.status);
+    }
+
+    if (filters.industry) {
+      query = query.eq('industry', filters.industry);
     }
 
     if (filters.hasAIScore !== undefined) {
@@ -797,10 +865,11 @@ class ContactAPIService {
     
     for (const update of updates) {
       const contactIndex = contacts.findIndex(c => c.id === update.id);
-      if (contactIndex !== -1) {
+      const existingContact = contacts[contactIndex];
+      if (contactIndex !== -1 && existingContact) {
         // Apply updates
         const updatedContact: Contact = {
-          ...contacts[contactIndex],
+          ...existingContact,
           ...update.data,
           updatedAt: new Date().toISOString()
         };
@@ -823,6 +892,10 @@ class ContactAPIService {
   
   // Export Operations
   async exportContacts(filters: ContactFilters = {}, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
+    const { ids, ...queryFilters } = filters;
+    filters = queryFilters;
+    const idSet = ids ? new Set(ids) : null;
+    const pick = (contacts: Contact[]) => (idSet ? contacts.filter(c => idSet.has(c.id)) : contacts);
     if (this.shouldUseFallback()) {
       // Local storage fallback
       logger.info('Using local storage for contact export');
@@ -831,28 +904,11 @@ class ContactAPIService {
       const result = await this.getContacts(filters);
 
       if (format === 'json') {
-        const jsonString = JSON.stringify(result.contacts, null, 2);
+        const jsonString = JSON.stringify(pick(result.contacts), null, 2);
         return new Blob([jsonString], { type: 'application/json' });
       } else {
-        // CSV export
-        const headers = [
-          'id', 'firstName', 'lastName', 'email', 'phone', 'title',
-          'company', 'industry', 'interestLevel', 'status', 'aiScore'
-        ];
-
-        const rows = result.contacts.map(contact => {
-          return headers.map(header => {
-            const value = (contact as any)[header];
-            // Handle values that might contain commas or quotes
-            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value !== undefined && value !== null ? value : '';
-          }).join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv' });
+        // CSV export (escaped + formula-injection safe)
+        return contactsToCsvBlob(pick(result.contacts));
       }
     }
 
@@ -867,28 +923,11 @@ class ContactAPIService {
       const result = await this.getContacts(allFilters);
 
       if (format === 'json') {
-        const jsonString = JSON.stringify(result.contacts, null, 2);
+        const jsonString = JSON.stringify(pick(result.contacts), null, 2);
         return new Blob([jsonString], { type: 'application/json' });
       } else {
-        // CSV export
-        const headers = [
-          'id', 'firstName', 'lastName', 'email', 'phone', 'title',
-          'company', 'industry', 'interestLevel', 'status', 'aiScore'
-        ];
-
-        const rows = result.contacts.map(contact => {
-          return headers.map(header => {
-            const value = (contact as any)[header];
-            // Handle values that might contain commas or quotes
-            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value !== undefined && value !== null ? value : '';
-          }).join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv' });
+        // CSV export (escaped + formula-injection safe)
+        return contactsToCsvBlob(pick(result.contacts));
       }
     } catch (error) {
       logger.error('Contact export failed', error as Error);

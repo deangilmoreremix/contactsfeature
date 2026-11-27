@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ strategyRecommendations: S.strArr, objectionHandling: S.obj({ price: S.str, timing: S.str, competition: S.str, authority: S.str, notInterested: S.str }), concessionPlan: S.strArr, closingTechniques: S.strArr, riskAssessment: S.obj({ level: S.str, factors: S.strArr, mitigation: S.str }), nextSteps: S.strArr });
+
 const log = createLogger('negotiation-coach-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -43,7 +48,7 @@ exports.handler = withAuth(async (event, user) => {
       contact = contactData;
     }
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.5);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const prefsBlock = buildPreferencesPromptBlock(prefs);
@@ -70,36 +75,34 @@ Generate:
 
 Return JSON with "strategyRecommendations" (array), "objectionHandling" (object), "concessionPlan" (array), "closingTechniques" (array), "riskAssessment" (object), "nextSteps" (array).${prefsBlock}`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'negotiation_coaching' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          strategyRecommendations: [],
+          objectionHandling: {},
+          concessionPlan: [],
+          closingTechniques: [],
+          riskAssessment: {},
+          nextSteps: [],
+        });
 
-    const parsed = parseJSONResponse(content, {
-      strategyRecommendations: [],
-      objectionHandling: {},
-      concessionPlan: [],
-      closingTechniques: [],
-      riskAssessment: {},
-      nextSteps: [],
+        log.info('Negotiation coaching generated', { dealId, contactId, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          dealId,
+          negotiationStage: negotiationStage || 'discovery',
+          dealValue: deal.value || 0,
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Negotiation coaching generated', { dealId, contactId, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        dealId,
-        negotiationStage: negotiationStage || 'discovery',
-        dealValue: deal.value || 0,
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Negotiation coaching failed', { dealId, contactId, error: error.message });
     return errorResponse(500, 'Negotiation coaching failed');
   }
-});
+}));

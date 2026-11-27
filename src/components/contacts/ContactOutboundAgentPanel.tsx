@@ -272,7 +272,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
         {!isAutopilotRunning && !isAutopilotPaused && (
           <ModernButton
             variant="primary"
-            size="sm"
+            size="toolbar"
             onClick={handleStartAutopilot}
             disabled={isLoading}
             className="flex items-center space-x-2"
@@ -285,7 +285,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
           <>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={handlePauseAutopilot}
               disabled={isLoading}
               className="flex items-center space-x-2"
@@ -295,7 +295,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={handleStopAutopilot}
               disabled={isLoading}
               className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50"
@@ -309,7 +309,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
           <>
             <ModernButton
               variant="primary"
-              size="sm"
+              size="toolbar"
               onClick={handleResumeAutopilot}
               disabled={isLoading}
               className="flex items-center space-x-2"
@@ -319,7 +319,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={handleStopAutopilot}
               disabled={isLoading}
               className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50"
@@ -331,7 +331,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
         )}
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           onClick={handleLoadLogs}
           disabled={isLoading}
           className="flex items-center space-x-2 ml-auto"
@@ -456,7 +456,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
           <label className="block text-sm font-medium text-gray-700">Business Hours</label>
           <button
             onClick={() => handleSettingChange('respectBusinessHours', !settings.respectBusinessHours)}
-            className={`w-full px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
+            className={`w-full h-10 px-3 border rounded-lg text-sm font-medium transition-colors ${
               settings.respectBusinessHours
                 ? 'bg-blue-50 border-blue-300 text-blue-700'
                 : 'bg-white border-gray-300 text-gray-600'
@@ -547,7 +547,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
         <div className="flex items-center space-x-3">
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={() => setSettings({
               personaId: 'cold_saas_founder',
               isEnabled: false,
@@ -566,7 +566,7 @@ export const ContactOutboundAgentPanel: React.FC<ContactOutboundAgentPanelProps>
 
           <ModernButton
             variant="primary"
-            size="sm"
+            size="toolbar"
             onClick={handleSave}
             disabled={isLoading}
             className="flex items-center space-x-2"

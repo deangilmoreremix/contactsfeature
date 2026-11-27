@@ -156,7 +156,7 @@ class AnalyticsService {
   }
 
   // Calculate average response time for a specific tool
-  private calculateAverageResponseTime(toolName: string): number {
+  private calculateAverageResponseTime(_toolName: string): number {
     // This would ideally query the database for historical data
     // For now, return the global average
     return this.metrics.averageResponseTime;

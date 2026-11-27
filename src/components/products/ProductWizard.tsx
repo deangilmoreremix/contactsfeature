@@ -10,7 +10,6 @@ import {
   Check,
   Plus,
   Trash2,
-  Bot,
   Sparkles,
 } from 'lucide-react';
 import { ProductAIAssistant } from './ProductAIAssistant';
@@ -21,14 +20,10 @@ import type {
   PricingTier,
   ValueProposition,
   CompanySize,
-  PRODUCT_CATEGORIES,
-  COMMON_INDUSTRIES,
-  COMMON_DEPARTMENTS,
-  COMMON_TITLES,
 } from '../../types/userProduct';
 
 interface ProductWizardProps {
-  product?: UserProduct;
+  product?: UserProduct | undefined;
   onSave: (input: CreateProductInput) => Promise<void>;
   onClose: () => void;
 }
@@ -167,15 +162,17 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
 
   const handleNext = () => {
     const nextIndex = currentStepIndex + 1;
-    if (nextIndex < STEPS.length) {
-      setCurrentStep(STEPS[nextIndex].key);
+    const nextStep = STEPS[nextIndex];
+    if (nextIndex < STEPS.length && nextStep) {
+      setCurrentStep(nextStep.key);
     }
   };
 
   const handleBack = () => {
     const prevIndex = currentStepIndex - 1;
-    if (prevIndex >= 0) {
-      setCurrentStep(STEPS[prevIndex].key);
+    const prevStep = STEPS[prevIndex];
+    if (prevIndex >= 0 && prevStep) {
+      setCurrentStep(prevStep.key);
     }
   };
 
@@ -184,9 +181,9 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
     try {
       const input: CreateProductInput = {
         name: name.trim(),
-        tagline: tagline.trim() || undefined,
-        description: description.trim() || undefined,
-        category: category || undefined,
+        ...(tagline.trim() ? { tagline: tagline.trim() } : {}),
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(category ? { category } : {}),
         pricing_model: pricingModel,
         pricing_tiers: pricingTiers.filter(t => t.name.trim()),
         features: features.filter(f => f.trim()),
@@ -194,7 +191,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
         target_company_sizes: targetCompanySizes,
         target_titles: targetTitles,
         target_departments: targetDepartments,
-        ideal_customer_profile: idealCustomerProfile.trim() || undefined,
+        ...(idealCustomerProfile.trim() ? { ideal_customer_profile: idealCustomerProfile.trim() } : {}),
         value_propositions: valuePropositions.filter(v => v.title.trim()),
         pain_points_addressed: painPoints.filter(p => p.trim()),
         competitive_advantages: competitiveAdvantages.filter(c => c.trim()),
@@ -785,7 +782,7 @@ export function ProductWizard({ product, onSave, onClose }: ProductWizardProps) 
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 dark:bg-black/70">
       <div className={`flex gap-4 max-h-[90vh] ${showAIAssistant && !isAIMinimized ? 'max-w-5xl' : 'max-w-2xl'} w-full transition-all duration-300`}>
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex-1 max-h-[90vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">

@@ -1,12 +1,13 @@
 /**
  * Enhanced AI Integration Service
- * Utilizes task router for intelligent model selection between Gemma and OpenAI
+ * Utilizes task router for intelligent model selection between OpenAI model tiers
  */
 
 import { aiIntegration as baseAIIntegration } from './ai-integration.service';
 import { taskRouter, TaskContext, TaskPerformanceMetrics } from './task-router.service';
 import { logger } from './logger.service';
 import { Contact } from '../types';
+import type { LiveOptions } from './liveOptions';
 
 export interface EnhancedAIAnalysisRequest {
   contactId: string;
@@ -15,8 +16,10 @@ export interface EnhancedAIAnalysisRequest {
                      'relationship_mapping' | 'sentiment_analysis' | 'lead_qualification' | 
                      'opportunity_analysis' | 'risk_assessment' | 'engagement_prediction'>;
   urgency?: 'low' | 'medium' | 'high' | 'critical';
-  requirements?: Partial<import('./task-router.service').TaskRequirements>;
-  businessContext?: string;
+  requirements?: Partial<import('./task-router.service').TaskRequirements> | undefined;
+  businessContext?: string | undefined;
+  /** Live progress callbacks (insights / recommendations appear as they are written). */
+  live?: LiveOptions;
 }
 
 export interface SmartBulkRequest {
@@ -31,7 +34,7 @@ class EnhancedAIIntegrationService {
   
   async smartAnalyzeContact(request: EnhancedAIAnalysisRequest): Promise<any> {
     const startTime = Date.now();
-    const { contactId, contact, analysisTypes, urgency = 'medium', requirements, businessContext } = request;
+    const { contactId, contact, analysisTypes, urgency = 'medium', requirements, businessContext, live } = request;
     
     logger.info(`Starting smart analysis for contact ${contactId}`, {
       analysisTypes,
@@ -62,7 +65,7 @@ class EnhancedAIIntegrationService {
 
         // Execute the analysis with selected model
         const analysisResult = await this.executeAnalysisWithModel(
-          { contactId, contact, analysisTypes: [analysisType] },
+          { contactId, contact, analysisTypes: [analysisType], ...(live ? { live } : {}) },
           modelSelection
         );
 
@@ -125,8 +128,6 @@ class EnhancedAIIntegrationService {
 
   async smartBulkAnalysis(request: SmartBulkRequest): Promise<any> {
     const { contacts, analysisType, urgency = 'medium', costLimit, timeLimit } = request;
-    const startTime = Date.now();
-    
     logger.info(`Starting smart bulk analysis`, {
       contactCount: contacts.length,
       analysisType,
@@ -161,7 +162,7 @@ class EnhancedAIIntegrationService {
     
     if (costLimit && estimatedCost > costLimit) {
       // Try to find a cheaper model
-      const cheaperContext = { ...taskContext, requirements: { ...taskContext.requirements, cost: 'free' } };
+      const cheaperContext = { ...taskContext, requirements: { ...taskContext.requirements, cost: 'free' as const } };
       const cheaperSelection = await taskRouter.selectOptimalModel(cheaperContext);
       
       if (cheaperSelection.expectedCost * contacts.length <= costLimit) {
@@ -287,7 +288,7 @@ class EnhancedAIIntegrationService {
     urgency: string, 
     customRequirements?: any
   ): import('./task-router.service').TaskRequirements {
-    const baseRequirements = {
+    const baseRequirements: import('./task-router.service').TaskRequirements = {
       accuracy: urgency === 'critical' ? 'critical' as const : urgency === 'high' ? 'high' as const : 'medium' as const,
       speed: urgency === 'critical' ? 'fast' as const : 'medium' as const,
       cost: 'low' as const,
@@ -316,13 +317,9 @@ class EnhancedAIIntegrationService {
     return { ...baseRequirements, ...customRequirements };
   }
 
-  private getOptimalBatchSize(provider: string, totalContacts: number): number {
+  private getOptimalBatchSize(_provider: string, totalContacts: number): number {
     // Optimize batch size based on provider and total volume
-    if (provider === 'gemini') {
-      return Math.min(20, Math.ceil(totalContacts / 5)); // Gemini handles larger batches well
-    } else {
-      return Math.min(10, Math.ceil(totalContacts / 10)); // OpenAI more conservative
-    }
+    return Math.min(10, Math.ceil(totalContacts / 10)); // conservative OpenAI batches
   }
 
   private estimateAccuracy(result: any): number {
@@ -333,42 +330,46 @@ class EnhancedAIIntegrationService {
   }
 
   // Convenience methods for common operations
-  async scoreContact(contactId: string, contact: Contact, urgency: 'low' | 'medium' | 'high' = 'medium'): Promise<any> {
+  async scoreContact(contactId: string, contact: Contact, urgency: 'low' | 'medium' | 'high' = 'medium', live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['contact_scoring'],
-      urgency
+      urgency,
+      ...(live ? { live } : {})
     });
   }
 
-  async enrichContact(contactId: string, contact: Contact, priority: 'standard' | 'premium' = 'standard'): Promise<any> {
+  async enrichContact(contactId: string, contact: Contact, priority: 'standard' | 'premium' = 'standard', live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['contact_enrichment'],
       urgency: priority === 'premium' ? 'high' : 'medium',
-      requirements: priority === 'premium' ? { accuracy: 'critical', cost: 'medium' } : undefined
+      requirements: priority === 'premium' ? { accuracy: 'critical', cost: 'medium' } : undefined,
+      ...(live ? { live } : {})
     });
   }
 
-  async categorizeAndTag(contactId: string, contact: Contact): Promise<any> {
+  async categorizeAndTag(contactId: string, contact: Contact, live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['categorization', 'tagging'],
       urgency: 'medium',
-      requirements: { speed: 'fast', cost: 'free' }
+      requirements: { speed: 'fast', cost: 'free' },
+      ...(live ? { live } : {})
     });
   }
 
-  async qualifyLead(contactId: string, contact: Contact, businessContext?: string): Promise<any> {
+  async qualifyLead(contactId: string, contact: Contact, businessContext?: string, live?: LiveOptions): Promise<any> {
     return this.smartAnalyzeContact({
       contactId,
       contact,
       analysisTypes: ['lead_qualification', 'contact_scoring', 'sentiment_analysis'],
       urgency: 'high',
-      businessContext
+      businessContext,
+      ...(live ? { live } : {})
     });
   }
 

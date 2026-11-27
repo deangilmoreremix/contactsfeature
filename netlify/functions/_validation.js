@@ -1,14 +1,34 @@
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const ALLOWED_MODELS = new Set([
-  'gpt-5.2',
-  'gpt-5.2-thinking',
-  'gpt-5.2-instant',
-  'gpt-5.2-pro',
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4-turbo',
-]);
+const MODEL_ROLES = ['default', 'thinking', 'fast', 'pro'];
+
+/**
+ * Legacy ids that older saved preferences / clients may still send, mapped to the configured
+ * role (the real model ids live in src/config/models.json).
+ */
+const LEGACY_MODEL_ROLES = {
+  'gpt-5.2': 'default',
+  'gpt-5.2-thinking': 'thinking',
+  'gpt-5.2-instant': 'fast',
+  'gpt-5.2-pro': 'pro',
+  'gpt-5.1': 'default',
+  'gpt-4o': 'default',
+  'gpt-4-turbo': 'default',
+  'gpt-4o-mini': 'fast',
+};
+
+/** Role name or currently-configured model id -> allowed. Legacy ids are mapped to a role. */
+function normalizeModel(model) {
+  if (!model || typeof model !== 'string') return null;
+  const m = model.trim();
+  if (MODEL_ROLES.includes(m)) return m;
+  if (LEGACY_MODEL_ROLES[m]) return LEGACY_MODEL_ROLES[m];
+  try {
+    const { allowedModelIds } = require('./_responses');
+    if (allowedModelIds().has(m)) return m;
+  } catch (_) { /* helper unavailable: roles only */ }
+  return null;
+}
 
 function isValidUUID(value) {
   return typeof value === 'string' && UUID_REGEX.test(value);
@@ -22,9 +42,7 @@ function validateContactId(contactId) {
 
 function sanitizeModel(model) {
   if (!model || typeof model !== 'string') return null;
-  const trimmed = model.trim();
-  if (ALLOWED_MODELS.has(trimmed)) return trimmed;
-  return null;
+  return normalizeModel(model);
 }
 
 function clampTemperature(value) {
@@ -51,6 +69,8 @@ function parseBody(event) {
 }
 
 module.exports = {
+  normalizeModel,
+  MODEL_ROLES,
   isValidUUID,
   validateContactId,
   sanitizeModel,
@@ -58,5 +78,4 @@ module.exports = {
   clampMaxTokens,
   sanitizeString,
   parseBody,
-  ALLOWED_MODELS,
 };

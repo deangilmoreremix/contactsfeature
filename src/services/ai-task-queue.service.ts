@@ -5,6 +5,11 @@
 
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
+import { aiJson, AIError } from './aiClient';
+import {
+  SCORE_SCHEMA, TASK_ENRICHMENT_SCHEMA, TASK_INSIGHTS_SCHEMA, TASK_EMAIL_SCHEMA, TASK_ANALYSIS_SCHEMA,
+  normalizeScore, normalizeTaskEnrichment, normalizeTaskInsights, normalizeTaskEmail, normalizeTaskAnalysis,
+} from './taskQueueSchemas';
 
 export interface QueuedTask {
   id: string;
@@ -19,7 +24,7 @@ export interface QueuedTask {
   options: {
     timeout: number;
     retries: number;
-    provider?: 'openai' | 'gemini' | 'auto';
+    provider?: 'openai' | 'auto';
   };
   callbacks: {
     onProgress?: (progress: number) => void;
@@ -29,7 +34,7 @@ export interface QueuedTask {
   status: 'queued' | 'processing' | 'completed' | 'failed';
   progress: number;
   result?: any;
-  error?: string;
+  error?: string | undefined;
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
@@ -128,6 +133,7 @@ class AITaskQueueService {
 
     for (let i = 0; i < this.queue.length && batch.length < maxBatchSize; i++) {
       const task = this.queue[i];
+      if (!task) continue;
       
       // Check if task can be added to current batch
       if (this.canBatchWith(task, batch)) {
@@ -141,10 +147,10 @@ class AITaskQueueService {
   }
 
   private canBatchWith(task: QueuedTask, batch: QueuedTask[]): boolean {
-    if (batch.length === 0) return true;
+    const firstTask = batch[0];
+    if (!firstTask) return true;
     
     // Can batch tasks of the same type with similar priority
-    const firstTask = batch[0];
     return task.type === firstTask.type && 
            task.priority === firstTask.priority &&
            task.options.provider === firstTask.options.provider;
@@ -190,6 +196,7 @@ class AITaskQueueService {
       // Handle results
       results.forEach((result, index) => {
         const task = batch[index];
+        if (!task) return;
         
         if (result.success) {
           this.completeTask(task, result.data);
@@ -227,11 +234,12 @@ class AITaskQueueService {
   }
 
   private async executeBatch(batch: QueuedTask[]): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
-    const taskType = batch[0].type;
+    const taskType = batch[0]?.type;
     
     // Progress tracking
     const updateProgress = (taskIndex: number, progress: number) => {
       const task = batch[taskIndex];
+      if (!task) return;
       task.progress = progress;
       if (task.callbacks.onProgress) {
         task.callbacks.onProgress(progress);
@@ -267,16 +275,13 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 25);
       
       try {
-        // Simulate AI scoring API call
-        await this.sleep(1000 + Math.random() * 1000);
         updateProgress(i, 75);
         
-        const score = this.generateMockScore(task.data.contact);
+        const score = await this.runScoring(task.data.contact);
         updateProgress(i, 100);
         
         results.push({ success: true, data: score });
@@ -297,16 +302,13 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 30);
       
       try {
-        // Simulate AI enrichment API call
-        await this.sleep(1500 + Math.random() * 1000);
         updateProgress(i, 80);
         
-        const enrichment = this.generateMockEnrichment(task.data.contact);
+        const enrichment = await this.runEnrichment(task.data.contact);
         updateProgress(i, 100);
         
         results.push({ success: true, data: enrichment });
@@ -327,16 +329,13 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 20);
       
       try {
-        // Simulate AI insights generation
-        await this.sleep(2000 + Math.random() * 1500);
         updateProgress(i, 90);
         
-        const insights = this.generateMockInsights(task.data.contact);
+        const insights = await this.runInsights(task.data.contact);
         updateProgress(i, 100);
         
         results.push({ success: true, data: insights });
@@ -357,16 +356,13 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 15);
       
       try {
-        // Simulate email generation
-        await this.sleep(1800 + Math.random() * 1200);
         updateProgress(i, 85);
         
-        const email = this.generateMockEmail(task.data.contact, task.data.purpose);
+        const email = await this.runEmail(task.data.contact, task.data.purpose);
         updateProgress(i, 100);
         
         results.push({ success: true, data: email });
@@ -387,16 +383,13 @@ class AITaskQueueService {
   ): Promise<Array<{ success: boolean; data?: any; error?: string }>> {
     const results = [];
     
-    for (let i = 0; i < batch.length; i++) {
-      const task = batch[i];
+    for (const [i, task] of batch.entries()) {
       updateProgress(i, 35);
       
       try {
-        // Simulate analysis
-        await this.sleep(1200 + Math.random() * 800);
         updateProgress(i, 95);
         
-        const analysis = this.generateMockAnalysis(task.data);
+        const analysis = await this.runAnalysis(task.data);
         updateProgress(i, 100);
         
         results.push({ success: true, data: analysis });
@@ -431,7 +424,7 @@ class AITaskQueueService {
     });
   }
 
-  private failTask(task: QueuedTask, error: string): void {
+  private failTask(task: QueuedTask, error: string | undefined): void {
     task.attempts++;
     
     // Retry if attempts haven't exceeded max
@@ -490,7 +483,7 @@ class AITaskQueueService {
     });
   }
 
-  private getEndpointForTaskType(taskType: string): string {
+  private getEndpointForTaskType(taskType: string | undefined): string {
     const endpoints: Record<string, string> = {
       'scoring': '/smart-score',
       'enrichment': '/smart-enrichment',
@@ -499,7 +492,7 @@ class AITaskQueueService {
       'analysis': '/email-analyzer'
     };
     
-    return endpoints[taskType] || '/ai-generic';
+    return (taskType !== undefined ? endpoints[taskType] : undefined) || '/ai-generic';
   }
 
   private sleep(ms: number): Promise<void> {
@@ -509,73 +502,63 @@ class AITaskQueueService {
     });
   }
 
-  // Mock data generators for development
-  private generateMockScore(contact: any): any {
-    return {
-      overall: Math.floor(Math.random() * 40) + 60,
-      breakdown: {
-        fitScore: Math.floor(Math.random() * 30) + 70,
-        engagementScore: Math.floor(Math.random() * 40) + 60,
-        conversionProbability: Math.floor(Math.random() * 50) + 50,
-        urgencyScore: Math.floor(Math.random() * 30) + 40
-      },
-      reasoning: [`Strong profile at ${contact.company}`, 'Good engagement indicators'],
-      recommendations: ['Schedule follow-up call', 'Share case studies'],
-      nextBestActions: ['Email outreach', 'LinkedIn connection']
-    };
+  // INTENTIONALLY NON-STREAMING: queued background workers (retry/priority queue, no UI is attached to a single
+  // run), so these keep the plain aiJson request. User-visible AI goes through the streaming-capable services.
+  // Real AI calls (Responses API via the server proxy). Failures reject and flow into the task's retry/error handling.
+  private static readonly GROUND =
+    'Use ONLY the supplied data. Never invent values; use null / empty lists when the data does not support a field. ' +
+    'Confidence values are 0-100 integers justified by the supplied evidence, or null.';
+
+  private contactJson(contact: any): string {
+    return JSON.stringify({ today: new Date().toISOString().slice(0, 10), contact });
   }
 
-  private generateMockEnrichment(contact: any): any {
-    return {
-      socialProfiles: {
-        linkedin: `https://linkedin.com/in/${contact.firstName?.toLowerCase()}${contact.lastName?.toLowerCase()}`,
-        twitter: `https://twitter.com/${contact.firstName?.toLowerCase()}`
-      },
-      additionalInfo: {
-        jobLevel: 'Senior',
-        departmentSize: '50-100',
-        decisionMakingPower: 'High'
-      },
-      confidence: 85
-    };
+  private async runScoring(contact: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: `Score ONE sales lead. ${AITaskQueueService.GROUND}`,
+      input: this.contactJson(contact), schema: SCORE_SCHEMA, schemaName: 'lead_score', maxOutputTokens: 1500,
+    });
+    return normalizeScore(raw);
   }
 
-  private generateMockInsights(contact: any): any {
-    return [
-      {
-        type: 'opportunity',
-        title: 'High Conversion Potential',
-        description: `${contact.name} shows strong indicators for conversion`,
-        confidence: 85,
-        impact: 'high'
-      },
-      {
-        type: 'recommendation',
-        title: 'Optimal Outreach Timing',
-        description: 'Best contacted on Tuesday-Thursday, 2-4 PM',
-        confidence: 75,
-        impact: 'medium'
-      }
-    ];
+  private async runEnrichment(contact: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'thinking', effort: 'low',
+      instructions: `Enrich ONE contact using web_search. ${AITaskQueueService.GROUND} Profile URLs must come from search results.`,
+      input: this.contactJson(contact), schema: TASK_ENRICHMENT_SCHEMA, schemaName: 'task_enrichment',
+      tools: [{ type: 'web_search' }], maxOutputTokens: 2500,
+    });
+    return normalizeTaskEnrichment(raw);
   }
 
-  private generateMockEmail(contact: any, purpose: string): any {
-    return {
-      subject: `${purpose} - ${contact.company}`,
-      body: `Hi ${contact.firstName},\n\nI hope this email finds you well...`,
-      personalization: {
-        elements: ['company_name', 'industry', 'recent_news'],
-        confidence: 80
-      }
-    };
+  private async runInsights(contact: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: `Give insights about ONE contact. ${AITaskQueueService.GROUND} Return an empty list if nothing is supported.`,
+      input: this.contactJson(contact), schema: TASK_INSIGHTS_SCHEMA, schemaName: 'task_insights', maxOutputTokens: 2000,
+    });
+    return normalizeTaskInsights(raw);
   }
 
-  private generateMockAnalysis(data: any): any {
-    return {
-      score: Math.floor(Math.random() * 30) + 70,
-      insights: ['Good structure', 'Clear call to action'],
-      suggestions: ['Consider shorter subject line', 'Add more personalization']
-    };
+  private async runEmail(contact: any, purpose: string): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: 'Write a concise, personalised outreach email. Use only facts from the supplied contact; do not invent news, mutual connections or statistics.',
+      input: JSON.stringify({ purpose, contact }), schema: TASK_EMAIL_SCHEMA, schemaName: 'task_email', maxOutputTokens: 1500,
+    });
+    const email = normalizeTaskEmail(raw);
+    if (!email) throw new AIError('The model returned an empty email', 502);
+    return email;
+  }
+
+  private async runAnalysis(data: any): Promise<any> {
+    const raw = await aiJson<unknown>({
+      role: 'default', effort: 'low',
+      instructions: `Analyse the supplied content. ${AITaskQueueService.GROUND}`,
+      input: JSON.stringify(data ?? {}), schema: TASK_ANALYSIS_SCHEMA, schemaName: 'task_analysis', maxOutputTokens: 1500,
+    });
+    return normalizeTaskAnalysis(raw);
   }
 
   // Public API

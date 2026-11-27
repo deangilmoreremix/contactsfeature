@@ -2,14 +2,60 @@ const { supabase } = require('./_supabaseClient');
 const { CORS_HEADERS, errorResponse } = require('./_auth');
 const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
 const { createLogger, generateCorrelationId } = require('./_logger');
+const { verifyInboundEmail } = require('./_inboundAuth');
 
 const log = createLogger('inbound-email-webhook');
 
-async function findContactByEmail(fromEmail) {
+/** "Ada <Ada@Acme.io>" | {email|address} | "ada@acme.io" -> lowercased bare address ('' when none). */
+function bareAddress(v) {
+  if (!v) return '';
+  const raw = typeof v === 'string' ? v : (v.email || v.address || '');
+  const m = /<([^>]+)>/.exec(raw);
+  return String(m ? m[1] : raw).trim().toLowerCase();
+}
+
+/** All recipient addresses (To may be a string, a comma list, an object, or an array of those). */
+function recipientAddresses(to) {
+  const list = Array.isArray(to) ? to : (typeof to === 'string' ? to.split(',') : [to]);
+  return [...new Set(list.map(bareAddress).filter(Boolean))];
+}
+
+/**
+ * The inbound address a user receives on is their connected email provider's from_address
+ * (messaging_providers, channel 'email': replies to their outreach land there). Returns the owning user id only when
+ * the recipients map to exactly one user; no match, or an address shared by several users, is unresolved (null) so we
+ * never guess an owner.
+ */
+async function resolveRecipientOwner(to) {
+  const addrs = recipientAddresses(to).slice(0, 10);
+  if (addrs.length === 0) return null;
+  // One parameterised ILIKE per address (stored from_address may be mixed case). The value is passed as a query
+  // parameter, never spliced into a PostgREST filter string, and LIKE wildcards are escaped; the exact lowercase
+  // compare below is the final authority.
+  const owners = new Set();
+  for (const addr of addrs) {
+    const pattern = addr.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data } = await supabase
+      .from('messaging_providers')
+      .select('user_id, from_address')
+      .eq('channel', 'email')
+      .ilike('from_address', pattern);
+    for (const r of data || []) {
+      if (String(r.from_address || '').toLowerCase() === addr) owners.add(r.user_id);
+    }
+  }
+  return owners.size === 1 ? [...owners][0] : null;
+}
+
+/** Match the sender ONLY among the given user's contacts (never across users). */
+async function findContactByEmail(ownerId, fromEmail) {
+  if (!ownerId || !fromEmail) return null;
   const { data } = await supabase
     .from('contacts')
     .select('*')
-    .eq('email', fromEmail)
+    .eq('user_id', ownerId)
+    .in('email', [...new Set([fromEmail, fromEmail.toLowerCase()])])
+    .limit(1)
     .maybeSingle();
   return data;
 }
@@ -74,35 +120,64 @@ exports.handler = async (event) => {
   log.setCorrelationId(generateCorrelationId());
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try { body = JSON.parse(event.body || '{}'); } catch { return errorResponse(400, 'Invalid JSON body'); }
+
+    // No user session on this path: authenticity comes from the provider signature / shared secret (fails closed).
+    const verdict = verifyInboundEmail(event, body);
+    if (!verdict.ok) {
+      log.warn('Inbound email rejected', { reason: verdict.reason });
+      return errorResponse(verdict.status, verdict.reason);
+    }
+
     const { from, to, subject, text, html, messageId, inReplyTo } = body;
 
     if (!from) {
       return errorResponse(400, 'from email is required');
     }
 
-    const fromEmail = typeof from === 'string' ? from : (from.email || from.address || from);
-    const contact = await findContactByEmail(fromEmail);
+    const fromEmail = bareAddress(from);
+    const toRaw = Array.isArray(to) ? recipientAddresses(to).join(', ') : (typeof to === 'string' ? to : (to?.email || to?.address || ''));
+
+    // 1) recipient -> owning user, 2) sender -> a contact of THAT user only.
+    const ownerId = await resolveRecipientOwner(to);
+    const contact = await findContactByEmail(ownerId, fromEmail);
 
     if (!contact) {
+      // Stored unlinked (no contact; owner attached only when the recipient resolved) so nothing is lost or mis-attributed.
+      await supabase.from('emails').insert({
+        contact_id: null,
+        from_email: fromEmail,
+        to_email: toRaw,
+        subject: subject || '(no subject)',
+        body_html: html || text || '',
+        body_text: text || '',
+        status: 'received',
+        message_id: messageId || null,
+        thread_id: inReplyTo || null,
+        is_inbound: true,
+        user_id: ownerId || null,
+      });
+
       await supabase.from('agent_logs').insert({
         agent_type: 'inbound_webhook',
         level: 'warn',
-        message: `Inbound email from unknown contact`,
+        message: ownerId ? 'Inbound email from unknown contact' : 'Inbound email for unresolved recipient',
+        user_id: ownerId || null,
         metadata: { subject },
       }).catch(() => {});
 
       return {
         statusCode: 200,
         headers: CORS_HEADERS,
-        body: JSON.stringify({ processed: false, reason: 'Contact not found' }),
+        body: JSON.stringify({ processed: false, reason: 'Contact not found', recipientResolved: !!ownerId, stored: true }),
       };
     }
 
     await supabase.from('emails').insert({
       contact_id: contact.id,
       from_email: fromEmail,
-      to_email: typeof to === 'string' ? to : (to?.email || to?.address || ''),
+      to_email: toRaw,
       subject: subject || '(no subject)',
       body_html: html || text || '',
       body_text: text || '',
@@ -110,7 +185,7 @@ exports.handler = async (event) => {
       message_id: messageId || null,
       thread_id: inReplyTo || null,
       is_inbound: true,
-      user_id: contact.user_id || null,
+      user_id: contact.user_id || ownerId || null,
     });
 
     const { data: autopilotState } = await supabase

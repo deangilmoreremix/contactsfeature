@@ -1,12 +1,15 @@
 import React, { useState, useEffect, memo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
+import { aiPredictiveAnalytics } from '../../services/ai-predictive-analytics.service';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { predictionsFromPartial } from '../../lib/streaming/previews';
 import {
   BarChart3,
   TrendingUp,
@@ -14,14 +17,7 @@ import {
   Target,
   DollarSign,
   Activity,
-  Calendar,
-  Mail,
-  Phone,
-  MessageSquare,
-  Users,
-  Award,
   AlertTriangle,
-  Filter,
   Download,
   RefreshCw,
   Sparkles,
@@ -70,18 +66,29 @@ const dealProgressData = [
   { stage: 'Negotiation', value: 85, date: '2024-01-28' }
 ];
 
+/** KPI tile value from an AI prediction; 'No data' when none exists or the model returned null. */
+function kpi(data: any, type: string, unit: '%' | 'h' | 'usd'): string {
+  const p = data?.predictions?.find((x: any) => x.predictionType === type);
+  if (!p || p.value == null) return 'No data';
+  const v = Number(p.value);
+  if (unit === '%') return `${Math.round(v)}%`;
+  if (unit === 'h') return `${v.toFixed(1)}h`;
+  return '$' + Math.round(v).toLocaleString();
+}
+
 export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact }) => {
    const [timeRange, setTimeRange] = useState('6m');
-   const [selectedMetric, setSelectedMetric] = useState('engagement');
    const [showPredictive, setShowPredictive] = useState(false);
    const [analyticsData, setAnalyticsData] = useState<any>(null);
    const [loading, setLoading] = useState(false);
-   const [error, setError] = useState<string | null>(null);
+   const [, setError] = useState<string | null>(null);
 
    // Research state management
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
-   const [researchSources, setResearchSources] = useState<any[]>([]);
+   const [, setResearchSources] = useState<any[]>([]);
+   // Live status + partial results for the web research and the AI predictions
+   const live = useLiveCall();
 
    useEffect(() => {
      loadAnalyticsData();
@@ -101,15 +108,17 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
        const systemPrompt = `You are a business intelligence analyst. Research this company's industry trends, market position, financial performance, and competitive landscape. Provide detailed analytics and insights for sales intelligence.`;
        const userPrompt = `Research ${contact.company} in the ${contact.industry} industry. Provide market analysis, industry trends, company performance metrics, competitive positioning, and sales intelligence insights.`;
 
-       const searchResults = await webSearchService.searchWithAI(
+       const searchResults = await live.run((opts) => webSearchService.searchWithAI(
          searchQuery,
          systemPrompt,
          userPrompt,
          {
            includeSources: true,
            searchContextSize: 'high'
-         }
-       );
+         },
+         opts
+       ));
+       if (!searchResults) { researchThinking.complete('Research stopped'); return; }
 
        researchThinking.moveToSynthesizing('📊 Synthesizing analytics with industry data...');
 
@@ -199,47 +208,20 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
          setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
          setShowPredictive(true);
        } else {
-         // Real prediction generation for non-mock contacts
-         // Note: edgeFunctionService.generatePredictions may not exist or have different signature
-         // For now, use mock data for all contacts
-         const mockPredictions = [
-           {
-             predictionType: 'conversion',
-             value: 78,
-             confidence: 85,
-             timeframe: 'Next 30 days',
-             reasoning: [
-               'Strong engagement patterns observed',
-               'Positive response to recent communications',
-               'Company growth indicators align with our solution'
-             ]
-           },
-           {
-             predictionType: 'response_time',
-             value: 2.8,
-             confidence: 72,
-             timeframe: 'Next interaction',
-             reasoning: [
-               'Historical response time average: 3.2 hours',
-               'Recent activity suggests improved responsiveness',
-               'Optimal contact time identified: Tuesday 2-4 PM'
-             ]
-           },
-           {
-             predictionType: 'engagement',
-             value: 92,
-             confidence: 88,
-             timeframe: 'Next quarter',
-             reasoning: [
-               'Consistent interaction patterns',
-               'Multiple touchpoints established',
-               'Industry trends favor increased engagement'
-             ]
-           }
-         ];
-
-         setAnalyticsData((prev: any) => ({ ...prev, predictions: mockPredictions }));
+         // Real AI predictions, streamed: each prediction card appears as the model writes it.
          setShowPredictive(true);
+         const predictions = await live.run((opts) => aiPredictiveAnalytics.generatePredictions(
+           contact,
+           ['conversion', 'response_time', 'engagement'],
+           {
+             ...opts,
+             onPartial: (partial) => {
+               opts.onPartial?.(partial);
+               setAnalyticsData((prev: any) => ({ ...prev, predictions: predictionsFromPartial(partial) }));
+             },
+           }
+         ));
+         if (predictions) setAnalyticsData((prev: any) => ({ ...prev, predictions }));
        }
      } catch (error) {
        console.error('Failed to generate predictions:', error);
@@ -254,13 +236,6 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
     { value: '3m', label: 'Last 3 Months' },
     { value: '6m', label: 'Last 6 Months' },
     { value: '1y', label: 'Last Year' }
-  ];
-
-  const metrics = [
-    { id: 'engagement', label: 'Engagement', icon: Activity },
-    { id: 'response', label: 'Response Rate', icon: MessageSquare },
-    { id: 'pipeline', label: 'Pipeline Progress', icon: TrendingUp },
-    { id: 'channels', label: 'Channel Performance', icon: BarChart3 }
   ];
 
   return (
@@ -290,17 +265,17 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
               <option key={range.value} value={range.value}>{range.label}</option>
             ))}
           </select>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Download className="w-4 h-4" />
             <span>Export</span>
           </ModernButton>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <RefreshCw className="w-4 h-4" />
             <span>Refresh</span>
           </ModernButton>
           <ModernButton
             variant="primary"
-            size="sm"
+            size="toolbar"
             className="flex items-center space-x-2"
             onClick={handleGeneratePredictions}
             loading={loading}
@@ -311,6 +286,8 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
           </ModernButton>
         </div>
       </div>
+
+      <LiveRunStatus live={live} showText />
 
       {/* Advanced Predictive Analytics Panel */}
       {(showPredictive && analyticsData?.predictions) && (
@@ -331,14 +308,15 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                         {prediction.predictionType?.replace('_', ' ') || 'Prediction'}
                       </h5>
                       <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                        {prediction.confidence || 0}% confident
+                        {prediction.confidence != null ? `${prediction.confidence}% confident` : 'Confidence unknown'}
                       </span>
                     </div>
                     <div className="mb-3">
                       <div className="text-2xl font-bold text-purple-600">
-                        {prediction.predictionType === 'conversion' ? `${prediction.value || 0}%` :
-                         prediction.predictionType === 'response_time' ? `${(prediction.value || 0).toFixed(1)}h` :
-                         `${prediction.value || 0}`}
+                        {prediction.value == null ? 'No data' :
+                         prediction.predictionType === 'conversion' ? `${prediction.value}%` :
+                         prediction.predictionType === 'response_time' ? `${Number(prediction.value).toFixed(1)}h` :
+                         `${prediction.value}`}
                       </div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">{prediction.timeframe || 'Next period'}</div>
                     </div>
@@ -372,10 +350,10 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                       analyticsData.riskAssessment.overallRisk === 'high' ? 'bg-orange-500' :
                       'bg-red-500'
                     }`}>
-                      {analyticsData.riskAssessment.riskScore || 0}
+                      {analyticsData.riskAssessment.riskScore ?? '–'}
                     </div>
                     <div>
-                      <div className="text-lg font-semibold capitalize">{analyticsData.riskAssessment.overallRisk || 'Unknown'} Risk</div>
+                      <div className="text-lg font-semibold capitalize">{analyticsData.riskAssessment.overallRisk ? `${analyticsData.riskAssessment.overallRisk} Risk` : 'No data'}</div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">Overall Risk Level</div>
                     </div>
                   </div>
@@ -469,18 +447,18 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                         {trend.direction === 'increasing' ? <TrendingUp className="w-4 h-4" /> :
                          trend.direction === 'decreasing' ? <TrendingUp className="w-4 h-4 transform rotate-180" /> :
                          <Activity className="w-4 h-4" />}
-                        <span className="text-sm font-medium capitalize">{trend.direction || 'stable'}</span>
+                        <span className="text-sm font-medium capitalize">{trend.direction || 'No data'}</span>
                       </div>
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      Strength: {((trend.strength || 0) * 100).toFixed(1)}%
+                      Strength: {trend.strength != null ? `${(trend.strength * 100).toFixed(1)}%` : 'No data'}
                     </div>
                     <div className={`text-xs px-2 py-1 rounded ${
                       trend.significance === 'high' ? 'bg-red-100 text-red-800' :
                       trend.significance === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-green-100 text-green-800'
                     }`}>
-                      {(trend.significance || 'low').toUpperCase()} SIGNIFICANCE
+                      {trend.significance ? `${String(trend.significance).toUpperCase()} SIGNIFICANCE` : 'NO DATA'}
                     </div>
                   </div>
                 ))}
@@ -492,7 +470,7 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                     <Layers className="w-4 h-4 text-purple-600" />
                     <span className="font-medium text-purple-900">Seasonality Detected</span>
                     <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                      {analyticsData.trendAnalysis.seasonality.confidence || 0}% confident
+                      {analyticsData.trendAnalysis.seasonality.confidence != null ? `${analyticsData.trendAnalysis.seasonality.confidence}% confident` : 'Confidence unknown'}
                     </span>
                   </div>
                   <p className="text-sm text-purple-800">{analyticsData.trendAnalysis.seasonality.pattern || 'Pattern detected'}</p>
@@ -513,14 +491,9 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">85%</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpi(analyticsData, 'engagement', '%')}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">Engagement Score</p>
-            <p className="text-xs text-green-600 mt-1">
-              {analyticsData?.predictions?.find((p: any) => p.predictionType === 'engagement') ?
-                `AI Predicted: ${analyticsData.predictions.find((p: any) => p.predictionType === 'engagement')?.value}%` :
-                '+12% from last month'
-              }
-            </p>
+            <p className="text-xs text-gray-500 mt-1">AI predicted, no measured history</p>
           </div>
         </GlassCard>
         
@@ -532,14 +505,9 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">78%</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Response Rate</p>
-            <p className="text-xs text-green-600 mt-1">
-              {analyticsData?.predictions?.find((p: any) => p.predictionType === 'conversion') ?
-                `AI Predicted: ${analyticsData.predictions.find((p: any) => p.predictionType === 'conversion')?.value}%` :
-                '+5% from last month'
-              }
-            </p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpi(analyticsData, 'conversion', '%')}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Conversion Probability</p>
+            <p className="text-xs text-gray-500 mt-1">AI predicted, no measured history</p>
           </div>
         </GlassCard>
         
@@ -551,14 +519,9 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-red-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">3.2h</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Avg Response Time</p>
-            <p className="text-xs text-red-600 mt-1">
-              {analyticsData?.predictions?.find((p: any) => p.predictionType === 'response_time') ?
-                `AI Predicted: ${analyticsData.predictions.find((p: any) => p.predictionType === 'response_time')?.value.toFixed(1)}h` :
-                '+0.8h from last month'
-              }
-            </p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpi(analyticsData, 'response_time', 'h')}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Predicted Response Time</p>
+            <p className="text-xs text-gray-500 mt-1">AI predicted, no measured history</p>
           </div>
         </GlassCard>
         
@@ -570,13 +533,10 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">$85K</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Pipeline Value</p>
-            <p className="text-xs text-green-600 mt-1">
-              {analyticsData?.riskAssessment ?
-                `Risk Level: ${analyticsData.riskAssessment.overallRisk}` :
-                '+$15K from last month'
-              }
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpi(analyticsData, 'deal_size', 'usd')}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Predicted Deal Size</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {analyticsData?.riskAssessment?.overallRisk ? `Risk Level: ${analyticsData.riskAssessment.overallRisk}` : 'AI predicted, no measured history'}
             </p>
           </div>
         </GlassCard>
@@ -617,7 +577,9 @@ export const ContactAnalytics: React.FC<ContactAnalyticsProps> = memo(({ contact
                 innerRadius={60}
                 outerRadius={100}
                 dataKey="value"
-                label={({ name, value }) => `${name}: ${value}%`}
+                label={({ x, y, textAnchor, name, value }: any) => (
+                  <text x={x} y={y} textAnchor={textAnchor} fontSize={12} fill="currentColor" className="text-gray-700 dark:text-gray-200">{`${name}: ${value}%`}</text>
+                )}
               >
                 {channelPerformance.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />

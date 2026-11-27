@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   RefreshCw,
-  Filter,
   Download,
   Mail,
   Phone,
@@ -10,22 +9,16 @@ import {
   Linkedin,
   CheckCircle2,
   Circle,
-  User,
   Building,
   Briefcase,
   Target,
   ChevronDown,
   ChevronUp,
-  FileText,
   Sparkles,
 } from 'lucide-react';
 import type {
   UserProduct,
-  ProductContactMatchWithContact,
   DraftType,
-  getMatchTier,
-  getMatchTierColor,
-  getMatchTierLabel,
 } from '../../types/userProduct';
 import { useProductMatches, useProductDrafts } from '../../hooks/useProductMatches';
 
@@ -427,7 +420,7 @@ export function ProductMatchDashboard({
       </div>
 
       {showDraftModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Generate Drafts for {selectedContacts.size} Contacts

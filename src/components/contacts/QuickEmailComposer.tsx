@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Contact } from '../../types';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
-import { emailTrackingService } from '../../services/emailTrackingService';
 import { emailSchedulerService } from '../../services/emailSchedulerService';
 import { copyEmailToClipboard } from '../../utils/clipboardUtils';
 import { EmailTemplateSelector } from './EmailTemplateSelector';
@@ -11,17 +10,9 @@ import { EmailForm } from './EmailForm';
 import {
   Mail,
   Send,
-  Clock,
-  Sparkles,
   X,
   Copy,
-  Save,
-  Zap,
-  Target,
-  TrendingUp,
-  Loader2,
-  FileText,
-  Calendar
+  Save
 } from 'lucide-react';
 
 interface QuickEmailComposerProps {
@@ -124,6 +115,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
   const [scheduledTime, setScheduledTime] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   // Initialize with template if contact has specific context
   useEffect(() => {
@@ -176,26 +168,16 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       return;
     }
 
+    setSendError(null);
     setIsSending(true);
     try {
-      // Generate unique email ID
-      const emailId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // Track email send
-      const emailEvent = emailTrackingService.trackEvent({
-        emailId,
-        contactId: contact.id,
-        eventType: 'sent',
-        metadata: {
-          template: emailData.template,
-          priority: emailData.priority,
-          composer: 'quick'
-        }
+      // Send through the user's own provider (stored in `emails`, tracked via pixel/link rewrite)
+      await emailSchedulerService.sendNow({
+        to: emailData.to,
+        subject: emailData.subject,
+        body: emailData.body,
+        contactId: contact.id
       });
-
-      // Send email via mailto (enhanced version)
-      const mailtoUrl = `mailto:${emailData.to}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;
-      window.open(mailtoUrl, '_blank');
 
       // Call onSend callback if provided
       if (onSend) {
@@ -205,7 +187,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to send email:', error);
-      alert('Failed to send email. Please try again.');
+      setSendError(error instanceof Error ? error.message : 'Failed to send email. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -224,6 +206,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
       return;
     }
 
+    setSendError(null);
     setIsScheduling(true);
     try {
       // Schedule email using email scheduler service
@@ -237,11 +220,11 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
         priority: emailData.priority
       });
 
-      alert(`Email scheduled for ${scheduledDateTime.toLocaleString()}`);
+      alert(`Email scheduled for ${scheduledDateTime.toLocaleString()}. It will be sent within 5 minutes of that time.`);
       onClose();
     } catch (error) {
       console.error('Failed to schedule email:', error);
-      alert('Failed to schedule email. Please try again.');
+      setSendError(error instanceof Error ? error.message : 'Failed to schedule email. Please try again.');
     } finally {
       setIsScheduling(false);
     }
@@ -257,7 +240,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
       <GlassCard className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -280,6 +263,11 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {sendError && (
+            <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+              {sendError}
+            </div>
+          )}
           {/* Email Form */}
           <EmailForm
             emailData={emailData}
@@ -311,7 +299,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
         {/* Footer Actions */}
         <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={handleCopyToClipboard}
               className="flex items-center space-x-2"
@@ -320,7 +308,7 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
               <span>Copy</span>
             </ModernButton>
 
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={() => {/* Save as draft */}}
               className="flex items-center space-x-2"
@@ -331,14 +319,14 @@ export const QuickEmailComposer: React.FC<QuickEmailComposerProps> = ({
           </div>
 
           <div className="flex items-center space-x-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
             >
               Cancel
             </ModernButton>
 
-            <ModernButton
+            <ModernButton size="toolbar"
               onClick={handleSendNow}
               loading={isSending}
               className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-2"

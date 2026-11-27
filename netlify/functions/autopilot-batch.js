@@ -47,6 +47,7 @@ exports.handler = withAuth(async (event, user) => {
       .from('autopilot_state')
       .select('id, lead_id, current_stage, follow_up_count, next_action_at, user_id')
       .eq('status', 'active')
+      .eq('user_id', user.id) // the caller's own leads only (the scheduler handles every user)
       .lte('next_action_at', now)
       .order('next_action_at', { ascending: true })
       .limit(BATCH_SIZE);

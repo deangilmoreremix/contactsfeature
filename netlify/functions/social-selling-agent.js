@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ connectionRequest: S.str, followUpMessage: S.str, engagementIdeas: S.str, profileComments: S.str, timingRecommendations: S.str });
+
 const log = createLogger('social-selling-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -31,7 +36,7 @@ exports.handler = withAuth(async (event, user) => {
     if (contactError) throw new Error(`Database error: ${contactError.message}`);
     if (!contact) return errorResponse(404, 'Contact not found');
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const contactName = `${contact.firstname || ''} ${contact.lastname || ''}`.trim() || 'there';
@@ -64,34 +69,32 @@ Make it highly personalized and professional${prefsBlock}
 
 Return JSON with "connectionRequest", "followUpMessage", "engagementIdeas", "profileComments", "timingRecommendations".`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'social_selling' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          connectionRequest: '',
+          followUpMessage: '',
+          engagementIdeas: '',
+          profileComments: '',
+          timingRecommendations: '',
+        });
 
-    const parsed = parseJSONResponse(content, {
-      connectionRequest: '',
-      followUpMessage: '',
-      engagementIdeas: '',
-      profileComments: '',
-      timingRecommendations: '',
+        log.info('Social selling content generated', { contactId, platform, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          platform: platform || 'linkedin',
+          campaignType: campaignType || 'connection_request',
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Social selling content generated', { contactId, platform, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        platform: platform || 'linkedin',
-        campaignType: campaignType || 'connection_request',
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Social selling generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Social selling generation failed');
   }
-});
+}));

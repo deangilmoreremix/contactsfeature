@@ -28,7 +28,6 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
   formData,
   onAutoFill,
   className = '',
-  size = 'md'
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [autoFillMode, setAutoFillMode] = useState<'smart' | 'conservative' | 'aggressive'>('smart');
@@ -137,7 +136,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
         >
           <ModernButton
             variant="primary"
-            size={size}
+            size="toolbar"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             disabled={!hasMinimumData}
             className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
@@ -152,7 +151,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
         {/* Settings Button */}
         <ModernButton
           variant="outline"
-          size={size}
+          size="toolbar"
           onClick={() => {
             // Toggle auto-fill mode
             const modes: Array<typeof autoFillMode> = ['smart', 'conservative', 'aggressive'];
@@ -217,7 +216,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
                     searchQuery={getSearchQuery()}
                     onDataFound={handleAutoFill}
                     variant="outline"
-                    size="sm"
+                    size="toolbar"
                     className="w-full justify-start p-3 hover:bg-gray-50 border-0 hover:border-gray-200"
                     showConfidence={false}
                     disabled={!hasMinimumData}
@@ -251,7 +250,7 @@ export const AIAutoFillButton: React.FC<AIAutoFillButtonProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-1">
                 <CheckCircle className="w-3 h-3 text-green-500" />
-                <span className="text-xs text-gray-600">Powered by OpenAI & Gemini</span>
+                <span className="text-xs text-gray-600">Powered by OpenAI</span>
               </div>
               <button
                 onClick={() => setIsDropdownOpen(false)}

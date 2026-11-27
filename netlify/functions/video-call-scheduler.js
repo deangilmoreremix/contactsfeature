@@ -1,22 +1,23 @@
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions, parseJsonOr } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
 const log = createLogger('video-call-scheduler');
 
-const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
-const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
-const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
+const BRIEF_SCHEMA = S.obj({ agenda: S.strArr, suggestedSlots: S.strArr, prepNotes: S.strArr, followUpDraft: S.str });
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
   if (!body) return errorResponse(400, 'Invalid JSON body');
 
-  const { contactId, platform, title, startTime, duration } = body;
+  const { contactId, title, startTime, duration } = body;
   const idErr = validateContactId(contactId);
   if (idErr) return errorResponse(400, idErr);
 
@@ -40,86 +41,52 @@ exports.handler = withAuth(async (event, user) => {
       ? `Use this proven meeting scheduling framework as your guide:\n${gtmPrompt}\n\n---\n\n`
       : '';
 
-    let meetingDetails = null;
     let gtmPromptUsed = !!gtmPrompt;
 
-    if (platform && title && startTime) {
-      if (platform.toLowerCase() === 'zoom') {
-        meetingDetails = await scheduleZoomMeeting({ title, startTime, duration, participants: [email] });
-      }
+    // Scheduling is stored in Supabase calendar_events (no external video provider).
+    let calendarEventId = null;
+    if (title && startTime) {
+      const when = new Date(startTime);
+      if (Number.isNaN(when.getTime())) return errorResponse(400, 'startTime must be a valid date');
+      const { data: eventRow, error: eventError } = await supabase
+        .from('calendar_events')
+        .insert({ user_id: user.id, contact_id: contactId, title, scheduled_for: when.toISOString(), duration_minutes: Number(duration) > 0 ? Number(duration) : 30, status: 'scheduled' })
+        .select('id')
+        .maybeSingle();
+      if (eventError) throw new Error(`Database error: ${eventError.message}`);
+      calendarEventId = eventRow ? eventRow.id : null;
     }
 
-    const response = {
-      contactId,
-      platform: platform || 'zoom',
-      meetingTitle: title || `Meeting with ${contactName}`,
-      scheduledTime: startTime,
-      duration: duration || 30,
-      joinUrl: meetingDetails?.joinUrl || null,
-      gtmPromptUsed,
-      contactName,
-      company,
-      scheduledAt: new Date().toISOString(),
-    };
+    const meeting = { title: title || `Meeting with ${contactName}`, when: startTime || null, duration: Number(duration) > 0 ? Number(duration) : 30 };
+    const prompt = `${gtmBlock}Prepare a meeting brief for ${contactName} at ${company}. Meeting: ${JSON.stringify(meeting)}.
+Contact: ${JSON.stringify({ title: contact.title, industry: contact.industry, notes: contact.notes, status: contact.status })}
+Use only this data; do not invent facts. If no time was given, suggestedSlots lists generic suggestions of the form "Tue 10:00-10:30" for the contact's likely business hours and says so in prepNotes.
+Return JSON with "agenda" (array), "suggestedSlots" (array), "prepNotes" (array) and "followUpDraft" (a short follow-up email body).`;
 
-    log.info('Video call scheduled', { contactId, platform, gtmPromptUsed });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify(response),
-    };
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: 'default', maxTokens: 1200, schema: BRIEF_SCHEMA, schemaName: 'meeting_brief' }),
+      finalize: (content) => {
+        const brief = parseJsonOr(content, null);
+        if (!brief || typeof brief !== 'object') throw new Error('AI did not return structured JSON');
+        log.info('Video call scheduled', { contactId, calendarEventId, gtmPromptUsed });
+        return {
+          contactId,
+          calendarEventId,
+          meetingTitle: meeting.title,
+          scheduledTime: startTime,
+          duration: meeting.duration,
+          gtmPromptUsed,
+          contactName,
+          company,
+          ...brief,
+          scheduledAt: new Date().toISOString(),
+        };
+      },
+    });
   } catch (error) {
     log.error('Video call scheduling failed', { contactId, error: error.message });
     return errorResponse(500, 'Video call scheduling failed');
   }
-});
-
-async function scheduleZoomMeeting(meetingData) {
-  try {
-    if (!ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET || !ZOOM_ACCOUNT_ID) {
-      return { joinUrl: null, error: 'Zoom not configured' };
-    }
-
-    const tokenResponse = await fetch('https://zoom.us/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64')}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: 'grant_type=account_credentials&account_id=' + ZOOM_ACCOUNT_ID
-    });
-
-    if (!tokenResponse.ok) {
-      return { joinUrl: null, error: 'Failed to get Zoom token' };
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    const meetingResponse = await fetch('https://api.zoom.us/v2/users/me/meetings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        topic: meetingData.title,
-        type: 2,
-        start_time: new Date(meetingData.startTime).toISOString(),
-        duration: meetingData.duration || 30,
-        timezone: 'UTC',
-        settings: { host_video: true, participant_video: true, join_before_host: false }
-      })
-    });
-
-    if (!meetingResponse.ok) {
-      return { joinUrl: null, error: 'Failed to create Zoom meeting' };
-    }
-
-    const zoomMeeting = await meetingResponse.json();
-    return { id: zoomMeeting.id.toString(), joinUrl: zoomMeeting.join_url };
-  } catch (error) {
-    return { joinUrl: null, error: error.message };
-  }
-}
+}));

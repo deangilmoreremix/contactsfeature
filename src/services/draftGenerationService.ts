@@ -8,50 +8,51 @@ import type {
   PersonalizationToken,
   ProductContactMatch,
 } from '../types/userProduct';
-import { gpt52ProductIntelligenceService, AIContentGeneration } from './gpt52ProductIntelligenceService';
+import { gpt52ProductIntelligenceService } from './gpt52ProductIntelligenceService';
 import { logger } from './logger.service';
 
 interface DraftGenerationContext {
   product: UserProduct;
   contact: Contact;
-  match?: ProductContactMatch;
+  match?: ProductContactMatch | undefined;
   tone: DraftTone;
 }
 
 interface GeneratedDraft {
-  subject?: string;
+  subject?: string | undefined;
   body: string;
   personalization_tokens: Record<string, PersonalizationToken>;
 }
 
 interface AIGeneratedDraft extends GeneratedDraft {
-  aiReasoning?: string;
-  alternativeVersions?: string[];
-  callToAction?: string;
+  aiReasoning?: string | undefined;
+  alternativeVersions?: string[] | undefined;
+  callToAction?: string | undefined;
 }
 
-const TONE_MODIFIERS: Record<DraftTone, { style: string; phrases: string[] }> = {
-  formal: {
-    style: 'professional and structured',
-    phrases: ['I would like to', 'Please allow me to', 'I am writing to', 'Would you be available'],
-  },
-  casual: {
-    style: 'friendly and conversational',
-    phrases: ['Hey', 'Quick note', 'Just wanted to', 'How about'],
-  },
-  urgent: {
-    style: 'direct and action-oriented',
-    phrases: ['Time-sensitive', 'Act now', 'Immediate opportunity', 'Do not miss'],
-  },
-  friendly: {
-    style: 'warm and personable',
-    phrases: ['Hope you are doing well', 'I noticed', 'Thought of you', 'Would love to'],
-  },
-  professional: {
-    style: 'balanced and business-appropriate',
-    phrases: ['I wanted to reach out', 'Based on', 'Looking forward to', 'Happy to discuss'],
-  },
-};
+function tokenValue(tokens: Record<string, PersonalizationToken>, key: string): string {
+  return tokens[key]?.value ?? '';
+}
+
+/**
+ * Placeholder match used when no scored match exists. The remaining score/reason fields are
+ * intentionally absent: callers fall back with `||` when they are missing.
+ */
+function buildDefaultMatch(product: UserProduct, contact: Contact, userId: string): ProductContactMatch {
+  const placeholder: Pick<
+    ProductContactMatch,
+    'id' | 'product_id' | 'contact_id' | 'user_id' | 'match_score' | 'match_reasons' | 'calculated_at'
+  > = {
+    id: '',
+    product_id: product.id,
+    contact_id: contact.id,
+    user_id: userId,
+    match_score: 50,
+    match_reasons: [],
+    calculated_at: new Date().toISOString()
+  };
+  return placeholder as ProductContactMatch;
+}
 
 export class DraftGenerationService {
   private buildPersonalizationTokens(
@@ -81,7 +82,7 @@ export class DraftGenerationService {
 
     tokens['contact_title'] = {
       key: 'contact_title',
-      value: contact.title || contact.job_title || 'professional',
+      value: contact.title || (contact as Contact & { job_title?: string }).job_title || 'professional',
       source: 'contact',
     };
 
@@ -106,7 +107,7 @@ export class DraftGenerationService {
     if (product.value_propositions.length > 0) {
       tokens['main_value_prop'] = {
         key: 'main_value_prop',
-        value: product.value_propositions[0].title,
+        value: product.value_propositions[0]?.title ?? '',
         source: 'product',
       };
     }
@@ -114,7 +115,7 @@ export class DraftGenerationService {
     if (product.pain_points_addressed.length > 0) {
       tokens['key_pain_point'] = {
         key: 'key_pain_point',
-        value: product.pain_points_addressed[0],
+        value: product.pain_points_addressed[0] ?? '',
         source: 'product',
       };
     }
@@ -122,7 +123,7 @@ export class DraftGenerationService {
     if (match?.why_buy_reasons?.length) {
       tokens['why_buy'] = {
         key: 'why_buy',
-        value: match.why_buy_reasons[0],
+        value: match.why_buy_reasons[0] ?? '',
         source: 'ai_generated',
       };
     }
@@ -133,12 +134,11 @@ export class DraftGenerationService {
   generateEmailDraft(context: DraftGenerationContext): GeneratedDraft {
     const { product, contact, match, tone } = context;
     const tokens = this.buildPersonalizationTokens(product, contact, match);
-    const toneStyle = TONE_MODIFIERS[tone];
 
-    const firstName = tokens['contact_first_name'].value;
-    const company = tokens['contact_company'].value;
-    const industry = tokens['contact_industry'].value;
-    const productName = tokens['product_name'].value;
+    const firstName = tokenValue(tokens, 'contact_first_name');
+    const company = tokenValue(tokens, 'contact_company');
+    const industry = tokenValue(tokens, 'contact_industry');
+    const productName = tokenValue(tokens, 'product_name');
 
     const painPoint = product.pain_points_addressed[0] || 'improving efficiency';
     const valueProp = product.value_propositions[0]?.title || product.tagline || 'transform your business';
@@ -198,10 +198,10 @@ export class DraftGenerationService {
     const { product, contact, match } = context;
     const tokens = this.buildPersonalizationTokens(product, contact, match);
 
-    const firstName = tokens['contact_first_name'].value;
-    const company = tokens['contact_company'].value;
-    const title = tokens['contact_title'].value;
-    const productName = tokens['product_name'].value;
+    const firstName = tokenValue(tokens, 'contact_first_name');
+    const company = tokenValue(tokens, 'contact_company');
+    const title = tokenValue(tokens, 'contact_title');
+    const productName = tokenValue(tokens, 'product_name');
 
     const painPoints = product.pain_points_addressed.slice(0, 2);
     const objections = match?.objections_anticipated || ['budget', 'timing'];
@@ -271,8 +271,8 @@ If call unsuccessful, send follow-up email within 24 hours referencing the call.
     const { product, contact, tone } = context;
     const tokens = this.buildPersonalizationTokens(product, contact);
 
-    const firstName = tokens['contact_first_name'].value;
-    const productName = tokens['product_name'].value;
+    const firstName = tokenValue(tokens, 'contact_first_name');
+    const productName = tokenValue(tokens, 'product_name');
     const valueProp = product.value_propositions[0]?.title || product.tagline || 'boost results';
 
     let body = '';
@@ -301,11 +301,11 @@ If call unsuccessful, send follow-up email within 24 hours referencing the call.
     const { product, contact, tone } = context;
     const tokens = this.buildPersonalizationTokens(product, contact);
 
-    const firstName = tokens['contact_first_name'].value;
-    const company = tokens['contact_company'].value;
-    const title = tokens['contact_title'].value;
-    const industry = tokens['contact_industry'].value;
-    const productName = tokens['product_name'].value;
+    const firstName = tokenValue(tokens, 'contact_first_name');
+    const company = tokenValue(tokens, 'contact_company');
+    const title = tokenValue(tokens, 'contact_title');
+    const industry = tokenValue(tokens, 'contact_industry');
+    const productName = tokenValue(tokens, 'product_name');
 
     const painPoint = product.pain_points_addressed[0] || 'growth challenges';
     let body = '';
@@ -537,15 +537,7 @@ Looking forward to it`;
     tone: DraftTone = 'professional',
     match?: ProductContactMatch
   ): Promise<ProductDraft | null> {
-    const defaultMatch: ProductContactMatch = match || {
-      id: '',
-      product_id: product.id,
-      contact_id: contact.id,
-      user_id: userId,
-      match_score: 50,
-      match_reasons: [],
-      calculated_at: new Date().toISOString()
-    };
+    const defaultMatch: ProductContactMatch = match || buildDefaultMatch(product, contact, userId);
 
     const generated = await this.generateAIDraft(product, contact, defaultMatch, draftType, tone);
 
@@ -648,15 +640,7 @@ Looking forward to it`;
 
       const batchPromises = batch.map(async (contact) => {
         const match = matches?.get(contact.id);
-        const defaultMatch: ProductContactMatch = match || {
-          id: '',
-          product_id: product.id,
-          contact_id: contact.id,
-          user_id: userId,
-          match_score: 50,
-          match_reasons: [],
-          calculated_at: new Date().toISOString()
-        };
+        const defaultMatch: ProductContactMatch = match || buildDefaultMatch(product, contact, userId);
 
         try {
           const generated = await this.generateAIDraft(product, contact, defaultMatch, draftType, tone);

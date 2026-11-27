@@ -1,7 +1,8 @@
 const { supabase } = require('./_supabaseClient');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { buildSdrSystemPrompt, parseJsonResponse } = require('./_streamingUtils');
-const { createStreamingResponse } = require('./_openaiClient');
+const { runDual } = require('./_stream/dual');
+const { sdrOptions, S } = require('./_stream/helpers');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
@@ -9,12 +10,10 @@ const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTe
 const log = createLogger('win-back-sdr');
 
 // Main handler - supports both streaming and non-streaming
-exports.handler = withAuth(async (event, user) => {
-  log.setCorrelationId(generateCorrelationId());
+const { stream } = require('@netlify/functions');
 
-  // Check if streaming is requested
-  const isStreaming = event.headers?.accept?.includes('text/event-stream') || 
-                      event.queryStringParameters?.stream === 'true';
+exports.handler = stream(withAuth(async (event, user) => {
+  log.setCorrelationId(generateCorrelationId());
 
   // Parse body
   let body = {};
@@ -66,7 +65,7 @@ exports.handler = withAuth(async (event, user) => {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_THINKING_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_THINKING_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 1200);
     const contactName = contact.firstname || contact.name || 'there';
@@ -122,115 +121,44 @@ Email requirements:
 - Have a clear, low-friction call to action
 - Warm, empathetic tone`;
 
-    // If streaming requested, return streaming response
-    if (isStreaming) {
-      const responseStream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          
-          try {
-            let fullContent = '';
-
-            for await (const chunk of createStreamingResponse({
-              instructions: systemPrompt,
-              input: userInput,
-              model: sdrModel,
-              temperature,
-              maxTokens,
-            })) {
-              if (chunk.type === 'token') {
-                fullContent += chunk.token;
-                const data = JSON.stringify({ 
-                  type: 'token', 
-                  token: chunk.token,
-                  partial: fullContent 
-                });
-                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-              } else if (chunk.type === 'error') {
-                const errorData = JSON.stringify({ type: 'error', error: chunk.error });
-                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-                controller.close();
-                return;
-              }
-            }
-
-            const parsed = parseJsonResponse(fullContent, {
-              subject: `We'd love to have you back, ${contactName}`,
-              body: fullContent,
-              churnReason: 'Analysis unavailable',
-              winBackOffer: 'Contact us for a special returning customer offer',
-            });
-
-            log.info('Win-back email generated (streaming)', { contactId, model: sdrModel });
-
-            const completeData = JSON.stringify({ type: 'complete', data: parsed });
-            controller.enqueue(encoder.encode(`data: ${completeData}\n\n`));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (error) {
-            log.error('Streaming win-back failed', { contactId, error: error.message });
-            const errorData = JSON.stringify({ type: 'error', error: error.message });
-            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-            controller.close();
-          }
-        }
-      });
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-        body: responseStream,
-        isBase64Encoded: false,
-      };
-    }
-
-    // Non-streaming response
-    let fullContent = '';
-    for await (const chunk of createStreamingResponse({
-      instructions: systemPrompt,
-      input: userInput,
-      model: sdrModel,
-      temperature,
-      maxTokens,
-    })) {
-      if (chunk.type === 'token') {
-        fullContent += chunk.token;
-      } else if (chunk.type === 'complete') {
-        fullContent = chunk.content;
-      }
-    }
-
-    const parsed = parseJsonResponse(fullContent, {
-      subject: `We'd love to have you back, ${contactName}`,
-      body: fullContent,
-      churnReason: 'Analysis unavailable',
-      winBackOffer: 'Contact us for a special returning customer offer',
-    });
-
-    log.info('Win-back email generated', { contactId, gtmPromptUsed: !!gtmPrompt, model: sdrModel });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        subject: parsed.subject,
-        body: parsed.body,
-        sent: true,
-        churnReason: parsed.churnReason || 'Unable to determine specific churn reason',
-        winBackOffer: parsed.winBackOffer || 'Special returning customer offer',
-        gtmPromptUsed: !!gtmPrompt,
+    // One code path for both modes: JSON (as before) or SSE status/delta/partial events followed by
+    // `result` (exactly the JSON payload) when the client asks for a stream.
+    return await runDual({
+      event,
+      body,
+      options: sdrOptions({
+        instructions: systemPrompt,
+        input: userInput,
         model: sdrModel,
+        temperature,
+        maxTokens,
+        schema: S.obj({ subject: S.str, body: S.str, churnReason: S.str, winBackOffer: S.str }),
+        schemaName: 'win_back',
       }),
-    };
+      finalize: (text) => {
+        const parsed = parseJsonResponse(text, {
+          subject: `We'd love to have you back, ${contactName}`,
+          body: text,
+          churnReason: 'Analysis unavailable',
+          winBackOffer: 'Contact us for a special returning customer offer',
+        });
+
+        log.info('Win-back email generated', { contactId, gtmPromptUsed: !!gtmPrompt, model: sdrModel });
+
+        return {
+          contactId,
+          subject: parsed.subject,
+          body: parsed.body,
+          sent: false, // drafts only: nothing is emailed until the user saves or sends it
+          churnReason: parsed.churnReason || 'Unable to determine specific churn reason',
+          winBackOffer: parsed.winBackOffer || 'Special returning customer offer',
+          gtmPromptUsed: !!gtmPrompt,
+          model: sdrModel,
+        };
+      },
+    });
   } catch (error) {
     log.error('Win-back email generation failed', { contactId, error: error.message });
     return errorResponse(500, 'Win-back email generation failed');
   }
-});
+}));

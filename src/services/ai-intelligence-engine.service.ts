@@ -6,8 +6,11 @@
 import { logger } from './logger.service';
 import { cacheService } from './cache.service';
 import { Contact } from '../types';
-import { contactAI, ContactInsight, ContactScore } from './contact-ai.service';
+import { ContactInsight } from './contact-ai.service';
 import { communicationAI } from './communication-ai.service';
+import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
+import { RECOMMENDATIONS_SCHEMA, normalizeRecommendations, PREDICTIVE_SCHEMA, normalizePredictive, type NormalizedPredictive } from './intelligenceSchemas';
 
 export interface IntelligenceCorrelation {
   id: string;
@@ -52,7 +55,8 @@ export interface SmartRecommendation {
   urgency: 'immediate' | 'this_week' | 'this_month' | 'future';
   effort: 'low' | 'medium' | 'high';
   impact: 'low' | 'medium' | 'high';
-  confidence: number;
+  /** 0-100 evidence-based confidence, or null when unknown. */
+  confidence: number | null;
   basedOnPatterns: string[];
   createdAt: string;
 }
@@ -72,12 +76,13 @@ class AIIntelligenceEngine {
     contactId: string,
     contact: Contact,
     recentInsights: ContactInsight[] = [],
-    communicationHistory: any[] = []
+    communicationHistory: any[] = [],
+    live?: LiveOptions
   ): Promise<IntelligenceCorrelation> {
     logger.info('Generating intelligence correlation', { contactId });
 
     // Gather insights from multiple sources
-    const insights = await this.gatherMultiSourceInsights(contactId, contact, recentInsights);
+    const insights = await this.gatherMultiSourceInsights(contactId, contact, recentInsights, live);
     
     // Analyze correlations and patterns
     const correlation = this.analyzeInsightCorrelations(contactId, insights, communicationHistory);
@@ -113,31 +118,52 @@ class AIIntelligenceEngine {
       dealStage?: string;
       lastContact?: string;
       responseRate?: number;
-    }
+    },
+    live?: LiveOptions
   ): Promise<SmartRecommendation[]> {
     logger.info('Generating smart recommendations', { contactId });
 
-    const recommendations: SmartRecommendation[] = [];
-    
-    // Get relevant patterns
-    const applicablePatterns = this.findApplicablePatterns(contact, context);
-    
-    // Generate action recommendations
-    const actionRecs = await this.generateActionRecommendations(contact, applicablePatterns, context);
-    recommendations.push(...actionRecs);
-    
-    // Generate communication recommendations
-    const commRecs = await this.generateCommunicationRecommendations(contact, applicablePatterns, context);
-    recommendations.push(...commRecs);
-    
-    // Generate automation recommendations
-    const autoRecs = this.generateAutomationRecommendations(contact, applicablePatterns, context);
-    recommendations.push(...autoRecs);
-    
-    // Sort by priority and impact
-    recommendations.sort((a, b) => (b.priority * b.impact) - (a.priority * a.impact));
-    
-    return recommendations.slice(0, 8); // Return top 8 recommendations
+    // Throws AIError on failure (shown by AIErrorToaster); no canned recommendations.
+    const raw = await aiJson<unknown>({
+      role: 'default',
+      effort: 'low',
+      instructions:
+        'You are a sales strategist. Recommend next steps for ONE contact using only the supplied data. ' +
+        'Every recommendation must cite the contact fields it relies on in "reasoning". Do not invent statistics, ' +
+        'response rates or percentages. "confidence" is a 0-100 integer reflecting how well the supplied data supports ' +
+        'the recommendation, or null. Return an empty list if the data is too thin.',
+      input: JSON.stringify({ contact: this.contactSnapshot(contact), context: context ?? null, today: new Date().toISOString().slice(0, 10) }),
+      schema: RECOMMENDATIONS_SCHEMA,
+      schemaName: 'smart_recommendations',
+      maxOutputTokens: 2500,
+    }, live);
+
+    const createdAt = new Date().toISOString();
+    return normalizeRecommendations(raw, 8).map((r, i) => ({
+      id: `rec_${Date.now()}_${i}`,
+      contactId: contact.id,
+      type: r.type,
+      title: r.title,
+      description: r.description,
+      reasoning: r.reasoning,
+      expectedOutcome: r.expectedOutcome ?? '',
+      priority: r.priority ?? 0,
+      urgency: r.urgency ?? 'future',
+      effort: r.effort ?? 'medium',
+      impact: r.impact ?? 'medium',
+      confidence: r.confidence,
+      basedOnPatterns: [],
+      createdAt,
+    }));
+  }
+
+  private contactSnapshot(contact: Contact): Record<string, unknown> {
+    const c = contact as any;
+    return {
+      name: c.name, title: c.title, company: c.company, industry: c.industry, interestLevel: c.interestLevel,
+      status: c.status, aiScore: c.aiScore, lastConnected: c.lastConnected, hasPhone: !!c.phone, hasEmail: !!c.email,
+      notes: typeof c.notes === 'string' ? c.notes.slice(0, 1500) : undefined,
+    };
   }
 
   // Pattern Learning and Adaptation
@@ -151,7 +177,7 @@ class AIIntelligenceEngine {
   }
 
   recordOutcome(
-    contactId: string,
+    _contactId: string,
     action: string,
     outcome: 'success' | 'failure' | 'partial',
     context: Record<string, any>
@@ -162,19 +188,19 @@ class AIIntelligenceEngine {
       patternType: outcome === 'success' ? 'success' : 'failure',
       conditions: {
         action,
-        contactInterestLevel: context.interestLevel,
-        contactIndustry: context.industry,
-        dealStage: context.dealStage,
-        communicationHistory: context.communicationHistory?.length || 0
+        contactInterestLevel: context['interestLevel'],
+        contactIndustry: context['industry'],
+        dealStage: context['dealStage'],
+        communicationHistory: context['communicationHistory']?.length || 0
       },
       outcomes: {
         result: outcome,
-        responseTime: context.responseTime,
-        engagementIncrease: context.engagementIncrease
+        responseTime: context['responseTime'],
+        engagementIncrease: context['engagementIncrease']
       },
       frequency: 1,
       confidence: 70,
-      applicableContactTypes: [context.industry, context.interestLevel],
+      applicableContactTypes: [context['industry'], context['interestLevel']],
     };
 
     this.learningPatterns.push(pattern);
@@ -185,45 +211,32 @@ class AIIntelligenceEngine {
   async generatePredictiveInsights(
     contactId: string,
     contact: Contact,
-    timeframe: '30d' | '90d' | '6m' = '90d'
-  ): Promise<{
-    conversionProbability: number;
-    optimalContactTime: string;
-    recommendedActions: string[];
-    riskFactors: string[];
-    opportunities: string[];
-    timeline: { date: string; prediction: string; confidence: number }[];
-  }> {
-    // Use patterns and historical data to predict outcomes
-    const patterns = this.findApplicablePatterns(contact);
-    const successPatterns = patterns.filter(p => p.patternType === 'success');
-    
-    // Calculate conversion probability
-    const conversionProbability = this.calculateConversionProbability(contact, successPatterns);
-    
-    // Determine optimal contact time
-    const optimalContactTime = this.determineOptimalContactTime(contact, patterns);
-    
-    // Generate timeline predictions
-    const timeline = this.generatePredictiveTimeline(contact, patterns, timeframe);
-    
-    return {
-      conversionProbability,
-      optimalContactTime,
-      recommendedActions: this.getTopRecommendedActions(contact, patterns),
-      riskFactors: this.identifyRiskFactors(contact, patterns),
-      opportunities: this.identifyOpportunities(contact, patterns),
-      timeline
-    };
+    timeframe: '30d' | '90d' | '6m' = '90d',
+    live?: LiveOptions
+  ): Promise<NormalizedPredictive> {
+    const raw = await aiJson<unknown>({
+      role: 'thinking',
+      effort: 'low',
+      instructions:
+        'You forecast the outcome for ONE sales contact from the supplied data only. Use null / empty lists whenever the data ' +
+        'does not support a value. Never output default or "best practice" numbers; every probability and confidence must be an ' +
+        'integer justified by the supplied data or null.',
+      input: JSON.stringify({ contactId, timeframe, today: new Date().toISOString().slice(0, 10), contact: this.contactSnapshot(contact) }),
+      schema: PREDICTIVE_SCHEMA,
+      schemaName: 'predictive_insights',
+      maxOutputTokens: 2500,
+    }, live);
+    return normalizePredictive(raw);
   }
 
   // Private Helper Methods
   private async gatherMultiSourceInsights(
-    contactId: string,
+    _contactId: string,
     contact: Contact,
-    existingInsights: ContactInsight[]
+    existingInsights: ContactInsight[],
+    live?: LiveOptions
   ): Promise<Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }>> {
-    const insights = [];
+    const insights: Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }> = [];
     
     // Include existing insights
     existingInsights.forEach(insight => {
@@ -237,8 +250,8 @@ class AIIntelligenceEngine {
     
     // Generate communication insights
     try {
-      const commStrategy = await communicationAI.generateCommunicationStrategy(contact);
-      if (commStrategy) {
+      const commStrategy = await communicationAI.generateCommunicationStrategy(contact, undefined, undefined, live);
+      if (commStrategy && commStrategy.optimalChannels.length > 0) {
         insights.push({
           source: 'communication_analysis',
           insight: {
@@ -264,7 +277,7 @@ class AIIntelligenceEngine {
   }
 
   private analyzeInsightCorrelations(
-    contactId: string,
+    _contactId: string,
     insights: Array<{ source: string; insight: ContactInsight; weight: number; confidence: number }>,
     communicationHistory: any[]
   ): any {
@@ -281,7 +294,6 @@ class AIIntelligenceEngine {
 
   private generateMetaInsight(correlation: any, contact: Contact): IntelligenceCorrelation['metaInsight'] {
     const strongSignals = correlation.strongSignals;
-    const actionableItems = correlation.actionableItems;
     
     // Generate high-level insight
     let title = 'Contact Intelligence Summary';
@@ -346,7 +358,7 @@ class AIIntelligenceEngine {
     return 'behavioral';
   }
 
-  private findApplicablePatterns(contact: Contact, context?: any): LearningPattern[] {
+  private findApplicablePatterns(contact: Contact, _context?: any): LearningPattern[] {
     return this.learningPatterns.filter(pattern => {
       return pattern.applicableContactTypes.some(type => 
         type === contact.industry || 
@@ -354,114 +366,6 @@ class AIIntelligenceEngine {
         type === contact.status
       );
     }).sort((a, b) => b.confidence - a.confidence);
-  }
-
-  private async generateActionRecommendations(
-    contact: Contact,
-    patterns: LearningPattern[],
-    context?: any
-  ): Promise<SmartRecommendation[]> {
-    const recommendations: SmartRecommendation[] = [];
-    
-    // High-value action recommendations
-    if (contact.interestLevel === 'hot') {
-      recommendations.push({
-        id: `rec_${Date.now()}_1`,
-        contactId: contact.id,
-        type: 'action',
-        title: 'Immediate Call Recommended',
-        description: 'High interest level detected. Schedule call within 24 hours to capitalize on momentum.',
-        reasoning: ['High interest level', 'Optimal engagement window', 'Conversion probability 85%+'],
-        expectedOutcome: 'Significant progress toward deal closure',
-        priority: 95,
-        urgency: 'immediate',
-        effort: 'medium',
-        impact: 'high',
-        confidence: 90,
-        basedOnPatterns: patterns.slice(0, 2).map(p => p.id),
-        createdAt: new Date().toISOString()
-      });
-    }
-    
-    // Industry-specific recommendations
-    if (contact.industry === 'Technology') {
-      recommendations.push({
-        id: `rec_${Date.now()}_2`,
-        contactId: contact.id,
-        type: 'content',
-        title: 'Share Technical Documentation',
-        description: 'Technology professionals respond well to detailed technical content and integration guides.',
-        reasoning: ['Industry preference for technical detail', 'Higher engagement with documentation', 'Decision-making support'],
-        expectedOutcome: 'Increased technical confidence and faster decision-making',
-        priority: 80,
-        urgency: 'this_week',
-        effort: 'low',
-        impact: 'medium',
-        confidence: 85,
-        basedOnPatterns: patterns.filter(p => p.conditions.contactIndustry === 'Technology').map(p => p.id),
-        createdAt: new Date().toISOString()
-      });
-    }
-    
-    return recommendations;
-  }
-
-  private async generateCommunicationRecommendations(
-    contact: Contact,
-    patterns: LearningPattern[],
-    context?: any
-  ): Promise<SmartRecommendation[]> {
-    const recommendations: SmartRecommendation[] = [];
-    
-    // Communication timing recommendation
-    recommendations.push({
-      id: `rec_${Date.now()}_comm`,
-      contactId: contact.id,
-      type: 'communication',
-      title: 'Optimize Communication Timing',
-      description: 'Based on engagement patterns, Tuesday-Thursday 2-4 PM shows highest response rates.',
-      reasoning: ['Historical response data', 'Industry communication patterns', 'Engagement optimization'],
-      expectedOutcome: '40% higher response rate',
-      priority: 70,
-      urgency: 'this_week',
-      effort: 'low',
-      impact: 'medium',
-      confidence: 80,
-      basedOnPatterns: patterns.map(p => p.id),
-      createdAt: new Date().toISOString()
-    });
-    
-    return recommendations;
-  }
-
-  private generateAutomationRecommendations(
-    contact: Contact,
-    patterns: LearningPattern[],
-    context?: any
-  ): SmartRecommendation[] {
-    const recommendations: SmartRecommendation[] = [];
-    
-    // Automation workflow recommendation
-    if (contact.interestLevel === 'medium' || contact.interestLevel === 'low') {
-      recommendations.push({
-        id: `rec_${Date.now()}_auto`,
-        contactId: contact.id,
-        type: 'automation',
-        title: 'Setup Nurturing Automation',
-        description: 'Create automated nurturing sequence to maintain engagement without manual effort.',
-        reasoning: ['Medium/low interest needs nurturing', 'Automation improves consistency', 'Reduces manual workload'],
-        expectedOutcome: 'Maintained engagement with 60% less manual effort',
-        priority: 60,
-        urgency: 'this_month',
-        effort: 'medium',
-        impact: 'medium',
-        confidence: 75,
-        basedOnPatterns: patterns.map(p => p.id),
-        createdAt: new Date().toISOString()
-      });
-    }
-    
-    return recommendations;
   }
 
   private calculateInsightWeight(insight: ContactInsight): number {
@@ -488,129 +392,6 @@ class AIIntelligenceEngine {
       preferredChannel: 'email',
       bestResponseTimes: ['Tuesday 2PM', 'Thursday 3PM']
     };
-  }
-
-  private calculateConversionProbability(contact: Contact, patterns: LearningPattern[]): number {
-    let probability = 50; // Base probability
-    
-    // Adjust based on interest level
-    if (contact.interestLevel === 'hot') probability += 30;
-    else if (contact.interestLevel === 'medium') probability += 10;
-    else if (contact.interestLevel === 'cold') probability -= 20;
-    
-    // Adjust based on AI score
-    if (contact.aiScore) {
-      probability = (probability + contact.aiScore) / 2;
-    }
-    
-    // Adjust based on successful patterns
-    const successRate = patterns.filter(p => p.patternType === 'success').length / Math.max(1, patterns.length);
-    probability += successRate * 20;
-    
-    return Math.max(0, Math.min(100, probability));
-  }
-
-  private determineOptimalContactTime(contact: Contact, patterns: LearningPattern[]): string {
-    // Analyze patterns to determine best contact time
-    const successfulTimes = patterns
-      .filter(p => p.patternType === 'success')
-      .map(p => p.outcomes.responseTime)
-      .filter(Boolean);
-    
-    if (successfulTimes.length > 0) {
-      return 'Tuesday-Thursday 2-4 PM (based on success patterns)';
-    }
-    
-    // Default based on industry
-    if (contact.industry === 'Technology') {
-      return 'Tuesday-Wednesday 10 AM - 3 PM';
-    } else if (contact.industry === 'Finance') {
-      return 'Monday-Thursday 9 AM - 11 AM, 2 PM - 4 PM';
-    }
-    
-    return 'Tuesday-Thursday 2-4 PM (general best practice)';
-  }
-
-  private generatePredictiveTimeline(
-    contact: Contact,
-    patterns: LearningPattern[],
-    timeframe: string
-  ): Array<{ date: string; prediction: string; confidence: number }> {
-    const timeline = [];
-    const now = new Date();
-    
-    // Next 7 days
-    timeline.push({
-      date: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      prediction: 'Optimal time for follow-up contact',
-      confidence: 85
-    });
-    
-    // Next 30 days
-    timeline.push({
-      date: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      prediction: contact.interestLevel === 'hot' ? 'High probability of decision' : 'Continued nurturing phase',
-      confidence: 75
-    });
-    
-    // Next 90 days
-    timeline.push({
-      date: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      prediction: 'Expected conversion window or re-qualification needed',
-      confidence: 65
-    });
-    
-    return timeline;
-  }
-
-  private getTopRecommendedActions(contact: Contact, patterns: LearningPattern[]): string[] {
-    const actions = [
-      'Schedule follow-up call',
-      'Send personalized content',
-      'Connect on LinkedIn',
-      'Share case studies',
-      'Propose meeting',
-      'Send pricing information'
-    ];
-    
-    // Filter based on patterns and contact state
-    return actions.slice(0, 4);
-  }
-
-  private identifyRiskFactors(contact: Contact, patterns: LearningPattern[]): string[] {
-    const risks = [];
-    
-    if (contact.interestLevel === 'cold') {
-      risks.push('Low engagement level');
-    }
-    
-    if (!contact.lastConnected || new Date(contact.lastConnected) < new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)) {
-      risks.push('No recent contact activity');
-    }
-    
-    if (!contact.phone) {
-      risks.push('Limited contact options');
-    }
-    
-    return risks;
-  }
-
-  private identifyOpportunities(contact: Contact, patterns: LearningPattern[]): string[] {
-    const opportunities = [];
-    
-    if (contact.aiScore && contact.aiScore > 80) {
-      opportunities.push('High AI score indicates strong potential');
-    }
-    
-    if (contact.title && (contact.title.includes('Director') || contact.title.includes('VP') || contact.title.includes('CEO'))) {
-      opportunities.push('Decision-making authority');
-    }
-    
-    if (contact.company && contact.company.toLowerCase().includes('inc')) {
-      opportunities.push('Enterprise opportunity');
-    }
-    
-    return opportunities;
   }
 
   private initializeLearningPatterns(): void {

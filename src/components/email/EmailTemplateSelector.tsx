@@ -6,18 +6,14 @@ import { ModernButton } from '../ui/ModernButton';
 import { useToast } from '../ui/Toast';
 import { Contact } from '../../types';
 import {
-  Mail,
   Search,
-  Filter,
   Plus,
-  Edit,
   Copy,
-  Trash2,
   Loader2,
   FileText,
   CheckCircle,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react';
 
 interface EmailTemplateSelectorProps {
@@ -127,19 +123,24 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
         throw new Error('User not authenticated. Please sign in to use this feature.');
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/create-email-template`, {
+      // Manual template (no AI involved): saved through the email-templates edge function's `create` action.
+      const response = await fetch(`${supabaseUrl}/functions/v1/email-templates`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js-web'
         },
         body: JSON.stringify({
-          name: newTemplate.name,
-          description: newTemplate.description,
-          subject: newTemplate.subject,
-          body: newTemplate.body,
-          variables: extractVariables(newTemplate.subject + ' ' + newTemplate.body),
-          category: newTemplate.category
+          action: 'create',
+          templateData: {
+            name: newTemplate.name,
+            description: newTemplate.description,
+            subject: newTemplate.subject,
+            body: newTemplate.body,
+            variables: extractVariables(newTemplate.subject + ' ' + newTemplate.body),
+            category: newTemplate.category
+          }
         })
       });
 
@@ -225,7 +226,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
         </h3>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           className="flex items-center space-x-1"
           onClick={() => setIsCreateModalOpen(true)}
         >
@@ -311,7 +312,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
               <div className="flex flex-wrap gap-2">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => loadTemplates()}
                   className="text-red-700 border-red-300 hover:bg-red-100"
                 >
@@ -334,7 +335,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
       {/* Template Preview Modal */}
       {isPreviewOpen && previewTemplate && appliedTemplate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[70]">
           <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-xl">
             <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
               <div className="flex items-center justify-between mb-2">
@@ -392,7 +393,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between">
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={handleCopyTemplate}
                 className="flex items-center space-x-1"
               >
@@ -403,14 +404,14 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
               <div className="flex space-x-2">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => setIsPreviewOpen(false)}
                 >
                   Cancel
                 </ModernButton>
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleSelectTemplate}
                   className="flex items-center space-x-1"
                 >
@@ -425,7 +426,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
       {/* Create Template Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[70]">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-xl">
             <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
               <div className="flex items-center justify-between mb-2">
@@ -534,7 +535,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between">
               <ModernButton
                 variant="outline"
-                size="sm"
+                size="toolbar"
                 onClick={() => setIsCreateModalOpen(false)}
               >
                 Cancel
@@ -542,7 +543,7 @@ export const EmailTemplateSelector: React.FC<EmailTemplateSelectorProps> = ({
 
               <ModernButton
                 variant="primary"
-                size="sm"
+                size="toolbar"
                 onClick={handleCreateTemplate}
                 disabled={isCreating || !newTemplate.name || !newTemplate.subject || !newTemplate.body}
                 className="flex items-center space-x-1"

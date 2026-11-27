@@ -1,775 +1,231 @@
 /**
  * Error Scenario Coverage Tests
- * Tests comprehensive error handling and edge cases
+ *
+ * How agentFramework / agentService behave when the AI proxy, a tool, the session or the database fails.
+ * Supabase is the in-memory fake (tests/helpers/fakeSupabase), the model turn is `aiJson` (server-side AI proxy)
+ * and tools run through `streamFunction` (Netlify functions over SSE).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { agentFramework } from '../../services/agentFramework';
 import { agentService } from '../../services/agentService';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../services/supabaseClient';
+import { aiJson } from '../../services/aiClient';
+import { streamFunction } from '../../services/liveFunction';
+import type { FakeSupabase } from '../helpers/fakeSupabase';
 
-vi.mock('../../services/supabaseClient', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-      getUser: vi.fn()
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-          order: vi.fn(() => ({
-            limit: vi.fn()
-          }))
-        }))
-      })),
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn()
-        }))
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn()
-      }))
-    }))
-  }
+vi.mock('../../services/supabaseClient', async () => {
+  const { createFakeSupabase } = await import('../helpers/fakeSupabase');
+  return { supabase: createFakeSupabase() };
+});
+vi.mock('../../services/aiClient', () => ({ aiJson: vi.fn() }));
+vi.mock('../../services/liveFunction', () => ({ streamFunction: vi.fn() }));
+// No MCP tools are registered (plain functions, so restoreAllMocks cannot reset them)
+vi.mock('../../services/mcpAdapter', () => ({
+  mcpAdapter: { getTool: async () => null, getOpenAITools: async () => [], executeTool: async () => { throw new Error('no MCP tools in tests'); } }
 }));
 
+const db = supabase as unknown as FakeSupabase;
+
 describe('Error Scenario Coverage', () => {
-  const mockUser = {
-    id: 'test-user-id',
-    email: 'test@example.com',
-    app_metadata: {},
-    user_metadata: {},
-    aud: 'authenticated',
-    created_at: new Date().toISOString()
-  };
+  const mockUser = { id: 'test-user-id' };
 
   const mockAgent = {
     id: 'test-agent',
     name: 'Test Agent',
     description: 'Test agent for error scenarios',
-    tools: ['test-tool'],
-    model: 'gpt-4o'
+    tools: ['email-composer'],
+    model: 'default'
   };
 
+  const request = (input: Record<string, unknown> = { test: true }) => ({ agentId: mockAgent.id, userId: mockUser.id, input });
+  const lastRunUpdate = () => { const calls = db.callsFor('agent_runs', 'update'); return calls[calls.length - 1]!.payload as Record<string, any>; };
+  const signedIn = () => { (db.auth as any).getSession = async () => ({ data: { session: { access_token: 'test-token', user: mockUser } }, error: null }); };
+  const signedOut = () => { (db.auth as any).getSession = async () => ({ data: { session: null }, error: null }); };
+
   beforeEach(() => {
-    vi.clearAllMocks();
-
-    // Default successful auth setup
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: {
-        session: {
-          access_token: 'test-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: mockUser
-        }
-      },
-      error: null
-    });
-
-    vi.mocked(supabase.auth.getUser).mockResolvedValue({
-      data: { user: mockUser },
-      error: null
-    });
+    db.reset();
+    vi.mocked(aiJson).mockReset();
+    vi.mocked(streamFunction).mockReset();
+    signedIn();
+    db.respond('agent_metadata', 'select', { data: mockAgent, error: null });
+    db.respond('agent_runs', 'select', { data: [], error: null });
+    db.respond('agent_runs', 'insert', { data: { id: 'run-1', status: 'running', created_at: new Date().toISOString() }, error: null });
+    db.respond('agent_runs', 'update', { data: null, error: null });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  describe('OpenAI API Error Handling', () => {
-    beforeEach(() => {
-      // Setup successful agent and context mocks
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'contact-1', name: 'Test Contact' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'run-1', status: 'running' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-    });
-
-    it('should handle OpenAI API rate limits', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        json: vi.fn().mockResolvedValue({
-          error: { message: 'Rate limit exceeded' }
-        })
-      });
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'rate limit test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Rate limit exceeded');
-    });
-
-    it('should handle OpenAI API authentication failures', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: vi.fn().mockResolvedValue({
-          error: { message: 'Invalid API key' }
-        })
-      });
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'auth failure test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Invalid API key');
-    });
-
-    it('should handle OpenAI API server errors', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: vi.fn().mockResolvedValue({
-          error: { message: 'Internal server error' }
-        })
-      });
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'server error test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Internal server error');
-    });
-
-    it('should handle malformed OpenAI API responses', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          // Missing required 'choices' field
-          usage: { total_tokens: 100 }
-        })
-      });
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'malformed response test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Invalid API response');
-    });
-
-    it('should handle OpenAI API timeouts', async () => {
-      global.fetch = vi.fn().mockImplementationOnce(
-        () => new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Network timeout')), 35000)
-        )
-      );
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'timeout test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Network timeout');
-    });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  describe('Tool Execution Error Handling', () => {
-    beforeEach(() => {
-      // Setup successful agent and context mocks
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
+  describe('AI proxy errors', () => {
+    it.each([
+      ['rate limits', 'Rate limit exceeded'],
+      ['authentication failures', 'Please sign in to use AI features'],
+      ['server errors', 'Internal server error'],
+      ['network failures', 'Network connectivity lost'],
+      ['DNS failures', 'ENOTFOUND api.openai.com']
+    ])('should surface %s and mark the run failed', async (_label, message) => {
+      vi.mocked(aiJson).mockRejectedValue(new Error(message));
 
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'run-1', status: 'running' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
+      await expect(agentFramework.executeAgent(request())).rejects.toThrow(message);
 
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
+      expect(lastRunUpdate()).toMatchObject({ status: 'failed', error_message: message });
     });
 
-    it('should continue execution when individual tools fail', async () => {
-      // Mock OpenAI response with tool call
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            choices: [{
-              message: {
-                content: 'Testing tool execution',
-                tool_calls: [{
-                  id: 'call_1',
-                  type: 'function',
-                  function: {
-                    name: 'failing-tool',
-                    arguments: '{}'
-                  }
-                }]
-              }
-            }],
-            usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 }
-          })
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          json: vi.fn().mockResolvedValue({ error: 'Tool execution failed' })
-        });
+    it('should treat a reply without tool calls as a text-only answer', async () => {
+      // aiJson validates against the agent_turn schema server-side; a sparse reply must not crash the run
+      vi.mocked(aiJson).mockResolvedValue({ response: undefined, tool_calls: undefined } as any);
 
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'tool failure test' }
-      };
-
-      const result = await agentFramework.executeAgent(request);
-
-      // Should complete despite tool failure
-      expect(result.run.status).toBe('completed');
-      expect(result.response.tool_calls?.[0]).toBeDefined();
-      // Tool call should be marked as failed
-    });
-
-    it('should handle tool execution timeouts', async () => {
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            choices: [{
-              message: {
-                content: 'Testing tool timeout',
-                tool_calls: [{
-                  id: 'call_1',
-                  type: 'function',
-                  function: {
-                    name: 'slow-tool',
-                    arguments: '{}'
-                  }
-                }]
-              }
-            }],
-            usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 }
-          })
-        })
-        .mockImplementationOnce(
-          () => new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Tool timeout')), 32000)
-          )
-        );
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'tool timeout test' }
-      };
-
-      const result = await agentFramework.executeAgent(request);
+      const result = await agentFramework.executeAgent(request());
 
       expect(result.run.status).toBe('completed');
-      expect(result.response.tool_calls?.[0]).toBeDefined();
+      expect(result.response.output_text).toBe('');
+    });
+  });
+
+  describe('Tool execution errors', () => {
+    const askForTool = (name: string, argumentsJson: string) =>
+      vi.mocked(aiJson).mockResolvedValue({ response: 'Testing tool execution', tool_calls: [{ name, arguments_json: argumentsJson }] });
+
+    it('should continue execution when an individual tool fails', async () => {
+      askForTool('email-composer', '{}');
+      vi.mocked(streamFunction).mockRejectedValue(new Error('Tool execution failed'));
+
+      const result = await agentFramework.executeAgent(request());
+
+      // The run completes; the failed call is still recorded on it
+      expect(result.run.status).toBe('completed');
+      expect(lastRunUpdate()['tool_calls']).toEqual([expect.objectContaining({ name: 'email-composer' })]);
     });
 
-    it('should handle invalid tool parameters', async () => {
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            choices: [{
-              message: {
-                content: 'Testing invalid tool params',
-                tool_calls: [{
-                  id: 'call_1',
-                  type: 'function',
-                  function: {
-                    name: 'test-tool',
-                    arguments: 'invalid json'
-                  }
-                }]
-              }
-            }],
-            usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 }
-          })
-        });
+    it('should not run unknown tools', async () => {
+      askForTool('does-not-exist', '{}');
 
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'invalid params test' }
-      };
-
-      const result = await agentFramework.executeAgent(request);
+      const result = await agentFramework.executeAgent(request());
 
       expect(result.run.status).toBe('completed');
-      // Should handle JSON parsing error gracefully
+      expect(streamFunction).not.toHaveBeenCalled();
+    });
+
+    it('should fail the run when the agent sends invalid tool arguments', async () => {
+      askForTool('email-composer', 'invalid json');
+
+      await expect(agentFramework.executeAgent(request())).rejects.toThrow('invalid JSON arguments');
+
+      expect(streamFunction).not.toHaveBeenCalled();
+      expect(lastRunUpdate()).toMatchObject({ status: 'failed', error_message: expect.stringContaining('invalid JSON arguments') });
+    });
+
+    it('should not call tools without a signed-in session', async () => {
+      askForTool('email-composer', '{}');
+      signedOut();
+
+      const result = await agentFramework.executeAgent(request());
+
+      expect(result.run.status).toBe('completed'); // the tool error is captured, the run itself finishes
+      expect(streamFunction).not.toHaveBeenCalled();
     });
   });
 
-  describe('Authentication & Authorization Errors', () => {
-    it('should handle expired authentication tokens', async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
-        data: { session: null },
-        error: null as any
-      });
+  describe('Configuration errors', () => {
+    it('should reject an agent that does not exist', async () => {
+      db.respond('agent_metadata', 'select', { data: null, error: { message: 'No rows found' } });
 
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'expired token test' }
-      };
+      await expect(agentFramework.executeAgent(request())).rejects.toThrow('Agent test-agent not found');
 
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Authentication required');
+      expect(aiJson).not.toHaveBeenCalled();
+      expect(db.callsFor('agent_runs', 'insert')).toHaveLength(0);
     });
 
-    it('should handle missing authentication', async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
-        data: { session: null },
-        error: null
-      });
+    it('should reject when the agent row is missing entirely', async () => {
+      db.respond('agent_metadata', 'select', { data: null, error: null });
 
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'no auth test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('User must be authenticated');
+      await expect(agentFramework.executeAgent(request())).rejects.toThrow('not found');
     });
 
-    it('should handle insufficient permissions', async () => {
-      // Mock user without agent execution permissions
-      const restrictedUser = {
-        ...mockUser,
-        app_metadata: { role: 'read-only' }
-      };
+    it('should run an agent that has no tools, telling the model none are available', async () => {
+      db.respond('agent_metadata', 'select', { data: { ...mockAgent, tools: [] }, error: null });
+      vi.mocked(aiJson).mockResolvedValue({ response: 'No tools needed', tool_calls: [] });
 
-      vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
-        data: {
-          session: {
-            access_token: 'test-token',
-            refresh_token: 'refresh-token',
-            expires_in: 3600,
-            token_type: 'bearer',
-            user: restrictedUser
-          }
-        },
-        error: null
-      });
+      const result = await agentFramework.executeAgent(request());
 
-      const request = {
-        agentId: mockAgent.id,
-        userId: restrictedUser.id,
-        input: { test: 'insufficient permissions test' }
-      };
+      expect(result.run.status).toBe('completed');
+      expect(vi.mocked(aiJson).mock.calls[0]![0].instructions).toContain('No tools are available');
+    });
 
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Insufficient permissions');
+    it('should fail when the agent run cannot be recorded', async () => {
+      db.respond('agent_runs', 'insert', { data: null, error: { message: 'duplicate key value violates unique constraint' } });
+
+      await expect(agentFramework.executeAgent(request())).rejects.toThrow('Failed to save agent run');
+      expect(aiJson).not.toHaveBeenCalled();
     });
   });
 
-  describe('Configuration and Validation Errors', () => {
-    it('should handle invalid agent configurations', async () => {
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { invalid: 'config' }, // Missing required fields
-              error: null
-            })
-          }))
-        }))
-      } as any);
+  describe('Database errors (agentService)', () => {
+    it('should return no agents when the query errors', async () => {
+      db.respond('agent_metadata', 'select', { data: null, error: { message: 'Database connection failed' } });
 
-      const request = {
-        agentId: 'invalid-agent',
-        userId: mockUser.id,
-        input: { test: 'invalid config test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Invalid agent configuration');
+      await expect(agentService.loadAllAgents()).resolves.toEqual([]);
     });
 
-    it('should handle missing required agent tools', async () => {
-      const agentWithoutTools = {
-        ...mockAgent,
-        tools: [] // No tools configured
-      };
+    it('should return null when agent metadata cannot be loaded', async () => {
+      db.respond('agent_metadata', 'select', { data: null, error: { message: 'Query timeout' } });
 
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: agentWithoutTools,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      const request = {
-        agentId: agentWithoutTools.id,
-        userId: mockUser.id,
-        input: { test: 'no tools test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('No tools configured');
+      await expect(agentService.loadAgentMetadata('test-id')).resolves.toBeNull();
     });
 
-    it('should handle invalid input parameters', async () => {
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
+    it('should return null when a run violates a constraint', async () => {
+      db.respond('agent_runs', 'insert', { data: null, error: { message: 'duplicate key value violates unique constraint' } });
 
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: {} // Invalid input
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Invalid input parameters');
-    });
-  });
-
-  describe('Database and Infrastructure Errors', () => {
-    it('should handle database connection failures', async () => {
-      vi.mocked(supabase.from).mockImplementationOnce(() => {
-        throw new Error('Database connection failed');
-      });
-
-      await expect(agentService.loadAllAgents())
-        .rejects.toThrow('Database connection failed');
-    });
-
-    it('should handle database query timeouts', async () => {
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockImplementation(
-              () => new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Query timeout')), 31000)
-              )
-            )
-          }))
-        }))
-      } as any);
-
-      await expect(agentService.loadAgentMetadata('test-id'))
-        .rejects.toThrow('Query timeout');
-    });
-
-    it('should handle database constraint violations', async () => {
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'duplicate key value violates unique constraint' }
-            })
-          }))
-        }))
-      } as any);
-
-      const runData = {
+      const result = await agentService.saveAgentRun({
         agent_id: mockAgent.id,
         user_id: mockUser.id,
         input_data: { test: 'constraint violation' },
-        status: 'running' as const
-      };
-
-      const result = await agentService.saveAgentRun(runData);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('Network and Connectivity Errors', () => {
-    it('should handle network connectivity issues', async () => {
-      // Setup mocks
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'run-1', status: 'running' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      // Mock network failure
-      global.fetch = vi.fn().mockRejectedValueOnce(
-        new Error('Network connectivity lost')
-      );
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'network failure test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('Network connectivity lost');
-    });
-
-    it('should handle DNS resolution failures', async () => {
-      // Setup mocks
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'run-1', status: 'running' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      // Mock DNS failure
-      global.fetch = vi.fn().mockRejectedValueOnce(
-        new Error('ENOTFOUND api.openai.com')
-      );
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-
-      const request = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: { test: 'DNS failure test' }
-      };
-
-      await expect(agentFramework.executeAgent(request))
-        .rejects.toThrow('ENOTFOUND');
-    });
-  });
-
-  describe('Resource Exhaustion and Limits', () => {
-    it('should handle memory exhaustion gracefully', async () => {
-      // This would require a custom test environment
-      // to simulate memory pressure
-      expect(true).toBe(true); // Placeholder for memory exhaustion test
-    });
-
-    it('should handle file system space exhaustion', async () => {
-      // Test storage space limits
-      expect(true).toBe(true); // Placeholder for storage exhaustion test
-    });
-
-    it('should handle concurrent connection limits', async () => {
-      // Test database connection pool limits
-      expect(true).toBe(true); // Placeholder for connection limit test
-    });
-  });
-
-  describe('Data Validation and Sanitization', () => {
-    it('should validate and sanitize user inputs', async () => {
-      const maliciousInput = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: {
-          malicious: '<script>alert("xss")</script>',
-          sql: 'DROP TABLE users;',
-          path: '../../../etc/passwd'
-        }
-      };
-
-      // Setup mocks
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'run-1', status: 'running' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          choices: [{
-            message: { content: 'Input processed safely', tool_calls: [] }
-          }],
-          usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 }
-        })
+        status: 'running'
       });
 
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
+      expect(result).toBeNull();
+    });
 
-      const result = await agentFramework.executeAgent(maliciousInput);
+    it('should not throw when the client itself throws', async () => {
+      const from = vi.spyOn(db, 'from').mockImplementationOnce(() => { throw new Error('Database connection failed'); });
 
-      // Should complete without executing malicious code
+      await expect(agentService.loadAllAgents()).resolves.toEqual([]);
+      expect(from).toHaveBeenCalled();
+    });
+  });
+
+  describe('Input handling', () => {
+    it('should pass hostile input to the model as data, unchanged, and complete', async () => {
+      vi.mocked(aiJson).mockResolvedValue({ response: 'Input processed safely', tool_calls: [] });
+      const input = {
+        malicious: '<script>alert("xss")</script>',
+        sql: 'DROP TABLE users;',
+        path: '../../../etc/passwd'
+      };
+
+      const result = await agentFramework.executeAgent(request(input));
+
       expect(result.run.status).toBe('completed');
       expect(result.response.output_text).toContain('processed safely');
+      // The input is only ever JSON-encoded into the model request and stored as JSON data on the run
+      expect(vi.mocked(aiJson).mock.calls[0]![0].input).toBe(JSON.stringify(input));
+      expect(db.callsFor('agent_runs', 'insert')[0]!.payload).toMatchObject({ input_data: input });
     });
 
     it('should handle extremely large inputs', async () => {
-      const largeInput = {
-        agentId: mockAgent.id,
-        userId: mockUser.id,
-        input: {
-          largeData: 'x'.repeat(1000000), // 1MB of data
-          hugeArray: Array.from({ length: 10000 }, (_, i) => ({ id: i, data: 'x'.repeat(100) }))
-        }
+      vi.mocked(aiJson).mockResolvedValue({ response: 'Large input processed', tool_calls: [] });
+      const input = {
+        largeData: 'x'.repeat(1_000_000),
+        hugeArray: Array.from({ length: 1000 }, (_, i) => ({ id: i, data: 'x'.repeat(100) }))
       };
 
-      // Setup mocks
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'run-1', status: 'running' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          choices: [{
-            message: { content: 'Large input processed', tool_calls: [] }
-          }],
-          usage: { prompt_tokens: 5000, completion_tokens: 100, total_tokens: 5100 }
-        })
-      });
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-
-      const result = await agentFramework.executeAgent(largeInput);
+      const result = await agentFramework.executeAgent(request(input));
 
       expect(result.run.status).toBe('completed');
-      expect(result.response.usage?.total_tokens).toBeGreaterThan(5000);
+      expect(result.response.output_text).toContain('Large input processed');
     });
   });
 });

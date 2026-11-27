@@ -1,3 +1,6 @@
+import { streamFunction } from "../../services/functionStream";
+import type { StreamHandlers } from "../../lib/streaming/streamClient";
+
 export type DealAiTask =
   | "deal_analyze"
   | "deal_favorite_insights"
@@ -78,34 +81,36 @@ export interface DealAiOptions {
   [key: string]: any;
 }
 
+/**
+ * Runs a deal AI task on the dual-mode `execute-deal-ai` edge function over SSE.
+ * Pass `live` (onStatus / onDelta / onPartial / signal) to render the answer while it is written;
+ * the resolved value is the same final text as before.
+ */
 export async function executeDealAi({
   task,
   dealId,
   workspaceId,
   options = {},
-  contact // Optional contact object for contact-based SDR execution
+  contact, // Optional contact object for contact-based SDR execution
+  live = {}
 }: {
   task: DealAiTask;
   dealId: string;
   workspaceId: string;
   options?: DealAiOptions;
   contact?: any; // Contact object
+  live?: StreamHandlers;
 }): Promise<any> {
   try {
-    const response = await fetch('/.netlify/functions/execute-deal-ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, dealId, workspaceId, options, contact })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Server error');
-    }
-
-    return data.result;
+    const { result } = await streamFunction<{ result?: any; error?: string }>(
+      'execute-deal-ai',
+      { task, dealId, workspaceId, options, contact },
+      live
+    );
+    if (result?.error) throw new Error(result.error);
+    return result?.result;
   } catch (error) {
+    if (live.signal?.aborted) throw error;
     console.error('Error calling SDR service:', error);
     throw error;
   }

@@ -1,4 +1,8 @@
 import React, { useState } from "react";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { useAIStream } from "../hooks/useAIStream";
+import { liveDisplay } from "../lib/streaming/previewText";
+import { authJsonHeaders } from "../services/liveFunction";
 
 interface AutopilotStatus {
   contact?: {
@@ -19,6 +23,8 @@ export const AutopilotControlPanel: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  // Live output of "Run SDR Step" / "Run AE Follow-up" (streamed over SSE; Stop aborts the run).
+  const agentRun = useAIStream<{ step?: number | string }>();
 
   const loadStatus = async () => {
     if (!contactId) return;
@@ -61,7 +67,7 @@ export const AutopilotControlPanel: React.FC = () => {
         // Real API call for actual contacts
         const res = await fetch("/.netlify/functions/get-autopilot-status", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await authJsonHeaders(),
           body: JSON.stringify({ contactId }),
         });
         const json = await res.json();
@@ -115,15 +121,8 @@ export const AutopilotControlPanel: React.FC = () => {
     setError(null);
 
     try {
-      const res = await fetch("/.netlify/functions/run-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to run SDR agent");
-      }
+      const json = await agentRun.runFunction("/.netlify/functions/run-agent", { contactId });
+      if (!json) return; // stopped, or failed (the error is shown below)
       setActionMessage(`SDR step run: step ${json.step || ""} executed.`);
       // Refresh status to see updated step / log
       await loadStatus();
@@ -139,15 +138,8 @@ export const AutopilotControlPanel: React.FC = () => {
 
     try {
       // For manual AE run, we just send contactId; AE uses default context.
-      const res = await fetch("/.netlify/functions/run-ae-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to run AE agent");
-      }
+      const json = await agentRun.runFunction("/.netlify/functions/run-ae-agent", { contactId });
+      if (!json) return;
       setActionMessage("AE agent executed and reply sent (if tool call was successful).");
       await loadStatus();
     } catch (e: any) {
@@ -182,7 +174,15 @@ export const AutopilotControlPanel: React.FC = () => {
         </button>
       </div>
 
-      {error && <div className="text-sm text-red-600">Error: {error}</div>}
+      {agentRun.state.status === "streaming" && (
+        <StreamingOutput
+          state={agentRun.state}
+          display={liveDisplay(agentRun.state.partial, agentRun.state.text)}
+          onStop={agentRun.stop}
+          placeholder="Running the agent…"
+        />
+      )}
+      {(error || agentRun.state.error) && <div className="text-sm text-red-600">Error: {error || agentRun.state.error}</div>}
       {actionMessage && <div className="text-sm text-emerald-600">{actionMessage}</div>}
 
       {status && (
@@ -244,14 +244,14 @@ export const AutopilotControlPanel: React.FC = () => {
             <div className="flex flex-col gap-2 mt-2">
               <button
                 onClick={runSdrStep}
-                disabled={saving || loading || !contactId}
+                disabled={saving || loading || !contactId || agentRun.isStreaming}
                 className="w-full rounded-md border px-3 py-1.5 text-xs font-semibold bg-black text-white disabled:opacity-60"
               >
                 Run SDR Step Now
               </button>
               <button
                 onClick={runAeFollowup}
-                disabled={saving || loading || !contactId}
+                disabled={saving || loading || !contactId || agentRun.isStreaming}
                 className="w-full rounded-md border px-3 py-1.5 text-xs font-semibold bg-gray-900 text-white disabled:opacity-60"
               >
                 Run AE Follow-up Now

@@ -3,7 +3,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { DarkModeToggle } from '../ui/DarkModeToggle';
 import { ConversationalAIWidget } from '../ui/ConversationalAIWidget';
-import GeminiImageModal from '../GeminiImageModal';
+import ImageGenerationModal from '../ImageGenerationModal';
 import { useNetlifyAuth } from '../../contexts/NetlifyAuthContext';
 import { LogIn, LogOut } from 'lucide-react';
 import {
@@ -272,8 +272,8 @@ export const EnhancedNavbar: React.FC = () => {
         }}
       />
 
-      {/* Gemini Image Generator Modal */}
-      <GeminiImageModal
+      {/* Image Generation Modal */}
+      <ImageGenerationModal
         open={isImageGeneratorOpen}
         onClose={() => setIsImageGeneratorOpen(false)}
       />

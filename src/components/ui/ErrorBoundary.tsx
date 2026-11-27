@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
           </div>
 
-          {import.meta.env.DEV === 'development' && this.state.error && (
+          {import.meta.env.DEV && this.state.error && (
             <div className="w-full max-w-2xl mb-4">
               <details className="bg-white p-4 rounded border border-red-200">
                 <summary className="cursor-pointer font-medium text-red-900 mb-2">
@@ -91,3 +91,9 @@ export const withErrorBoundary = <P extends object>(
     </ErrorBoundary>
   );
 };
+
+/**
+ * Boundary for AI-powered panels and cards (imported by AIEnhancedContactCard and AIInsightsPanel).
+ * Same behaviour as ErrorBoundary: a failing AI widget shows the retry fallback instead of taking the page down.
+ */
+export const AIErrorBoundary = ErrorBoundary;

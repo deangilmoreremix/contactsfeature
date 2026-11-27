@@ -1,9 +1,25 @@
 const { supabase } = require('./_supabaseClient');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
-const { createStreamingResponse, parseJsonResponse, MODEL_CONFIG, getModelForTask } = require('./_streamingUtils');
+const { withAuth, errorResponse } = require('./_auth');
+const { parseJsonResponse, MODEL_CONFIG } = require('./_streamingUtils');
+const { runDual } = require('./_stream/dual');
+const { S, sdrOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 
 const log = createLogger('ai-insights');
+
+const INSIGHTS_SCHEMA = S.obj({
+  insights: S.arr(S.obj({
+    type: S.oneOf('opportunity', 'risk', 'recommendation', 'prediction', 'pattern'),
+    title: S.str,
+    description: S.str,
+    confidence: S.num,
+    impact: S.oneOf('high', 'medium', 'low'),
+    actionable: S.bool,
+    suggestedActions: S.strArr,
+    dataPoints: S.strArr,
+  })),
+});
 
 // AI Insights system prompt
 const INSIGHTS_SYSTEM_PROMPT = `You are SmartCRM's expert sales intelligence analyst, powered by GPT-5.2.
@@ -32,12 +48,8 @@ Insight Types You Generate:
 4. Prediction - Future outcomes based on patterns
 5. Pattern - Trends, behaviors, anomalies`;
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
-
-  // Check if streaming is requested
-  const isStreaming = event.headers?.accept?.includes('text/event-stream') || 
-                      event.queryStringParameters?.stream === 'true';
 
   // Parse body
   let body = {};
@@ -140,146 +152,58 @@ For each insight, provide:
 
 Return ONLY valid JSON with an "insights" array. Example: {"insights": [{"type": "opportunity", "title": "...", ...}]}`;
 
-    // If streaming requested, return streaming response
-    if (isStreaming) {
-      const responseStream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          
-          try {
-            let fullContent = '';
-
-            for await (const chunk of createStreamingResponse({
-              instructions: INSIGHTS_SYSTEM_PROMPT,
-              input: userInput,
-              model,
-              temperature: 0.3,
-              maxTokens: 2000,
-            })) {
-              if (chunk.type === 'token') {
-                fullContent += chunk.token;
-                const data = JSON.stringify({ 
-                  type: 'token', 
-                  token: chunk.token,
-                  partial: fullContent 
-                });
-                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-              } else if (chunk.type === 'error') {
-                const errorData = JSON.stringify({ type: 'error', error: chunk.error });
-                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-                controller.close();
-                return;
-              }
-            }
-
-            const parsed = parseJsonResponse(fullContent, { insights: [] });
-
-            // Store insights in database
-            if (parsed.insights && parsed.insights.length > 0) {
-              const insightsToStore = parsed.insights.map(insight => ({
-                contact_id: contact.id,
-                user_id: user.id,
-                insight_type: insight.type,
-                title: insight.title,
-                description: insight.description,
-                confidence: insight.confidence,
-                impact: insight.impact,
-                actionable: insight.actionable,
-                suggested_actions: insight.suggestedActions,
-                data_points: insight.dataPoints,
-                ai_provider: 'openai',
-                created_at: new Date().toISOString()
-              }));
-
-              await supabase.from('contact_insights').insert(insightsToStore);
-            }
-
-            log.info('AI insights generated (streaming)', { contactId: contact.id, insightTypes, model });
-
-            const completeData = JSON.stringify({ type: 'complete', data: parsed });
-            controller.enqueue(encoder.encode(`data: ${completeData}\n\n`));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (error) {
-            log.error('Streaming insights failed', { contactId: contact.id, error: error.message });
-            const errorData = JSON.stringify({ type: 'error', error: error.message });
-            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-            controller.close();
-          }
-        }
-      });
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-        body: responseStream,
-        isBase64Encoded: false,
-      };
-    }
-
-    // Non-streaming response
-    let fullContent = '';
-    for await (const chunk of createStreamingResponse({
-      instructions: INSIGHTS_SYSTEM_PROMPT,
-      input: userInput,
-      model,
-      temperature: 0.3,
-      maxTokens: 2000,
-    })) {
-      if (chunk.type === 'token') {
-        fullContent += chunk.token;
-      } else if (chunk.type === 'complete') {
-        fullContent = chunk.content;
-      }
-    }
-
-    const parsed = parseJsonResponse(fullContent, { insights: [] });
-
-    // Store insights in database
-    if (parsed.insights && parsed.insights.length > 0) {
-      const insightsToStore = parsed.insights.map(insight => ({
-        contact_id: contact.id,
-        user_id: user.id,
-        insight_type: insight.type,
-        title: insight.title,
-        description: insight.description,
-        confidence: insight.confidence,
-        impact: insight.impact,
-        actionable: insight.actionable,
-        suggested_actions: insight.suggestedActions,
-        data_points: insight.dataPoints,
-        ai_provider: 'openai',
-        created_at: new Date().toISOString()
-      }));
-
-      await supabase.from('contact_insights').insert(insightsToStore);
-    }
-
-    log.info('AI insights generated', { contactId: contact.id, insightTypes, model });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        success: true,
-        data: {
-          insights: parsed.insights || [],
-          insightTypes,
-          generated: new Date().toISOString(),
-        },
-        provider: aiProvider,
+    return await runDual({
+      event,
+      body,
+      options: sdrOptions({
+        instructions: INSIGHTS_SYSTEM_PROMPT,
+        input: userInput,
         model,
-        timestamp: new Date().toISOString(),
+        temperature: 0.3,
+        maxTokens: 2000,
+        schema: INSIGHTS_SCHEMA,
+        schemaName: 'contact_insights',
       }),
-    };
+      // Insight rows are stored here (after the model finished), exactly once per request.
+      finalize: async (text) => {
+        const parsed = parseJsonResponse(text, { insights: [] });
+
+        if (parsed.insights && parsed.insights.length > 0) {
+          const insightsToStore = parsed.insights.map(insight => ({
+            contact_id: contact.id,
+            user_id: user.id,
+            insight_type: insight.type,
+            title: insight.title,
+            description: insight.description,
+            confidence: insight.confidence,
+            impact: insight.impact,
+            actionable: insight.actionable,
+            suggested_actions: insight.suggestedActions,
+            data_points: insight.dataPoints,
+            ai_provider: 'openai',
+            created_at: new Date().toISOString()
+          }));
+
+          await supabase.from('contact_insights').insert(insightsToStore);
+        }
+
+        log.info('AI insights generated', { contactId: contact.id, insightTypes, model });
+
+        return {
+          success: true,
+          data: {
+            insights: parsed.insights || [],
+            insightTypes,
+            generated: new Date().toISOString(),
+          },
+          provider: aiProvider,
+          model,
+          timestamp: new Date().toISOString(),
+        };
+      },
+    });
   } catch (error) {
     log.error('AI insights generation failed', { contactId: contact?.id, error: error.message });
     return errorResponse(500, 'AI insights generation failed');
   }
-});
+}));

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useGuidance } from '../../contexts/GuidanceContext';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
@@ -92,7 +92,7 @@ export const WelcomeExperience: React.FC<WelcomeExperienceProps> = ({
   const IconComponent = currentStepData?.icon || Sparkles;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <GlassCard className="max-w-2xl mx-4 p-8 relative">
         {/* Close Button */}
         <button

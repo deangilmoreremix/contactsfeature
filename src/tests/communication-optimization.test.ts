@@ -1,582 +1,199 @@
+// @vitest-environment node
 /**
- * Comprehensive tests for Communication Optimization Edge Function
- * Tests AI-powered communication optimization logic and edge cases
+ * Communication optimization: the real Netlify function (netlify/functions/communication-optimization.js) run through its handler.
+ * The real ./_auth, ./_ownership, ./_stream/dual and shaping logic execute; only ./_supabaseClient (in-memory fake)
+ * and the OpenAI helpers (`createResponse`) are stubbed, following tests/function-auth.test.ts.
+ * Auth / foreign-contact (404) behaviour is covered in tests/function-auth.test.ts.
  */
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { createRequire } from 'module';
+import path from 'path';
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Collecting shim for @netlify/functions stream(): resolves to { ...metadata, body } like a plain Lambda result (JSON mode).
+(globalThis as any).awslambda = {
+  streamifyResponse: (f: any) => async (event: unknown) => {
+    const chunks: string[] = [];
+    const rs: any = { meta: null, write: (c: unknown) => { chunks.push(String(c)); return true; }, end: () => {} };
+    await f(event, rs, {});
+    return { ...rs.meta, body: chunks.join('') };
+  },
+  HttpResponseStream: { from: (rs: any, meta: unknown) => { rs.meta = meta; return rs; } },
+};
+const require = createRequire(import.meta.url);
+const fnDir = path.resolve(__dirname, '../../netlify/functions');
 
-describe('Communication Optimization Edge Function', () => {
-  const mockRecipientProfile = {
-    name: 'John Doe',
-    role: 'CTO',
-    company: 'Tech Corp',
-    industry: 'Technology',
-    seniority: 'executive' as const,
-    communicationStyle: 'strategic' as const,
-    preferredChannels: ['email', 'linkedin'],
-    engagementHistory: [
-      {
-        channel: 'email',
-        timestamp: '2024-01-01T10:00:00Z',
-        response: 'opened' as const,
-        sentiment: 'positive' as const
-      },
-      {
-        channel: 'linkedin',
-        timestamp: '2024-01-02T14:00:00Z',
-        response: 'replied' as const,
-        sentiment: 'neutral' as const
-      }
-    ]
-  } as const;
+const OWN = '11111111-1111-4111-8111-111111111111';
 
-  const mockCommunicationContext = {
-    purpose: 'prospecting' as const,
-    stage: 'initial',
-    previousInteractions: 2,
-    urgency: 'medium' as const,
-    keyMessage: 'AI-powered sales intelligence platform',
-    desiredOutcome: 'Schedule discovery call'
+const inserted: Record<string, any[]> = {};
+
+/** Minimal supabase fake: the caller owns contact OWN; inserts are recorded per table. */
+function fakeSupabase() {
+  const from = (table: string) => {
+    const filters: Array<[string, unknown]> = [];
+    const rows = () => (table === 'contacts' ? [{ id: OWN, user_id: 'u1' }] : []).filter((r: any) => filters.every(([k, v]) => r[k] === v));
+    const q: any = {
+      select: () => q,
+      eq: (k: string, v: unknown) => { filters.push([k, v]); return q; },
+      insert: (row: any) => { (inserted[table] ||= []).push(row); return q; },
+      maybeSingle: async () => ({ data: rows()[0] || null, error: null }),
+      then: (res: any, rej: any) => Promise.resolve({ data: rows(), error: null }).then(res, rej),
+    };
+    return q;
   };
+  return { from };
+}
 
-  const mockOptimizationPreferences = {
-    channels: ['email', 'call', 'linkedin'],
-    maxLength: 200,
-    tone: 'professional' as const,
-    includePersonalization: true,
-    testVariations: true
-  };
+const createResponse = vi.fn();
+const streamResponse = vi.fn();
 
-  const mockRequest = {
-    recipientProfile: mockRecipientProfile,
-    communicationContext: mockCommunicationContext,
-    optimizationPreferences: mockOptimizationPreferences,
-    contentDraft: {
-      subject: 'Exploring AI Solutions',
-      body: 'Hi John, I wanted to discuss AI solutions for your company.'
-    }
-  };
+beforeAll(() => {
+  process.env['OPENAI_API_KEY'] = 'test';
+  process.env['SUPABASE_URL'] = 'http://localhost:54321';
+  process.env['SUPABASE_SERVICE_ROLE_KEY'] = 'x';
+  const sc = path.join(fnDir, '_supabaseClient.js');
+  require.cache[sc] = {
+    id: sc, filename: sc, loaded: true,
+    exports: {
+      supabase: fakeSupabase(),
+      getUserClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }) }, ...fakeSupabase() }),
+    },
+  } as any;
+  // Patch the OpenAI helpers BEFORE the handler (and _stream/dual) is first required.
+  const responses = require(path.join(fnDir, '_responses.js'));
+  responses.createResponse = createResponse;
+  responses.streamResponse = streamResponse;
+});
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+beforeEach(() => {
+  for (const k of Object.keys(inserted)) delete inserted[k];
+  createResponse.mockReset();
+  streamResponse.mockReset();
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+const handler = () => require(path.join(fnDir, 'communication-optimization.js')).handler;
+const post = (body: unknown, method = 'POST') => ({ httpMethod: method, headers: { authorization: 'Bearer good' }, body: JSON.stringify(body) });
+/** The model's reply (the structured-output JSON text). */
+const modelReplies = (reply: unknown) => createResponse.mockResolvedValue({ text: typeof reply === 'string' ? reply : JSON.stringify(reply), usage: null, citations: [] });
+
+const contact = { id: OWN, name: 'John Doe', title: 'CTO', company: 'Tech Corp' };
+const fullReply = {
+  optimalTiming: { bestDay: 'Wednesday', bestTime: '09:30', timezone: 'America/New_York' },
+  communicationStyle: { tone: 'direct', frequency: 'biweekly', approach: 'data-driven' },
+  channelPreferences: { primary: 'phone', secondary: 'email', avoid: ['sms'] },
+  engagementPatterns: { peakHours: ['9-10'], responseTime: '4h', preferences: ['short emails'] },
+  recommendations: ['Call before noon', 'Send a one-page summary'],
+  nextSteps: ['Book a call', 'Send case study', 'Quarterly review'],
+};
+
+describe('communication-optimization function', () => {
+  it('returns the model analysis with the optimization type, and stores the strategy', async () => {
+    modelReplies(fullReply);
+
+    const res = await handler()(post({ contact, optimizationType: 'timing', aiProvider: 'openai' }));
+
+    expect(res.statusCode).toBe(200);
+    const payload = JSON.parse(res.body);
+    expect(payload).toMatchObject({ success: true, provider: 'openai' });
+    expect(payload.data).toMatchObject({ ...fullReply, optimizationType: 'timing' });
+    expect(typeof payload.data.analyzed).toBe('string');
+
+    expect(inserted['communication_optimizations']).toEqual([
+      expect.objectContaining({
+        contact_id: OWN,
+        optimization_type: 'timing',
+        optimal_timing: fullReply.optimalTiming,
+        communication_style: fullReply.communicationStyle,
+        channel_preferences: fullReply.channelPreferences,
+        recommendations: fullReply.recommendations,
+        ai_provider: 'openai',
+      }),
+    ]);
   });
 
-  afterEach(() => {
-    vi.resetAllMocks();
+  it('asks the model for structured output with the contact, timeframe and interaction history in the prompt', async () => {
+    modelReplies(fullReply);
+    const interactionHistory = [{ type: 'email', date: '2025-01-02', outcome: 'replied' }];
+
+    await handler()(post({ contact, interactionHistory, timeframe: '90d' }));
+
+    const opts = createResponse.mock.calls[0]![0];
+    expect(opts).toMatchObject({ model: 'default', effort: 'low', schemaName: 'communication_optimization', store: false });
+    expect(opts.schema.required).toEqual(['optimalTiming', 'communicationStyle', 'channelPreferences', 'engagementPatterns', 'recommendations', 'nextSteps']);
+    expect(opts.input).toContain('John Doe (CTO at Tech Corp)');
+    expect(opts.input).toContain('Timeframe: 90d');
+    expect(opts.input).toContain(JSON.stringify(interactionHistory));
   });
 
-  describe('Recipient Profile Analysis', () => {
-    it('should determine correct communication persona for executive', () => {
-      // This would test the determineCommunicationPersona function
-      // Since it's internal, we'll test through the main function
-      expect(mockRecipientProfile.seniority).toBe('executive');
-      expect(mockRecipientProfile.communicationStyle).toBe('strategic');
-    });
+  it('defaults to a 30-day timeframe, no history and a comprehensive optimization', async () => {
+    modelReplies(fullReply);
 
-    it('should analyze engagement patterns correctly', () => {
-      const engagementHistory = mockRecipientProfile.engagementHistory;
-      const responses = engagementHistory.filter(e => e.response !== 'no_response');
-      const responseRate = responses.length / engagementHistory.length;
+    const res = await handler()(post({ contact }));
 
-      expect(responseRate).toBe(1); // All engagements had responses
-      expect(responses).toHaveLength(2);
-    });
-
-    it('should identify channel preferences from history', () => {
-      const channelResponses: Record<string, { total: number; responses: number }> = mockRecipientProfile.engagementHistory.reduce((acc, e) => {
-        if (!acc[e.channel]) acc[e.channel] = { total: 0, responses: 0 };
-        acc[e.channel].total++;
-        if (e.response !== 'no_response') acc[e.channel].responses++;
-        return acc;
-      }, {} as Record<string, { total: number; responses: number }>);
-
-      const sortedChannels = Object.entries(channelResponses)
-        .map(([channel, stats]) => ({
-          channel,
-          responseRate: stats.responses / stats.total
-        }))
-        .sort((a, b) => b.responseRate - a.responseRate);
-
-      expect(sortedChannels[0]?.channel).toBe('email');
-      expect(sortedChannels[1]?.channel).toBe('linkedin');
-    });
-
-    it('should detect response triggers', () => {
-      const triggers = [];
-      mockRecipientProfile.engagementHistory.forEach(engagement => {
-        if (engagement.response !== 'no_response') {
-          if (engagement.channel === 'email' && engagement.response === 'opened') {
-            triggers.push('compelling_subject');
-          }
-          if (engagement.response === 'replied') {
-            triggers.push('personal_relevance');
-          }
-          if (engagement.sentiment === 'positive') {
-            triggers.push('value_proposition');
-          }
-        }
-      });
-
-      expect(triggers).toContain('compelling_subject');
-      expect(triggers).toContain('personal_relevance');
-      expect(triggers).toContain('value_proposition');
-    });
+    const opts = createResponse.mock.calls[0]![0];
+    expect(opts.input).toContain('Timeframe: 30d');
+    expect(opts.input).toContain('Interaction History: []');
+    expect(JSON.parse(res.body).data.optimizationType).toBe('comprehensive');
+    expect(inserted['communication_optimizations']![0]).toMatchObject({ optimization_type: 'comprehensive' });
   });
 
-  describe('Communication Context Analysis', () => {
-    it('should assess message complexity correctly', () => {
-      const message = mockCommunicationContext.keyMessage;
-      const wordCount = message.split(' ').length;
-      const hasTechnicalTerms = /ai|intelligence|platform/i.test(message);
-      const hasBusinessTerms = /sales|solution/i.test(message);
+  it('fills in sensible defaults for anything the model left out', async () => {
+    modelReplies({});
 
-      let complexity = 'simple';
-      if (wordCount > 100 || (hasTechnicalTerms && hasBusinessTerms)) complexity = 'complex';
-      else if (wordCount > 50 || hasTechnicalTerms || hasBusinessTerms) complexity = 'moderate';
+    const res = await handler()(post({ contact }));
 
-      expect(complexity).toBe('complex'); // Both technical and business terms present
-      expect(hasTechnicalTerms).toBe(true);
-      expect(hasBusinessTerms).toBe(true);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).data).toMatchObject({
+      optimalTiming: { bestDay: 'Tuesday', bestTime: '10:00', timezone: 'UTC' },
+      communicationStyle: { tone: 'professional', frequency: 'weekly', approach: 'consultative' },
+      channelPreferences: { primary: 'email', secondary: 'phone', avoid: [] },
+      engagementPatterns: { peakHours: ['9-11', '14-16'], responseTime: '24h', preferences: [] },
+      recommendations: [],
+      nextSteps: [],
     });
-
-    it('should identify contextual factors', () => {
-      const factors = [];
-      if (mockCommunicationContext.urgency === 'high') {
-        factors.push('time_sensitivity');
-      }
-      if (mockCommunicationContext.previousInteractions > 5) {
-        factors.push('established_relationship');
-      }
-      if (mockCommunicationContext.purpose === 'negotiation') {
-        factors.push('decision_imminent');
-      }
-
-      expect(factors).not.toContain('time_sensitivity');
-      expect(factors).not.toContain('established_relationship');
-      expect(factors).not.toContain('decision_imminent');
-    });
-  });
-
-  describe('Channel Performance Analysis', () => {
-    it('should calculate channel performance metrics', () => {
-      const engagementHistory = mockRecipientProfile.engagementHistory;
-      const channelStats: Record<string, any> = {};
-
-      engagementHistory.forEach(engagement => {
-        const channel = engagement.channel;
-        if (!channelStats[channel]) {
-          channelStats[channel] = {
-            total: 0,
-            opens: 0,
-            clicks: 0,
-            replies: 0,
-            positiveResponses: 0
-          };
-        }
-
-        channelStats[channel].total++;
-
-        switch (engagement.response) {
-          case 'opened':
-            channelStats[channel].opens++;
-            break;
-          case 'clicked':
-            channelStats[channel].clicks++;
-            channelStats[channel].opens++;
-            break;
-          case 'replied':
-            channelStats[channel].replies++;
-            channelStats[channel].opens++;
-            break;
-        }
-
-        if (engagement.sentiment === 'positive') {
-          channelStats[channel].positiveResponses++;
-        }
-      });
-
-      // Calculate metrics
-      Object.keys(channelStats).forEach(channel => {
-        const stats = channelStats[channel];
-        stats.openRate = stats.opens / stats.total;
-        stats.clickRate = stats.clicks / stats.total;
-        stats.replyRate = stats.replies / stats.total;
-        stats.positiveRate = stats.positiveResponses / stats.total;
-      });
-
-      expect(channelStats['email']?.openRate).toBe(1);
-      expect(channelStats['linkedin']?.replyRate).toBe(1);
-    });
-
-    it('should determine optimal channel based on preferences and performance', () => {
-      const profileAnalysis = {
-        channelPreferences: ['email', 'linkedin'],
-        engagementPatterns: { responseRate: 1 }
-      };
-      const contextAnalysis = { urgency: 'medium', purpose: 'prospecting' };
-      const availableChannels = ['email', 'call', 'linkedin'];
-
-      // Score each channel
-      const channelScores = availableChannels.map(channel => {
-        let score = 0;
-
-        // Preference bonus
-        if (profileAnalysis.channelPreferences.includes(channel)) score += 30;
-
-        // Historical performance bonus
-        if (profileAnalysis.engagementPatterns.responseRate > 0.5) score += 20;
-
-        // Urgency consideration
-        if (contextAnalysis.urgency === 'high' && ['call', 'text'].includes(channel)) score += 25;
-        if (contextAnalysis.urgency === 'low' && channel === 'email') score += 15;
-
-        // Purpose consideration
-        if (contextAnalysis.purpose === 'prospecting' && channel === 'email') score += 20;
-        if (contextAnalysis.purpose === 'negotiation' && channel === 'call') score += 20;
-
-        return { channel, score };
-      });
-
-      // Return highest scoring channel
-      channelScores.sort((a, b) => b.score - a.score);
-      const optimalChannel = channelScores[0]?.channel;
-
-      expect(optimalChannel).toBe('email');
-      expect(channelScores[0].score).toBe(70); // 30 (preference) + 20 (performance) + 20 (purpose)
+    expect(inserted['communication_optimizations']![0]).toMatchObject({
+      optimal_timing: { bestDay: 'Tuesday', bestTime: '10:00', timezone: 'UTC' },
+      recommendations: [],
     });
   });
 
-  describe('Content Optimization', () => {
-    it('should optimize subject line based on persona and context', () => {
-      const originalSubject = 'Exploring AI Solutions';
-      const profileAnalysis = { persona: 'Executive Strategist', seniority: 'executive' };
-      const contextAnalysis = { purpose: 'prospecting', keyMessage: 'AI platform' };
+  it('keeps what the model returned and only defaults the missing parts', async () => {
+    modelReplies({ optimalTiming: fullReply.optimalTiming, recommendations: ['Only this'] });
 
-      let optimized = originalSubject;
+    const res = await handler()(post({ contact }));
 
-      // Persona-specific adjustments
-      if (profileAnalysis.persona.includes('Executive')) {
-        optimized = optimized.replace('Exploring', 'Strategic');
-        optimized = optimized.replace('Solutions', 'Partnership');
-      }
-
-      expect(optimized).toBe('Strategic AI Partnership');
-    });
-
-    it('should generate A/B test variations', () => {
-      const subject = 'Strategic AI Partnership';
-      const persona = 'Executive Strategist';
-      const seniority = 'executive';
-
-      const variations = [];
-
-      // Length variations
-      if (subject.length > 50) {
-        variations.push(subject.substring(0, 45) + '...');
-      }
-
-      // Tone variations
-      if (persona.includes('Executive')) {
-        variations.push(subject.replace('Partnership', 'Initiative'));
-        variations.push(subject.replace('Strategic', 'Executive'));
-      }
-
-      // Urgency variations
-      variations.push('Quick Question: ' + subject);
-      variations.push('Important: ' + subject);
-
-      // Personalization variations
-      variations.push(subject.replace('AI', 'AI Solutions'));
-
-      const topVariations = variations.slice(0, 3);
-
-      expect(topVariations).toContain('Quick Question: Strategic AI Partnership');
-      expect(topVariations).toContain('Important: Strategic AI Partnership');
-      expect(topVariations).toContain('Strategic AI Initiative');
-      expect(topVariations.length).toBe(3);
-      expect(topVariations).toEqual([
-        'Strategic AI Initiative',
-        'Strategic AI Solutions',
-        'Quick Question: Strategic AI Partnership'
-      ]);
-    });
-
-    it('should apply tone optimization', () => {
-      let content = 'Hey John, I wanted to discuss AI solutions for your company.';
-      const tone = 'professional';
-      const persona = 'Executive Strategist';
-
-      // Apply tone-specific optimizations
-      switch (tone) {
-        case 'professional':
-          content = content.replace(/hey|hi there/gi, 'Dear');
-          content = content.replace(/awesome|great/gi, 'excellent');
-          break;
-        case 'casual':
-          content = content.replace(/Dear|Best regards/gi, 'Hi');
-          content = content.replace(/excellent|appreciate/gi, 'great');
-          break;
-      }
-
-      // Persona-specific adjustments
-      if (persona.includes('Executive')) {
-        content = content.replace(/discuss|help|support/gi, 'partner with');
-        content = content.replace(/solve|fix/gi, 'optimize');
-      }
-
-      expect(content).toBe('Dear John, I wanted to partner with AI solutions for your company.');
-    });
-
-    it('should apply length optimization', () => {
-      const content = 'This is a very long message that exceeds the maximum length allowed for optimal engagement and readability in professional communications.';
-      const maxLength = 50;
-
-      if (content.length <= maxLength) {
-        expect(content).toBe(content);
-      } else {
-        // Truncate while preserving key elements
-        const sentences = content.split('.');
-        let optimized = '';
-
-        for (const sentence of sentences) {
-          if ((optimized + sentence).length > maxLength * 0.8) break;
-          optimized += sentence + '.';
-        }
-
-        expect(optimized.trim().length).toBeLessThanOrEqual(maxLength);
-        expect(optimized).toContain('This is a very long message');
-        // The content is 142 characters, maxLength is 50, so it should be truncated
-        expect(optimized.trim().length).toBeLessThan(content.length);
-      }
+    expect(JSON.parse(res.body).data).toMatchObject({
+      optimalTiming: fullReply.optimalTiming,
+      recommendations: ['Only this'],
+      communicationStyle: { tone: 'professional', frequency: 'weekly', approach: 'consultative' },
     });
   });
 
-  describe('Performance Prediction', () => {
-    it('should predict performance based on channel and personalization', () => {
-      const profileAnalysis = { persona: 'Executive Strategist' };
-      const contextAnalysis = { purpose: 'prospecting' };
-      const channel = 'email';
-      const subject = 'Strategic AI Partnership?';
-      const content = 'Hi [recipient_name], I wanted to discuss [personalization].';
+  it('answers 500 and stores nothing when the model reply is not valid JSON', async () => {
+    modelReplies('definitely not json');
 
-      // Simplified prediction model
-      let baseOpenRate = 0.3;
-      let baseResponseRate = 0.1;
-      const baseEngagementScore = 50;
+    const res = await handler()(post({ contact }));
 
-      // Adjust based on channel
-      switch (channel) {
-        case 'email':
-          baseOpenRate = 0.35;
-          baseResponseRate = 0.08;
-          break;
-        case 'call':
-          baseOpenRate = 0.8;
-          baseResponseRate = 0.4;
-          break;
-        case 'linkedin':
-          baseOpenRate = 0.6;
-          baseResponseRate = 0.15;
-          break;
-      }
-
-      // Adjust based on subject line optimization
-      if (subject.length < 50 && (subject.includes('?') || subject.includes(':'))) {
-        baseOpenRate *= 1.2;
-      }
-
-      // Adjust based on personalization
-      if (content.includes('[recipient_name]') || content.includes('[company_name]')) {
-        baseResponseRate *= 1.3;
-      }
-
-      // Adjust based on persona
-      if (profileAnalysis.persona.includes('Executive')) {
-        baseResponseRate *= 0.8; // Executives are harder to reach
-      }
-
-      const engagementScore = Math.min(100, (baseOpenRate * 50) + (baseResponseRate * 30) + 20);
-
-      expect(baseOpenRate).toBe(0.42); // 0.35 * 1.2
-      expect(baseResponseRate).toBeCloseTo(0.0832, 2); // 0.08 * 1.04 (adjusted for actual calculation)
-      expect(engagementScore).toBeCloseTo(51.16, 1);
-    });
+    expect(res.statusCode).toBe(500);
+    expect(JSON.parse(res.body)).toMatchObject({ success: false, error: 'Communication optimization failed' });
+    expect(inserted['communication_optimizations']).toBeUndefined();
   });
 
-  describe('Objection Handling', () => {
-    it('should generate anticipated objections for prospecting', () => {
-      const communicationContext = { purpose: 'prospecting', stage: 'initial' };
-      const profileAnalysis = { seniority: 'executive' };
+  it('answers 500 when the model call fails', async () => {
+    createResponse.mockRejectedValue(new Error('upstream down'));
 
-      const anticipatedObjections = [];
+    const res = await handler()(post({ contact }));
 
-      // Common objections based on purpose and stage
-      if (communicationContext.purpose === 'prospecting') {
-        anticipatedObjections.push({
-          objection: 'Not interested',
-          probability: 0.3,
-          response: 'I understand. Could you share what\'s working well currently?',
-          followUp: 'Share case study of similar company'
-        });
-
-        anticipatedObjections.push({
-          objection: 'Too busy',
-          probability: 0.4,
-          response: 'I completely understand busy schedules. When would be a good time?',
-          followUp: 'Send calendar invite for 15-minute call'
-        });
-      }
-
-      expect(anticipatedObjections).toHaveLength(2);
-      expect(anticipatedObjections[0].objection).toBe('Not interested');
-      expect(anticipatedObjections[1].objection).toBe('Too busy');
-    });
-
-    it('should generate prevention strategies', () => {
-      const objections = [
-        { objection: 'Not interested' },
-        { objection: 'Too busy' },
-        { objection: 'Price is too high' }
-      ];
-
-      const strategies = [];
-
-      objections.forEach(objection => {
-        switch (objection.objection) {
-          case 'Not interested':
-            strategies.push('Lead with value proposition, not product pitch');
-            break;
-          case 'Too busy':
-            strategies.push('Offer flexible scheduling and short meetings');
-            break;
-          case 'Price is too high':
-            strategies.push('Focus on ROI and long-term value');
-            break;
-        }
-      });
-
-      expect(strategies).toHaveLength(3);
-      expect(strategies).toContain('Lead with value proposition, not product pitch');
-      expect(strategies).toContain('Offer flexible scheduling and short meetings');
-      expect(strategies).toContain('Focus on ROI and long-term value');
-    });
+    expect(res.statusCode).toBe(500);
+    expect(JSON.parse(res.body)).toMatchObject({ success: false, details: 'upstream down' });
+    expect(inserted['communication_optimizations']).toBeUndefined();
   });
 
-  describe('Edge Cases and Error Handling', () => {
-    it('should handle empty engagement history', () => {
-      const emptyHistory = [];
-      const channelStats = {};
+  it('rejects non-POST requests with 405 without calling the model', async () => {
+    const res = await handler()(post({ contact }, 'GET'));
 
-      emptyHistory.forEach(engagement => {
-        const channel = engagement.channel;
-        if (!channelStats[channel]) {
-          channelStats[channel] = {
-            total: 0,
-            opens: 0,
-            clicks: 0,
-            replies: 0,
-            positiveResponses: 0
-          };
-        }
-        channelStats[channel].total++;
-      });
-
-      expect(Object.keys(channelStats)).toHaveLength(0);
-    });
-
-    it('should handle missing optional fields', () => {
-      const minimalProfile = {
-        name: 'Jane Doe',
-        role: 'Manager',
-        company: 'Small Corp'
-        // Missing optional fields like industry, seniority, etc.
-      };
-
-      const persona = 'General Professional'; // Default fallback
-
-      expect(persona).toBe('General Professional');
-    });
-
-    it('should handle invalid channel preferences', () => {
-      const invalidChannels = ['invalid_channel', 'another_invalid'];
-      const availableChannels = ['email', 'call', 'linkedin'];
-
-      const validChannels = invalidChannels.filter(c => availableChannels.includes(c));
-
-      expect(validChannels).toHaveLength(0);
-    });
-
-    it('should handle extreme message lengths', () => {
-      const veryLongMessage = 'A'.repeat(1000);
-      const maxLength = 100;
-
-      if (veryLongMessage.length <= maxLength) {
-        expect(veryLongMessage).toBe(veryLongMessage);
-      } else {
-        const sentences = veryLongMessage.split('.');
-        let optimized = '';
-
-        for (const sentence of sentences) {
-          if ((optimized + sentence).length > maxLength * 0.8) break;
-          optimized += sentence + '.';
-        }
-
-        expect(optimized.length).toBeLessThanOrEqual(maxLength);
-      }
-    });
-  });
-
-  describe('Integration Scenarios', () => {
-    it('should handle complete optimization request', () => {
-      // Test the full flow with all components
-      const profileAnalysis = {
-        persona: 'Executive Strategist',
-        channelPreferences: ['email', 'linkedin'],
-        engagementPatterns: { responseRate: 1 }
-      };
-
-      const contextAnalysis = {
-        purpose: 'prospecting',
-        urgency: 'medium',
-        keyMessage: 'AI platform for sales'
-      };
-
-      const channelAnalysis = {
-        email: { openRate: 0.8, replyRate: 0.2 },
-        linkedin: { openRate: 0.6, replyRate: 0.15 }
-      };
-
-      // Determine optimal channel
-      const availableChannels = ['email', 'call', 'linkedin'];
-      const channelScores = availableChannels.map(channel => {
-        let score = 0;
-        if (profileAnalysis.channelPreferences.includes(channel)) score += 30;
-        if (profileAnalysis.engagementPatterns.responseRate > 0.5) score += 20;
-        if (contextAnalysis.purpose === 'prospecting' && channel === 'email') score += 20;
-        return { channel, score };
-      });
-
-      channelScores.sort((a, b) => b.score - a.score);
-      const optimalChannel = channelScores[0]?.channel;
-
-      expect(optimalChannel).toBe('email');
-      expect(channelScores[0].score).toBe(70);
-    });
-
-    it('should handle high urgency scenarios', () => {
-      const highUrgencyContext = { ...mockCommunicationContext, urgency: 'high' };
-      const availableChannels = ['email', 'call', 'linkedin'];
-
-      // For high urgency, prefer immediate channels
-      const channelScores = availableChannels.map(channel => {
-        let score = 0;
-        if (highUrgencyContext.urgency === 'high' && ['call', 'text'].includes(channel)) score += 25;
-        return { channel, score };
-      });
-
-      const urgentChannels = channelScores.filter(c => c.score > 0);
-      expect(urgentChannels).toHaveLength(1);
-      expect(urgentChannels[0].channel).toBe('call');
-    });
+    expect(res.statusCode).toBe(405);
+    expect(createResponse).not.toHaveBeenCalled();
   });
 });

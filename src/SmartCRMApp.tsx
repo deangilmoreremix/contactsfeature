@@ -1,6 +1,7 @@
 import React, { useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { AIProvider } from './contexts/AIContext';
 import { ViewProvider } from './contexts/ViewContext';
+import { CommunicationProvider } from './contexts/CommunicationContext';
 import { ContactsModal } from './components/modals/ContactsModal';
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
@@ -11,10 +12,10 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[Contacts App] Uncaught error:', error, errorInfo);
   }
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div className="p-8 text-center">
@@ -57,13 +58,15 @@ const ContactsApp: React.FC<SmartCRMRemoteProps> = ({
   return (
     <AIProvider>
       <ViewProvider>
+<CommunicationProvider>
         <RootErrorBoundary>
           <ContactsModal
             isOpen={true}
             onClose={() => {}}
           />
         </RootErrorBoundary>
-      </ViewProvider>
+      </CommunicationProvider>
+</ViewProvider>
     </AIProvider>
   );
 };

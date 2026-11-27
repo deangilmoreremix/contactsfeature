@@ -1,9 +1,9 @@
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+const { stream } = require('@netlify/functions');
+const { runDual } = require('./_stream/dual');
+const { S } = require('./_stream/helpers');
+const { supabase } = require('./_supabaseClient');
+const { withAuth, errorResponse } = require('./_auth');
+const { getOwnedContact } = require('./_ownership');
 
 function getPlaybookTypeInstructions(playbookType) {
   const instructions = {
@@ -62,21 +62,23 @@ function validateInput(contact, currentStage, businessGoals, automationType, pla
   }
 
   // Validate aiProvider
-  const validProviders = ['openai', 'gemini'];
+  const validProviders = ['openai'];
   if (!validProviders.includes(aiProvider)) {
     throw new Error(`Invalid aiProvider: must be one of ${validProviders.join(', ')}`);
   }
 }
 
-exports.handler = async (event) => {
+exports.handler = stream(withAuth(async (event, user) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
+    const reqBody = JSON.parse(event.body);
     const {
       contact,
       currentStage = 'prospect',
@@ -84,10 +86,12 @@ exports.handler = async (event) => {
       automationType = 'comprehensive',
       playbookType = 'comprehensive',
       aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    } = reqBody;
 
     // Validate all inputs
     validateInput(contact, currentStage, businessGoals, automationType, playbookType, aiProvider);
+
+    if (!(await getOwnedContact(user.id, contact.id))) return errorResponse(404, 'Contact not found');
 
     console.log('Adaptive playbook request:', {
       contactId: contact.id,
@@ -97,55 +101,44 @@ exports.handler = async (event) => {
       aiProvider
     });
 
-    let result;
+    // Same URL, two modes: JSON (as before) or SSE (status/delta/partial events + final `result`).
+    return await runDual({
+      event,
+      body: reqBody,
+      headers: CORS_HEADERS,
+      options: buildOptions(contact, currentStage, businessGoals, automationType, playbookType),
+      finalize: async (text) => {
+        const result = shapeResult(text, currentStage, automationType);
 
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
-        break;
-      case 'gemini':
-        result = await generateWithGemini(contact, currentStage, businessGoals, automationType, playbookType);
-        break;
-      default:
-        result = await generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType);
-    }
+        const playbookData = {
+          contact_id: contact.id,
+          current_stage: currentStage,
+          automation_type: automationType,
+          recommended_actions: result.recommendedActions,
+          automation_sequence: result.automationSequence,
+          triggers: result.triggers,
+          conditions: result.conditions,
+          ai_provider: aiProvider,
+          created_at: new Date().toISOString()
+        };
 
-    // Store playbook suggestions
-    const playbookData = {
-      contact_id: contact.id,
-      current_stage: currentStage,
-      automation_type: automationType,
-      recommended_actions: result.recommendedActions,
-      automation_sequence: result.automationSequence,
-      triggers: result.triggers,
-      conditions: result.conditions,
-      ai_provider: aiProvider,
-      created_at: new Date().toISOString()
-    };
+        await supabase
+          .from('adaptive_playbooks')
+          .insert(playbookData);
 
-    await supabase
-      .from('adaptive_playbooks')
-      .insert(playbookData);
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        return {
+          success: true,
+          data: result,
+          provider: aiProvider,
+          timestamp: new Date().toISOString()
+        };
       },
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
-    };
+    });
   } catch (error) {
     console.error('Adaptive playbook generation failed:', error);
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         success: false,
         error: 'Adaptive playbook generation failed',
@@ -153,15 +146,27 @@ exports.handler = async (event) => {
       })
     };
   }
+}));
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function generateWithOpenAI(contact, currentStage, businessGoals, automationType, playbookType) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const OUTPUT_SCHEMA = S.obj({
+  strategy: S.obj({ name: S.str, description: S.str, confidence: S.num, rationale: S.str }),
+  phases: S.arr(S.obj({
+    id: S.str, name: S.str, timeline: S.str, objectives: S.strArr,
+    tactics: S.arr(S.obj({ id: S.str, name: S.str, description: S.str, priority: S.oneOf('high', 'medium', 'low'), estimatedEffort: S.str, successMetrics: S.strArr, dependencies: S.strArr })),
+    milestones: S.arr(S.obj({ id: S.str, name: S.str, description: S.str, dueDate: S.str, owner: S.str, status: S.str })),
+  })),
+  riskMitigation: S.arr(S.obj({ risk: S.str, probability: S.num, impact: S.str, mitigation: S.str })),
+  successIndicators: S.arr(S.obj({ metric: S.str, target: S.str, current: S.str, status: S.str })),
+  competitivePositioning: S.obj({ strengths: S.strArr, weaknesses: S.strArr, differentiation: S.strArr, winThemes: S.strArr }),
+});
 
+function buildOptions(contact, currentStage, businessGoals, automationType, playbookType) {
     const systemPrompt = `You are an expert sales automation strategist. Create adaptive playbooks that respond to contact behavior and business objectives. Generate intelligent automation sequences with appropriate triggers and conditions.`;
 
     const userPrompt = `Create a ${playbookType} sales playbook for this contact:
@@ -235,50 +240,20 @@ Generate a detailed sales playbook with the following structure:
   }
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-5.2',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.3,
-        text: {
-          format: {
-            type: 'json_object'
-          }
-        }
-      })
-    });
+  return {
+    model: 'default',
+    effort: 'low',
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: OUTPUT_SCHEMA,
+    schemaName: 'adaptive_playbook',
+    store: false,
+  };
+}
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`OpenAI Responses API error: ${response.status} - ${errorBody}`);
-    }
-
-    const data = await response.json();
-
-    let content;
-    if (data.output && Array.isArray(data.output)) {
-      const textOutput = data.output.find(item => item.type === 'message' && item.content);
-      if (textOutput && textOutput.content && textOutput.content[0]) {
-        const textContent = textOutput.content.find(c => c.type === 'output_text');
-        if (textContent && textContent.text) {
-          content = JSON.parse(textContent.text);
-        } else {
-          throw new Error('No text content found in response output');
-        }
-      } else {
-        throw new Error('No message output found in response');
-      }
-    } else {
-      throw new Error('Invalid response format from OpenAI Responses API');
-    }
-
-    return {
+function shapeResult(text, currentStage, automationType) {
+  const content = JSON.parse(text);
+  return {
       strategy: content.strategy,
       phases: content.phases || [],
       riskMitigation: content.riskMitigation || [],
@@ -294,88 +269,4 @@ Generate a detailed sales playbook with the following structure:
       automationType,
       generated: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('OpenAI adaptive playbook generation failed:', error);
-    throw error;
-  }
-}
-
-async function generateWithGemini(contact, currentStage, businessGoals, automationType, playbookType) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Create a ${playbookType} sales playbook for this contact:
-
-Contact: ${contact.name} at ${contact.company}
-Current Stage: ${currentStage}
-Business Goals: ${businessGoals.join(', ')}
-Playbook Type: ${playbookType}
-
-${getPlaybookTypeInstructions(playbookType)}
-
-Return JSON with strategy, phases, riskMitigation, successIndicators, competitivePositioning, and other playbook components.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 1000
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const playbook = JSON.parse(jsonMatch[0]);
-
-    return {
-      strategy: playbook.strategy,
-      phases: playbook.phases || [],
-      riskMitigation: playbook.riskMitigation || [],
-      successIndicators: playbook.successIndicators || [],
-      competitivePositioning: playbook.competitivePositioning || {},
-      recommendedActions: playbook.recommendedActions || [],
-      automationSequence: playbook.automationSequence || [],
-      triggers: playbook.triggers || [],
-      conditions: playbook.conditions || [],
-      successMetrics: playbook.successMetrics || [],
-      fallbackActions: playbook.fallbackActions || [],
-      currentStage,
-      automationType,
-      generated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini adaptive playbook generation failed:', error);
-    throw error;
-  }
 }

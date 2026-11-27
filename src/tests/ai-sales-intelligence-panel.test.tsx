@@ -7,14 +7,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AISalesIntelligencePanel } from '../components/ai-sales-intelligence/AISalesIntelligencePanel';
 
-// Mock dependencies
-vi.mock('../services/supabaseClient', () => ({
-  supabase: {
-    functions: {
-      invoke: vi.fn()
-    }
-  }
+// Mock dependencies: the panel calls the lead-nurturing Netlify function through useAIStream().runFunction
+const runFunction = vi.hoisted(() => vi.fn());
+vi.mock('../hooks/useAIStream', () => ({
+  useAIStream: () => ({
+    state: { status: 'idle', text: '', label: '', steps: [], reasoning: '' },
+    isStreaming: false,
+    runFunction,
+    stop: vi.fn(),
+  }),
 }));
+
+vi.mock('../components/ui/StreamingOutput', () => ({ StreamingOutput: () => null }));
 
 vi.mock('../components/ui/GlassCard', () => ({
   GlassCard: ({ children, className }: any) => (
@@ -63,19 +67,14 @@ describe('AISalesIntelligencePanel', () => {
     timeline: 'Q2 2024'
   };
 
-  const mockNurtureResponse = {
+  const nurtureReply = (probability: number) => ({
     data: {
-      nurtureStrategy: {
-        contentSequence: [
-          { sendDate: '2024-01-16T10:00:00Z', type: 'email', subject: 'Follow up' },
-          { sendDate: '2024-01-18T10:00:00Z', type: 'call', subject: 'Demo call' }
-        ],
-        conversionPrediction: {
-          probability: 0.75
-        }
-      }
-    }
-  };
+      nurtureSequence: [{ day: 1, channel: 'email' }, { day: 3, channel: 'call' }],
+      contentCalendar: [{ date: '2024-01-16' }],
+      conversionPrediction: { probability },
+    },
+  });
+  const mockNurtureResponse = nurtureReply(0.85);
 
   const mockCallbacks = {
     onNurturePlan: vi.fn(),
@@ -149,8 +148,8 @@ describe('AISalesIntelligencePanel', () => {
       );
 
       expect(screen.getByText('Overview')).toBeInTheDocument();
-      expect(screen.getByText('Generate Nurture Plan')).toBeInTheDocument();
-      expect(screen.getByText('Optimize Message')).toBeInTheDocument();
+      expect(screen.getByText(/Generate Nurture Plan/)).toBeInTheDocument();
+      expect(screen.getByText(/Optimize Message/)).toBeInTheDocument();
     });
 
     it('should switch to nurture tab', () => {
@@ -164,8 +163,8 @@ describe('AISalesIntelligencePanel', () => {
       const nurtureTab = screen.getByText('Nurture');
       fireEvent.click(nurtureTab);
 
-      expect(screen.getByText('Discovery Questions')).toBeInTheDocument();
-      expect(screen.getByText('Health Analysis')).toBeInTheDocument();
+      expect(screen.getByText(/Discovery Questions/)).toBeInTheDocument();
+      expect(screen.getByText(/Health Analysis/)).toBeInTheDocument();
     });
 
     it('should switch to insights tab', () => {
@@ -180,7 +179,7 @@ describe('AISalesIntelligencePanel', () => {
       fireEvent.click(insightsTab);
 
       expect(screen.getByText('AI Insights')).toBeInTheDocument();
-      expect(screen.getByText('Message Optimization')).toBeInTheDocument();
+      expect(screen.getByText(/Message Optimization/)).toBeInTheDocument();
     });
 
     it('should highlight active tab', () => {
@@ -206,94 +205,68 @@ describe('AISalesIntelligencePanel', () => {
 
   describe('Contact Analysis', () => {
     it('should analyze contact and update nurture status', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue(mockNurtureResponse);
+      runFunction.mockResolvedValue(mockNurtureResponse);
 
-      render(
-        <AISalesIntelligencePanel
-          contact={mockContact}
-          {...mockCallbacks}
-        />
-      );
+      render(<AISalesIntelligencePanel contact={mockContact} {...mockCallbacks} />);
 
-      const analyzeButton = screen.getByText('🔍 Analyze');
-      fireEvent.click(analyzeButton);
+      fireEvent.click(screen.getByText('🔍 Analyze'));
 
       await waitFor(() => {
-        expect(supabase.functions.invoke).toHaveBeenCalledWith('lead-nurturing', {
-          body: expect.objectContaining({
-            leadId: 'contact-123',
-            leadData: expect.objectContaining({
-              name: 'John Doe',
-              email: 'john@techcorp.com',
-              company: 'TechCorp',
-              role: 'CTO',
-              industry: 'Technology',
-              companySize: 150,
-              currentStage: 'consideration',
-              engagementScore: 75
-            }),
-            nurtureGoals: ['awareness', 'consideration'],
-            constraints: expect.objectContaining({
-              maxEmailsPerWeek: 3,
-              maxCallsPerWeek: 2,
-              preferredChannels: ['email']
-            })
-          })
-        });
+        expect(runFunction).toHaveBeenCalledWith('/.netlify/functions/lead-nurturing', expect.objectContaining({
+          contact: expect.objectContaining({
+            id: 'contact-123',
+            name: 'John Doe',
+            email: 'john@techcorp.com',
+            company: 'TechCorp',
+            title: 'CTO',
+            industry: 'Technology',
+            companySize: 150,
+            currentStage: 'consideration',
+            engagementScore: 75,
+          }),
+          nurtureStrategy: 'comprehensive',
+          timeframe: '90d',
+          businessGoals: ['awareness', 'consideration'],
+        }));
       });
 
       // Switch to nurture tab to see results
-      const nurtureTab = screen.getByText('Nurture');
-      fireEvent.click(nurtureTab);
+      fireEvent.click(screen.getByText('Nurture'));
 
       await waitFor(() => {
         expect(screen.getByText('2/5 completed')).toBeInTheDocument();
-        expect(screen.getByText('75%')).toBeInTheDocument();
+        expect(screen.getByText(/85%/)).toBeInTheDocument();
       });
     });
 
     it('should handle analysis errors gracefully', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockRejectedValue(new Error('Analysis failed'));
-
+      runFunction.mockRejectedValue(new Error('Analysis failed'));
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      render(
-        <AISalesIntelligencePanel
-          contact={mockContact}
-          {...mockCallbacks}
-        />
-      );
+      render(<AISalesIntelligencePanel contact={mockContact} {...mockCallbacks} />);
 
-      const analyzeButton = screen.getByText('🔍 Analyze');
-      fireEvent.click(analyzeButton);
+      fireEvent.click(screen.getByText('🔍 Analyze'));
 
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith('Failed to analyze contact:', expect.any(Error));
       });
+      // The panel stays usable: the button is back and no nurture status was set.
+      await waitFor(() => expect(screen.getByText('🔍 Analyze')).toBeInTheDocument());
+      expect(screen.getByText('--')).toBeInTheDocument();
 
       consoleSpy.mockRestore();
     });
 
     it('should show loading state during analysis', async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve(mockNurtureResponse), 100))
-      );
+      let finish!: (v: unknown) => void;
+      runFunction.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
 
-      render(
-        <AISalesIntelligencePanel
-          contact={mockContact}
-          {...mockCallbacks}
-        />
-      );
+      render(<AISalesIntelligencePanel contact={mockContact} {...mockCallbacks} />);
 
-      const analyzeButton = screen.getByText('🔍 Analyze');
-      fireEvent.click(analyzeButton);
-
+      fireEvent.click(screen.getByText('🔍 Analyze'));
       expect(screen.getByText('Analyzing...')).toBeInTheDocument();
 
+      finish(mockNurtureResponse);
       await waitFor(() => {
         expect(screen.getByText('🔍 Analyze')).toBeInTheDocument();
       });
@@ -301,75 +274,42 @@ describe('AISalesIntelligencePanel', () => {
   });
 
   describe('Nurture Status Display', () => {
-    beforeEach(async () => {
-      const { supabase } = require('../services/supabaseClient');
-      supabase.functions.invoke.mockResolvedValue(mockNurtureResponse);
+    async function analyze(probability: number) {
+      runFunction.mockResolvedValue(nurtureReply(probability));
+      render(<AISalesIntelligencePanel contact={mockContact} {...mockCallbacks} />);
+      fireEvent.click(screen.getByText('🔍 Analyze'));
+      // The overview card shows the conversion probability once the reply has been applied.
+      await waitFor(() => expect(screen.getByText(`${Math.round(probability * 100)}%`)).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Nurture'));
+    }
 
-      render(
-        <AISalesIntelligencePanel
-          contact={mockContact}
-          {...mockCallbacks}
-        />
-      );
-
-      // Analyze contact first
-      const analyzeButton = screen.getByText('🔍 Analyze');
-      fireEvent.click(analyzeButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('75%')).toBeInTheDocument();
-      });
-    });
-
-    it('should display nurture sequence progress', () => {
-      const nurtureTab = screen.getByText('Nurture');
-      fireEvent.click(nurtureTab);
+    it('should display nurture sequence progress', async () => {
+      await analyze(0.85);
 
       expect(screen.getByText('Nurture Sequence')).toBeInTheDocument();
       expect(screen.getByText('2/5 completed')).toBeInTheDocument();
       expect(screen.getByText('Next Touch')).toBeInTheDocument();
+      expect(screen.getByText('2024-01-16')).toBeInTheDocument();
       expect(screen.getByTestId('target-icon')).toBeInTheDocument();
     });
 
-    it('should display conversion probability with color coding', () => {
-      const nurtureTab = screen.getByText('Nurture');
-      fireEvent.click(nurtureTab);
+    it('should display conversion probability with color coding', async () => {
+      await analyze(0.85);
 
       expect(screen.getByText('Conversion Probability')).toBeInTheDocument();
-      expect(screen.getByText('🟢 75%')).toBeInTheDocument();
+      expect(screen.getByText('🟢 85%')).toBeInTheDocument();
       expect(screen.getByTestId('trending-icon')).toBeInTheDocument();
     });
 
-    it('should show different probability colors', () => {
-      const testCases = [
-        { probability: 0.85, expectedIcon: '🟢', expectedColor: 'text-green-600' },
-        { probability: 0.65, expectedIcon: '🟡', expectedColor: 'text-yellow-600' },
-        { probability: 0.45, expectedIcon: '🔴', expectedColor: 'text-red-600' }
-      ];
+    it.each([
+      [0.85, '🟢', 'text-green-600'],
+      [0.65, '🟡', 'text-yellow-600'],
+      [0.45, '🔴', 'text-red-600'],
+    ])('should color a %s probability with %s', async (probability, icon, color) => {
+      await analyze(probability);
 
-      testCases.forEach(({ probability, expectedIcon }) => {
-        const responseWithProbability = {
-          data: {
-            nurtureStrategy: {
-              ...mockNurtureResponse.data.nurtureStrategy,
-              conversionPrediction: { probability }
-            }
-          }
-        };
-
-        const { supabase } = require('../services/supabaseClient');
-        supabase.functions.invoke.mockResolvedValue(responseWithProbability);
-
-        const { rerender } = render(
-          <AISalesIntelligencePanel
-            contact={mockContact}
-            {...mockCallbacks}
-          />
-        );
-
-        // This would need more complex testing for color classes
-        // For now, just verify the structure works
-      });
+      const label = screen.getByText(`${icon} ${Math.round(probability * 100)}%`);
+      expect(label).toHaveClass(color);
     });
   });
 

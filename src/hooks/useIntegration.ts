@@ -246,7 +246,7 @@ export const useIntegration = () => {
       setContactState(prev => ({
         ...prev,
         contacts: prev.contacts.map(contact => {
-          const analysis = result.results.find(r => r.contactId === contact.id);
+          const analysis = result.results.find((r: { contactId: string; score?: number }) => r.contactId === contact.id);
           return analysis && analysis.score !== undefined 
             ? { ...contact, aiScore: analysis.score }
             : contact;

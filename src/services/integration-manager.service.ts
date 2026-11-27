@@ -3,7 +3,7 @@
  * Main orchestrator that coordinates all integration services
  */
 
-import { contactAPI, ContactFilters } from './contact-api.service';
+import { contactAPI } from './contact-api.service';
 import { aiIntegration, AIAnalysisRequest, BulkAnalysisRequest } from './ai-integration.service';
 import { httpClient } from './http-client.service';
 import { validationService } from './validation.service';
@@ -188,7 +188,7 @@ class IntegrationManagerService {
     }
   }
   
-  async getContactWithEnrichment(contactId: string): Promise<Contact & { enrichmentData?: ContactEnrichmentData }> {
+  async getContactWithEnrichment(contactId: string): Promise<Contact & { enrichmentData?: ContactEnrichmentData | undefined }> {
     const startTime = Date.now();
     this.trackRequest();
     
@@ -224,7 +224,7 @@ class IntegrationManagerService {
         contactId,
         contact,
         analysisTypes: ['scoring', 'categorization', 'tagging'],
-        options,
+        ...(options ? { options } : {}),
       };
       
       const result = await aiIntegration.analyzeContact(analysisRequest);
@@ -348,6 +348,7 @@ class IntegrationManagerService {
         if (Object.keys(updates).length > 0) {
           return contactAPI.updateContact(analysis.contactId, updates);
         }
+        return undefined;
       });
       
       await Promise.all(updatePromises.filter(Boolean));
@@ -546,7 +547,6 @@ class IntegrationManagerService {
       }
       
       // Calculate requests per minute
-      const oneMinuteAgo = Date.now() - 60000;
       healthCheck.metrics.requestsPerMinute = this.metrics.requestCount; // Simplified
       
       // Determine overall status

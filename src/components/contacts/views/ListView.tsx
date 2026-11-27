@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { ViewDensity } from '../../../types/view';
 import { SmartContactCard } from '../SmartContactCard';
 import { ModernButton } from '../../ui/ModernButton';
+import { useContactSelectionStore } from '../../../store/contactSelectionStore';
+import { useContactGroups } from '../../../hooks/useContactGroups';
+import { ContactGroupHeader } from '../ContactGroupHeader';
+import { PeekButton } from '../PeekButton';
+import { useContactSelectionModeStore } from '../../../store/contactSelectionModeStore';
 import {
   LayoutList,
   Grid3x3,
@@ -14,6 +19,7 @@ import {
 interface ListViewProps {
   contacts: Contact[];
   onContactClick: (contact: Contact) => void;
+  onOpenSDRModal?: (contact: Contact) => void;
 }
 
 const DENSITY_CONFIG = {
@@ -22,12 +28,47 @@ const DENSITY_CONFIG = {
   spacious: { cardHeight: 200, gridMinWidth: '360px' }
 } as const;
 
-export function ListView({ contacts, onContactClick }: ListViewProps) {
+export function ListView({ contacts, onContactClick, onOpenSDRModal }: ListViewProps) {
   const [density, setDensity] = useState<ViewDensity['type']>('comfortable');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [showDensityMenu, setShowDensityMenu] = useState(false);
 
   const currentDensity = DENSITY_CONFIG[density];
+  const selected = useContactSelectionStore((s) => s.selected);
+  const toggleSelect = useContactSelectionStore((s) => s.toggle);
+  const orderedIds = contacts.map((c) => c.id);
+  const { groups, isCollapsed, toggle } = useContactGroups(contacts);
+
+  // Tell the "Select all matching" banner which cards are currently visible (collapsed groups are not).
+  const setVisibleIds = useContactSelectionModeStore((s) => s.setVisibleIds);
+  const visibleKey = (groups ? groups.flatMap((g) => (isCollapsed(g.key) ? [] : g.contacts)) : contacts).map((c) => c.id).join('|');
+  useEffect(() => {
+    setVisibleIds(visibleKey ? visibleKey.split('|') : []);
+    return () => setVisibleIds(null);
+  }, [visibleKey, setVisibleIds]);
+
+  const renderCard = (contact: Contact) => (
+          <div
+            key={contact.id}
+            onClick={() => onContactClick(contact)}
+            className="relative group/peek cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
+            style={{
+              minHeight: viewMode === 'list' ? `${currentDensity.cardHeight}px` : undefined
+            }}
+          >
+            <SmartContactCard
+              contact={contact}
+              isSelected={selected.has(contact.id)}
+              onSelect={(opts) => toggleSelect(contact.id, orderedIds, { shift: opts?.shift === true })}
+              onClick={() => onContactClick(contact)}
+              variant="standard"
+              showMetrics={true}
+              enableQuickActions={true}
+              {...(onOpenSDRModal ? { onOpenSDRModal } : {})}
+            />
+            <PeekButton contact={contact} className="absolute top-2 right-2 z-20 group-hover/peek:opacity-100 bg-white/80 dark:bg-gray-800/80" />
+          </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -44,7 +85,7 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
         <div className="flex items-center gap-2">
           {/* Density Controls */}
           <div className="relative">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={() => setShowDensityMenu(!showDensityMenu)}
               className="text-sm"
@@ -56,7 +97,7 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
             {showDensityMenu && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
                 <div className="p-2">
-                  {Object.entries(DENSITY_CONFIG).map(([key, config]) => {
+                  {Object.keys(DENSITY_CONFIG).map((key) => {
                     const icons = { compact: Minimize2, comfortable: LayoutList, spacious: Maximize2 };
                     const Icon = icons[key as keyof typeof icons];
                     const isActive = density === key;
@@ -127,24 +168,18 @@ export function ListView({ contacts, onContactClick }: ListViewProps) {
           }, 1fr))`
         } : undefined}
       >
-        {contacts.map((contact) => (
-          <div
-            key={contact.id}
-            onClick={() => onContactClick(contact)}
-            className="cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
-            style={{
-              minHeight: viewMode === 'list' ? `${currentDensity.cardHeight}px` : undefined
-            }}
-          >
-            <SmartContactCard
-              contact={contact}
-              isSelected={false}
-              onSelect={() => {}}
-              onClick={() => onContactClick(contact)}
-              variant="standard"
-              showMetrics={true}
-              enableQuickActions={true}
-            />
+        {groups ? null : contacts.map(renderCard)}
+        {groups && groups.map((group) => (
+          <div key={group.key || '__none__'} className="col-span-full">
+            <ContactGroupHeader label={group.label} count={group.contacts.length} collapsed={isCollapsed(group.key)} onToggle={() => toggle(group.key)} />
+            {!isCollapsed(group.key) && (
+              <div
+                className={viewMode === 'grid' ? 'grid gap-3 sm:gap-4 md:gap-6 auto-rows-max' : 'flex flex-col gap-2 sm:gap-3'}
+                style={viewMode === 'grid' ? { gridTemplateColumns: `repeat(auto-fill, minmax(${density === 'compact' ? '280px' : density === 'comfortable' ? '320px' : '360px'}, 1fr))` } : undefined}
+              >
+                {group.contacts.map(renderCard)}
+              </div>
+            )}
           </div>
         ))}
 

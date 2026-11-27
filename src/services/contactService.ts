@@ -1,5 +1,7 @@
 import { supabase } from './supabaseClient'
+import { contactsToCsv } from '../utils/contactCsv'
 import { Contact } from '../types/contact'
+import { streamTask, type TaskLive } from './aiTask'
 
 export class ContactService {
   private static instance: ContactService
@@ -62,7 +64,7 @@ export class ContactService {
   }
 
   // Update a contact
-  async updateContact(id: string, updates: Partial<Contact>): Promise<Contact> {
+  async updateContact(id: string, updates: Partial<Contact> & { score?: number }): Promise<Contact> {
     const { data, error } = await supabase
       .from('contacts')
       .update(updates)
@@ -207,74 +209,21 @@ export class ContactService {
     }
   }
 
-  // Enrich contact data using AI
-  async enrichContactData(contactId: string): Promise<Contact> {
-    const contact = await this.getContactById(contactId)
-    if (!contact) {
-      throw new Error('Contact not found')
-    }
-
-    try {
-      // Call AI enrichment Edge Function
-      const { data: enrichedData, error } = await supabase.functions.invoke('ai-enrichment', {
-        body: {
-          contactData: contact,
-          enrichmentType: 'comprehensive'
-        }
-      })
-
-      if (error) throw error
-
-      // Update contact with enriched data
-      const updates: Partial<Contact> = {}
-
-      if (enrichedData.phone && !contact.phone) {
-        updates.phone = enrichedData.phone
-      }
-
-      if (enrichedData.industry && !contact.industry) {
-        updates.industry = enrichedData.industry
-      }
-
-      if (enrichedData.socialProfiles) {
-        updates.socialProfiles = {
-          ...contact.socialProfiles,
-          ...enrichedData.socialProfiles
-        }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        return await this.updateContact(contactId, updates)
-      }
-
-      return contact
-    } catch (error) {
-      console.error('Error enriching contact data:', error)
-      throw error
-    }
-  }
-
   // Calculate contact score
-  async calculateContactScore(contactId: string): Promise<number> {
+  async calculateContactScore(contactId: string, live?: TaskLive): Promise<number> {
     const contact = await this.getContactById(contactId)
     if (!contact) {
       throw new Error('Contact not found')
     }
 
     try {
-      const { data: scoreData, error } = await supabase.functions.invoke('smart-score', {
-        body: {
-          contactData: contact,
-          scoringCriteria: {}
-        }
-      })
-
-      if (error) throw error
+      const scoreData = await streamTask<{ score?: number; totalScore?: number }>('smart-score', { contactId }, live)
+      const total = Math.round(Number(scoreData.totalScore ?? scoreData.score ?? 0))
 
       // Update contact score in database
-      await this.updateContact(contactId, { score: scoreData.totalScore })
+      await this.updateContact(contactId, { score: total })
 
-      return scoreData.totalScore
+      return total
     } catch (error) {
       console.error('Error calculating contact score:', error)
       throw error
@@ -289,17 +238,9 @@ export class ContactService {
       return JSON.stringify(contacts, null, 2)
     }
 
-    // Convert to CSV
+    // Convert to CSV (escaped + formula-injection safe)
     if (contacts.length === 0) return ''
-
-    const headers = Object.keys(contacts[0]).join(',')
-    const rows = contacts.map(contact =>
-      Object.values(contact).map(value =>
-        typeof value === 'object' ? JSON.stringify(value) : String(value || '')
-      ).join(',')
-    )
-
-    return [headers, ...rows].join('\n')
+    return contactsToCsv(contacts as any)
   }
 
   // Import contacts
@@ -309,16 +250,16 @@ export class ContactService {
       throw new Error('CSV must have at least a header row and one data row')
     }
 
-    const headers = lines[0].split(',').map(h => h.trim())
+    const headers = (lines[0] ?? '').split(',').map(h => h.trim())
     const results = { success: 0, failed: 0, errors: [] as string[] }
 
     for (let i = 1; i < lines.length; i++) {
       try {
-        const values = lines[i].split(',').map(v => v.trim())
+        const values = (lines[i] ?? '').split(',').map(v => v.trim())
         const contactData: any = {}
 
         headers.forEach((header, index) => {
-          let value = values[index] || ''
+          let value: any = values[index] || ''
 
           // Parse JSON fields
           if (['socialProfiles', 'customFields', 'tags'].includes(header)) {
@@ -353,7 +294,7 @@ export class ContactService {
         await this.createContact(contactData)
         results.success++
       } catch (error) {
-        results.errors.push(`Row ${i + 1}: ${error.message}`)
+        results.errors.push(`Row ${i + 1}: ${(error as { message?: string }).message}`)
         results.failed++
       }
     }

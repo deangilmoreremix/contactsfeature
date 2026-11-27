@@ -18,31 +18,18 @@ import {
   Sparkles,
   Brain,
   Mail,
-  Users,
   Search,
   BarChart3,
   Zap,
   MessageSquare,
-  Upload,
-  Download,
   Target,
-  Shield,
   Globe,
   Settings,
-  Phone,
-  Calendar,
-  Layers,
-  Activity,
-  PieChart,
   TrendingUp,
   CheckCircle,
-  Award,
   Eye,
-  Heart,
-  Star,
   DollarSign,
-  Book,
-  User
+  User,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -56,7 +43,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
     {
       id: 'ai-contact-scoring',
       title: 'AI Contact Scoring',
-      description: 'Advanced AI-powered contact scoring with visual indicators, interest level tracking, and predictive lead qualification using OpenAI and Google Gemini.',
+      description: 'Advanced AI-powered contact scoring with visual indicators, interest level tracking, and predictive lead qualification using OpenAI.',
       image: 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
       icon: Brain,
       color: 'from-purple-500 to-blue-500',
@@ -163,31 +150,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
     }
   ];
 
-  const renderInteractiveDemo = (featureId: string) => {
-    switch (featureId) {
-      case 'ai-contact-scoring':
-        return <InteractiveContactScorer />;
-      case 'ai-email-generation':
-        return <InteractiveEmailComposer />;
-      case 'smart-search-filtering':
-        return <InteractiveFilterDemo />;
-      case 'ai-insights-analytics':
-        return <InteractiveSmartSearch />;
-      case 'contact-journey-timeline':
-        return <InteractiveLiveDealAnalysis />;
-      case 'communication-hub':
-        return <InteractiveObjectionHandler />;
-      case 'ai-automation':
-        return <InteractiveInstantAIResponse />;
-      case 'contact-detail-view':
-        return <InteractiveContactDemo />;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50 z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50 z-[70] overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -285,8 +249,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                       className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
                         // Fallback to a placeholder image or hide the broken image
-                        e.target.src = 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-                        e.target.style.opacity = '0.7';
+                        const img = e.currentTarget;
+                        img.src = 'https://images.pexels.com/photos/3184430/pexels-photo-3184430.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                        img.style.opacity = '0.7';
                       }}
                       loading="lazy"
                     />
@@ -447,11 +412,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                 Powered by Advanced AI Models
               </h3>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Our Contact Management Platform integrates with the latest AI models from OpenAI, Google, and more for optimal performance, accuracy, and cost efficiency across all contact features.
+                Our Contact Management Platform integrates with the latest AI models from OpenAI for optimal performance, accuracy, and cost efficiency across all contact features.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 gap-8 max-w-md mx-auto">
               {/* OpenAI */}
               <div className="text-center p-6 bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border border-green-200">
                 <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -462,38 +427,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onClose }) => {
                   Advanced reasoning and analysis for complex tasks like relationship mapping and detailed insights.
                 </p>
                 <div className="flex justify-center space-x-2">
-                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs">GPT-4o</span>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">GPT-4o Mini</span>
-                </div>
-              </div>
-
-              {/* Google Gemini */}
-              <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-                <h4 className="text-xl font-semibold text-gray-900 mb-2">Google Gemini</h4>
-                <p className="text-gray-600 text-sm mb-4">
-                  Lightning-fast processing for real-time scoring, categorization, and bulk operations.
-                </p>
-                <div className="flex justify-center space-x-2">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">Gemini 2.0 Flash</span>
-                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs">Gemini 1.5 Pro</span>
-                </div>
-              </div>
-
-              {/* Gemma Models */}
-              <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Zap className="w-8 h-8 text-white" />
-                </div>
-                <h4 className="text-xl font-semibold text-gray-900 mb-2">Gemma Models</h4>
-                <p className="text-gray-600 text-sm mb-4">
-                  Cost-effective AI for high-volume tasks like tagging, categorization, and simple analysis.
-                </p>
-                <div className="flex justify-center space-x-2">
-                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs">Gemma 2-27B</span>
-                  <span className="px-2 py-1 bg-pink-100 text-pink-800 rounded-md text-xs">Gemma 2-9B</span>
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs">GPT-6</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">GPT-6 Fast</span>
                 </div>
               </div>
             </div>

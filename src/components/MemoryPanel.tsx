@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
+import { useAIStream } from "../hooks/useAIStream";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { briefText } from "../utils/partialText";
 
 interface MemoryLayer {
   id?: string;
@@ -11,6 +14,8 @@ interface MemoryLayer {
 
 interface MemoryResponse {
   contactId: string;
+  total?: number;
+  brief?: { summary: string; key_facts: string[]; preferences: string[]; avoid: string[] } | null;
   memory: {
     short: MemoryLayer[];
     mid: MemoryLayer[];
@@ -20,37 +25,24 @@ interface MemoryResponse {
 
 export const MemoryPanel: React.FC = () => {
   const [contactId, setContactId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [mem, setMem] = useState<MemoryResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const live = useAIStream<MemoryResponse>();
+  const loading = live.isStreaming;
+  const mem = live.state.result;
+  const [formError, setFormError] = useState<string | null>(null);
+  const error = formError || live.state.error;
   const [showSettings, setShowSettings] = useState(false);
 
   const fetchMemory = async () => {
-    setError(null);
-    setMem(null);
+    setFormError(null);
+    live.reset();
 
     if (!contactId) {
-      setError("Please enter a contact ID.");
+      setFormError("Please enter a contact ID.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/.netlify/functions/memory-get?contactId=${encodeURIComponent(contactId)}`
-      );
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Request failed");
-      }
-      const data = (await res.json()) as MemoryResponse;
-      setMem(data);
-    } catch (e: any) {
-      console.error("Memory get error:", e);
-      setError(e.message || "Failed to load memory");
-    } finally {
-      setLoading(false);
-    }
+    // Memory layers + an AI brief of what the agents remember; the brief types in while it is written.
+    await live.runFunction("/.netlify/functions/memory-get", { contactId });
   };
 
   const renderLayer = (title: string, items: MemoryLayer[]) => (
@@ -113,6 +105,7 @@ export const MemoryPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
+        color: "#1a202c",
         marginTop: 24
       }}
     >
@@ -202,6 +195,31 @@ export const MemoryPanel: React.FC = () => {
           }}
         >
           ⚠️ {error}
+        </div>
+      )}
+
+      {loading && (
+        <StreamingOutput
+          state={live.state}
+          onStop={live.stop}
+          display={briefText(live.state.partial)}
+          placeholder="Reading this contact's memory…"
+          className="mb-3"
+        />
+      )}
+
+      {mem && mem.brief && (
+        <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, color: "#718096", marginBottom: 4 }}>
+            What the agents remember
+          </div>
+          <pre className="whitespace-pre-wrap break-words text-sm font-sans text-gray-800 dark:text-gray-100 m-0">{briefText(mem.brief)}</pre>
+        </div>
+      )}
+
+      {mem && mem.total === 0 && (
+        <div style={{ fontSize: 13, color: "#718096", marginBottom: 8 }}>
+          No memory is stored for this contact yet. Agents write memory as they work with them.
         </div>
       )}
 

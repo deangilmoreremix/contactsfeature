@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ overview: S.str, swot: S.obj({ strengths: S.strArr, weaknesses: S.strArr, opportunities: S.strArr, threats: S.strArr }), competitiveAdvantages: S.strArr, vulnerabilities: S.strArr, recommendations: S.strArr, riskAssessment: S.obj({ level: S.str, factors: S.strArr, mitigation: S.str }) });
+
 const log = createLogger('competitive-intelligence-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -40,7 +45,7 @@ exports.handler = withAuth(async (event, user) => {
       }
     }
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.4);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const prefsBlock = buildPreferencesPromptBlock(prefs);
@@ -63,34 +68,32 @@ Generate:
 
 Return JSON with "overview", "swot" (object with arrays), "competitiveAdvantages", "vulnerabilities", "recommendations" (array), "riskAssessment".${prefsBlock}`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'competitive_intelligence' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          overview: '',
+          swot: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+          competitiveAdvantages: [],
+          vulnerabilities: [],
+          recommendations: [],
+          riskAssessment: {},
+        });
 
-    const parsed = parseJSONResponse(content, {
-      overview: '',
-      swot: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
-      competitiveAdvantages: [],
-      vulnerabilities: [],
-      recommendations: [],
-      riskAssessment: {},
+        log.info('Competitive intelligence generated', { contactId, targetCompany: company, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          targetCompany: company,
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Competitive intelligence generated', { contactId, targetCompany: company, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        targetCompany: company,
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Competitive intelligence failed', { contactId, targetCompany, error: error.message });
     return errorResponse(500, 'Competitive intelligence failed');
   }
-});
+}));

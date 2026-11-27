@@ -378,7 +378,7 @@ describe('Error Handling System', () => {
       });
 
       expect(notFoundError.code).toBe(ERROR_CODES.CONTACT_NOT_FOUND);
-      expect(notFoundError.context?.contactId).toBe('non-existent');
+      expect(notFoundError.context?.['contactId']).toBe('non-existent');
 
       // Simulate validation error
       const validationError = new ValidationError('Invalid contact data', {
@@ -386,7 +386,7 @@ describe('Error Handling System', () => {
         phone: ['Must be numeric']
       });
 
-      expect(validationError.fieldErrors.email).toEqual(['Invalid format']);
+      expect(validationError.fieldErrors['email']).toEqual(['Invalid format']);
       expect(validationError.code).toBe(ERROR_CODES.VALIDATION_FAILED);
     });
 
@@ -407,7 +407,7 @@ describe('Error Handling System', () => {
         operation: 'databaseQuery'
       });
 
-      expect(networkError.context?.cause).toBe(rootCause);
+      expect(networkError.context?.['cause']).toBe(rootCause);
       expect(networkError.message).toBe('API request failed');
     });
   });
@@ -433,7 +433,7 @@ describe('Error Handling System', () => {
       logError(error);
 
       const logCall = consoleSpy.error.mock.calls[0];
-      expect(logCall[1]).toEqual(expect.objectContaining({
+      expect(logCall![1]).toEqual(expect.objectContaining({
         code: ERROR_CODES.UPDATE_FAILED,
         context: expect.objectContaining({
           userId: 'user123',

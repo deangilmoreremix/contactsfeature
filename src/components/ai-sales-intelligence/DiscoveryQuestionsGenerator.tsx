@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { streamFunction } from '../../services/functionStream';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
@@ -56,6 +59,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
 }) => {
   const [questions, setQuestions] = useState<GeneratedQuestions | null>(null);
   const [loading, setLoading] = useState(false);
+  const gen = useFunctionStream<any>();
   const [copiedQuestions, setCopiedQuestions] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showSettings, setShowSettings] = useState(false);
@@ -158,8 +162,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
         analyticsService.endTracking(sessionId, true, undefined, 'mock', 'mock');
       } else {
         // Real question generation for non-mock contacts
-        const response = await supabase.functions.invoke('discovery-questions', {
-          body: {
+        const out = await gen.runLive((h) => streamFunction<any>('discovery-questions', {
             contact: {
               id: contact.id,
               name: contact.name,
@@ -171,8 +174,9 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
             meetingContext,
             questionType: 'comprehensive',
             aiProvider: 'openai'
-          }
-        });
+          }, h));
+        if (!out) {  analyticsService.endTracking(sessionId, false, 'Stopped'); return; }
+        const response = { data: out.result as any };
 
         if (response.data?.data) {
           // Transform the API response to match the expected questions structure
@@ -199,7 +203,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
           setQuestions(transformedQuestions);
 
           // End analytics tracking - success
-          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'default');
         } else {
           throw new Error('No questions data received');
         }
@@ -211,23 +215,6 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
       analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getFocusAreas = (meetingType: string): string[] => {
-    switch (meetingType) {
-      case 'discovery':
-        return ['pain_points', 'goals', 'timeline', 'budget'];
-      case 'demo':
-        return ['current_solution', 'requirements', 'integration', 'training'];
-      case 'follow_up':
-        return ['feedback', 'objections', 'next_steps', 'timeline'];
-      case 'negotiation':
-        return ['terms', 'pricing', 'timeline', 'support'];
-      case 'closing':
-        return ['final_objections', 'implementation', 'success_metrics'];
-      default:
-        return ['general'];
     }
   };
 
@@ -307,15 +294,15 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             title="Configure Discovery Questions Settings"
           >
-            <Settings className="w-3 h-3" />
+            <Settings className="w-4 h-4" />
             Settings
           </button>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={generateQuestions}
             loading={loading}
           >
@@ -345,6 +332,14 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
           </div>
         </div>
       </div>
+
+      <LiveOutput
+        className="mb-6"
+        state={gen.state}
+        onStop={gen.stop}
+        display={liveDisplay(gen.state.partial, gen.state.text)}
+        placeholder="Drafting discovery questions…"
+      />
 
       {questions && (
         <>
@@ -418,7 +413,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
                   </div>
                   <ModernButton
                     variant="ghost"
-                    size="sm"
+                    size="toolbar"
                     onClick={() => copyQuestion(q.question, q.id)}
                   >
                     {copiedQuestions.has(q.id) ? (
@@ -437,14 +432,14 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={copyAllQuestions}
               className="flex-1"
             >
               📋 Copy All Questions
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onRegenerate || (() => {})}
               className="flex-1"
@@ -452,7 +447,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
               <RefreshCw className="w-4 h-4 mr-2" />
               Regenerate
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onSaveTemplate || (() => {})}
             >
@@ -469,7 +464,7 @@ export const DiscoveryQuestionsGenerator: React.FC<DiscoveryQuestionsGeneratorPr
           <p className="text-gray-600 mb-6">
             Create personalized discovery questions tailored to {contact.name}'s role and your meeting objectives.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={generateQuestions}
           >

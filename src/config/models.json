@@ -1,0 +1,25 @@
+{
+  "_comment": "Single source of truth for OpenAI model ids. Read by src/config/ai.ts, netlify/functions/_responses.js and supabase/functions/_shared/openai.ts (keep supabase copy in sync; a unit test checks it). Ids per https://developers.openai.com/api/docs/models. Override any role at runtime with SMARTCRM_<ROLE>_MODEL / SMARTCRM_<ROLE>_EFFORT env vars (server side).",
+  "text": {
+    "default":  { "model": "gpt-6.1-sol",  "effort": "medium" },
+    "thinking": { "model": "gpt-6-astra",  "effort": "high" },
+    "fast":     { "model": "gpt-6-luna",   "effort": "none" },
+    "pro":      { "model": "gpt-6-astra",  "effort": "xhigh" }
+  },
+  "image": {
+    "default": "gpt-image-2.6-sunburst",
+    "fast": "gpt-image-2.6-flare"
+  },
+  "audio": {
+    "transcribe": "gpt-transcribe",
+    "transcribeLive": "gpt-live-transcribe",
+    "tts": "gpt-realtime-2.1-mini"
+  },
+  "realtime": {
+    "default": "gpt-realtime-2.1",
+    "mini": "gpt-realtime-2.1-mini",
+    "voice": "gpt-live-1"
+  },
+  "embedding": { "model": "text-embedding-3-small", "dimensions": 1536 },
+  "moderation": { "model": "omni-moderation-latest" }
+}

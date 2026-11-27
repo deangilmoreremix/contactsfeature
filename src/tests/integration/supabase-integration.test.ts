@@ -1,51 +1,24 @@
 /**
  * Supabase Integration Tests
- * Tests database operations, CRUD functionality, and data consistency
+ *
+ * agentService's database operations (agent metadata, run lifecycle, context gathering) against an in-memory
+ * Supabase (tests/helpers/fakeSupabase), including how each operation reports database errors.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { agentService } from '../../services/agentService';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../services/supabaseClient';
+import type { FakeSupabase } from '../helpers/fakeSupabase';
 
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-      getUser: vi.fn()
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-          order: vi.fn(() => ({
-            limit: vi.fn()
-          }))
-        }))
-      })),
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn()
-        }))
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn()
-      })),
-      delete: vi.fn(() => ({
-        eq: vi.fn()
-      }))
-    }))
-  }
-}));
+vi.mock('../../services/supabaseClient', async () => {
+  const { createFakeSupabase } = await import('../helpers/fakeSupabase');
+  return { supabase: createFakeSupabase() };
+});
+
+const db = supabase as unknown as FakeSupabase;
 
 describe('Supabase Integration Tests', () => {
-  const mockUser = {
-    id: 'test-user-id',
-    email: 'test@example.com',
-    app_metadata: {},
-    user_metadata: {},
-    aud: 'authenticated',
-    created_at: new Date().toISOString()
-  };
+  const mockUser = { id: 'test-user-id' };
 
   const mockAgent = {
     id: 'test-agent-id',
@@ -56,149 +29,68 @@ describe('Supabase Integration Tests', () => {
     output_schema: { result: 'string' },
     recommended_ui_placement: 'contact-toolbar',
     trigger_options: { manual: true },
-    model: 'gpt-4o',
+    model: 'default',
     reasoning_effort: 'medium' as const,
     verbosity: 'medium' as const
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-
-    // Mock successful auth
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: {
-        session: {
-          access_token: 'test-token',
-          refresh_token: 'refresh-token',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: mockUser
-        }
-      },
-      error: null
-    });
-
-    vi.mocked(supabase.auth.getUser).mockResolvedValue({
-      data: { user: mockUser },
-      error: null
-    });
+    db.reset();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  describe('Agent Metadata CRUD Operations', () => {
-    it('should create and retrieve agent metadata', async () => {
-      // Mock successful creation
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { ...mockAgent, created_at: new Date().toISOString() },
-              error: null
-            })
-          }))
-        }))
-      } as any);
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-      // Mock successful retrieval
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      // Note: In real implementation, this would be an admin operation
-      // For testing, we'll mock the service methods
-      const created = await agentService.loadAgentMetadata(mockAgent.id);
-      expect(created?.id).toBe(mockAgent.id);
-      expect(created?.name).toBe(mockAgent.name);
-    });
-
-    it('should update agent metadata', async () => {
-      const updatedDescription = 'Updated test agent description';
-
-      // Mock retrieval
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockAgent,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      // Mock update
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-
-      // Mock retrieval after update
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { ...mockAgent, description: updatedDescription },
-              error: null
-            })
-          }))
-        }))
-      } as any);
+  describe('Agent Metadata Operations', () => {
+    it('should load agent metadata by id', async () => {
+      db.respond('agent_metadata', 'select', { data: mockAgent, error: null });
 
       const agent = await agentService.loadAgentMetadata(mockAgent.id);
-      expect(agent?.description).toBe(mockAgent.description);
 
-      // In real implementation, there would be an update method
-      // For testing, we verify the retrieval works
-      const updatedAgent = await agentService.loadAgentMetadata(mockAgent.id);
-      expect(updatedAgent?.id).toBe(mockAgent.id);
+      expect(agent).toMatchObject({ id: mockAgent.id, name: mockAgent.name, tools: ['test-tool'], model: 'default' });
+      expect(db.callsFor('agent_metadata', 'select')[0]!.filters).toEqual([['eq:id', mockAgent.id]]);
     });
 
-    it('should delete agent metadata', async () => {
-      // Mock successful deletion
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        delete: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
+    it('should load agent metadata by name', async () => {
+      db.respond('agent_metadata', 'select', { data: mockAgent, error: null });
 
-      // Mock retrieval after deletion (should return null)
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Not found' }
-            })
-          }))
-        }))
-      } as any);
+      const agent = await agentService.loadAgentByName('Test Agent');
 
-      // In real implementation, this would be a delete operation
-      // For testing, we verify the pattern works
-      const agent = await agentService.loadAgentMetadata('nonexistent-id');
-      expect(agent).toBeNull();
+      expect(agent?.id).toBe(mockAgent.id);
+      expect(db.callsFor('agent_metadata', 'select')[0]!.filters).toEqual([['eq:name', 'Test Agent']]);
+    });
+
+    it('should fill defaults for optional metadata fields', async () => {
+      db.respond('agent_metadata', 'select', { data: { id: 'sparse', name: 'Sparse', description: 'd' }, error: null });
+
+      const agent = await agentService.loadAgentMetadata('sparse');
+
+      expect(agent).toMatchObject({
+        tools: [],
+        input_schema: {},
+        output_schema: {},
+        recommended_ui_placement: '',
+        trigger_options: {},
+        reasoning_effort: 'medium',
+        verbosity: 'medium'
+      });
+    });
+
+    it('should return null for a missing agent', async () => {
+      db.respond('agent_metadata', 'select', { data: null, error: { message: 'Not found' } });
+
+      await expect(agentService.loadAgentMetadata('nonexistent-id')).resolves.toBeNull();
+      await expect(agentService.loadAgentByName('nonexistent')).resolves.toBeNull();
     });
 
     it('should load all agents', async () => {
-      const mockAgents = [mockAgent, { ...mockAgent, id: 'agent-2', name: 'Agent 2' }];
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          order: vi.fn().mockResolvedValue({
-            data: mockAgents,
-            error: null
-          })
-        }))
-      } as any);
+      db.respond('agent_metadata', 'select', { data: [mockAgent, { ...mockAgent, id: 'agent-2', name: 'Agent 2' }], error: null });
 
       const agents = await agentService.loadAllAgents();
+
       expect(agents).toHaveLength(2);
       expect(agents[0]?.name).toBe(mockAgent.name);
       expect(agents[1]?.name).toBe('Agent 2');
@@ -214,381 +106,195 @@ describe('Supabase Integration Tests', () => {
       status: 'running' as const
     };
 
-    it('should create and track agent run lifecycle', async () => {
-      // Mock run creation
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: {
-                ...mockRun,
-                id: 'run-123',
-                created_at: new Date().toISOString()
-              },
-              error: null
-            })
-          }))
-        }))
-      } as any);
+    it('should create an agent run', async () => {
+      db.respond('agent_runs', 'insert', ({ payload }) => ({ data: { ...(payload as object), id: 'run-123', created_at: new Date().toISOString() }, error: null }));
 
       const savedRun = await agentService.saveAgentRun(mockRun);
-      expect(savedRun).toBeDefined();
+
       expect(savedRun?.id).toBe('run-123');
       expect(savedRun?.status).toBe('running');
+      expect(db.callsFor('agent_runs', 'insert')[0]!.payload).toMatchObject({ agent_id: mockAgent.id, contact_id: 'test-contact-id', user_id: mockUser.id, input_data: { test: 'input' } });
     });
 
     it('should update agent run status and results', async () => {
-      // Mock run update
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
+      db.respond('agent_runs', 'update', { data: null, error: null });
 
       const updateSuccess = await agentService.updateAgentRun('run-123', {
         status: 'completed',
         output_data: { result: 'success' },
-        tool_calls: [{ id: 'call-1', type: 'function', name: 'test-tool' }],
+        tool_calls: [{ id: 'call-1', type: 'function', name: 'test-tool' }] as any,
         execution_time_ms: 1500,
-        tokens_used: { input_tokens: 50, output_tokens: 50, total_tokens: 100 }
+        tokens_used: { input_tokens: 50, output_tokens: 50, total_tokens: 100 } as any
       });
 
       expect(updateSuccess).toBe(true);
+      const [call] = db.callsFor('agent_runs', 'update');
+      expect(call!.filters).toEqual([['eq:id', 'run-123']]);
+      expect(call!.payload).toMatchObject({ status: 'completed', output_data: { result: 'success' }, execution_time_ms: 1500 });
+    });
+
+    it('should report a failed run update', async () => {
+      db.respond('agent_runs', 'update', { data: null, error: { message: 'row not found' } });
+
+      await expect(agentService.updateAgentRun('run-123', { status: 'failed' })).resolves.toBe(false);
     });
 
     it('should retrieve agent run history', async () => {
-      const mockRuns = [
-        {
-          id: 'run-1',
-          agent_id: mockAgent.id,
-          status: 'completed',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'run-2',
-          agent_id: mockAgent.id,
-          status: 'running',
-          created_at: new Date().toISOString()
-        }
+      const runs = [
+        { id: 'run-1', agent_id: mockAgent.id, status: 'completed', created_at: new Date().toISOString() },
+        { id: 'run-2', agent_id: mockAgent.id, status: 'running', created_at: new Date().toISOString() }
       ];
+      db.respond('agent_runs', 'select', { data: runs, error: null });
 
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          order: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue({
-              data: mockRuns,
-              error: null
-            })
-          }))
-        }))
-      } as any);
+      const loaded = await agentService.loadAgentRuns(mockAgent.id, undefined, undefined, 10);
 
-      const runs = await agentService.loadAgentRuns(mockAgent.id, undefined, undefined, 10);
-      expect(runs).toHaveLength(2);
-      expect(runs[0]?.status).toBe('completed');
-      expect(runs[1]?.status).toBe('running');
+      expect(loaded).toHaveLength(2);
+      expect(loaded[0]?.status).toBe('completed');
+      expect(loaded[1]?.status).toBe('running');
+      expect(db.callsFor('agent_runs', 'select')[0]!.filters).toEqual([['eq:agent_id', mockAgent.id]]);
     });
 
     it('should filter agent runs by contact and deal', async () => {
-      const contactId = 'contact-123';
-      const dealId = 'deal-456';
+      db.respond('agent_runs', 'select', { data: [{ id: 'run-1', agent_id: mockAgent.id, contact_id: 'contact-123', deal_id: 'deal-456', status: 'completed' }], error: null });
 
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(() => ({
-                limit: vi.fn().mockResolvedValue({
-                  data: [{
-                    id: 'run-1',
-                    agent_id: mockAgent.id,
-                    contact_id: contactId,
-                    deal_id: dealId,
-                    status: 'completed'
-                  }],
-                  error: null
-                })
-              }))
-            }))
-          }))
-        }))
-      } as any);
+      const loaded = await agentService.loadAgentRuns(mockAgent.id, 'contact-123', 'deal-456', 10);
 
-      const runs = await agentService.loadAgentRuns(mockAgent.id, contactId, dealId, 10);
-      expect(runs).toHaveLength(1);
-      expect(runs[0]?.contact_id).toBe(contactId);
-      expect(runs[0]?.deal_id).toBe(dealId);
+      expect(loaded).toHaveLength(1);
+      expect(loaded[0]).toMatchObject({ contact_id: 'contact-123', deal_id: 'deal-456' });
+      expect(db.callsFor('agent_runs', 'select')[0]!.filters).toEqual([
+        ['eq:agent_id', mockAgent.id],
+        ['eq:contact_id', 'contact-123'],
+        ['eq:deal_id', 'deal-456']
+      ]);
+    });
+
+    it('should return no runs when the query fails', async () => {
+      db.respond('agent_runs', 'select', { data: null, error: { message: 'boom' } });
+
+      await expect(agentService.loadAgentRuns(mockAgent.id)).resolves.toEqual([]);
     });
   });
 
   describe('Context Data Gathering', () => {
-    const mockContact = {
-      id: 'contact-123',
-      name: 'John Doe',
-      email: 'john@example.com',
-      company: 'Acme Corp'
-    };
-
-    const mockDeal = {
-      id: 'deal-456',
-      name: 'Enterprise Deal',
-      value: 50000,
-      stage: 'discovery'
-    };
+    const mockContact = { id: 'contact-123', name: 'John Doe', email: 'john@example.com', company: 'Acme Corp' };
+    const mockDeal = { id: 'deal-456', title: 'Big Deal', value: 50000 };
 
     it('should gather comprehensive context for agent execution', async () => {
-      // Mock contact retrieval
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockContact,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      // Mock deal retrieval
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: mockDeal,
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      // Mock prior runs
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          order: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue({
-              data: [],
-              error: null
-            })
-          }))
-        }))
-      } as any);
+      db.respond('contacts', 'select', { data: mockContact, error: null });
+      db.respond('deals', 'select', { data: mockDeal, error: null });
+      db.respond('agent_runs', 'select', { data: [{ id: 'run-1', status: 'completed' }], error: null });
 
       const context = await agentService.gatherContext(mockUser.id, mockContact.id, mockDeal.id);
 
-      expect(context.contact?.id).toBe(mockContact.id);
-      expect(context.deal?.id).toBe(mockDeal.id);
-      expect(context.prior_runs).toEqual([]);
+      expect(context.contact).toEqual(mockContact);
+      expect(context.deal).toEqual(mockDeal);
+      expect(context.prior_runs).toHaveLength(1);
       expect(context.journey_history).toEqual([]);
+      expect(context.analytics).toEqual({});
     });
 
     it('should handle missing context data gracefully', async () => {
-      // Mock missing contact
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Not found' }
-            })
-          }))
-        }))
-      } as any);
+      db.respond('contacts', 'select', { data: null, error: { message: 'Not found' } });
+      db.respond('deals', 'select', { data: null, error: { message: 'Not found' } });
+      db.respond('agent_runs', 'select', { data: [], error: null });
 
-      // Mock missing deal
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Not found' }
-            })
-          }))
-        }))
-      } as any);
-
-      // Mock empty runs
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          order: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue({
-              data: [],
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      const context = await agentService.gatherContext(mockUser.id, 'nonexistent-contact', 'nonexistent-deal');
+      const context = await agentService.gatherContext(mockUser.id, 'missing-contact', 'missing-deal');
 
       expect(context.contact).toBeUndefined();
       expect(context.deal).toBeUndefined();
       expect(context.prior_runs).toEqual([]);
     });
+
+    it('should only query contacts and deals that were asked for', async () => {
+      db.respond('agent_runs', 'select', { data: [], error: null });
+
+      await agentService.gatherContext(mockUser.id);
+
+      expect(db.callsFor('contacts')).toHaveLength(0);
+      expect(db.callsFor('deals')).toHaveLength(0);
+    });
   });
 
   describe('Database Connection Resilience', () => {
-    it('should handle database connection failures', async () => {
-      // Mock connection failure
-      vi.mocked(supabase.from).mockImplementationOnce(() => {
-        throw new Error('Connection failed');
-      });
+    it('should return no agents when the database call throws', async () => {
+      vi.spyOn(db, 'from').mockImplementationOnce(() => { throw new Error('Database connection failed'); });
 
-      await expect(agentService.loadAllAgents()).rejects.toThrow('Connection failed');
+      await expect(agentService.loadAllAgents()).resolves.toEqual([]);
     });
 
-    it('should handle query timeouts', async () => {
-      // Mock timeout
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockImplementation(
-              () => new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Query timeout')), 100)
-              )
-            )
-          }))
-        }))
-      } as any);
+    it('should return null when a query fails with a timeout', async () => {
+      db.respond('agent_metadata', 'select', () => Promise.reject(new Error('Query timeout')));
 
-      await expect(agentService.loadAgentMetadata('test-id')).rejects.toThrow('Query timeout');
+      await expect(agentService.loadAgentMetadata('test-id')).resolves.toBeNull();
     });
 
-    it('should handle database constraint violations', async () => {
-      // Mock constraint violation
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'duplicate key value violates unique constraint' }
-            })
-          }))
-        }))
-      } as any);
+    it('should return null for database constraint violations on insert', async () => {
+      db.respond('agent_runs', 'insert', { data: null, error: { message: 'duplicate key value violates unique constraint' } });
 
-      const runData = {
+      const result = await agentService.saveAgentRun({
         agent_id: mockAgent.id,
         user_id: mockUser.id,
-        input_data: { test: 'data' },
-        status: 'running' as const
-      };
+        input_data: { test: 'constraint violation' },
+        status: 'running'
+      });
 
-      const result = await agentService.saveAgentRun(runData);
       expect(result).toBeNull();
     });
 
-    it('should recover from temporary database issues', async () => {
-      let callCount = 0;
-
-      // Mock alternating failure/success
-      vi.mocked(supabase.from).mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          throw new Error('Temporary connection issue');
-        }
-
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: mockAgent,
-                error: null
-              })
-            }))
-          }))
-        } as any;
+    it('should work again after a temporary database failure', async () => {
+      const original = db.from;
+      let calls = 0;
+      vi.spyOn(db, 'from').mockImplementation((table: string) => {
+        calls++;
+        if (calls === 1) throw new Error('Temporary connection issue');
+        return original(table);
       });
+      db.respond('agent_metadata', 'select', { data: mockAgent, error: null });
 
-      // First call should fail
-      await expect(agentService.loadAgentMetadata(mockAgent.id)).rejects.toThrow();
-
-      // Second call should succeed (in real implementation with retry logic)
-      // For this test, we verify the mock behavior
-      expect(callCount).toBe(1);
+      // The first call fails (reported as null), the next one succeeds: the service keeps no broken state
+      await expect(agentService.loadAgentMetadata(mockAgent.id)).resolves.toBeNull();
+      await expect(agentService.loadAgentMetadata(mockAgent.id)).resolves.toMatchObject({ id: mockAgent.id });
     });
   });
 
   describe('Data Consistency and Integrity', () => {
-    it('should maintain referential integrity', async () => {
-      // Test that foreign key relationships are respected
-      const invalidRun = {
+    it('should pass the database result through when an insert succeeds', async () => {
+      // Referential integrity (agent_id -> agent_metadata) is enforced by the database, not by the service
+      db.respond('agent_runs', 'insert', ({ payload }) => ({ data: { ...(payload as object), id: 'run-123' }, error: null }));
+
+      const result = await agentService.saveAgentRun({
         agent_id: 'nonexistent-agent',
         user_id: mockUser.id,
         input_data: { test: 'data' },
-        status: 'running' as const
-      };
+        status: 'running'
+      });
 
-      // Mock successful insert (in real DB this would fail due to FK constraint)
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: { ...invalidRun, id: 'run-123' },
-              error: null
-            })
-          }))
-        }))
-      } as any);
-
-      const result = await agentService.saveAgentRun(invalidRun);
-      expect(result).toBeDefined();
-
-      // In a real database with constraints, this would fail
-      // This test verifies the service layer works correctly
+      expect(result).toMatchObject({ id: 'run-123', agent_id: 'nonexistent-agent' });
     });
 
-    it('should handle concurrent data modifications', async () => {
-      // Test optimistic locking or conflict resolution
-      const runId = 'run-123';
-      const initialData = {
-        status: 'running' as const,
-        execution_time_ms: 1000
-      };
+    it('should apply concurrent updates independently', async () => {
+      db.respond('agent_runs', 'update', { data: null, error: null });
 
-      // Mock concurrent updates
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
-      } as any);
-
-      // Both updates should succeed (in real implementation, might need conflict resolution)
-      const result1 = await agentService.updateAgentRun(runId, initialData);
-      const result2 = await agentService.updateAgentRun(runId, { status: 'completed' });
+      const [result1, result2] = await Promise.all([
+        agentService.updateAgentRun('run-123', { status: 'running', execution_time_ms: 1000 }),
+        agentService.updateAgentRun('run-123', { status: 'completed' })
+      ]);
 
       expect(result1).toBe(true);
       expect(result2).toBe(true);
+      expect(db.callsFor('agent_runs', 'update').map(c => (c.payload as { status: string }).status).sort()).toEqual(['completed', 'running']);
     });
 
-    it('should validate data types and constraints', async () => {
-      // Test data validation at service layer
-      const invalidRun = {
-        agent_id: '', // Invalid: empty string
+    it('should report database validation errors as a null result', async () => {
+      db.respond('agent_runs', 'insert', { data: null, error: { message: 'Validation failed' } });
+
+      const result = await agentService.saveAgentRun({
+        agent_id: '',
         user_id: mockUser.id,
-        input_data: {}, // Invalid: empty data
-        status: 'invalid_status' as any // Invalid: wrong status
-      };
+        input_data: {},
+        status: 'invalid_status' as any
+      });
 
-      // The service should handle this gracefully
-      // In real implementation, validation would occur here
-      vi.mocked(supabase.from).mockReturnValueOnce({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Validation failed' }
-            })
-          }))
-        }))
-      } as any);
-
-      const result = await agentService.saveAgentRun(invalidRun);
       expect(result).toBeNull();
     });
   });

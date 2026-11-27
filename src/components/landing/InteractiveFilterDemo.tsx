@@ -2,18 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
-import { 
-  Search, 
-  Filter, 
-  Users, 
-  ChevronDown,
+import {
+  Search,
+  Users,
   Target,
   Building,
-  Mail,
   Star,
   Sparkles,
   Award,
-  CheckCircle
+  CheckCircle,
 } from 'lucide-react';
 
 const sampleContacts = [

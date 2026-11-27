@@ -1,5 +1,6 @@
-import { supabase } from '../../lib/supabase';
-import { logger } from '../../services/logger.service';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { logger } from '../services/logger.service';
 
 export interface ContactAttachment {
   id: string;
@@ -20,7 +21,7 @@ export function useContactAttachments(contactId: string | undefined) {
   const [error, setError] = useState<Error | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const loadAttachments = async () => {
+  const loadAttachments = async (isStale: () => boolean = () => false) => {
     if (!contactId) return;
     setLoading(true);
     setError(null);
@@ -33,27 +34,46 @@ export function useContactAttachments(contactId: string | undefined) {
 
       if (fetchError) throw fetchError;
 
-      const withUrls = (data || []).map((att: any) => ({
-        ...att,
-        publicUrl: getPublicUrl(att.file_path)
-      }));
-
-      setAttachments(withUrls as ContactAttachment[]);
+      const mapped = await Promise.all((data || []).map((att: any) => toAttachment(att)));
+      if (isStale()) return;
+      setAttachments(mapped);
     } catch (err) {
+      if (isStale()) return;
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to load attachments', error);
       setError(error);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   };
 
-  const getPublicUrl = (filePath: string): string => {
-    const { data } = supabase.storage
+  // The bucket is private: files are only reachable through short-lived signed URLs.
+  const getSignedUrl = async (filePath: string): Promise<string> => {
+    const { data, error: urlError } = await supabase.storage
       .from('contact-attachments')
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 3600);
+    if (urlError) throw urlError;
+    return data.signedUrl;
+  };
 
-    return data.publicUrl;
+  const toAttachment = async (row: any): Promise<ContactAttachment> => {
+    let publicUrl: string | undefined;
+    try {
+      publicUrl = await getSignedUrl(row.file_path);
+    } catch (urlErr) {
+      logger.warn('Could not sign attachment URL', { id: row.id, error: urlErr });
+    }
+    return {
+      id: row.id,
+      contactId: row.contact_id,
+      fileName: row.file_name,
+      filePath: row.file_path,
+      fileSize: row.file_size ?? 0,
+      mimeType: row.mime_type ?? '',
+      uploadedBy: row.uploaded_by,
+      createdAt: row.created_at,
+      ...(publicUrl ? { publicUrl } : {})
+    };
   };
 
   const uploadFile = async (file: File): Promise<ContactAttachment> => {
@@ -63,25 +83,19 @@ export function useContactAttachments(contactId: string | undefined) {
     setError(null);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Storage policies require the first path segment to be the owner's user id.
       const fileExt = file.name.split('.').pop();
-      const filePath = `${contactId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `${user.id}/${contactId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('contact-attachments')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          onUploadProgress: (event) => {
-            if (event.total) {
-              setUploadProgress(Math.round((event.loaded / event.total) * 100));
-            }
-          }
-        });
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      setUploadProgress(100);
 
       const { data, error: insertError } = await supabase
         .from('contact_attachments')
@@ -98,10 +112,7 @@ export function useContactAttachments(contactId: string | undefined) {
 
       if (insertError) throw insertError;
 
-      const attachment = {
-        ...data,
-        publicUrl: getPublicUrl(filePath)
-      } as ContactAttachment;
+      const attachment = await toAttachment(data);
 
       setAttachments(prev => [attachment, ...prev]);
       return attachment;
@@ -140,13 +151,19 @@ export function useContactAttachments(contactId: string | undefined) {
     }
   };
 
-  const downloadAttachment = (attachment: ContactAttachment) => {
-    const url = attachment.publicUrl || getPublicUrl(attachment.filePath);
+  const downloadAttachment = async (attachment: ContactAttachment) => {
+    const url = attachment.publicUrl || await getSignedUrl(attachment.filePath);
     const link = document.createElement('a');
     link.href = url;
     link.download = attachment.fileName;
     link.click();
   };
+
+  useEffect(() => {
+    let alive = true;
+    void loadAttachments(() => !alive);
+    return () => { alive = false; };
+  }, [contactId]);
 
   return {
     attachments,
@@ -156,6 +173,7 @@ export function useContactAttachments(contactId: string | undefined) {
     error,
     uploadFile,
     deleteAttachment,
-    refetch: loadAttachments
+    downloadAttachment,
+    refetch: () => loadAttachments()
   };
 }

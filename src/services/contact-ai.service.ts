@@ -4,9 +4,20 @@
  */
 
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
+import type { LiveOptions } from './liveOptions';
+import { enrichContactWithWebSearch, type EnrichmentOutcome, type EnrichmentProgress } from './contactEnrichment';
 import { logger } from './logger.service';
 import { webSearchService } from './webSearchService';
 import { Contact } from '../types';
+
+/** Per-contact live progress for bulk runs (scores stream in as each contact is analysed). */
+export interface BulkProgress {
+  onItemStart?: (contact: Contact) => void;
+  onItemStatus?: (contact: Contact, label: string) => void;
+  onItemPartial?: (contact: Contact, partial: unknown) => void;
+  onItemText?: (contact: Contact, text: string) => void;
+  onItemDone?: (contact: Contact, ok: boolean) => void;
+}
 
 export interface ContactInsight {
   id: string;
@@ -86,7 +97,8 @@ class ContactAIService {
       competitorInfo?: any;
       webResearch?: string; // NEW: Web research context
       companyContext?: any[]; // NEW: Company research sources
-    }
+    },
+    live?: LiveOptions
   ): Promise<ContactScore> {
     const request: Omit<AIRequest, 'id'> = {
       type: 'contact_scoring',
@@ -99,7 +111,8 @@ class ContactAIService {
       },
       context: {
         contactId: contact.id
-      }
+      },
+      ...(live ? { live } : {})
     };
 
     try {
@@ -132,7 +145,8 @@ class ContactAIService {
       goalContext?: string[];
       webResearch?: string; // NEW: Web research context
       companyContext?: any[]; // NEW: Company research sources
-    }
+    },
+    live?: LiveOptions
   ): Promise<ContactInsight[]> {
     const request: Omit<AIRequest, 'id'> = {
       type: 'insights_generation',
@@ -146,7 +160,8 @@ class ContactAIService {
       },
       context: {
         contactId: contact.id
-      }
+      },
+      ...(live ? { live } : {})
     };
 
     try {
@@ -241,25 +256,28 @@ class ContactAIService {
     }
   }
 
+  /**
+   * Enrich a contact with public professional information found via OpenAI web search.
+   * Fills only empty fields; returns cited findings. Errors propagate (no fabricated fallback).
+   */
   async enrichContact(
     contact: Contact,
-    enrichmentType: 'basic' | 'comprehensive' | 'social' = 'basic'
-  ): Promise<any> {
-    const request: Omit<AIRequest, 'id'> = {
-      type: 'contact_enrichment',
-      priority: enrichmentType === 'comprehensive' ? 'high' : 'medium',
-      data: {
-        contact,
-        enrichmentLevel: enrichmentType
-      },
-      context: {
-        contactId: contact.id
-      }
-    };
-
+    _enrichmentType: 'basic' | 'comprehensive' | 'social' = 'basic',
+    onProgress?: EnrichmentProgress,
+    live?: LiveOptions
+  ): Promise<EnrichmentOutcome> {
     try {
-      const response = await aiOrchestrator.executeImmediate(request);
-      return response.result;
+      return await enrichContactWithWebSearch(contact, {
+        ...(onProgress ? { onProgress } : {}),
+        // streamed run: web-search status + findings filling in; Stop via live.signal
+        ...(live ? {
+          ...(live.signal ? { signal: live.signal } : {}),
+          live: {
+            onStatus: (label: string) => live.onStatus?.(label, { type: 'status', phase: 'live', label }),
+            onPartial: (partial: unknown) => live.onPartial?.(partial),
+          },
+        } : {}),
+      });
     } catch (error) {
       logger.error('Contact enrichment failed', error as Error, { contactId: contact.id });
       throw error;
@@ -311,7 +329,8 @@ class ContactAIService {
 
   async getBulkInsights(
     contacts: Contact[],
-    insightType: 'scoring' | 'categorization' | 'opportunity_analysis' = 'scoring'
+    insightType: 'scoring' | 'categorization' | 'opportunity_analysis' = 'scoring',
+    progress?: BulkProgress
   ): Promise<Array<{ contactId: string; insights: any; error?: string }>> {
     const results = [];
     
@@ -321,23 +340,32 @@ class ContactAIService {
       const batch = contacts.slice(i, i + batchSize);
       
       const batchPromises = batch.map(async (contact) => {
+        // Per-item live callbacks (streams each contact's result) only when a progress listener is attached
+        const live: LiveOptions | undefined = progress ? {
+          onStatus: (label) => progress.onItemStatus?.(contact, label),
+          onPartial: (partial) => progress.onItemPartial?.(contact, partial),
+          onDelta: (_t, full) => progress.onItemText?.(contact, full),
+        } : undefined;
+        progress?.onItemStart?.(contact);
         try {
           let insights;
           
           switch (insightType) {
             case 'scoring':
-              insights = await this.scoreContact(contact);
+              insights = await this.scoreContact(contact, undefined, live);
               break;
             case 'categorization':
-              insights = await this.generateInsights(contact, ['recommendation']);
+              insights = await this.generateInsights(contact, ['recommendation'], undefined, live);
               break;
             case 'opportunity_analysis':
-              insights = await this.generateInsights(contact, ['opportunity', 'prediction']);
+              insights = await this.generateInsights(contact, ['opportunity', 'prediction'], undefined, live);
               break;
           }
           
+          progress?.onItemDone?.(contact, true);
           return { contactId: contact.id, insights };
         } catch (error) {
+          progress?.onItemDone?.(contact, false);
           return { 
             contactId: contact.id, 
             insights: null, 

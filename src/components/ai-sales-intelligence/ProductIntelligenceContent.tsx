@@ -7,7 +7,6 @@ interface ProductIntelligenceContentProps {
 }
 
 export const ProductIntelligenceContent: React.FC<ProductIntelligenceContentProps> = ({
-  content,
   onCRMIntegration,
   onBack
 }) => {

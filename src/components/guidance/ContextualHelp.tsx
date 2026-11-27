@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useGuidance } from '../../contexts/GuidanceContext';
 import { GlassCard } from '../ui/GlassCard';
-import { ModernButton } from '../ui/ModernButton';
 import {
   X,
   Lightbulb,
   AlertCircle,
-  CheckCircle,
   Info,
-  ArrowUp,
-  Clock
+  Clock,
 } from 'lucide-react';
 
 interface ContextualHelpProps {

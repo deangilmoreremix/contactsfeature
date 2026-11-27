@@ -6,17 +6,12 @@ import { ErrorBoundary } from '../ui/ErrorBoundary';
 import {
   X,
   Upload,
-  Link,
   FileText,
   Brain,
   CheckCircle,
   AlertCircle,
   Loader2,
-  Sparkles,
   Target,
-  Users,
-  TrendingUp,
-  DollarSign
 } from 'lucide-react';
 import {
   AnalysisInput,
@@ -333,7 +328,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
       <GlassCard className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
@@ -348,7 +343,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
+            className="h-10 w-10 inline-flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
           >
             <X className="w-5 h-5" />
           </button>
@@ -388,10 +383,10 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Analysis Failed</h3>
                 <p className="text-gray-600 mb-6">{error.message}</p>
                 <div className="flex justify-center space-x-3">
-                  <ModernButton onClick={handleRetry} className="bg-red-600 hover:bg-red-700">
+                  <ModernButton size="toolbar" onClick={handleRetry} className="bg-red-600 hover:bg-red-700">
                     Try Again
                   </ModernButton>
-                  <ModernButton variant="outline" onClick={onClose}>
+                  <ModernButton size="toolbar" variant="outline" onClick={onClose}>
                     Cancel
                   </ModernButton>
                 </div>

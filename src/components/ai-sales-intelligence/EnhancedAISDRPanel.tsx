@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentButton } from './AgentButton';
@@ -10,9 +10,6 @@ import {
   Calendar,
   Rocket,
   Settings,
-  Briefcase,
-  Wrench,
-  Mic,
   MessageSquare,
   Mail,
   BarChart3,
@@ -20,12 +17,8 @@ import {
   Brain,
   Bot,
   Sparkles,
-  ArrowRight,
-  Clock,
-  DollarSign,
   CheckCircle,
-  AlertCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 
 interface AISDRFeature {
@@ -48,7 +41,7 @@ interface AISDRFeature {
 export const EnhancedAISDRPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'outreach' | 'intelligence' | 'automation' | 'analysis'>('all');
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
-  const [agentMetrics, setAgentMetrics] = useState<Record<string, any>>({});
+  useState<Record<string, any>>({});
 
   const aiSdrFeatures: AISDRFeature[] = [
     // Enhanced SDR Agents
@@ -127,7 +120,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
       icon: <Users className="w-6 h-6" />,
       category: 'intelligence',
       agentId: 'lead-db-agent',
-      functionName: 'lead-enrichment-agent',
+      functionName: 'data-enrichment-sdr',
       capabilities: [
         'Duplicate lead detection',
         'Real-time data enrichment',
@@ -381,7 +374,7 @@ export const EnhancedAISDRPanel: React.FC = () => {
             <ModernButton
               key={category.id}
               variant={selectedCategory === category.id ? 'primary' : 'outline'}
-              size="sm"
+              size="toolbar"
               onClick={() => setSelectedCategory(category.id as any)}
               className="flex items-center space-x-2"
             >
@@ -517,19 +510,19 @@ export const EnhancedAISDRPanel: React.FC = () => {
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <Target className="w-6 h-6 mb-2" />
             <span className="text-sm">Bulk Outreach</span>
           </ModernButton>
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <TrendingUp className="w-6 h-6 mb-2" />
             <span className="text-sm">Lead Scoring</span>
           </ModernButton>
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <Calendar className="w-6 h-6 mb-2" />
             <span className="text-sm">Meeting Scheduler</span>
           </ModernButton>
-          <ModernButton variant="outline" className="h-20 flex-col">
+          <ModernButton size="toolbar" variant="outline" className="h-20 flex-col">
             <BarChart3 className="w-6 h-6 mb-2" />
             <span className="text-sm">Revenue Forecast</span>
           </ModernButton>

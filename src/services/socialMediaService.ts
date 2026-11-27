@@ -106,10 +106,11 @@ export class SocialMediaService {
     if (!contactProfiles) return false;
 
     const profileIndex = contactProfiles.findIndex(p => p.platform === platform);
-    if (profileIndex === -1) return false;
+    const existingProfile = contactProfiles[profileIndex];
+    if (profileIndex === -1 || !existingProfile) return false;
 
     contactProfiles[profileIndex] = {
-      ...contactProfiles[profileIndex],
+      ...existingProfile,
       ...updates,
       lastUpdated: new Date().toISOString()
     };
@@ -325,7 +326,8 @@ export class SocialMediaService {
       totalPosts: recentPosts.length,
       totalEngagement,
       averageEngagement: avgEngagement,
-      topPerformingPost: recentPosts.reduce((top, post) => {
+      topPerformingPost: recentPosts.reduce<SocialPost | undefined>((top, post) => {
+        if (!top) return post;
         const engagement = post.engagement.likes + post.engagement.shares + post.engagement.comments;
         const topEngagement = top.engagement.likes + top.engagement.shares + top.engagement.comments;
         return engagement > topEngagement ? post : top;

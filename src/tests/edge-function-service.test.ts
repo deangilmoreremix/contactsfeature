@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock Supabase client
-vi.mock('../lib/supabase', () => {
+vi.mock('../services/supabaseClient', () => {
   const mockInvoke = vi.fn();
   return {
     supabase: {
@@ -17,8 +17,12 @@ vi.mock('../lib/supabase', () => {
   };
 });
 
+// Generative methods now run as streaming ai-task calls (netlify/functions/ai-task.js), not edge functions.
+vi.mock('../services/aiTask', () => ({ streamTask: vi.fn() }));
+
 import { edgeFunctionService } from '../services/edgeFunctionService';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../services/supabaseClient';
+import { streamTask } from '../services/aiTask';
 
 describe('Edge Function Service', () => {
   beforeEach(() => {
@@ -63,26 +67,16 @@ describe('Edge Function Service', () => {
         .rejects.toThrow('Function error');
     });
 
-    it('should generate timeline successfully', async () => {
-      const mockResponse = {
-        data: {
-          timeline: [
-            { date: '2024-01-01', events: ['Contact created'] }
-          ]
-        },
-        error: null
-      };
+    it('should generate timeline successfully (streaming ai-task)', async () => {
+      const payload = { events: [], milestones: [], phases: [], predictions: [], summary: { totalEvents: 0 } };
+      vi.mocked(streamTask).mockResolvedValue(payload);
+      const live = { onStatus: vi.fn() };
 
-      vi.mocked(vi.mocked(supabase, true).functions.invoke)
-        .mockResolvedValue(mockResponse);
+      const result = await edgeFunctionService.generateTimeline('contact-1', { includeAI: true }, live);
 
-      const result = await edgeFunctionService.generateTimeline('contact-1', { includeAI: true });
-
-      expect(vi.mocked(supabase, true).functions.invoke)
-        .toHaveBeenCalledWith('timeline-generator', {
-          body: { contactId: 'contact-1', options: { includeAI: true } }
-        });
-      expect(result).toEqual(mockResponse.data);
+      expect(streamTask).toHaveBeenCalledWith('timeline-generator',
+        { contactId: 'contact-1', entityType: 'contact', options: { includeAI: true } }, live);
+      expect(result).toEqual(payload);
     });
 
     it('should add journey event successfully', async () => {
@@ -134,29 +128,15 @@ describe('Edge Function Service', () => {
         .rejects.toThrow('Analytics error');
     });
 
-    it('should generate predictions successfully', async () => {
-      const mockResponse = {
-        data: {
-          conversionProbability: 0.75,
-          nextBestAction: 'Send follow-up email',
-          timeline: '2 weeks'
-        },
-        error: null
-      };
+    it('should generate predictions successfully (streaming ai-task)', async () => {
+      const payload = { forecasts: {}, probabilities: {}, trends: {}, recommendations: [], confidence: 0 };
+      vi.mocked(streamTask).mockResolvedValue(payload);
 
-      vi.mocked(vi.mocked(supabase, true).functions.invoke)
-        .mockResolvedValue(mockResponse);
+      const result = await edgeFunctionService.generatePredictions({ contactId: 'contact-1', history: [] }, 'conversion');
 
-      const result = await edgeFunctionService.generatePredictions(
-        { contactId: 'contact-1', history: [] },
-        'conversion'
-      );
-
-      expect(vi.mocked(supabase, true).functions.invoke)
-        .toHaveBeenCalledWith('predictive-analytics', {
-          body: { data: { contactId: 'contact-1', history: [] }, predictionType: 'conversion' }
-        });
-      expect(result).toEqual(mockResponse.data);
+      expect(streamTask).toHaveBeenCalledWith('predictive-analytics',
+        { data: { contactId: 'contact-1', history: [] }, predictionType: 'conversion', timeFrame: undefined }, undefined);
+      expect(result).toEqual(payload);
     });
 
     it('should create analytics data successfully', async () => {
@@ -202,8 +182,7 @@ describe('Edge Function Service', () => {
   describe('Error Handling', () => {
     it('should handle network errors gracefully', async () => {
       const networkError = new Error('Network error');
-      vi.mocked(vi.mocked(supabase, true).functions.invoke)
-        .mockRejectedValue(networkError);
+      vi.mocked(streamTask).mockRejectedValue(networkError);
 
       await expect(edgeFunctionService.generateTimeline('contact-1'))
         .rejects.toThrow('Network error');
@@ -220,13 +199,15 @@ describe('Edge Function Service', () => {
 
   describe('Data Validation', () => {
     it('should validate input parameters for journey functions', async () => {
-      const mockResponse = { data: [], error: null };
+      // The service does no client-side validation: the journey-manager function rejects an empty contactId
+      // and the service must surface that error rather than swallow it.
       vi.mocked(vi.mocked(supabase, true).functions.invoke)
-        .mockResolvedValue(mockResponse);
+        .mockResolvedValue({ data: null, error: new Error('contactId is required') });
 
-      // Test with invalid contactId
       await expect(edgeFunctionService.getJourneyEvents(''))
-        .rejects.toThrow(); // Should throw due to empty contactId
+        .rejects.toThrow('contactId is required');
+      expect(vi.mocked(supabase, true).functions.invoke)
+        .toHaveBeenCalledWith('journey-manager', { body: { action: 'get_events', contactId: '', filters: {} } });
     });
 
     it('should validate input parameters for analytics functions', async () => {

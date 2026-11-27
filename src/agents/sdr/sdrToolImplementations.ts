@@ -71,17 +71,19 @@ async function scheduleCalendarMeeting(params: {
 
     const endTime = new Date(meetingTime.getTime() + 30 * 60 * 1000);
 
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) throw new Error('Not signed in');
+
     const { data: event, error } = await supabase
       .from('calendar_events')
       .insert({
+        user_id: auth.user.id,
         contact_id: params.leadId,
         title: `Discovery Call with ${params.contactName}`,
-        description: 'Meeting scheduled via SDR Autopilot',
-        start_time: meetingTime.toISOString(),
-        end_time: endTime.toISOString(),
-        event_type: 'meeting',
-        status: 'scheduled',
-        created_by: 'sdr_autopilot'
+        notes: 'Meeting scheduled via SDR Autopilot',
+        scheduled_for: meetingTime.toISOString(),
+        duration_minutes: Math.round((endTime.getTime() - meetingTime.getTime()) / 60000),
+        status: 'scheduled'
       })
       .select()
       .maybeSingle();
@@ -90,7 +92,8 @@ async function scheduleCalendarMeeting(params: {
       throw new Error(`Failed to create calendar event: ${error.message}`);
     }
 
-    const joinUrl = `https://meet.smartcrm.app/meeting/${event?.id || Date.now()}`;
+    // No fabricated meeting link: a real URL can be added to the event (meeting_url) by the user.
+    const joinUrl = '';
 
     return {
       success: true,
@@ -128,7 +131,7 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
     }
 
     // Fetch related emails
-    const { data: emails, error: emailsError } = await supabase
+    const { data: emails } = await supabase
       .from('emails')
       .select('*')
       .eq('contact_id', leadId)
@@ -136,20 +139,20 @@ export async function getLeadContextFromSmartCRM(leadId: string): Promise<any> {
       .limit(10);
 
     // Fetch tasks
-    const { data: tasks, error: tasksError } = await supabase
+    const { data: tasks } = await supabase
       .from('tasks')
       .select('*')
       .eq('contact_id', leadId)
       .order('due_date', { ascending: true });
 
     // Fetch deals
-    const { data: deals, error: dealsError } = await supabase
+    const { data: deals } = await supabase
       .from('deals')
       .select('*')
       .eq('contact_id', leadId);
 
     // Fetch notes
-    const { data: notes, error: notesError } = await supabase
+    const { data: notes } = await supabase
       .from('notes')
       .select('*')
       .eq('contact_id', leadId)
@@ -228,7 +231,6 @@ export async function sendEmailForLead(args: {
   }
 }
 
-export const sendViaAgentMail = sendEmailForLead;
 
 export async function createTaskInSmartCRM(args: {
   lead_id: string;
@@ -340,7 +342,7 @@ export async function scheduleMeetingForLead(args: {
       leadId: args.lead_id,
       contactEmail: lead.email || '',
       contactName,
-      timeslot: args.timeslot
+      ...(args.timeslot !== undefined ? { timeslot: args.timeslot } : {})
     });
 
     if (!meetingResult.success) {
@@ -359,7 +361,7 @@ export async function scheduleMeetingForLead(args: {
         body_html: `
           <p>Hi ${lead.first_name || 'there'},</p>
           <p>Your discovery call has been scheduled for ${new Date(meetingResult.time).toLocaleString()}.</p>
-          <p><a href="${meetingResult.join_url}">Join the meeting</a></p>
+          ${meetingResult.join_url ? `<p><a href="${meetingResult.join_url}">Join the meeting</a></p>` : ''}
           <p>Looking forward to speaking with you!</p>
           <p>Best regards,<br>SmartCRM Team</p>
         `,

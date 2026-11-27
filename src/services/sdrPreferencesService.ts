@@ -9,8 +9,20 @@ import {
   SDRCampaignTemplate,
   SDRAgentPerformance,
   createDefaultPreferences,
-  validatePreferences
+  validatePreferences,
+  resolvePersonaId
 } from '../types/sdr-preferences';
+
+/** ai_settings is jsonb: personaId rides along inside it; unknown/missing ids fall back to the default persona. */
+const fromDbAiSettings = (raw: SDRUserPreferences['aiSettings']): SDRUserPreferences['aiSettings'] => ({
+  ...raw,
+  personaId: resolvePersonaId(raw?.personaId)
+});
+
+const toDbAiSettings = (settings: SDRUserPreferences['aiSettings']): SDRUserPreferences['aiSettings'] => ({
+  ...settings,
+  personaId: resolvePersonaId(settings.personaId)
+});
 
 export class SDRPreferencesService {
   /**
@@ -50,7 +62,7 @@ export class SDRPreferencesService {
         customPrompts: data.custom_prompts,
         followUpRules: data.follow_up_rules,
         branding: data.branding,
-        aiSettings: data.ai_settings,
+        aiSettings: fromDbAiSettings(data.ai_settings),
         timingRules: data.timing_rules,
         objectionHandling: data.objection_handling,
         competitorStrategy: data.competitor_strategy
@@ -91,14 +103,14 @@ export class SDRPreferencesService {
         custom_prompts: preferences.customPrompts,
         follow_up_rules: preferences.followUpRules,
         branding: preferences.branding,
-        ai_settings: preferences.aiSettings,
+        ai_settings: toDbAiSettings(preferences.aiSettings),
         timing_rules: preferences.timingRules,
         objection_handling: preferences.objectionHandling,
         competitor_strategy: preferences.competitorStrategy,
         updated_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('sdr_user_preferences')
         .upsert(dbData, {
           onConflict: 'user_id,agent_id',
@@ -187,7 +199,7 @@ export class SDRPreferencesService {
           customPrompts: row.custom_prompts,
           followUpRules: row.follow_up_rules,
           branding: row.branding,
-          aiSettings: row.ai_settings,
+          aiSettings: fromDbAiSettings(row.ai_settings),
           timingRules: row.timing_rules,
           objectionHandling: row.objection_handling,
           competitorStrategy: row.competitor_strategy

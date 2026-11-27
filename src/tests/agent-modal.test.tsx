@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { AgentModal } from '../components/ai-sales-intelligence/AgentModal';
 
 // Mock dependencies
@@ -125,7 +125,8 @@ describe('AgentModal', () => {
       );
 
       expect(screen.getByText('Test SDR Agent')).toBeInTheDocument();
-      expect(screen.getByText('A test agent for SDR activities')).toBeInTheDocument();
+      // shown in the header and again in the agent info section
+      expect(screen.getAllByText('A test agent for SDR activities')).toHaveLength(2);
       expect(screen.getByTestId('close-icon')).toBeInTheDocument();
       expect(screen.getByTestId('info-icon')).toBeInTheDocument();
     });
@@ -246,7 +247,8 @@ describe('AgentModal', () => {
 
       const checkbox = screen.getByRole('checkbox');
       expect(checkbox).toBeInTheDocument();
-      expect(screen.getByText('Whether to enable this feature')).toBeInTheDocument();
+      // boolean fields use their description as the checkbox label, plus the description line under the field
+      expect(screen.getAllByText('Whether to enable this feature')).toHaveLength(2);
     });
 
     it('should show required indicators for required fields', () => {
@@ -277,7 +279,7 @@ describe('AgentModal', () => {
       expect(screen.getByText('The message to send')).toBeInTheDocument();
       expect(screen.getByText('Priority level')).toBeInTheDocument();
       expect(screen.getByText('Number of items')).toBeInTheDocument();
-      expect(screen.getByText('Whether to enable this feature')).toBeInTheDocument();
+      expect(screen.getAllByText('Whether to enable this feature')).toHaveLength(2); // checkbox label + description
     });
   });
 
@@ -347,10 +349,8 @@ describe('AgentModal', () => {
 
       expect(mockOnExecute).toHaveBeenCalledWith({
         message: 'Test message',
-        priority: 'high',
-        count: '',
-        enabled: false
-      });
+        priority: 'high'
+      }); // only the fields the user filled in are sent
     });
 
     it('should call onExecute with undefined when no inputs provided', () => {

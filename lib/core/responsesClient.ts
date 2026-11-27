@@ -1,13 +1,13 @@
 /**
- * GPT-5.2 Responses API Client
+ * Responses API Client (model ids come from src/config/models.json via openaiClient)
  * Advanced client supporting reasoning, verbosity, custom tools, and context management
  */
 
-import { openai } from "./openaiClient";
+import { createResponse as callResponses } from "./openaiClient";
 import { logger } from "./logger";
 
 export interface ReasoningConfig {
-  effort: "none" | "low" | "medium" | "high" | "xhigh";
+  effort: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
   generateSummary?: "auto" | "never";
   summary?: any[];
 }
@@ -31,6 +31,7 @@ export interface ToolChoice {
 }
 
 export interface ResponsesAPIRequest {
+  /** Model role (default | thinking | fast | pro) or an explicit model id. */
   model: string;
   input: any[] | string;
   instructions?: string;
@@ -105,43 +106,54 @@ export interface ResponsesAPIResponse {
 }
 
 /**
- * Enhanced GPT-5.2 Responses API client with full feature support
+ * Enhanced Responses API client with full feature support
  */
 export class ResponsesClient {
   private reasoningItems: Map<string, ReasoningItem> = new Map();
 
   /**
-   * Make a request to GPT-5.2 using the Responses API
+   * Make a request using the Responses API
    */
   async createResponse(request: ResponsesAPIRequest): Promise<ResponsesAPIResponse> {
     const startTime = Date.now();
 
     try {
-      logger.debug("Making GPT-5.2 Responses API request", {
+      logger.debug("Making Responses API request", {
         model: request.model,
         hasTools: !!request.tools?.length,
         reasoningEffort: request.reasoning?.effort,
         verbosity: request.text?.verbosity
       });
 
-      // Add reasoning items from previous responses if available
-      if (request.previousResponseId) {
-        const previousItems = this.getReasoningItemsForResponse(request.previousResponseId);
-        if (previousItems.length > 0) {
-          request.input = Array.isArray(request.input)
-            ? [...previousItems, ...request.input]
-            : [request.input];
-        }
-      }
-
-      const response = await openai.responses.create(request as any);
+      // previous_response_id lets the server restore prior reasoning items; do not re-send them.
+      const r = await callResponses({
+        model: request.model,
+        effort: request.reasoning?.effort as any,
+        instructions: request.instructions,
+        input: request.input as any,
+        tools: request.tools as any,
+        toolChoice: request.toolChoice,
+        previousResponseId: request.previousResponseId,
+        verbosity: request.text?.verbosity,
+        include: request.include,
+        store: request.store,
+        temperature: request.temperature,
+        maxOutputTokens: request.maxOutputTokens
+      });
+      const response = r.raw;
 
       const result: ResponsesAPIResponse = {
         id: response.id,
         createdAt: response.created_at,
         model: response.model,
-        output: response.output,
-        usage: response.usage,
+        output: response.output || [],
+        usage: {
+          inputTokens: r.usage?.inputTokens ?? 0,
+          inputTokensDetails: { cachedTokens: r.usage?.cachedTokens ?? 0 },
+          outputTokens: r.usage?.outputTokens ?? 0,
+          outputTokensDetails: { reasoningTokens: r.usage?.reasoningTokens ?? 0 },
+          totalTokens: r.usage?.totalTokens ?? 0
+        },
         reasoning: response.reasoning,
         incompleteDetails: response.incomplete_details,
         error: response.error,
@@ -151,7 +163,7 @@ export class ResponsesClient {
       // Store reasoning items for future use
       this.storeReasoningItems(result.id, result.output);
 
-      logger.info("GPT-5.2 Responses API request completed", {
+      logger.info("Responses API request completed", {
         responseId: result.id,
         model: result.model,
         inputTokens: result.usage.inputTokens,
@@ -163,7 +175,8 @@ export class ResponsesClient {
       return result;
 
     } catch (error) {
-      logger.error("GPT-5.2 Responses API request failed", error as Error, {
+      logger.error("Responses API request failed", {
+        error: (error as Error)?.message,
         model: request.model,
         processingTime: Date.now() - startTime
       });

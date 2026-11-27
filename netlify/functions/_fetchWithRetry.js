@@ -69,39 +69,56 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Compatibility wrapper kept so existing functions keep their call shape, but it now goes through
+ * the shared Responses API helper (_responses.js) — Responses API only.
+ *
+ * messages: [{ role: 'system'|'user'|'assistant', content }]
+ * config:   { role?, model?, effort?, maxTokens?, schema?, schemaName?, tools? }
+ *           (`temperature` is accepted and ignored for reasoning models; unknown/legacy model ids
+ *            such as "gpt-5.2" fall back to the configured `default` role.)
+ */
+/**
+ * Translate callOpenAI(messages, config) arguments into createResponse()/streamResponse() options.
+ * Shared by callOpenAI and the dual-mode (JSON or SSE) functions so both paths send the same request.
+ */
+function buildCallOptions(messages, config = {}) {
+  const { allowedModelIds } = require('./_responses');
+
+  const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+  const input = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content ?? '') }));
+
+  const requested = config.model;
+  const isRole = ['default', 'thinking', 'fast', 'pro'].includes(requested);
+  const known = requested && (isRole || allowedModelIds().has(requested));
+  const wanted = config.maxTokens ?? 1000;
+
+  return {
+    role: config.role || (isRole ? requested : 'default'),
+    model: known && !isRole ? requested : undefined,
+    effort: config.effort || 'low',
+    instructions: system || undefined,
+    input: input.length ? input : '',
+    schema: config.schema,
+    schemaName: config.schemaName,
+    tools: config.tools,
+    // output budget covers reasoning tokens too, so leave headroom for them
+    maxOutputTokens: wanted + 2000,
+    temperature: config.temperature,
+    store: false,
+  };
+}
+
 async function callOpenAI(messages, config = {}) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+  const { createResponse } = require('./_responses');
+  const result = await createResponse(buildCallOptions(messages, config));
 
-  const model = config.model || process.env.SMARTCRM_MODEL || 'gpt-5.2';
-  const temperature = config.temperature ?? 0.7;
-  const maxTokens = config.maxTokens ?? 1000;
-
-  const response = await fetchWithRetry(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    },
-    { maxRetries: 2, timeoutMs: 45000, baseDelayMs: 2000 }
-  );
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`OpenAI API error ${response.status}: ${errText.substring(0, 200)}`);
+  if (!result.text) {
+    throw new Error(`OpenAI returned no text (status: ${result.status || 'unknown'})`);
   }
-
-  const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  return result.text;
 }
 
 function parseJSONResponse(content, fallback) {
@@ -113,4 +130,4 @@ function parseJSONResponse(content, fallback) {
   }
 }
 
-module.exports = { fetchWithRetry, fetchWithTimeout, callOpenAI, parseJSONResponse };
+module.exports = { fetchWithRetry, fetchWithTimeout, callOpenAI, buildCallOptions, parseJSONResponse };

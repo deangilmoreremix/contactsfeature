@@ -1,7 +1,6 @@
 import React from 'react';
 import { GlassCard } from '../ui/GlassCard';
-import { ModernButton } from '../ui/ModernButton';
-import { Plus, UserPlus, Calendar, Mail, Bot } from 'lucide-react';
+import { Plus, UserPlus, Calendar, Mail } from 'lucide-react';
 
 export const QuickActions: React.FC = () => {
   const actions = [

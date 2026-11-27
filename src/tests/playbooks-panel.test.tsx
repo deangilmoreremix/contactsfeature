@@ -1,15 +1,35 @@
 /**
- * Comprehensive tests for PlaybooksPanel component
- * Tests playbook generation, UI interactions, and edge cases
+ * PlaybooksPanel: playbooks are streamed from the playbooks-ai function through useAIStream (streamSse);
+ * the panel renders the final result (summary + script / objection / follow-up lists) or the error.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PlaybooksPanel } from '../components/PlaybooksPanel';
+import { newOutcome } from '../lib/streaming/streamClient';
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.mock('../services/sdrPreferencesService', () => ({
+  SDRPreferencesService: class { getPreferences = vi.fn().mockResolvedValue({}); updatePreferences = vi.fn().mockResolvedValue({}); },
+  sdrPreferencesService: { getPreferences: vi.fn().mockResolvedValue({}), updatePreferences: vi.fn().mockResolvedValue({}) }
+}));
+
+vi.mock('../lib/supabase', () => ({
+  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } }
+}));
+
+vi.mock('../services/sdrClient', () => ({
+  sdrAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'Bearer test' })
+}));
+
+// The SSE transport is mocked; the real useAIStream hook and panel run on top of it.
+const streamSse = vi.hoisted(() => vi.fn());
+vi.mock('../lib/streaming/streamClient', async (orig) => ({
+  ...(await orig<typeof import('../lib/streaming/streamClient')>()),
+  streamSse
+}));
+
+const URL = '/.netlify/functions/playbooks-ai';
+const okOutcome = (result: unknown) => ({ ...newOutcome(), result });
 
 describe('PlaybooksPanel', () => {
   const mockPlaybooksResponse = {
@@ -24,10 +44,7 @@ describe('PlaybooksPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
+    streamSse.mockReset().mockResolvedValue(okOutcome(mockPlaybooksResponse));
   });
 
   describe('Initial Render', () => {
@@ -71,10 +88,7 @@ describe('PlaybooksPanel', () => {
     });
 
     it('should allow generation with only contact ID', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlaybooksResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockPlaybooksResponse));
 
       render(<PlaybooksPanel />);
 
@@ -85,19 +99,17 @@ describe('PlaybooksPanel', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/.netlify/functions/playbooks-ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: 'contact-456', dealId: undefined })
-        });
+        expect(streamSse).toHaveBeenCalledWith(
+          URL,
+          expect.objectContaining({ body: { contactId: 'contact-456', dealId: undefined, stream: true } }),
+          expect.anything(),
+          expect.anything()
+        );
       });
     });
 
     it('should allow generation with only deal ID', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlaybooksResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockPlaybooksResponse));
 
       render(<PlaybooksPanel />);
 
@@ -108,21 +120,19 @@ describe('PlaybooksPanel', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/.netlify/functions/playbooks-ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: undefined, dealId: 'deal-123' })
-        });
+        expect(streamSse).toHaveBeenCalledWith(
+          URL,
+          expect.objectContaining({ body: { contactId: undefined, dealId: 'deal-123', stream: true } }),
+          expect.anything(),
+          expect.anything()
+        );
       });
     });
   });
 
   describe('Playbook Generation', () => {
     it('should generate playbooks successfully with both IDs', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlaybooksResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockPlaybooksResponse));
 
       render(<PlaybooksPanel />);
 
@@ -136,11 +146,12 @@ describe('PlaybooksPanel', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/.netlify/functions/playbooks-ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: 'contact-456', dealId: 'deal-123' })
-        });
+        expect(streamSse).toHaveBeenCalledWith(
+          URL,
+          expect.objectContaining({ body: { contactId: 'contact-456', dealId: 'deal-123', stream: true } }),
+          expect.anything(),
+          expect.anything()
+        );
       });
 
       await waitFor(() => {
@@ -150,10 +161,7 @@ describe('PlaybooksPanel', () => {
     });
 
     it('should handle generation errors gracefully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'API Error: No data found'
-      });
+      streamSse.mockRejectedValueOnce(new Error('API Error: No data found'));
 
       render(<PlaybooksPanel />);
 
@@ -169,7 +177,7 @@ describe('PlaybooksPanel', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      streamSse.mockRejectedValueOnce(new Error('Network error'));
 
       render(<PlaybooksPanel />);
 
@@ -185,11 +193,8 @@ describe('PlaybooksPanel', () => {
     });
 
     it('should show loading state during generation', async () => {
-      mockFetch.mockImplementationOnce(
-        () => new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: async () => mockPlaybooksResponse
-        }), 100))
+      streamSse.mockImplementationOnce(
+        () => new Promise(resolve => setTimeout(() => resolve(okOutcome(mockPlaybooksResponse)), 100))
       );
 
       render(<PlaybooksPanel />);
@@ -211,10 +216,7 @@ describe('PlaybooksPanel', () => {
 
   describe('Result Display', () => {
     beforeEach(async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlaybooksResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockPlaybooksResponse));
 
       render(<PlaybooksPanel />);
 
@@ -254,10 +256,7 @@ describe('PlaybooksPanel', () => {
   describe('Error Handling', () => {
     it('should clear previous errors on successful generation', async () => {
       // First, trigger an error
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'First error'
-      });
+      streamSse.mockRejectedValueOnce(new Error('First error'));
 
       render(<PlaybooksPanel />);
 
@@ -272,10 +271,7 @@ describe('PlaybooksPanel', () => {
       });
 
       // Now successful call
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlaybooksResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockPlaybooksResponse));
 
       fireEvent.click(generateButton);
 
@@ -286,10 +282,7 @@ describe('PlaybooksPanel', () => {
     });
 
     it('should clear previous results on new generation', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlaybooksResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockPlaybooksResponse));
 
       render(<PlaybooksPanel />);
 
@@ -312,6 +305,28 @@ describe('PlaybooksPanel', () => {
   });
 
   describe('List Rendering', () => {
+    it('should render structured script, objection and follow-up items', async () => {
+      streamSse.mockResolvedValueOnce(okOutcome({
+        summary: 'Structured summary',
+        top_scripts: [{ name: 'Intro opener', script: 'Hi, quick question about your pipeline' }],
+        objections: [{ objection: 'Too expensive', response: 'Compare against the cost of lost deals' }],
+        followups: [{ timing: 'Day 3', channel: 'email', message: 'Sharing a short case study' }]
+      }));
+
+      render(<PlaybooksPanel />);
+      fireEvent.change(screen.getByPlaceholderText('Enter contact UUID'), { target: { value: 'contact-456' } });
+      fireEvent.click(screen.getByText('Generate Playbooks'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Intro opener')).toBeInTheDocument();
+        expect(screen.getByText('Hi, quick question about your pipeline')).toBeInTheDocument();
+        expect(screen.getByText('Too expensive')).toBeInTheDocument();
+        expect(screen.getByText('Compare against the cost of lost deals')).toBeInTheDocument();
+        expect(screen.getByText('Day 3 · email')).toBeInTheDocument();
+        expect(screen.getByText('Sharing a short case study')).toBeInTheDocument();
+      });
+    });
+
     it('should handle empty arrays gracefully', async () => {
       const emptyResponse = {
         ...mockPlaybooksResponse,
@@ -320,10 +335,7 @@ describe('PlaybooksPanel', () => {
         followups: []
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => emptyResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(emptyResponse));
 
       render(<PlaybooksPanel />);
 
@@ -347,10 +359,7 @@ describe('PlaybooksPanel', () => {
         objections: ['Simple objection response']
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => stringResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(stringResponse));
 
       render(<PlaybooksPanel />);
 

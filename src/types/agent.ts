@@ -19,7 +19,7 @@ export interface AgentConfig {
   };
   prompt_template?: string;
   instructions?: string;
-  model?: 'gpt-5.2' | 'gpt-5.2-thinking' | 'gpt-5.2-instant' | 'gpt-5-mini' | 'gpt-5-nano';
+  model?: 'default' | 'thinking' | 'fast' | 'pro';
   reasoning_effort?: 'none' | 'low' | 'medium' | 'high';
   verbosity?: 'low' | 'medium' | 'high';
   max_output_tokens?: number;

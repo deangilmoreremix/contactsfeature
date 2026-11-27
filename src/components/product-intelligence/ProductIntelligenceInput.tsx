@@ -111,7 +111,7 @@ export const ProductIntelligenceInput: React.FC<ProductIntelligenceInputProps> =
             <button
               key={value}
               onClick={() => setInputMethod(value as typeof inputMethod)}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${
+              className={`flex items-center justify-center space-x-2 h-10 px-4 whitespace-nowrap rounded-lg border transition-colors ${
                 inputMethod === value
                   ? 'border-blue-500 bg-blue-50 text-blue-700'
                   : 'border-gray-300 hover:border-gray-400 text-gray-700'

@@ -724,10 +724,8 @@ export function getPersonaById(id: OutboundPersonaId): OutboundPersona | undefin
 }
 
 // Optional: simple list for UI dropdowns
-export const outboundPersonaOptions = Object.entries(OUTBOUND_PERSONAS).map(
-  ([id, persona]) => ({
-    id: id as OutboundPersonaId,
-    label: persona.label,
-    description: persona.description,
-  }),
-);
+export const outboundPersonaOptions = OUTBOUND_PERSONAS.map((persona) => ({
+  id: persona.id,
+  label: persona.label,
+  description: persona.description,
+}));

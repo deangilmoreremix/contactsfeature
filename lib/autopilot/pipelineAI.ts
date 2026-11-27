@@ -34,13 +34,22 @@ Return JSON in this format:
 }
   `;
 
-  const res = await callOpenAI(prompt, {
-    model: "gpt-4.1",
-    temperature: 0.3
-  });
-
   let parsed: any;
+  let res: any;
   try {
+    res = await callOpenAI(prompt, {
+      role: "thinking",
+      schemaName: "pipeline_ai",
+      schema: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          next_action: { type: "string" },
+          risk_score: { type: "number" },
+          reason: { type: "string" }
+        }
+      }
+    });
     parsed = typeof res === "string" ? JSON.parse(res) : res;
   } catch (e) {
     logger.error("Failed to parse pipeline AI response", { res, e });

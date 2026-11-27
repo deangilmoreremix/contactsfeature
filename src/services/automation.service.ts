@@ -1,218 +1,202 @@
 /**
  * Contact Automation Service
- * Handles automated workflows and triggers for contact management
+ * Rules live in `automation_rules`, executions in `automation_runs` (owner-only RLS).
+ * Conditions use the shared pure evaluator; actions are performed through the user's own
+ * email provider / tables. Unsupported action types fail loudly and are recorded as failed runs.
  */
 
+import { supabase } from '../lib/supabase';
 import { contactAPI } from './contact-api.service';
+import { messagingProviderService } from './messagingProviderService';
+import { sdrAuthHeaders } from './sdrClient';
 import { logger } from './logger.service';
+import { evaluateCondition } from '../utils/conditionEvaluator';
 import { Contact } from '../types';
 import { ContactAutomation, AutomationExecution } from '../types/automation';
+
+type RuleRow = {
+  id: string; name: string; type: string; trigger: any; conditions: any; actions: any; is_active: boolean; created_at: string; updated_at: string;
+};
+type RunRow = {
+  id: string; rule_id: string | null; contact_id: string | null; trigger: string | null; status: string; results: any; error: string | null; executed_at: string;
+};
+
+const rowToAutomation = (r: RuleRow): ContactAutomation => ({
+  id: r.id, name: r.name, type: r.type as ContactAutomation['type'], trigger: r.trigger || { type: 'manual' },
+  conditions: r.conditions || [], actions: r.actions || [], isActive: r.is_active, createdAt: r.created_at, updatedAt: r.updated_at,
+});
+
+const merge = (text: string, c: any) =>
+  String(text || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => {
+    const v = ({ firstName: c.firstName ?? c.firstname, lastName: c.lastName ?? c.lastname, name: c.name, company: c.company, email: c.email } as Record<string, unknown>)[k];
+    return v == null ? m : String(v);
+  });
+
+async function currentUserId(): Promise<string> {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error('Please sign in');
+  return data.user.id;
+}
 
 export class AutomationService {
   private static instance: AutomationService;
 
   static getInstance(): AutomationService {
-    if (!AutomationService.instance) {
-      AutomationService.instance = new AutomationService();
-    }
+    if (!AutomationService.instance) AutomationService.instance = new AutomationService();
     return AutomationService.instance;
   }
 
-  /**
-   * Process contact automation based on trigger and conditions
-   */
-  async processContactAutomation(
-    contact: Contact,
-    trigger: string,
-    changedFields?: string[]
-  ): Promise<void> {
+  /** Process contact automation based on trigger and conditions */
+  async processContactAutomation(contact: Contact, trigger: string, changedFields?: string[]): Promise<void> {
     try {
-      // Get active automations for this trigger
-      const automations = await this.getActiveAutomations(trigger);
-
+      let automations = await this.getActiveAutomations(trigger);
+      if (trigger === 'contact_updated' && changedFields?.length) {
+        const fieldRules = await this.getActiveAutomations('field_changed');
+        automations = [...automations, ...fieldRules.filter((a) => a.trigger.field && changedFields.includes(a.trigger.field))];
+      }
       for (const automation of automations) {
-        if (await this.evaluateConditions(contact, automation, changedFields)) {
-          await this.executeActions(contact, automation);
+        if (this.evaluateConditions(contact, automation)) {
+          await this.executeActions(contact, automation, trigger);
         }
       }
     } catch (error) {
-      logger.error('Automation processing failed', error as Error, {
-        contactId: contact.id,
-        trigger
-      });
+      logger.error('Automation processing failed', error as Error, { contactId: contact.id, trigger });
     }
   }
 
-  /**
-   * Evaluate automation conditions
-   */
-  private async evaluateConditions(
-    contact: Contact,
-    automation: ContactAutomation,
-    changedFields?: string[]
-  ): Promise<boolean> {
-    for (const condition of automation.conditions) {
-      // Check if condition is relevant for this trigger
-      if (changedFields && !changedFields.includes(condition.field)) {
-        continue;
-      }
-
-      const fieldValue = (contact as any)[condition.field];
-      const conditionMet = this.evaluateCondition(fieldValue, condition);
-
-      if (!conditionMet) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /**
-   * Evaluate individual condition
-   */
-  private evaluateCondition(fieldValue: any, condition: any): boolean {
-    switch (condition.operator) {
-      case 'equals':
-        return fieldValue === condition.value;
-      case 'contains':
-        return String(fieldValue).toLowerCase().includes(String(condition.value).toLowerCase());
-      case 'greater_than':
-        return Number(fieldValue) > Number(condition.value);
-      case 'less_than':
-        return Number(fieldValue) < Number(condition.value);
-      case 'is_empty':
-        return !fieldValue || fieldValue === '';
-      case 'is_not_empty':
-        return fieldValue && fieldValue !== '';
-      default:
-        return false;
+  private evaluateConditions(contact: Contact, automation: ContactAutomation): boolean {
+    try {
+      return evaluateCondition(automation.conditions as any, contact);
+    } catch (error) {
+      logger.error('Automation condition invalid', error as Error, { automationId: automation.id });
+      return false;
     }
   }
 
-  /**
-   * Execute automation actions
-   */
-  private async executeActions(contact: Contact, automation: ContactAutomation): Promise<void> {
+  private async executeActions(contact: Contact, automation: ContactAutomation, trigger: string): Promise<void> {
+    const results: Array<{ type: string; ok: boolean; error?: string }> = [];
     for (const action of automation.actions) {
       try {
         await this.executeAction(contact, action);
+        results.push({ type: action.type, ok: true });
       } catch (error) {
-        logger.error('Automation action failed', error as Error, {
-          contactId: contact.id,
-          automationId: automation.id,
-          actionType: action.type
-        });
+        const message = error instanceof Error ? error.message : String(error);
+        results.push({ type: action.type, ok: false, error: message });
+        logger.error('Automation action failed', error as Error, { contactId: contact.id, automationId: automation.id, actionType: action.type });
       }
     }
+    const failed = results.filter((r) => !r.ok);
+    await this.recordRun(automation.id, contact.id, trigger, failed.length ? 'failed' : 'completed', { actions: results }, failed[0]?.error);
   }
 
-  /**
-   * Execute individual action
-   */
-  private async executeAction(contact: Contact, action: any): Promise<void> {
+  private async recordRun(ruleId: string, contactId: string, trigger: string, status: string, results: unknown, error?: string): Promise<void> {
+    try {
+      const userId = await currentUserId();
+      const { error: insErr } = await supabase.from('automation_runs').insert({
+        user_id: userId, rule_id: ruleId, contact_id: contactId, trigger, status, results, error: error ?? null,
+      } as never);
+      if (insErr) throw new Error(insErr.message);
+    } catch (e) {
+      logger.error('Could not record automation run', e as Error, { ruleId });
+    }
+  }
+
+  private async executeAction(contact: Contact, action: { type: string; config: Record<string, any> }): Promise<void> {
+    const cfg = action.config || {};
     switch (action.type) {
       case 'update_field':
-        await contactAPI.updateContact(contact.id, { [action.config.field]: action.config.value });
-        break;
-      case 'send_email':
-        await this.sendEmail(contact, action.config);
-        break;
-      case 'send_notification':
-        await this.sendNotification(contact, action.config);
-        break;
-      case 'create_task':
-        await this.createTask(contact, action.config);
-        break;
-      case 'webhook':
-        await this.callWebhook(contact, action.config);
-        break;
-      case 'api_call':
-        await this.callExternalAPI(contact, action.config);
-        break;
+        await contactAPI.updateContact(contact.id, { [cfg['field']]: cfg['value'] });
+        return;
+      case 'send_email': {
+        if (!contact.email) throw new Error('Contact has no email address');
+        if (!cfg['subject'] || !cfg['body']) throw new Error('send_email action needs a subject and body');
+        const body = merge(cfg['body'], contact);
+        const r = await messagingProviderService.sendEmail({
+          to: contact.email, subject: merge(cfg['subject'], contact), body_text: body,
+          body_html: body.split(/\n{2,}/).map((p) => `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join(''),
+          contact_id: contact.id,
+        });
+        if (!r.success) throw new Error('Email was not accepted by the provider');
+        return;
+      }
+      case 'create_task': {
+        const userId = await currentUserId();
+        const due = cfg['due_in_days'] != null ? new Date(Date.now() + Number(cfg['due_in_days']) * 86400000).toISOString() : null;
+        const { error } = await supabase.from('contact_tasks').insert({
+          user_id: userId, contact_id: contact.id, title: merge(cfg['title'] || 'Follow up', contact), description: cfg['description'] ?? null, due_at: due,
+        } as never);
+        if (error) throw new Error(error.message);
+        return;
+      }
+      case 'webhook': {
+        if (!cfg['endpoint_id']) throw new Error('webhook action needs an outbound endpoint');
+        const res = await fetch('/.netlify/functions/webhook-dispatch', {
+          method: 'POST', headers: await sdrAuthHeaders(),
+          body: JSON.stringify({ endpoint_id: cfg['endpoint_id'], event: 'contact_automation', payload: { contact_id: contact.id, email: contact.email, name: contact.name } }),
+        });
+        if (!res.ok) throw new Error(`Webhook failed (${res.status})`);
+        return;
+      }
+      default:
+        throw new Error(`Action type "${action.type}" is not supported`);
     }
   }
 
-  // Action implementations
-  private async sendEmail(contact: Contact, config: any): Promise<void> {
-    const response = await fetch('/.netlify/functions/send-contact-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contact,
-        templateId: config.templateId,
-        automationId: config.automationId
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Email sending failed: ${response.statusText}`);
-    }
-  }
-
-  private async sendNotification(contact: Contact, config: any): Promise<void> {
-    // Implementation for notifications
-    logger.info('Sending notification', { contactId: contact.id, config });
-  }
-
-  private async createTask(contact: Contact, config: any): Promise<void> {
-    // Implementation for task creation
-    logger.info('Creating task', { contactId: contact.id, config });
-  }
-
-  private async callWebhook(contact: Contact, config: any): Promise<void> {
-    await fetch(config.webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event: 'contact_automation',
-        contact,
-        automation: config.automationId
-      })
-    });
-  }
-
-  private async callExternalAPI(contact: Contact, config: any): Promise<void> {
-    // Implementation for external API calls
-    logger.info('Calling external API', { contactId: contact.id, config });
-  }
-
-  // CRUD operations for automations
+  // ---- CRUD (automation_rules) ----
   async getActiveAutomations(trigger?: string): Promise<ContactAutomation[]> {
-    // Implementation to fetch active automations
-    // This would typically fetch from a database
-    return [];
+    const { data, error } = await supabase.from('automation_rules').select('*').eq('is_active', true).order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    const all = ((data || []) as unknown as RuleRow[]).map(rowToAutomation);
+    return trigger ? all.filter((a) => a.trigger?.type === trigger) : all;
+  }
+
+  /** All rules including paused ones (for management screens). */
+  async getAllAutomations(): Promise<ContactAutomation[]> {
+    const { data, error } = await supabase.from('automation_rules').select('*').order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return ((data || []) as unknown as RuleRow[]).map(rowToAutomation);
   }
 
   async createAutomation(automation: Omit<ContactAutomation, 'id' | 'createdAt' | 'updatedAt'>): Promise<ContactAutomation> {
-    // Implementation to create automation
-    const newAutomation: ContactAutomation = {
-      ...automation,
-      id: `automation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    logger.info('Automation created', { automationId: newAutomation.id });
-    return newAutomation;
+    const userId = await currentUserId();
+    const { data, error } = await supabase.from('automation_rules').insert({
+      user_id: userId, name: automation.name, type: automation.type, trigger: automation.trigger,
+      conditions: automation.conditions, actions: automation.actions, is_active: automation.isActive,
+    } as never).select('*').maybeSingle();
+    if (error || !data) throw new Error(error?.message || 'Could not create automation');
+    return rowToAutomation(data as unknown as RuleRow);
   }
 
   async updateAutomation(id: string, updates: Partial<ContactAutomation>): Promise<ContactAutomation> {
-    // Implementation to update automation
-    logger.info('Automation updated', { automationId: id, updates: Object.keys(updates) });
-    return {} as ContactAutomation;
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (updates.name !== undefined) patch['name'] = updates.name;
+    if (updates.type !== undefined) patch['type'] = updates.type;
+    if (updates.trigger !== undefined) patch['trigger'] = updates.trigger;
+    if (updates.conditions !== undefined) patch['conditions'] = updates.conditions;
+    if (updates.actions !== undefined) patch['actions'] = updates.actions;
+    if (updates.isActive !== undefined) patch['is_active'] = updates.isActive;
+    const { data, error } = await supabase.from('automation_rules').update(patch as never).eq('id', id).select('*').maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Automation not found');
+    return rowToAutomation(data as unknown as RuleRow);
   }
 
   async deleteAutomation(id: string): Promise<void> {
-    // Implementation to delete automation
-    logger.info('Automation deleted', { automationId: id });
+    const { error } = await supabase.from('automation_rules').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
-  /**
-   * Get automation execution history
-   */
-  async getAutomationHistory(contactId?: string): Promise<AutomationExecution[]> {
-    // Implementation to fetch automation execution history
-    return [];
+  /** Real execution history from `automation_runs`. */
+  async getAutomationHistory(contactId?: string, limit = 100): Promise<AutomationExecution[]> {
+    let q = supabase.from('automation_runs').select('*').order('executed_at', { ascending: false }).limit(limit);
+    if (contactId) q = q.eq('contact_id', contactId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return ((data || []) as unknown as RunRow[]).map((r) => ({
+      id: r.id, automationId: r.rule_id || '', contactId: r.contact_id || '', trigger: r.trigger || '',
+      status: (r.status === 'skipped' ? 'completed' : r.status) as AutomationExecution['status'],
+      results: r.results, executedAt: r.executed_at, ...(r.error ? { error: r.error } : {}),
+    }));
   }
 }
 

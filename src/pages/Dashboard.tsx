@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  TrendingUp,
-  TrendingDown,
   Users,
   DollarSign,
   Target,
@@ -9,17 +7,14 @@ import {
   Phone,
   Mail,
   CheckCircle,
-  Clock,
-  AlertCircle,
   ArrowUp,
   ArrowDown,
   Activity,
   BarChart3,
-  PieChart
+  PieChart,
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useContactStore } from '../hooks/useContactStore';
-import { supabase } from '../lib/supabase';
 
 interface DashboardStats {
   totalContacts: number;

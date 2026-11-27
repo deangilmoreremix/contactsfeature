@@ -5,7 +5,7 @@ import { ModernButton } from '../ui/ModernButton';
 import { Settings, Brain, Zap, Clock, Target, Save, RotateCcw } from 'lucide-react';
 
 interface AISettings {
-  model: 'gpt-4o' | 'gpt-4' | 'gpt-3.5-turbo' | 'gemini-1.5-flash' | 'gemini-1.5-pro' | 'gpt-5.2';
+  model: 'default' | 'thinking' | 'fast' | 'pro';
   temperature: number;
   maxTokens: number;
   responseStyle: 'concise' | 'detailed' | 'comprehensive';
@@ -24,7 +24,7 @@ interface AISettingsPanelProps {
 }
 
 const defaultSettings: AISettings = {
-  model: 'gpt-4o',
+  model: 'default',
   temperature: 0.3,
   maxTokens: 1000,
   responseStyle: 'detailed',
@@ -160,12 +160,10 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
                 onChange={(e) => updateSetting('model', e.target.value as AISettings['model'])}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
-                <option value="gpt-5.2">GPT-5.2 (Latest)</option>
-                <option value="gpt-4o">GPT-4o (Recommended)</option>
-                <option value="gpt-4">GPT-4</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="default">Balanced</option>
+                <option value="thinking">Thinking (Deep Reasoning)</option>
+                <option value="fast">Fast</option>
+                <option value="pro">Pro</option>
               </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Choose the AI model for generating content
@@ -334,7 +332,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={resetSettings}
                 className="flex items-center space-x-2"
@@ -343,13 +341,13 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
                 <span>Reset</span>
               </ModernButton>
               <div className="flex-1" />
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={onClose}
               >
                 Cancel
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={saveSettings}
                 loading={saving}

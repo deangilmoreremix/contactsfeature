@@ -1,11 +1,10 @@
-const { createClient } = require('@supabase/supabase-js');
+const { stream } = require('@netlify/functions');
+const { runDual } = require('./_stream/dual');
+const { supabase } = require('./_supabaseClient');
+const { withAuth, errorResponse } = require('./_auth');
+const { getOwnedContact } = require('./_ownership');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
-exports.handler = async (event) => {
+exports.handler = stream(withAuth(async (event, user) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -14,12 +13,15 @@ exports.handler = async (event) => {
   }
 
   try {
+    const reqBody = JSON.parse(event.body);
     const {
       contact,
       meetingContext,
       questionType = 'comprehensive',
       aiProvider = 'openai'
-    } = JSON.parse(event.body);
+    } = reqBody;
+
+    if (!(await getOwnedContact(user.id, contact?.id))) return errorResponse(404, 'Contact not found');
 
     console.log('Discovery questions request:', {
       contactId: contact.id,
@@ -27,46 +29,34 @@ exports.handler = async (event) => {
       aiProvider
     });
 
-    let result;
+    // Same URL, two modes: JSON (as before) or SSE (status/delta/partial events + final `result`).
+    return await runDual({
+      event,
+      body: reqBody,
+      headers: CORS_HEADERS,
+      options: buildOptions(contact, meetingContext, questionType),
+      finalize: async (text) => {
+        const result = shapeResult(text, questionType, meetingContext);
 
-    // Route to appropriate AI provider
-    switch (aiProvider) {
-      case 'openai':
-        result = await generateWithOpenAI(contact, meetingContext, questionType);
-        break;
-      case 'gemini':
-        result = await generateWithGemini(contact, meetingContext, questionType);
-        break;
-      default:
-        result = await generateWithOpenAI(contact, meetingContext, questionType);
-    }
+        await supabase
+          .from('discovery_questions')
+          .insert({
+            contact_id: contact.id,
+            question_type: questionType,
+            questions: result.questions,
+            meeting_context: meetingContext,
+            ai_provider: aiProvider,
+            created_at: new Date().toISOString()
+          });
 
-    // Store questions in database
-    await supabase
-      .from('discovery_questions')
-      .insert({
-        contact_id: contact.id,
-        question_type: questionType,
-        questions: result.questions,
-        meeting_context: meetingContext,
-        ai_provider: aiProvider,
-        created_at: new Date().toISOString()
-      });
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        return {
+          success: true,
+          data: result,
+          provider: aiProvider,
+          timestamp: new Date().toISOString()
+        };
       },
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        provider: aiProvider,
-        timestamp: new Date().toISOString()
-      })
-    };
+    });
   } catch (error) {
     console.error('Discovery questions generation failed:', error);
     return {
@@ -78,15 +68,35 @@ exports.handler = async (event) => {
       })
     };
   }
+}));
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function generateWithOpenAI(contact, meetingContext, questionType) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+const OUTPUT_SCHEMA = {
+              type: "object",
+              properties: {
+                questions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      category: { type: "string" },
+                      question: { type: "string" },
+                      rationale: { type: "string" },
+                      priority: { type: "string", enum: ["high", "medium", "low"] }
+                    },
+                    required: ["category", "question", "rationale", "priority"]
+                  }
+                }
+              },
+              required: ["questions"]
+            };
 
+function buildOptions(contact, meetingContext, questionType) {
     const systemPrompt = `You are an expert sales discovery specialist. Generate strategic discovery questions that uncover pain points, requirements, decision criteria, and success factors.`;
 
     const userPrompt = `Generate ${questionType} discovery questions for this contact:
@@ -106,139 +116,23 @@ Generate questions organized by category:
 
 Return as JSON with "questions" array containing objects with category, question, rationale, and priority.`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        instructions: systemPrompt,
-        input: userPrompt,
-        temperature: 0.3,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "discovery_questions",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                questions: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      category: { type: "string" },
-                      question: { type: "string" },
-                      rationale: { type: "string" },
-                      priority: { type: "string", enum: ["high", "medium", "low"] }
-                    },
-                    required: ["category", "question", "rationale", "priority"]
-                  }
-                }
-              },
-              required: ["questions"]
-            }
-          }
-        }
-      })
-    });
+  return {
+    model: 'default',
+    effort: 'low',
+    instructions: systemPrompt,
+    input: userPrompt,
+    schema: OUTPUT_SCHEMA,
+    schemaName: 'discovery_questions',
+    store: false,
+  };
+}
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    // Handle Responses API format
-    let content;
-    if (data.output && data.output.length > 0) {
-      const textOutput = data.output.find(item => item.type === 'text');
-      if (textOutput && textOutput.text) {
-        content = JSON.parse(textOutput.text);
-      } else {
-        throw new Error('No text output found in response');
-      }
-    } else {
-      throw new Error('No response output found');
-    }
-
-    return {
+function shapeResult(text, questionType, meetingContext) {
+  const content = JSON.parse(text);
+  return {
       questions: content.questions || [],
       questionType,
       meetingContext,
       generated: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('OpenAI discovery questions generation failed:', error);
-    throw error;
-  }
-}
-
-async function generateWithGemini(contact, meetingContext, questionType) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    const prompt = `Generate ${questionType} discovery questions for this contact:
-
-Contact: ${contact.name} at ${contact.company}
-Meeting Context: ${JSON.stringify(meetingContext)}
-
-Return JSON with questions array organized by category with question, rationale, and priority.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 32,
-          topP: 0.8,
-          maxOutputTokens: 1000
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseContent) {
-      throw new Error('Invalid response from Gemini');
-    }
-
-    // Extract JSON from the response text
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const questionsData = JSON.parse(jsonMatch[0]);
-
-    return {
-      questions: questionsData.questions || [],
-      questionType,
-      meetingContext,
-      generated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Gemini discovery questions generation failed:', error);
-    throw error;
-  }
 }

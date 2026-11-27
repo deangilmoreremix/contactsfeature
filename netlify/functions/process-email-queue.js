@@ -1,6 +1,8 @@
 const { supabase } = require('./_supabaseClient');
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
-const { fetchWithTimeout } = require('./_fetchWithRetry');
+const { sendEmail } = require('./_messaging');
+const { injectTracking } = require('./_messaging/tracking');
+const { checkOutbound } = require('./_moderation');
 const { createLogger, generateCorrelationId } = require('./_logger');
 
 const log = createLogger('process-email-queue');
@@ -9,90 +11,31 @@ const BATCH_SIZE = 10;
 const MAX_RETRIES = 3;
 
 async function sendEmailViaProvider(email) {
-  const resendKey = process.env.RESEND_API_KEY;
-  const sendgridKey = process.env.SENDGRID_API_KEY;
-  const fromEmail = process.env.SDR_FROM_EMAIL || process.env.FROM_EMAIL || 'noreply@smartcrm.app';
-  const fromName = process.env.SDR_FROM_NAME || 'SmartCRM';
-
-  if (resendKey) {
-    const response = await fetchWithTimeout(
-      'https://api.resend.com/emails',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: `${fromName} <${fromEmail}>`,
-          to: [email.to_email],
-          subject: email.subject,
-          html: email.body_html,
-          text: email.body_text,
-        }),
-      },
-      15000
-    );
-
-    if (!response.ok) {
-      const errBody = await response.text().catch(() => '');
-      throw new Error(`Resend API error: ${response.status}`);
-    }
-
-    const result = await response.json();
-    return { provider: 'resend', messageId: result.id };
-  }
-
-  if (sendgridKey) {
-    const response = await fetchWithTimeout(
-      'https://api.sendgrid.com/v3/mail/send',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sendgridKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          personalizations: [{ to: [{ email: email.to_email }] }],
-          from: { email: fromEmail, name: fromName },
-          subject: email.subject,
-          content: [
-            { type: 'text/plain', value: email.body_text || email.body_html },
-            { type: 'text/html', value: email.body_html || email.body_text },
-          ],
-        }),
-      },
-      15000
-    );
-
-    if (!response.ok) {
-      throw new Error(`SendGrid API error: ${response.status}`);
-    }
-
-    const messageId = response.headers.get('x-message-id') || '';
-    return { provider: 'sendgrid', messageId };
-  }
-
-  await supabase.from('emails').update({
-    status: 'sent',
-    sent_at: new Date().toISOString(),
-    message_id: `local-${Date.now()}`,
-    updated_at: new Date().toISOString(),
-  }).eq('id', email.id);
-
-  return { provider: 'local', messageId: `local-${email.id}` };
+  // Uses the owning user's own provider; throws NO_PROVIDER when none is configured so the
+  // email is never marked as sent without actually being delivered.
+  const result = await sendEmail(email.user_id, {
+    to: email.to_email,
+    subject: email.subject,
+    html: injectTracking(email.body_html, { emailId: email.id, baseUrl: process.env.URL }),
+    text: email.body_text,
+    fromEmail: email.from_email || undefined,
+  });
+  return { provider: result.provider, messageId: result.messageId };
 }
 
-exports.handler = withAuth(async (event, user) => {
+/** opts.userId scopes the run to one user's queue (manual trigger); omitted = every user (scheduler). */
+async function processQueue(opts = {}) {
   log.setCorrelationId(generateCorrelationId());
 
   try {
     const now = new Date().toISOString();
 
-    const { data: queuedEmails, error: queueError } = await supabase
+    let query = supabase
       .from('emails')
       .select('*, contacts!emails_contact_id_fkey(firstname, name, email, company)')
-      .eq('status', 'queued')
+      .eq('status', 'queued');
+    if (opts.userId) query = query.eq('user_id', opts.userId);
+    const { data: queuedEmails, error: queueError } = await query
       .or(`scheduled_for.is.null,scheduled_for.lte.${now}`)
       .lt('send_attempts', MAX_RETRIES)
       .order('created_at', { ascending: true })
@@ -103,11 +46,7 @@ exports.handler = withAuth(async (event, user) => {
     }
 
     if (!queuedEmails || queuedEmails.length === 0) {
-      return {
-        statusCode: 200,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({ processed: 0, message: 'No emails in queue' }),
-      };
+      return { processed: 0, sent: 0, failed: 0, total: 0, results: [], message: 'No emails in queue' };
     }
 
     let sent = 0;
@@ -121,11 +60,24 @@ exports.handler = withAuth(async (event, user) => {
           updated_at: new Date().toISOString(),
         }).eq('id', email.id);
 
+        const mod = await checkOutbound({ texts: [email.subject, email.body_text || email.body_html], userId: email.user_id, endpoint: 'process-email-queue' });
+        if (!mod.ok) {
+          await supabase.from('emails').update({
+            status: 'failed',
+            error_message: 'Blocked by content moderation',
+            updated_at: new Date().toISOString(),
+          }).eq('id', email.id);
+          results.push({ emailId: email.id, success: false, blocked: true, categories: mod.categories });
+          failed++;
+          continue;
+        }
+
         const sendResult = await sendEmailViaProvider(email);
 
         await supabase.from('emails').update({
           status: 'sent',
           sent_at: new Date().toISOString(),
+          provider: sendResult.provider,
           message_id: sendResult.messageId || null,
           error_message: null,
           updated_at: new Date().toISOString(),
@@ -151,7 +103,8 @@ exports.handler = withAuth(async (event, user) => {
         sent++;
       } catch (err) {
         const attempts = (email.send_attempts || 0) + 1;
-        const newStatus = attempts >= MAX_RETRIES ? 'failed' : 'queued';
+        // Without a configured provider nothing can ever succeed: park as draft instead of retrying.
+        const newStatus = err.code === 'NO_PROVIDER' ? 'draft' : attempts >= MAX_RETRIES ? 'failed' : 'queued';
 
         await supabase.from('emails').update({
           status: newStatus,
@@ -175,13 +128,20 @@ exports.handler = withAuth(async (event, user) => {
 
     log.info('Email queue processed', { sent, failed, total: queuedEmails.length });
 
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ sent, failed, total: queuedEmails.length, results }),
-    };
+    return { sent, failed, total: queuedEmails.length, results };
   } catch (err) {
     log.error('Email queue processing failed', { error: err.message });
+    throw err;
+  }
+}
+
+// Manual trigger (authenticated). Scheduled runs use process-email-queue-scheduled.js.
+exports.handler = withAuth(async (_event, user) => {
+  try {
+    const out = await processQueue({ userId: user.id });
+    return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify(out) };
+  } catch {
     return errorResponse(500, 'Email queue processing failed');
   }
 });
+exports.processQueue = processQueue;

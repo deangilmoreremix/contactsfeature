@@ -1,247 +1,182 @@
 /**
- * Performance Benchmarks for AI Buttons
- * Tests response times and heavy usage scenarios
+ * Performance benchmarks for the AI buttons (score badge on the contact card, CustomizableAIToolbar).
+ *
+ * The real components, AIProvider, AI orchestrator and contact AI service run; only the network boundary is stubbed
+ * (`aiJson` answers immediately, `webSearchService` is stubbed), so the timings measure our own overhead and the
+ * budgets below are deliberately generous to stay stable on slow CI machines.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+
+const mocks = vi.hoisted(() => ({ aiJson: vi.fn(), searchWithAI: vi.fn() }));
+
+vi.mock('../services/aiClient', () => ({ aiJson: mocks.aiJson, aiRespond: vi.fn(), aiStream: vi.fn() }));
+vi.mock('../services/webSearchService', () => ({ webSearchService: { searchWithAI: mocks.searchWithAI } }));
+
 import { AIEnhancedContactCard } from '../components/contacts/AIEnhancedContactCard';
 import { CustomizableAIToolbar } from '../components/ui/CustomizableAIToolbar';
+import { AIProvider } from '../contexts/AIContext';
+import { aiOrchestrator } from '../services/ai-orchestrator.service';
+import { useContactStore } from '../hooks/useContactStore';
+import type { Contact } from '../types';
 
-// Mock services
-vi.mock('../services/webSearchService');
-vi.mock('../contexts/AIContext');
-vi.mock('../services/contactService');
+const makeContact = (id: string, name = 'Performance Test User') => ({
+  id,
+  name,
+  firstName: 'Performance',
+  lastName: 'Test',
+  email: 'perf@test.com',
+  company: 'Test Corp',
+  title: 'Test User',
+  phone: '+1-555-0123',
+  industry: 'Technology',
+  sources: ['Test'],
+  socialProfiles: {},
+  customFields: {},
+  interestLevel: 'hot',
+  status: 'lead',
+  createdBy: 'test',
+  dataSource: 'test',
+}) as unknown as Contact;
+
+const scoreJson = { score: 77, breakdown: { fitScore: 70, engagementScore: 70, conversionProbability: 60, urgencyScore: 50 }, reasoning: ['Good fit'], recommendations: [], nextBestActions: [] };
+
+const updateContact = vi.fn();
+
+function seedStore(...contacts: Contact[]) {
+  updateContact.mockReset();
+  updateContact.mockResolvedValue(undefined);
+  useContactStore.setState({ contacts, updateContact } as never);
+}
+
+const card = (contact: Contact) => (
+  <AIEnhancedContactCard key={contact.id} contact={contact} isSelected={false} onSelect={() => {}} onClick={() => {}} />
+);
 
 describe('AI Buttons Performance Benchmarks', () => {
-  const mockContact = {
-    id: 'perf-test-contact',
-    name: 'Performance Test User',
-    firstName: 'Performance',
-    lastName: 'Test',
-    email: 'perf@test.com',
-    company: 'Test Corp',
-    title: 'Test User',
-    phone: '+1-555-0123',
-    industry: 'Technology',
-    aiScore: 0,
-    sources: ['Test'],
-    socialProfiles: {},
-    customFields: {},
-    interestLevel: 'hot' as const,
-    status: 'lead',
-    createdBy: 'test',
-    dataSource: 'test'
-  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_AI_MAX_RETRY_ATTEMPTS', '1');
+    aiOrchestrator.clearCache();
+    mocks.aiJson.mockResolvedValue(scoreJson);
+    mocks.searchWithAI.mockResolvedValue({ content: 'Test Corp is a company.', sources: [{ url: 'https://example.com', title: 'Example', domain: 'example.com' }] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
 
   describe('AI Analysis Button Performance', () => {
-    it('should complete AI analysis within 2 seconds', async () => {
+    it('scores a contact within 2 seconds', async () => {
+      const contact = makeContact('perf-test-contact');
+      seedStore(contact);
       const startTime = performance.now();
 
-      render(<AIEnhancedContactCard
-        contact={mockContact}
-        isSelected={false}
-        onSelect={() => {}}
-        onClick={() => {}}
-      />);
+      render(<AIProvider>{card(contact)}</AIProvider>);
+      fireEvent.click(screen.getByTestId('ai-score-button'));
+      await waitFor(() => expect(screen.getByTestId('ai-score-display')).toHaveTextContent('77'), { timeout: 3000 });
 
-      const aiButton = screen.getByTitle('Analyze with AI');
-      fireEvent.click(aiButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('AI analysis complete')).toBeInTheDocument();
-      }, { timeout: 3000 });
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-
-      expect(duration).toBeLessThan(2000); // Should complete within 2 seconds
-      console.log(`AI Analysis completed in ${duration.toFixed(2)}ms`);
+      expect(performance.now() - startTime).toBeLessThan(2000);
+      expect(mocks.aiJson).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle multiple simultaneous AI requests', async () => {
+    it('handles 5 simultaneous analyses (one AI call per card) within 5 seconds', async () => {
+      const contacts = Array.from({ length: 5 }, (_, i) => makeContact(`perf-contact-${i}`, `Performance User ${i}`));
+      seedStore(...contacts);
       const startTime = performance.now();
 
-      // Render multiple contact cards
-      const contacts = Array.from({ length: 5 }, (_, i) => ({
-        ...mockContact,
-        id: `perf-contact-${i}`,
-        name: `Performance User ${i}`
-      }));
+      render(<AIProvider>{contacts.map(card)}</AIProvider>);
+      screen.getAllByTestId('ai-score-button').forEach((button) => fireEvent.click(button));
 
-      const { rerender } = render(
-        <>
-          {contacts.map(contact => (
-            <AIEnhancedContactCard
-              key={contact.id}
-              contact={contact}
-              isSelected={false}
-              onSelect={() => {}}
-              onClick={() => {}}
-            />
-          ))}
-        </>
-      );
+      await waitFor(() => expect(screen.getAllByTestId('ai-score-display')).toHaveLength(5), { timeout: 10000 });
 
-      // Click all AI buttons simultaneously
-      const aiButtons = screen.getAllByTitle('Analyze with AI');
-      aiButtons.forEach(button => fireEvent.click(button));
-
-      // Wait for all to complete
-      await waitFor(() => {
-        expect(screen.getAllByText('AI analysis complete')).toHaveLength(5);
-      }, { timeout: 10000 });
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-
-      expect(duration).toBeLessThan(5000); // Should handle 5 concurrent requests within 5 seconds
-      console.log(`5 concurrent AI analyses completed in ${duration.toFixed(2)}ms`);
+      expect(performance.now() - startTime).toBeLessThan(5000);
+      expect(mocks.aiJson).toHaveBeenCalledTimes(5);
+      expect(updateContact.mock.calls.map(([id]) => id).sort()).toEqual(contacts.map((c) => c.id).sort());
     });
 
-    it('should maintain performance under load', async () => {
+    it('keeps performance steady over 10 sequential analyses', async () => {
       const results: number[] = [];
 
-      // Run 10 sequential AI analyses
       for (let i = 0; i < 10; i++) {
+        const contact = makeContact(`load-test-${i}`);
+        seedStore(contact);
         const startTime = performance.now();
 
-        const { rerender } = render(<AIEnhancedContactCard
-          contact={{ ...mockContact, id: `load-test-${i}` }}
-          isSelected={false}
-          onSelect={() => {}}
-          onClick={() => {}}
-        />);
+        const { unmount } = render(<AIProvider>{card(contact)}</AIProvider>);
+        fireEvent.click(screen.getByTestId('ai-score-button'));
+        await waitFor(() => expect(screen.getByTestId('ai-score-display')).toBeInTheDocument());
 
-        const aiButton = screen.getByTitle('Analyze with AI');
-        fireEvent.click(aiButton);
-
-        await waitFor(() => {
-          expect(screen.getByText('AI analysis complete')).toBeInTheDocument();
-        });
-
-        const endTime = performance.now();
-        results.push(endTime - startTime);
-
-        // Cleanup for next iteration
-        rerender(<></>);
+        results.push(performance.now() - startTime);
+        unmount();
       }
 
       const avgTime = results.reduce((a, b) => a + b, 0) / results.length;
-      const maxTime = Math.max(...results);
-      const minTime = Math.min(...results);
-
-      console.log(`Load test results:`, {
-        average: `${avgTime.toFixed(2)}ms`,
-        max: `${maxTime.toFixed(2)}ms`,
-        min: `${minTime.toFixed(2)}ms`,
-        totalRuns: results.length
-      });
-
-      expect(avgTime).toBeLessThan(1500); // Average should be under 1.5 seconds
-      expect(maxTime).toBeLessThan(3000); // Max should be under 3 seconds
+      expect(avgTime).toBeLessThan(1500);
+      expect(Math.max(...results)).toBeLessThan(3000);
+      expect(mocks.aiJson).toHaveBeenCalledTimes(10);
     });
   });
 
   describe('AI Toolbar Performance', () => {
-    it('should complete toolbar actions within 3 seconds', async () => {
+    it('completes a Lead Score toolbar action within 3 seconds', async () => {
+      const contact = makeContact('perf-test-contact');
+      seedStore(contact);
       const startTime = performance.now();
 
-      render(<CustomizableAIToolbar
-        entityType="contact"
-        entityId={mockContact.id}
-        entityData={mockContact}
-        location="contactCards"
-        layout="grid"
-        size="sm"
-      />);
+      render(
+        <AIProvider>
+          <CustomizableAIToolbar entityType="contact" entityId={contact.id} entityData={contact} location="contactCards" layout="grid" size="sm" />
+        </AIProvider>
+      );
+      fireEvent.click(screen.getByText('Lead Score'));
+      await waitFor(() => expect(screen.getByText('Done!')).toBeInTheDocument(), { timeout: 5000 });
 
-      const leadScoreButton = screen.getByText('Lead Score');
-      fireEvent.click(leadScoreButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('Done!')).toBeInTheDocument();
-      }, { timeout: 5000 });
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-
-      expect(duration).toBeLessThan(3000); // Should complete within 3 seconds
-      console.log(`AI Toolbar action completed in ${duration.toFixed(2)}ms`);
+      expect(performance.now() - startTime).toBeLessThan(3000);
+      expect(mocks.searchWithAI).toHaveBeenCalledTimes(1);
+      expect(mocks.aiJson).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('Memory Usage Benchmarks', () => {
-    it('should not cause memory leaks during repeated AI operations', async () => {
-      // This is a basic memory leak test - in a real scenario,
-      // you'd use tools like memlab or chrome dev tools
-      const initialMemory = performance.memory ?
-        (performance as any).memory.usedJSHeapSize : 0;
-
-      // Perform multiple AI operations
+  describe('Repeated use', () => {
+    it('leaves nothing mounted and makes exactly one AI call per analysis over 20 mount/analyse/unmount cycles', async () => {
       for (let i = 0; i < 20; i++) {
-        const { rerender } = render(<AIEnhancedContactCard
-          contact={{ ...mockContact, id: `memory-test-${i}` }}
-          isSelected={false}
-          onSelect={() => {}}
-          onClick={() => {}}
-        />);
+        const contact = makeContact(`memory-test-${i}`);
+        seedStore(contact);
 
-        const aiButton = screen.getByTitle('Analyze with AI');
-        fireEvent.click(aiButton);
-
-        await waitFor(() => {
-          expect(screen.getByText('AI analysis complete')).toBeInTheDocument();
-        });
-
-        rerender(<></>);
+        const { unmount } = render(<AIProvider>{card(contact)}</AIProvider>);
+        fireEvent.click(screen.getByTestId('ai-score-button'));
+        await waitFor(() => expect(screen.getByTestId('ai-score-display')).toBeInTheDocument());
+        unmount();
       }
 
-      const finalMemory = performance.memory ?
-        (performance as any).memory.usedJSHeapSize : 0;
-
-      if (performance.memory) {
-        const memoryIncrease = finalMemory - initialMemory;
-        console.log(`Memory usage: ${memoryIncrease} bytes increase over 20 operations`);
-
-        // Allow for some memory increase but not excessive
-        expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024); // Less than 50MB increase
-      }
+      expect(document.body.querySelectorAll('[data-testid="contact-card"]')).toHaveLength(0);
+      expect(mocks.aiJson).toHaveBeenCalledTimes(20);
     });
   });
 
   describe('Error Recovery Performance', () => {
-    it('should recover quickly from API failures', async () => {
-      // Mock network failure
-      const originalFetch = global.fetch;
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-
+    it('surfaces an AI failure within 1 second and lets the user retry', async () => {
+      const contact = makeContact('perf-test-contact');
+      seedStore(contact);
+      mocks.aiJson.mockRejectedValueOnce(new Error('Network error'));
       const startTime = performance.now();
 
-      render(<AIEnhancedContactCard
-        contact={mockContact}
-        isSelected={false}
-        onSelect={() => {}}
-        onClick={() => {}}
-      />);
+      render(<AIProvider>{card(contact)}</AIProvider>);
+      fireEvent.click(screen.getByTestId('ai-score-button'));
+      await waitFor(() => expect(screen.getByText(/Network error/)).toBeInTheDocument());
 
-      const aiButton = screen.getByTitle('Analyze with AI');
-      fireEvent.click(aiButton);
+      expect(performance.now() - startTime).toBeLessThan(1000);
+      expect(screen.getByTestId('ai-score-button')).not.toBeDisabled();
 
-      await waitFor(() => {
-        expect(window.alert).toHaveBeenCalledWith(
-          'AI analysis failed. Please check your internet connection and try again.'
-        );
-      });
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-
-      // Error handling should be fast
-      expect(duration).toBeLessThan(1000);
-
-      // Restore fetch
-      global.fetch = originalFetch;
+      fireEvent.click(screen.getByTestId('ai-score-button'));
+      await waitFor(() => expect(screen.getByTestId('ai-score-display')).toHaveTextContent('77'));
     });
   });
 });

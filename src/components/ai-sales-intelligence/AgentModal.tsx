@@ -75,12 +75,13 @@ export const AgentModal: React.FC<AgentModalProps> = ({
         return (
           <div className="flex items-center">
             <input
+              id={`agent-field-${key}`}
               type="checkbox"
               checked={inputData[key] || false}
               onChange={(e) => handleInputChange(key, e.target.checked)}
               className="mr-2"
             />
-            <label className="text-sm text-gray-700">
+            <label htmlFor={`agent-field-${key}`} className="text-sm text-gray-700">
               {schema.description || key}
             </label>
           </div>
@@ -103,7 +104,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
   const hasInputs = agent.input_schema && Object.keys(agent.input_schema['properties'] || {}).length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
       <GlassCard className="w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -183,7 +184,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
               className="flex-1"
@@ -191,7 +192,7 @@ export const AgentModal: React.FC<AgentModalProps> = ({
             >
               Cancel
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={handleExecute}
               className="flex-1"

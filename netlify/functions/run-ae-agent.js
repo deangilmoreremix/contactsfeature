@@ -1,6 +1,11 @@
+const { runDual } = require('./_stream/dual');
+const { callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { supabase } = require('./_supabaseClient');
+const { withAuth } = require('./_auth');
+const { isValidUUID } = require('./_validation');
 
-exports.handler = async (event, context) => {
+exports.handler = stream(withAuth(async (event, user) => {
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -26,8 +31,10 @@ exports.handler = async (event, context) => {
     };
   }
 
+  let contactOwned = false; // only log failures against contacts the caller owns
   try {
-    const { contactId } = JSON.parse(event.body || '{}');
+    const reqBody = JSON.parse(event.body || '{}');
+    const { contactId } = reqBody;
 
     if (!contactId) {
       return {
@@ -37,11 +44,16 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Get contact and deal data
+    if (!isValidUUID(contactId)) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'contactId must be a valid UUID' }) };
+    }
+
+    // Get contact and deal data (own contacts only; foreign ids look like missing ones)
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (contactError || !contact) {
@@ -51,6 +63,8 @@ exports.handler = async (event, context) => {
         body: JSON.stringify({ error: 'Contact not found' })
       };
     }
+
+    contactOwned = true;
 
     // Get associated deal if exists
     const { data: deal } = await supabase
@@ -122,89 +136,69 @@ exports.handler = async (event, context) => {
       }
     ];
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'OpenAI API key not configured' })
-      };
-    }
-
-    const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
-    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
+    // Streams live (status/delta events, then `result` = the JSON payload) when the client asks for it.
+    let failureLogged = false;
+    return await runDual({
+      event,
+      body: reqBody,
+      headers,
+      options: callOptions(
+        [
           {
             role: 'system',
             content: 'You are an Account Executive (AE) agent. Focus on closing deals, building relationships, and moving opportunities forward. Provide a clear action plan with next steps.'
           },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.5,
-        max_tokens: 2000
-      })
+        { role: 'thinking', maxTokens: 2000 }
+      ),
+      onEvent: (ev) => {
+        // Stream mode: a model failure never reaches the catch below, so record it here (once).
+        if (ev.type === 'error' && !failureLogged) {
+          failureLogged = true;
+          logFailedRun(contactId, ev.message, user.id);
+        }
+      },
+      finalize: async (text) => {
+        const response = text || 'No response generated';
+
+        try {
+          await supabase.from('agent_runs').insert({
+            agent_id: 'ae-agent',
+            contact_id: contactId,
+            user_id: user.id,
+            status: 'completed',
+            output_data: { summary: response.substring(0, 500) },
+            completed_at: new Date().toISOString()
+          });
+        } catch (_logErr) {
+          console.warn('Failed to log AE agent run:', _logErr);
+        }
+
+        await supabase
+          .from('contacts')
+          .update({
+            pipeline_stage: 'relationship_building',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', contactId)
+          .eq('user_id', user.id);
+
+        return {
+          success: true,
+          contactId,
+          response: response.substring(0, 500), // Truncate for response
+          executedAt: new Date().toISOString()
+        };
+      },
     });
-
-    if (!aiResponse.ok) {
-      throw new Error(`OpenAI API error: ${aiResponse.status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const response = aiData.choices[0]?.message?.content || 'No response generated';
-
-    try {
-      await supabase.from('agent_runs').insert({
-        agent_id: 'ae-agent',
-        contact_id: contactId,
-        user_id: contact.user_id || null,
-        status: 'completed',
-        output_data: { summary: response.substring(0, 500) },
-        completed_at: new Date().toISOString()
-      });
-    } catch (_logErr) {
-      console.warn('Failed to log AE agent run:', _logErr);
-    }
-
-    await supabase
-      .from('contacts')
-      .update({
-        pipeline_stage: 'relationship_building',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', contactId);
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        contactId,
-        response: response.substring(0, 500), // Truncate for response
-        executedAt: new Date().toISOString()
-      })
-    };
 
   } catch (error) {
     console.error('AE Agent execution failed:', error);
 
     try {
       const parsedBody = JSON.parse(event.body || '{}');
-      if (parsedBody.contactId) {
-        await supabase.from('agent_runs').insert({
-          agent_id: 'ae-agent',
-          contact_id: parsedBody.contactId,
-          status: 'failed',
-          error_message: error.message,
-          completed_at: new Date().toISOString()
-        });
-      }
+      if (isValidUUID(parsedBody.contactId) && contactOwned) await logFailedRun(parsedBody.contactId, error.message, user.id);
     } catch (_logErr) {
       console.warn('Failed to log AE agent error:', _logErr);
     }
@@ -218,7 +212,22 @@ exports.handler = async (event, context) => {
       })
     };
   }
-};
+}));
+
+async function logFailedRun(contactId, message, userId) {
+  try {
+    await supabase.from('agent_runs').insert({
+      agent_id: 'ae-agent',
+      contact_id: contactId,
+      user_id: userId,
+      status: 'failed',
+      error_message: message,
+      completed_at: new Date().toISOString()
+    });
+  } catch (_logErr) {
+    console.warn('Failed to log AE agent error:', _logErr);
+  }
+}
 
 function buildAEAgentPrompt(contact, deal, memory) {
   let prompt = `You are an Account Executive (AE) agent following up with a qualified lead.

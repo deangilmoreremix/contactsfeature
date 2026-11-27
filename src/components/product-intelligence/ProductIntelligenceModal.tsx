@@ -1,5 +1,7 @@
 import React, { useState, useCallback, memo } from 'react';
-import { X, AlertCircle, CheckCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { X, AlertCircle, CheckCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { ProductIntelligenceInput } from './ProductIntelligenceInput';
 import { ProductIntelligenceResults } from './ProductIntelligenceResults';
 import { GlassCard } from '../ui/GlassCard';
@@ -33,6 +35,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
   contactIds = []
 }) => {
   const [state, setState] = useState<ModalState>({ step: 'input' });
+  const live = useLiveCall();
 
   const handleAnalysisStart = useCallback(async (input: { urls: string[], documents: File[], businessName?: string }) => {
     setState({ step: 'analyzing', progress: { stage: 'input', progress: 0, message: 'Initializing analysis...' } });
@@ -48,7 +51,7 @@ export const ProductIntelligenceModal: React.FC<ProductIntelligenceModalProps> =
 
       // Analyze web content if URLs provided
       if (input.urls.length > 0) {
-        analysisResult = await productIntelligenceService.analyzeWebContent(input.urls, input.businessName);
+        analysisResult = await live.run((opts) => productIntelligenceService.analyzeWebContent(input.urls, input.businessName, opts)) as AnalysisResults;
       } else if (input.documents.length > 0 && input.documents[0]) {
         // For documents, analyze the first one (in a real implementation, you'd handle multiple)
         analysisResult = await productIntelligenceService.analyzeDocument(input.documents[0], input.businessName);
@@ -209,7 +212,7 @@ Sales Playbook: 1
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
       <GlassCard className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -242,13 +245,16 @@ Sales Playbook: 1
             )}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="h-10 w-10 inline-flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
+        {state.step === 'analyzing' && (
+          <div className="px-6 pt-4"><LiveRunStatus live={live} showText /></div>
+        )}
         {/* Progress Indicator */}
         {state.step === 'analyzing' && state.progress && (
           <div className="px-6 py-4 bg-blue-50 border-b border-blue-200">

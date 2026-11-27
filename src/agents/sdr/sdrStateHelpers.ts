@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabase";
+import { sdrAuthHeaders } from "../../services/sdrClient";
 
 export interface AutopilotState {
   leadId: string;
@@ -11,7 +12,7 @@ export async function getOrCreateThreadForLead(leadId: string): Promise<string> 
   try {
     const response = await fetch('/.netlify/functions/manage-sdr-thread', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await sdrAuthHeaders(),
       body: JSON.stringify({ action: 'getOrCreate', leadId })
     });
 
@@ -125,7 +126,7 @@ export async function cleanupOldThreads(daysOld: number = 90): Promise<number> {
   try {
     const response = await fetch('/.netlify/functions/manage-sdr-thread', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await sdrAuthHeaders(),
       body: JSON.stringify({ action: 'cleanup', daysOld })
     });
 

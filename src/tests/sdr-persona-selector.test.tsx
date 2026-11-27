@@ -119,7 +119,7 @@ describe('SDRPersonaSelector', () => {
     // Wait for the async operation to complete
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Running SDR persona cold_saas_founder for contact test-contact-123'
+        'Running SDR persona cold_saas_founder via /.netlify/functions/cold-email-sdr for contact test-contact-123'
       );
     });
 

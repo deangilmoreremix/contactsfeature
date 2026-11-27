@@ -1,27 +1,41 @@
-import { openai } from "./openaiClient";
+import { streamResponse, ModelRole } from "./openaiClient";
 import { logger } from "./logger";
 
-export async function streamOpenAIResponse(messages: any[], model = "gpt-4.1-mini") {
-  logger.debug("Starting streaming OpenAI response", { model });
+/**
+ * Streams a Responses API call and returns the full text.
+ * `messages` is a chat-style array: system/developer messages become `instructions`,
+ * the rest is passed as Responses input items.
+ */
+export async function streamOpenAIResponse(
+  messages: Array<{ role: string; content: any }>,
+  role: ModelRole | string = "fast",
+  onDelta?: (text: string) => void
+) {
+  logger.debug("Starting streaming OpenAI response", { role });
 
-  const stream = await openai.chat.completions.create({
-    model,
-    messages,
-    stream: true
-  });
+  const instructions = messages
+    .filter((m) => m.role === "system" || m.role === "developer")
+    .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+    .join("\n\n");
+  const input = messages
+    .filter((m) => m.role !== "system" && m.role !== "developer")
+    .map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+    }));
 
   let full = "";
-
-  for await (const chunk of stream) {
-    const delta = chunk.choices?.[0]?.delta?.content;
-    if (!delta) continue;
-
-    if (typeof delta === "string") {
-      full += delta;
-    } else if (Array.isArray(delta)) {
-      full += delta.map((d: any) => d.text || "").join("");
+  for await (const ev of streamResponse({
+    role,
+    instructions: instructions || undefined,
+    input
+  })) {
+    if (ev.type === "delta") {
+      full += ev.text;
+      onDelta?.(ev.text);
+    } else if (ev.type === "error") {
+      throw new Error(ev.message);
     }
   }
-
   return full;
 }

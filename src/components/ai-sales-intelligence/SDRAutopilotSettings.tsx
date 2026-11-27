@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ModernButton } from '../ui/ModernButton';
-import { Bot, Mail, Calendar, Target, Settings as SettingsIcon, Play, Pause, Square } from 'lucide-react';
+import { Bot, Mail, Target, Settings as SettingsIcon, Play } from 'lucide-react';
 
 interface SDRAutopilotSettings {
   enabled: boolean;
@@ -163,9 +163,9 @@ export const SDRAutopilotSettings: React.FC<SDRAutopilotSettingsProps> = ({
                 onChange={(e) => updateSetting('defaultMailbox', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="deansales">Dean Sales (dean@agentmail.to)</option>
-                <option value="sarahbizdev">Sarah BizDev (sarah@agentmail.to)</option>
-                <option value="techsales">Tech Sales (tech@agentmail.to)</option>
+                <option value="deansales">Dean Sales</option>
+                <option value="sarahbizdev">Sarah BizDev</option>
+                <option value="techsales">Tech Sales</option>
                 <option value="custom">Custom Mailbox</option>
               </select>
             </div>
@@ -310,7 +310,7 @@ export const SDRAutopilotSettings: React.FC<SDRAutopilotSettingsProps> = ({
 
           {/* Save Button */}
           <div className="flex justify-end pt-4 border-t border-gray-200">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={saveSDRAutopilotSettings}
               loading={saving}

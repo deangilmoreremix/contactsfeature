@@ -56,7 +56,7 @@ export const EmailScheduler: React.FC<EmailSchedulerProps> = memo(({
               />
             </div>
           </div>
-          <ModernButton
+          <ModernButton size="toolbar"
             onClick={onScheduleSend}
             loading={isScheduling}
             className="w-full bg-green-600 hover:bg-green-700"

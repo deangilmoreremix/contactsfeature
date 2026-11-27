@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
+import { useAIStream } from "../hooks/useAIStream";
+import { sdrAuthHeaders } from "../services/sdrClient";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { asObj, asStr, joinSections } from "../utils/partialText";
 
 interface SkillMeta {
   id: string;
@@ -14,7 +18,19 @@ interface SkillsListResponse {
 interface SkillRunResponse {
   skillId: string;
   contactId: string;
+  dealId?: string | null;
   result: any;
+}
+
+/** Text shown while a structured skill (risk analysis) is still being written. */
+function riskText(partial: unknown): string | undefined {
+  const p = asObj(partial);
+  if (!("risk_score" in p || "reason" in p || "next_move" in p)) return undefined;
+  return joinSections([
+    p.risk_score != null && `Risk score: ${asStr(p.risk_score)}/100`,
+    asStr(p.reason),
+    p.next_move ? `Next move: ${asStr(p.next_move)}` : "",
+  ]);
 }
 
 export const SkillsPanel: React.FC = () => {
@@ -22,28 +38,35 @@ export const SkillsPanel: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<string>("");
   const [contactId, setContactId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<SkillRunResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const live = useAIStream<SkillRunResponse>();
+  const running = live.isStreaming;
+  const result = live.state.result;
+  const [listError, setListError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const error = formError || listError || live.state.error;
   const [showSettings, setShowSettings] = useState(false);
 
   const loadSkills = async () => {
     setLoading(true);
-    setError(null);
+    setListError(null);
     try {
-      const res = await fetch("/.netlify/functions/skills-api");
+      const res = await fetch("/.netlify/functions/skills-api", {
+        method: "POST",
+        headers: await sdrAuthHeaders(),
+        body: JSON.stringify({ action: "list" })
+      });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Request failed");
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error || "Request failed");
       }
       const data = (await res.json()) as SkillsListResponse;
       setSkills(data.skills || []);
       if (data.skills && data.skills.length > 0) {
-        setSelectedSkill(data.skills[0].id);
+        setSelectedSkill(data.skills[0]!.id);
       }
     } catch (e: any) {
       console.error("Skills list error:", e);
-      setError(e.message || "Failed to load skills");
+      setListError(e.message || "Failed to load skills");
     } finally {
       setLoading(false);
     }
@@ -54,39 +77,20 @@ export const SkillsPanel: React.FC = () => {
   }, []);
 
   const handleRun = async () => {
-    setError(null);
-    setResult(null);
+    setFormError(null);
+    live.reset();
 
     if (!contactId) {
-      setError("Please enter a contact ID.");
+      setFormError("Please enter a contact ID.");
       return;
     }
     if (!selectedSkill) {
-      setError("Please select a skill.");
+      setFormError("Please select a skill.");
       return;
     }
 
-    setRunning(true);
-    try {
-      const res = await fetch("/.netlify/functions/skills-api", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skillId: selectedSkill, contactId })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Request failed");
-      }
-
-      const data = (await res.json()) as SkillRunResponse;
-      setResult(data);
-    } catch (e: any) {
-      console.error("Skills run error:", e);
-      setError(e.message || "Failed to run skill");
-    } finally {
-      setRunning(false);
-    }
+    // Streamed: the reply types in as the skill writes it
+    await live.runFunction("/.netlify/functions/skills-api", { skillId: selectedSkill, contactId });
   };
 
   return (
@@ -96,6 +100,7 @@ export const SkillsPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
+        color: "#1a202c",
         maxWidth: 640
       }}
     >
@@ -223,7 +228,17 @@ export const SkillsPanel: React.FC = () => {
         </div>
       )}
 
-      {result && (
+      {running && (
+        <StreamingOutput
+          state={live.state}
+          onStop={live.stop}
+          display={riskText(live.state.partial) ?? live.state.text}
+          placeholder="Running the skill…"
+          className="mt-3"
+        />
+      )}
+
+      {result && !running && (
         <div
           style={{
             marginTop: 12,
@@ -249,7 +264,7 @@ export const SkillsPanel: React.FC = () => {
               margin: 0
             }}
           >
-            {JSON.stringify(result.result, null, 2)}
+            {typeof result.result === "string" ? result.result : JSON.stringify(result.result, null, 2)}
           </pre>
         </div>
       )}

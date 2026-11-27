@@ -36,6 +36,25 @@ export interface GamificationStats {
   };
 }
 
+/** Extra email/phone (the primary ones stay in Contact.email / Contact.phone). */
+export interface ContactLabeledValue {
+  label: string;
+  value: string;
+}
+
+export interface ContactLink {
+  label: string;
+  url: string;
+}
+
+export interface ContactAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+}
+
 export interface Contact {
   id: string;
   firstName: string;
@@ -43,6 +62,11 @@ export interface Contact {
   name: string;
   email: string;
   phone?: string;
+  /** Composite fields (optional; absent on contacts that never used them). */
+  additionalEmails?: ContactLabeledValue[];
+  additionalPhones?: ContactLabeledValue[];
+  links?: ContactLink[];
+  address?: ContactAddress;
   title: string;
   company: string;
   industry?: string;
@@ -55,6 +79,10 @@ export interface Contact {
   aiScore?: number;
   tags?: string[];
   isFavorite?: boolean;
+  /** Card order inside a Kanban column (fractional index). */
+  position?: number;
+  /** Soft delete: ISO timestamp when the contact was moved to Trash (absent / null = active). */
+  deletedAt?: string | null;
   socialProfiles?: {
     linkedin?: string;
     twitter?: string;
@@ -86,6 +114,10 @@ export interface ContactCreateRequest {
   name: string;
   email: string;
   phone?: string;
+  additionalEmails?: ContactLabeledValue[];
+  additionalPhones?: ContactLabeledValue[];
+  links?: ContactLink[];
+  address?: ContactAddress;
   title: string;
   company: string;
   industry?: string;
@@ -113,6 +145,10 @@ export interface ContactUpdateRequest {
   name?: string;
   email?: string;
   phone?: string;
+  additionalEmails?: ContactLabeledValue[];
+  additionalPhones?: ContactLabeledValue[];
+  links?: ContactLink[];
+  address?: ContactAddress;
   title?: string;
   company?: string;
   industry?: string;

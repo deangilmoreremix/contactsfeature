@@ -102,7 +102,7 @@ async function demonstrateCompleteAgentSystem() {
   console.log('\n🔗 7. Integration Patterns...');
 
   console.log('   📧 Email Integration:');
-  console.log('      • AgentMail for delivery and tracking');
+  console.log('      • your configured email provider for delivery and tracking');
   console.log('      • Webhook notifications for opens/replies');
   console.log('      • Bounce handling and suppression');
 
@@ -113,7 +113,7 @@ async function demonstrateCompleteAgentSystem() {
 
   console.log('   🤖 AI Enhancement:');
   console.log('      • OpenAI for content generation');
-  console.log('      • Gemini for image analysis');
+  console.log('      • OpenAI Images for image generation');
   console.log('      • Custom ML for scoring and forecasting');
 
   console.log('\n🎉 Demonstration Complete!');

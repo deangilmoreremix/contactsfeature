@@ -8,6 +8,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useContactStore } from '../hooks/useContactStore';
 import { contactAPI } from '../services/contact-api.service';
 import { Contact } from '../types';
+import { asContacts } from './helpers/contactFixtures';
 
 // Mock dependencies
 vi.mock('../services/contact-api.service');
@@ -22,43 +23,35 @@ const mockLocalStorage = {
   clear: vi.fn(() => null),
 };
 
-const mockDocument = {
-  createElement: vi.fn(() => ({
-    click: vi.fn(),
-    setAttribute: vi.fn(),
-    download: '',
-    href: ''
-  })),
-  body: {
-    appendChild: vi.fn(),
-    removeChild: vi.fn(),
-  },
-};
-
-const mockURL = {
-  createObjectURL: vi.fn(() => 'mock-blob-url'),
-  revokeObjectURL: vi.fn(() => {}),
-};
-
 // Set up global mocks
-Object.defineProperty(global, 'window', {
-  value: {
-    localStorage: mockLocalStorage,
-    document: mockDocument,
-    URL: mockURL,
-  },
-  writable: true,
-});
 
-Object.defineProperty(global, 'document', {
-  value: mockDocument,
-  writable: true,
-});
+
+
 
 Object.defineProperty(global, 'localStorage', {
   value: mockLocalStorage,
   writable: true,
 });
+
+/**
+ * The store never throws for a rejected import batch: it keeps the contacts locally (`local-import-*` ids)
+ * and logs the API error, so the user does not lose the file they just imported.
+ */
+/** A rejected batch must surface as an error and must NOT add local stand-in contacts (createContactsBatch stores locally itself when Supabase is not configured). */
+async function expectImportRejected(
+  result: { current: ReturnType<typeof useContactStore.getState> },
+  contacts: any[]
+) {
+  const before = result.current.contacts.length;
+  const beforeTotal = result.current.totalCount;
+  await act(async () => {
+    await expect(result.current.importContacts(contacts)).rejects.toThrow();
+  });
+  expect(result.current.contacts).toHaveLength(before);
+  expect(result.current.totalCount).toBe(beforeTotal);
+  expect(result.current.error).toEqual(expect.any(String));
+  expect(result.current.isLoading).toBe(false);
+}
 
 describe('Contact Import/Export Functionality', () => {
   const mockContacts: Contact[] = [
@@ -102,33 +95,33 @@ describe('Contact Import/Export Functionality', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Database mode with the development fallbacks off: API failures must reach the caller, and the
+    // store starts empty instead of with the built-in sample contacts.
+    vi.stubEnv('DEV', false);
+    vi.mocked(contactAPI.usesDatabase).mockReturnValue(true);
+    useContactStore.setState({ contacts: [], totalCount: 0, hasMore: false, error: null, isLoading: false, selectedContact: null, trashedContacts: [] });
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.resetAllMocks();
   });
 
   describe('CSV Import', () => {
-    const validCsvData = `firstName,lastName,email,phone,title,company,industry,interestLevel,status,tags
-John,Doe,john.doe@example.com,+1 555 123 4567,Software Engineer,Tech Corp,Technology,hot,lead,"developer,react"
-Jane,Smith,jane.smith@example.com,+1 555 987 6543,CEO,StartupIO,Technology,medium,prospect,"ceo,startup"`;
 
-    const invalidCsvData = `firstName,lastName,email
-John,Doe,invalid-email
-Jane,Smith,jane.smith@example.com`;
 
     it('should successfully import valid CSV data', async () => {
       const { result } = renderHook(() => useContactStore());
 
       const mockImportedContacts = [
         {
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: 'imported-1',
           createdAt: expect.any(String),
           updatedAt: expect.any(String)
         },
         {
-          ...mockContacts[1],
+          ...mockContacts[1]!,
           id: 'imported-2',
           createdAt: expect.any(String),
           updatedAt: expect.any(String)
@@ -179,10 +172,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Batch validation failed: Contact 1: Invalid email format')
       );
 
-      await expect(result.current.importContacts([])).rejects.toThrow('Batch validation failed');
-
-      expect(result.current.error).toContain('Batch validation failed');
-      expect(result.current.isLoading).toBe(false);
+      await expectImportRejected(result, [{ firstName: 'Bad', lastName: 'Email', email: 'not-an-email' }]);
     });
 
     it('should handle empty CSV files', async () => {
@@ -192,8 +182,10 @@ Jane,Smith,jane.smith@example.com`;
         await result.current.importContacts([]);
       });
 
+      // nothing to import: no API call, no error
       expect(contactAPI.createContactsBatch).not.toHaveBeenCalled();
       expect(result.current.contacts).toHaveLength(0);
+      expect(result.current.error).toBeNull();
     });
 
     it('should handle CSV files with missing required fields', async () => {
@@ -212,9 +204,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Validation failed: Missing required fields')
       );
 
-      await expect(result.current.importContacts(invalidContacts)).rejects.toThrow('Validation failed');
-
-      expect(result.current.error).toBe('Validation failed: Missing required fields');
+      await expectImportRejected(result, invalidContacts);
     });
 
     it('should handle large CSV imports', async () => {
@@ -239,7 +229,7 @@ Jane,Smith,jane.smith@example.com`;
         updatedAt: expect.any(String)
       }));
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(largeBatch);
@@ -259,34 +249,13 @@ Jane,Smith,jane.smith@example.com`;
   });
 
   describe('JSON Import', () => {
-    const validJsonData = JSON.stringify([
-      {
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@example.com',
-        phone: '+1 555 123 4567',
-        title: 'Software Engineer',
-        company: 'Tech Corp',
-        industry: 'Technology',
-        interestLevel: 'hot',
-        status: 'lead',
-        tags: ['developer', 'react']
-      }
-    ]);
-
-    const invalidJsonData = `[
-      {
-        "firstName": "John",
-        "email": "invalid-email"
-      }
-    ]`;
 
     it('should successfully import valid JSON data', async () => {
       const { result } = renderHook(() => useContactStore());
 
       const mockImportedContacts = [
         {
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: 'json-import-1',
           createdAt: expect.any(String),
           updatedAt: expect.any(String)
@@ -331,20 +300,45 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Validation failed: Missing required fields')
       );
 
-      await expect(result.current.importContacts(malformedData)).rejects.toThrow('Validation failed');
-
-      expect(result.current.error).toContain('Validation failed');
+      await expectImportRejected(result, malformedData);
     });
   });
 
   describe('Export Functionality', () => {
     beforeEach(() => {
       // Set up contacts in store
-      const { result } = renderHook(() => useContactStore());
       act(() => {
-        result.current.contacts = mockContacts;
-        result.current.totalCount = 2;
+        useContactStore.setState({ contacts: mockContacts, totalCount: 2 });
       });
+    });
+
+    // jsdom has no object URLs; stub them and observe the temporary download link
+    let createObjectURL: ReturnType<typeof vi.fn>;
+    let revokeObjectURL: ReturnType<typeof vi.fn>;
+    let clickSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      createObjectURL = vi.fn(() => 'mock-blob-url');
+      revokeObjectURL = vi.fn();
+      Object.assign(window.URL, { createObjectURL, revokeObjectURL });
+      clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      clickSpy.mockRestore();
+    });
+
+    it('forwards filters to the API when given, and none when omitted', async () => {
+      const { result } = renderHook(() => useContactStore());
+      vi.mocked(contactAPI.exportContacts).mockResolvedValue(new Blob(['x'], { type: 'text/csv' }));
+
+      await act(async () => {
+        await result.current.exportContacts('json', { ids: ['a', 'b'], status: 'lead' });
+      });
+      expect(contactAPI.exportContacts).toHaveBeenLastCalledWith({ ids: ['a', 'b'], status: 'lead' }, 'json');
+
+      await act(async () => {
+        await result.current.exportContacts('csv');
+      });
+      expect(contactAPI.exportContacts).toHaveBeenLastCalledWith({}, 'csv');
     });
 
     it('should export contacts as CSV', async () => {
@@ -360,8 +354,11 @@ Jane,Smith,jane.smith@example.com`;
       expect(contactAPI.exportContacts).toHaveBeenCalledWith({}, 'csv');
 
       // Verify download link creation
-      expect(document.createElement).toHaveBeenCalledWith('a');
-      expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob);
+      expect(createObjectURL).toHaveBeenCalledWith(mockBlob);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const link = clickSpy.mock.instances[0] as unknown as HTMLAnchorElement;
+      expect(link.href).toContain('mock-blob-url');
+      expect(link.getAttribute('download')).toMatch(/^contacts_export_\d{4}-\d{2}-\d{2}\.csv$/);
     });
 
     it('should export contacts as JSON', async () => {
@@ -375,6 +372,7 @@ Jane,Smith,jane.smith@example.com`;
       });
 
       expect(contactAPI.exportContacts).toHaveBeenCalledWith({}, 'json');
+      expect(createObjectURL).toHaveBeenCalledWith(mockBlob);
     });
 
     it('should handle export errors', async () => {
@@ -383,19 +381,6 @@ Jane,Smith,jane.smith@example.com`;
       vi.mocked(contactAPI.exportContacts).mockRejectedValue(new Error('Export failed'));
 
       await expect(result.current.exportContacts('csv')).rejects.toThrow('Export failed');
-    });
-
-    it('should apply filters during export', async () => {
-      const { result } = renderHook(() => useContactStore());
-
-      const mockBlob = new Blob(['filtered,data'], { type: 'text/csv' });
-      vi.mocked(contactAPI.exportContacts).mockResolvedValue(mockBlob);
-
-      await act(async () => {
-        await result.current.exportContacts('csv', { status: 'lead' });
-      });
-
-      expect(contactAPI.exportContacts).toHaveBeenCalledWith({ status: 'lead' }, 'csv');
     });
 
     it('should clean up download resources', async () => {
@@ -409,8 +394,8 @@ Jane,Smith,jane.smith@example.com`;
       });
 
       // Verify cleanup
-      expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('mock-blob-url');
-      expect(document.body.removeChild).toHaveBeenCalled();
+      expect(revokeObjectURL).toHaveBeenCalledWith('mock-blob-url');
+      expect(document.querySelector('a[download]')).toBeNull(); // the temporary link is removed
     });
   });
 
@@ -430,9 +415,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Validation failed: Missing firstName, lastName')
       );
 
-      await expect(result.current.importContacts(invalidCsvContacts)).rejects.toThrow('Validation failed');
-
-      expect(result.current.error).toContain('Missing firstName, lastName');
+      await expectImportRejected(result, invalidCsvContacts);
     });
 
     it('should handle special characters in CSV', async () => {
@@ -461,14 +444,14 @@ Jane,Smith,jane.smith@example.com`;
         }
       ];
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(specialCharContacts);
       });
 
-      expect(result.current.contacts[0].firstName).toBe('José');
-      expect(result.current.contacts[0].lastName).toBe('Muñoz');
+      expect(result.current.contacts[0]!.firstName).toBe('José');
+      expect(result.current.contacts[0]!.lastName).toBe('Muñoz');
     });
 
     it('should handle quoted CSV fields', async () => {
@@ -498,13 +481,13 @@ Jane,Smith,jane.smith@example.com`;
         }
       ];
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(quotedContacts);
       });
 
-      expect(result.current.contacts[0].notes).toBe('This is a "quoted" note with, commas');
+      expect(result.current.contacts[0]!.notes).toBe('This is a "quoted" note with, commas');
     });
   });
 
@@ -539,9 +522,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Duplicate email detected: john@example.com')
       );
 
-      await expect(result.current.importContacts(duplicateContacts)).rejects.toThrow('Duplicate email detected');
-
-      expect(result.current.error).toContain('Duplicate email detected');
+      await expectImportRejected(result, duplicateContacts);
     });
 
     it('should handle existing contact conflicts', async () => {
@@ -549,7 +530,7 @@ Jane,Smith,jane.smith@example.com`;
 
       // Set up existing contact
       act(() => {
-        result.current.contacts = [mockContacts[0]];
+        useContactStore.setState({ contacts: [mockContacts[0]!], totalCount: 1 });
       });
 
       const conflictingContact = {
@@ -567,9 +548,10 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Contact with email john.doe@example.com already exists')
       );
 
-      await expect(result.current.importContacts([conflictingContact])).rejects.toThrow('already exists');
-
-      expect(result.current.error).toContain('already exists');
+      // The API rejects the duplicate: the error surfaces and the existing contact list is untouched
+      await expectImportRejected(result, [conflictingContact]);
+      expect(result.current.contacts).toHaveLength(1);
+      expect(result.current.contacts[0]!.id).toBe(mockContacts[0]!.id);
     });
   });
 
@@ -581,10 +563,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Network timeout')
       );
 
-      await expect(result.current.importContacts(mockContacts)).rejects.toThrow('Network timeout');
-
-      expect(result.current.error).toBe('Network timeout');
-      expect(result.current.isLoading).toBe(false);
+      await expectImportRejected(result, mockContacts);
     });
 
     it('should handle network errors during export', async () => {
@@ -605,22 +584,24 @@ Jane,Smith,jane.smith@example.com`;
         .mockRejectedValueOnce(new Error('Temporary network error'))
         .mockResolvedValueOnce([
           {
-            ...mockContacts[0],
+            ...mockContacts[0]!,
             id: 'retry-1',
             createdAt: expect.any(String),
             updatedAt: expect.any(String)
           }
         ]);
 
-      // First attempt should fail
-      await expect(result.current.importContacts([mockContacts[0]])).rejects.toThrow('Temporary network error');
+      // First attempt: the API fails, nothing is added and the error is reported
+      await expectImportRejected(result, [mockContacts[0]!]);
 
-      // Second attempt should succeed
+      // Second attempt: the API succeeds and its contact is added
       await act(async () => {
-        await result.current.importContacts([mockContacts[0]]);
+        await result.current.importContacts([mockContacts[0]!]);
       });
 
       expect(result.current.contacts).toHaveLength(1);
+      expect(result.current.contacts.map(c => c.id)).toContain('retry-1');
+      expect(result.current.error).toBeNull();
     });
   });
 
@@ -631,10 +612,10 @@ Jane,Smith,jane.smith@example.com`;
       let loadingState: boolean = false;
 
       vi.mocked(contactAPI.createContactsBatch).mockImplementation(async () => {
-        loadingState = result.current.isLoading;
+        loadingState = useContactStore.getState().isLoading;
         await new Promise(resolve => setTimeout(resolve, 10));
         return [{
-          ...mockContacts[0],
+          ...mockContacts[0]!,
           id: 'loading-1',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -642,7 +623,7 @@ Jane,Smith,jane.smith@example.com`;
       });
 
       await act(async () => {
-        await result.current.importContacts([mockContacts[0]]);
+        await result.current.importContacts([mockContacts[0]!]);
       });
 
       expect(loadingState).toBe(true);
@@ -677,10 +658,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Import validation failed')
       );
 
-      await expect(result.current.importContacts(mockContacts)).rejects.toThrow('Import validation failed');
-
-      expect(result.current.error).toBe('Import validation failed');
-      expect(result.current.contacts).toHaveLength(0);
+      await expectImportRejected(result, mockContacts);
     });
   });
 
@@ -712,14 +690,14 @@ Jane,Smith,jane.smith@example.com`;
         }
       ];
 
-      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(mockImportedContacts);
+      vi.mocked(contactAPI.createContactsBatch).mockResolvedValue(asContacts(mockImportedContacts));
 
       await act(async () => {
         await result.current.importContacts(maliciousContacts);
       });
 
-      expect(result.current.contacts[0].firstName).toBe('John');
-      expect(result.current.contacts[0].firstName).not.toContain('<script>');
+      expect(result.current.contacts[0]!.firstName).toBe('John');
+      expect(result.current.contacts[0]!.firstName).not.toContain('<script>');
     });
 
     it('should validate file size limits', async () => {
@@ -740,9 +718,7 @@ Jane,Smith,jane.smith@example.com`;
         new Error('Batch size exceeds limit of 100 contacts')
       );
 
-      await expect(result.current.importContacts(largeBatch)).rejects.toThrow('Batch size exceeds limit');
-
-      expect(result.current.error).toContain('Batch size exceeds limit');
+      await expectImportRejected(result, largeBatch);
     });
   });
 });

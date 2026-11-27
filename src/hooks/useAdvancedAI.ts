@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Contact } from '../types';
 import { logger } from '../services/logger.service';
 import { cacheService } from '../services/cache.service';
+import type { LiveOptions } from '../services/liveOptions';
 import {
   aiIntelligenceEngine,
   IntelligenceCorrelation,
@@ -99,7 +100,8 @@ export const useAdvancedAI = () => {
   // Intelligence Engine Methods
   const generateIntelligenceCorrelation = useCallback(async (
     contact: Contact,
-    includeHistory: boolean = true
+    includeHistory: boolean = true,
+    live?: LiveOptions
   ): Promise<IntelligenceCorrelation> => {
     setState(prev => ({ ...prev, isAnalyzing: true, errors: new Map(prev.errors.set(contact.id, '')) }));
     
@@ -108,7 +110,8 @@ export const useAdvancedAI = () => {
         contact.id,
         contact,
         [], // existing insights will be fetched internally
-        includeHistory ? [] : undefined // communication history
+        includeHistory ? [] : undefined, // communication history
+        live
       );
 
       setState(prev => {
@@ -139,7 +142,8 @@ export const useAdvancedAI = () => {
 
   const generateSmartRecommendations = useCallback(async (
     contact: Contact,
-    context?: any
+    context?: any,
+    live?: LiveOptions
   ): Promise<SmartRecommendation[]> => {
     setState(prev => ({ ...prev, isGeneratingRecommendations: true }));
     
@@ -147,7 +151,8 @@ export const useAdvancedAI = () => {
       const recommendations = await aiIntelligenceEngine.generateSmartRecommendations(
         contact.id,
         contact,
-        context
+        context,
+        live
       );
 
       setState(prev => {
@@ -229,14 +234,16 @@ export const useAdvancedAI = () => {
   // Predictive Analytics Methods
   const generatePredictions = useCallback(async (
     contact: Contact,
-    types?: string[]
+    types?: string[],
+    live?: LiveOptions
   ): Promise<Prediction[]> => {
     setState(prev => ({ ...prev, isPredicting: true }));
     
     try {
       const predictions = await aiPredictiveAnalytics.generatePredictions(
         contact,
-        types as any
+        types as any,
+        live
       );
 
       setState(prev => {
@@ -264,12 +271,13 @@ export const useAdvancedAI = () => {
 
   const analyzeTrends = useCallback(async (
     contact: Contact,
-    timeframe: '30d' | '90d' | '6m' | '1y' = '90d'
+    timeframe: '30d' | '90d' | '6m' | '1y' = '90d',
+    live?: LiveOptions
   ): Promise<TrendAnalysis> => {
     setState(prev => ({ ...prev, isPredicting: true }));
     
     try {
-      const analysis = await aiPredictiveAnalytics.analyzeTrends(contact, timeframe);
+      const analysis = await aiPredictiveAnalytics.analyzeTrends(contact, timeframe, undefined, undefined, live);
 
       setState(prev => {
         const newAnalyses = new Map(prev.trendAnalyses);
@@ -293,12 +301,13 @@ export const useAdvancedAI = () => {
 
   const assessRisk = useCallback(async (
     contact: Contact,
-    context?: any
+    context?: any,
+    live?: LiveOptions
   ): Promise<RiskAssessment> => {
     setState(prev => ({ ...prev, isPredicting: true }));
     
     try {
-      const assessment = await aiPredictiveAnalytics.assessRisk(contact, context);
+      const assessment = await aiPredictiveAnalytics.assessRisk(contact, context, live);
 
       setState(prev => {
         const newAssessments = new Map(prev.riskAssessments);
@@ -343,7 +352,8 @@ export const useAdvancedAI = () => {
   const generateIntelligenceCorrelationStreaming = useCallback(async function* (
     contact: Contact,
     includeHistory: boolean = true,
-    onProgress?: (update: StreamingUpdate) => void
+    _onProgress?: (update: StreamingUpdate) => void,
+    live?: LiveOptions
   ): AsyncGenerator<StreamingUpdate, IntelligenceCorrelation, unknown> {
     const cacheKey = `intelligence-${contact.id}-${includeHistory}`;
     const cached = cacheService.get<IntelligenceCorrelation>('AdvancedAI', { cacheKey });
@@ -375,7 +385,8 @@ export const useAdvancedAI = () => {
         contact.id,
         contact,
         [], // existing insights will be fetched internally
-        includeHistory ? [] : undefined // communication history
+        includeHistory ? [] : undefined, // communication history
+        live
       );
 
       yield { type: 'progress', progress: 100, stage: 'Intelligence correlation complete!' };

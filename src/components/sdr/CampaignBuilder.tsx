@@ -14,8 +14,6 @@ import {
   Calendar,
   Save,
   Eye,
-  Copy,
-  Settings
 } from 'lucide-react';
 
 interface CampaignBuilderProps {
@@ -23,6 +21,8 @@ interface CampaignBuilderProps {
   agentName: string;
   initialSequence?: SDRCampaignTemplate['sequence'];
   preferences?: Partial<SDRUserPreferences>;
+  /** Outbound persona id stored with the campaign (see src/agents/personas.ts); defaults to the SaaS-founder persona. */
+  personaId?: string;
   onSave?: (template: SDRCampaignTemplate) => void;
   onPreview?: (sequence: SDRCampaignTemplate['sequence']) => void;
   onClose?: () => void;
@@ -61,6 +61,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
   agentName,
   initialSequence = [],
   preferences,
+  personaId,
   onSave,
   onPreview,
   onClose
@@ -95,7 +96,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
   const dragRef = useRef<HTMLDivElement>(null);
 
   const addStep = () => {
-    const lastStep = sequence.at(-1);
+    const lastStep = sequence[sequence.length - 1];
     const newStep: CampaignStep = {
       id: `step-${Date.now()}`,
       day: lastStep ? lastStep.day + 3 : 0,
@@ -176,12 +177,12 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
           name: templateName,
           description: templateDescription,
           agent_id: agentId,
-          persona_id: preferences?.persona || 'cold_saas_founder',
+          persona_id: personaId || 'cold_saas_founder',
           sequence_config: sequence,
           settings: preferences || {},
           is_active: true,
           total_steps: sequence.length,
-          duration_days: sequence.at(-1)?.day ?? 0,
+          duration_days: sequence[sequence.length - 1]?.day ?? 0,
         })
         .select()
         .maybeSingle();
@@ -224,7 +225,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
       <GlassCard className="w-full max-w-6xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -243,7 +244,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
           </div>
           <div className="flex gap-2">
             {onPreview && (
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => onPreview(sequence)}
                 className="flex items-center gap-2"
@@ -252,7 +253,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                 Preview
               </ModernButton>
             )}
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
             >
@@ -360,6 +361,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                       {/* Actions */}
                       <button
                         onClick={() => removeStep(step.id)}
+                        aria-label={`Remove step ${index + 1}`}
                         className="p-1 text-red-500 hover:bg-red-50 rounded"
                         disabled={sequence.length === 1}
                       >
@@ -371,7 +373,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
               </div>
 
               {/* Add Step Button */}
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={addStep}
                 className="w-full mt-4 flex items-center justify-center gap-2"
@@ -425,7 +427,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
                 </label>
               </div>
 
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={handleSaveTemplate}
                 loading={saving}
@@ -442,7 +444,7 @@ export const CampaignBuilder: React.FC<CampaignBuilderProps> = ({
               <h5 className="text-sm font-medium text-gray-900 mb-2">Campaign Overview</h5>
               <div className="space-y-1 text-sm text-gray-600">
                 <div>Total Steps: {sequence.length}</div>
-                <div>Duration: {sequence.at(-1)?.day ?? 0} days</div>
+                <div>Duration: {sequence[sequence.length - 1]?.day ?? 0} days</div>
                 <div>Channels Used: {new Set(sequence.map(s => s.type)).size}</div>
                 <div>Avg Delay: {sequence.length > 1 ?
                   Math.round(sequence.slice(1).reduce((sum, step) => sum + (step.delay || 3), 0) / (sequence.length - 1)) : 0

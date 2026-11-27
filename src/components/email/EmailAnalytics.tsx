@@ -5,7 +5,6 @@ import { ModernButton } from '../ui/ModernButton';
 import {
   BarChart3,
   TrendingUp,
-  TrendingDown,
   Mail,
   Eye,
   MousePointer,
@@ -17,9 +16,10 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  Zap
+  Zap,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { emailTrackingService, TrackedEmail, bestSendWindow } from '../../services/emailTrackingService';
+import { XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 interface EmailMetrics {
   totalSent: number;
@@ -29,9 +29,9 @@ interface EmailMetrics {
   openRate: number;
   clickRate: number;
   replyRate: number;
-  averageResponseTime: number; // hours
-  bestSendTime: string;
-  bestSendDay: string;
+  averageResponseTime: number | null; // hours, null when no replies yet
+  bestSendTime: string | null;
+  bestSendDay: string | null;
 }
 
 interface EmailRecord {
@@ -54,70 +54,48 @@ interface EmailAnalyticsProps {
   className?: string;
 }
 
-const mockEmailHistory: EmailRecord[] = [
-  {
-    id: '1',
-    subject: 'Strategic Partnership Opportunity - Marketing Agency Growth',
-    sentAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    openedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
-    clickedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    repliedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    status: 'replied',
-    sequenceStep: 1,
-    templateUsed: 'Value Proposition Template'
-  },
-  {
-    id: '2',
-    subject: 'How to Scale Your Agency to $500K MRR',
-    sentAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    openedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    clickedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    repliedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    status: 'replied',
-    sequenceStep: 2,
-    templateUsed: 'Case Study Template'
-  },
-  {
-    id: '3',
-    subject: 'Custom Retainer Proposal - $15K/month',
-    sentAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    openedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    clickedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    repliedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
-    status: 'replied',
-    sequenceStep: 3,
-    templateUsed: 'Proposal Template'
-  },
-  {
-    id: '4',
-    subject: 'Implementation Timeline & Success Metrics',
-    sentAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    openedAt: new Date(Date.now() - 18 * 60 * 60 * 1000),
-    clickedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
-    status: 'clicked',
-    sequenceStep: 4,
-    templateUsed: 'Implementation Template'
-  },
-  {
-    id: '5',
-    subject: 'Welcome to Your Growth Journey',
-    sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    openedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-    status: 'opened',
-    sequenceStep: 5,
-    templateUsed: 'Onboarding Template'
-  }
-];
-
 export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
   contact,
-  emailHistory = mockEmailHistory,
+  emailHistory: emailHistoryProp,
   timeRange = '30d',
   onExport,
   className = ''
 }) => {
   const [selectedTimeRange, setSelectedTimeRange] = useState(timeRange);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [tracked, setTracked] = useState<TrackedEmail[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const rangeStart = useMemo(() => {
+    const days = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 }[selectedTimeRange] ?? 30;
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  }, [selectedTimeRange]);
+
+  const load = React.useCallback(async () => {
+    try {
+      setTracked(await emailTrackingService.getEmailsForContact(contact.id, rangeStart));
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Could not load email history');
+    }
+  }, [contact.id, rangeStart]);
+
+  useEffect(() => { if (!emailHistoryProp) void load(); }, [emailHistoryProp, load]);
+
+  // Real history from the `emails` table (sent emails only), unless a caller supplies its own.
+  const emailHistory: EmailRecord[] = useMemo(() => emailHistoryProp ?? tracked
+    .filter((e) => e.status === 'sent' && e.sentAt)
+    .map((e) => ({
+      id: e.id,
+      subject: e.subject,
+      sentAt: e.sentAt!,
+      ...(e.openedAt ? { openedAt: e.openedAt } : {}),
+      ...(e.clickedAt ? { clickedAt: e.clickedAt } : {}),
+      ...(e.repliedAt ? { repliedAt: e.repliedAt } : {}),
+      status: e.repliedAt ? 'replied' : e.clickedAt ? 'clicked' : e.openedAt ? 'opened' : 'sent',
+    } as EmailRecord)), [emailHistoryProp, tracked]);
+
+  const bestWindow = useMemo(() => bestSendWindow(emailHistory.map(e => ({ id: e.id, contactId: null, subject: e.subject, status: 'sent', sentAt: e.sentAt, openedAt: e.openedAt ?? null, clickedAt: e.clickedAt ?? null, repliedAt: e.repliedAt ?? null }))), [emailHistory]);
 
   // Calculate metrics from email history
   const metrics: EmailMetrics = useMemo(() => {
@@ -134,9 +112,12 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
       openRate: totalSent > 0 ? (totalOpened / totalSent) * 100 : 0,
       clickRate: totalSent > 0 ? (totalClicked / totalSent) * 100 : 0,
       replyRate: totalSent > 0 ? (totalReplied / totalSent) * 100 : 0,
-      averageResponseTime: 24, // Mock data - would calculate from actual response times
-      bestSendTime: '10:00 AM',
-      bestSendDay: 'Tuesday'
+      averageResponseTime: (() => {
+        const waits = emailHistory.filter(e => e.repliedAt).map(e => (e.repliedAt!.getTime() - e.sentAt.getTime()) / 3600000).filter(h => h >= 0);
+        return waits.length ? waits.reduce((a, b) => a + b, 0) / waits.length : null;
+      })(),
+      bestSendTime: bestWindow ? `${String(bestWindow.hour).padStart(2, '0')}:00` : null,
+      bestSendDay: bestWindow ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][bestWindow.day]! : null
     };
   }, [emailHistory]);
 
@@ -171,9 +152,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsRefreshing(false);
+    try { await load(); } finally { setIsRefreshing(false); }
   };
 
   const handleExport = () => {
@@ -251,7 +230,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
           </select>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={handleRefresh}
             loading={isRefreshing}
             className="flex items-center space-x-1"
@@ -261,7 +240,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
           </ModernButton>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={handleExport}
             className="flex items-center space-x-1"
           >
@@ -392,7 +371,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
               <Clock className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-gray-900">Best Send Time</p>
-                <p className="text-sm text-gray-600">{metrics.bestSendTime} on {metrics.bestSendDay}s</p>
+                <p className="text-sm text-gray-600">{metrics.bestSendTime ? `${metrics.bestSendTime} on ${metrics.bestSendDay}s` : 'Not enough opened emails yet (needs 5)'}</p>
               </div>
             </div>
 
@@ -400,7 +379,7 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
               <TrendingUp className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-gray-900">Response Time</p>
-                <p className="text-sm text-gray-600">Average: {metrics.averageResponseTime} hours</p>
+                <p className="text-sm text-gray-600">{metrics.averageResponseTime === null ? 'No replies yet' : `Average: ${metrics.averageResponseTime.toFixed(1)} hours`}</p>
               </div>
             </div>
 
@@ -425,6 +404,8 @@ export const EmailAnalytics: React.FC<EmailAnalyticsProps> = ({
           <Calendar className="w-5 h-5 mr-2 text-gray-500" />
           Email History
         </h4>
+        {loadError && <p className="text-sm text-red-600 mb-2">{loadError}</p>}
+        <p className="text-xs text-gray-500 mb-2">Open tracking uses a tracking pixel and click tracking uses link redirects; image-blocking mail clients under-report opens.</p>
         <div className="space-y-3">
           {emailHistory.map((email) => (
             <div key={email.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">

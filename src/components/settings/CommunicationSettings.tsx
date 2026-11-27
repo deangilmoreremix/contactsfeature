@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { communicationConfigService, SMTPConfig, TwilioConfig, MailtoConfig } from '../../services/communicationConfigService';
 import {
@@ -10,23 +9,15 @@ import {
   MessageSquare,
   Settings,
   Plus,
-  Edit,
   Trash2,
   TestTube,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   Save,
-  RefreshCw,
   Eye,
   EyeOff,
-  Copy,
-  Download,
-  Upload,
   Zap,
-  Shield,
-  Clock,
-  BarChart3
+  X,
 } from 'lucide-react';
 
 interface CommunicationSettingsProps {
@@ -39,7 +30,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
   const [twilioConfigs, setTwilioConfigs] = useState<TwilioConfig[]>([]);
   const [mailtoConfigs, setMailtoConfigs] = useState<MailtoConfig[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<any>(null);
+  useState<any>(null);
   const [testResults, setTestResults] = useState<Map<string, any>>(new Map());
   const [showPasswords, setShowPasswords] = useState<Set<string>>(new Set());
 
@@ -327,7 +318,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
                         <span className="font-medium">Host:</span> {config.host}:{config.port}
                       </div>
                       <div>
-                        <span className="font-medium">From:</span> {config.fromName} <{config.fromEmail}>
+                        <span className="font-medium">From:</span> {config.fromName} &lt;{config.fromEmail}&gt;
                       </div>
                       <div>
                         <span className="font-medium">Security:</span> {config.secure ? 'SSL/TLS' : 'None'}
@@ -708,7 +699,7 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
 
         {/* Add Configuration Modal */}
         {showAddModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
@@ -1091,4 +1082,23 @@ export const CommunicationSettings: React.FC<CommunicationSettingsProps> = ({ on
                   onClick={() => setShowAddModal(false)}
                 >
                   Cancel
-                </
+                </ModernButton>
+                <ModernButton
+                  variant="primary"
+                  onClick={() => {
+                    if (activeTab === 'smtp') handleAddSMTP();
+                    else if (activeTab === 'twilio') handleAddTwilio();
+                    else handleAddMailto();
+                  }}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Configuration
+                </ModernButton>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};

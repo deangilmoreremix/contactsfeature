@@ -17,7 +17,10 @@ export interface SavedImage {
     aspect_ratio?: string;
     seeds_used?: number;
     variants_generated?: number;
-    gemini_model?: string;
+    model?: string;
+    agent_id?: string;
+    contact_id?: string;
+    deal_id?: string;
     generation_timestamp?: string;
     tags?: string[];
   };
@@ -94,7 +97,7 @@ class ImageStorageService {
       const thumbnailFilename = `${user.id}/${timestamp}_thumb_${filename}`;
 
       // Upload main image
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(this.BUCKET_NAME)
         .upload(uniqueFilename, blob, {
           contentType: blob.type,

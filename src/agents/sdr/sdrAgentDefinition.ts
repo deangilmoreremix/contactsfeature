@@ -71,8 +71,7 @@ export function buildSdrAgentConfig() {
     model: SMARTCRM_SDR_MODEL,
     tools: sdrTools,
     tool_choice: "auto",
-    temperature: 0.3, // Balanced creativity for professional SDR work
-    max_tokens: 4000,
+    max_output_tokens: 4000,
     system_prompt: SDR_SYSTEM_PROMPT
   };
 }

@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ subjectLines: S.strArr, emailBody: S.str, callToAction: S.str, sendTimeRecommendations: S.strArr, followUpSequence: S.strArr });
+
 const log = createLogger('email-personalization-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -31,7 +36,7 @@ exports.handler = withAuth(async (event, user) => {
     if (contactError) throw new Error(`Database error: ${contactError.message}`);
     if (!contact) return errorResponse(404, 'Contact not found');
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'default', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.7);
     const maxTokens = resolveMaxTokens(prefs, 2000);
     const contactName = `${contact.firstname || ''} ${contact.lastname || ''}`.trim() || 'there';
@@ -63,33 +68,31 @@ Make it conversion-focused${prefsBlock}
 
 Return JSON with "subjectLines" (array), "emailBody", "callToAction", "sendTimeRecommendations" (array), "followUpSequence" (array).`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'email_personalization' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          subjectLines: [],
+          emailBody: '',
+          callToAction: '',
+          sendTimeRecommendations: [],
+          followUpSequence: [],
+        });
 
-    const parsed = parseJSONResponse(content, {
-      subjectLines: [],
-      emailBody: '',
-      callToAction: '',
-      sendTimeRecommendations: [],
-      followUpSequence: [],
+        log.info('Email personalization generated', { contactId, emailType, gtmPromptUsed: !!gtmPrompt });
+
+        return {
+          contactId,
+          emailType: emailType || 'outreach',
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Email personalization generated', { contactId, emailType, gtmPromptUsed: !!gtmPrompt });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        contactId,
-        emailType: emailType || 'outreach',
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Email personalization failed', { contactId, error: error.message });
     return errorResponse(500, 'Email personalization failed');
   }
-});
+}));

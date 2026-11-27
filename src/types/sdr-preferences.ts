@@ -3,6 +3,14 @@
  * Types and interfaces for user-customizable SDR agent behavior
  */
 
+import { OUTBOUND_PERSONAS } from '../agents/personas';
+
+export const DEFAULT_PERSONA_ID = 'cold_saas_founder';
+
+/** Returns the id if it names a known outbound persona, otherwise the default persona id. */
+export const resolvePersonaId = (id: unknown): string =>
+  typeof id === 'string' && OUTBOUND_PERSONAS.some((p) => p.id === id) ? id : DEFAULT_PERSONA_ID;
+
 export interface SDRUserPreferences {
   userId: string;
   agentId: string;
@@ -43,10 +51,11 @@ export interface SDRUserPreferences {
 
   // Advanced AI Settings
   aiSettings: {
-    model: 'gpt-5.2' | 'gpt-5.2-thinking' | 'gpt-5.2-instant' | 'gpt-5.2-pro';
+    model: 'default' | 'thinking' | 'fast' | 'pro';
     temperature: number;        // 0.0 - 1.0
     maxTokens: number;          // 500 - 2000
     reasoningEffort?: 'low' | 'medium' | 'high';
+    personaId?: string | undefined; // outbound persona id (src/agents/personas.ts); stored in ai_settings jsonb
   };
 
   // Timing Rules
@@ -213,7 +222,7 @@ export const DEFAULT_SDR_PREFERENCES: Record<string, Partial<SDRUserPreferences>
       unsubscribed: { weight: -1.0, action: 'stop' }
     },
     aiSettings: {
-      model: 'gpt-5.2-thinking',
+      model: 'thinking',
       temperature: 0.7,
       maxTokens: 1000
     },
@@ -240,7 +249,7 @@ export const DEFAULT_SDR_PREFERENCES: Record<string, Partial<SDRUserPreferences>
       unsubscribed: { weight: -1.0, action: 'stop' }
     },
     aiSettings: {
-      model: 'gpt-5.2',
+      model: 'default',
       temperature: 0.8,
       maxTokens: 800
     },
@@ -267,7 +276,7 @@ export const DEFAULT_SDR_PREFERENCES: Record<string, Partial<SDRUserPreferences>
       unsubscribed: { weight: -1.0, action: 'stop' }
     },
     aiSettings: {
-      model: 'gpt-5.2-instant',
+      model: 'fast',
       temperature: 0.6,
       maxTokens: 600
     },
@@ -309,10 +318,13 @@ export const createDefaultPreferences = (
       companyName: '',
       signature: ''
     },
-    aiSettings: defaults?.aiSettings || {
-      model: 'gpt-5.2-thinking',
-      temperature: 0.7,
-      maxTokens: 1000
+    aiSettings: {
+      ...(defaults?.aiSettings || {
+        model: 'thinking',
+        temperature: 0.7,
+        maxTokens: 1000
+      }),
+      personaId: resolvePersonaId(defaults?.aiSettings?.personaId)
     },
     timingRules: defaults?.timingRules || {
       businessHoursOnly: true,

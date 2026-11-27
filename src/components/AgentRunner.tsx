@@ -4,6 +4,9 @@ import { agentService } from '../services/agentService';
 import type { AgentConfig } from '../types/agent';
 import { ModernButton } from './ui/ModernButton';
 import { GlassCard } from './ui/GlassCard';
+import { StreamingOutput } from './ui/StreamingOutput';
+import { useFunctionStream } from '../hooks/useFunctionStream';
+import { liveDisplay } from '../lib/streaming/previewText';
 import {
   Bot,
   Play,
@@ -12,14 +15,12 @@ import {
   XCircle,
   Settings,
   MessageSquare,
-  Image as ImageIcon,
-  FileText,
   Users,
   TrendingUp,
   Database,
   Phone,
   Calendar,
-  Zap
+  Zap,
 } from 'lucide-react';
 
 interface AgentRunnerProps {
@@ -27,6 +28,12 @@ interface AgentRunnerProps {
   dealId?: string;
   onAgentComplete?: (result: any) => void;
 }
+
+/** The agent's reply as it is typed (planning turn streams {response, tool_calls}). */
+const agentReplyPreview = (partial: unknown): string | undefined => {
+  const r = (partial as { response?: unknown } | null | undefined)?.response;
+  return typeof r === 'string' && r ? r : undefined;
+};
 
 export const AgentRunner: React.FC<AgentRunnerProps> = ({
   contactId,
@@ -39,6 +46,7 @@ export const AgentRunner: React.FC<AgentRunnerProps> = ({
   const [executionResult, setExecutionResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
+  const stream = useFunctionStream<unknown>();
 
   useEffect(() => {
     loadAgents();
@@ -75,9 +83,11 @@ export const AgentRunner: React.FC<AgentRunnerProps> = ({
     setIsRunning(true);
     setError(null);
     setExecutionResult(null);
+    const t = stream.start();
 
     try {
       const request: AgentExecutionRequest = {
+        live: t.h,
         agentId: selectedAgent.id,
         ...(contactId && { contactId }),
         ...(dealId && { dealId }),
@@ -87,10 +97,13 @@ export const AgentRunner: React.FC<AgentRunnerProps> = ({
 
       const result = await agentFramework.executeAgent(request);
 
+      t.finish();
       setExecutionResult(result);
       onAgentComplete?.(result);
 
     } catch (err) {
+      t.fail(err);
+      if (t.h.signal?.aborted) return; // stopped by the user
       setError(err instanceof Error ? err.message : 'Agent execution failed');
     } finally {
       setIsRunning(false);
@@ -256,6 +269,15 @@ export const AgentRunner: React.FC<AgentRunnerProps> = ({
       )}
 
       {/* Execution Result */}
+      {isRunning && (
+        <StreamingOutput
+          state={stream.state}
+          display={agentReplyPreview(stream.state.partial) ?? liveDisplay(stream.state.partial, stream.state.text)}
+          onStop={stream.stop}
+          placeholder="The agent is working…"
+        />
+      )}
+
       {renderExecutionResult()}
     </div>
   );

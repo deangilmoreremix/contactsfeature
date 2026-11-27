@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useAI, useContactAI } from '../../contexts/AIContext';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { insightsFromPartial } from '../../lib/streaming/previews';
 import { ModernButton } from '../ui/ModernButton';
 import { GlassCard } from '../ui/GlassCard';
 import { Contact } from '../../types';
@@ -8,16 +11,13 @@ import {
   Zap,
   Target,
   BarChart3,
-  Settings,
   Sparkles,
   TrendingUp,
   Clock,
   DollarSign,
   CheckCircle,
   AlertCircle,
-  Info,
   Layers,
-  RefreshCw
 } from 'lucide-react';
 
 interface SmartAIControlsProps {
@@ -34,13 +34,16 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   // Connect to new AI services
   const { 
     scoreBulkContacts, 
-    generateBulkInsights, 
     isProcessing, 
     providerStatus, 
     performanceMetrics 
   } = useAI();
   
   const contactAI = contact ? useContactAI(contact.id) : null;
+
+  // Live run: status line ("Searching the web…"), insights counted as they stream in, Stop
+  const live = useLiveCall();
+  const [liveCount, setLiveCount] = useState(0);
 
   const [selectedOperation, setSelectedOperation] = useState<string>('score');
   const [urgency, setUrgency] = useState<'low' | 'medium' | 'high'>('medium');
@@ -51,25 +54,25 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
   });
 
   const handleSingleAnalysis = async () => {
-    if (!contact) return;
+    if (!contact || !contactAI) return;
 
     try {
-      let result;
-      
-      switch (selectedOperation) {
-        case 'score':
-          result = await contactAI.scoreContact(contact);
-          break;
-        case 'enrich':
-          result = await contactAI.enrichContact(contact);
-          break;
-        case 'categorize':
-          result = await contactAI.generateInsights(contact, ['recommendation']);
-          break;
-        case 'qualify':
-          result = await contactAI.generateInsights(contact, ['opportunity']);
-          break;
-      }
+      setLiveCount(0);
+      const result = await live.run((opts) => {
+        const withCount = { ...opts, onPartial: (partial: unknown) => { opts.onPartial?.(partial); setLiveCount(insightsFromPartial(partial).length); } };
+        switch (selectedOperation) {
+          case 'score':
+            return contactAI.scoreContact(contact, undefined, withCount);
+          case 'enrich':
+            return contactAI.enrichContact(contact, 'basic', withCount);
+          case 'categorize':
+            return contactAI.generateInsights(contact, ['recommendation'], withCount);
+          case 'qualify':
+            return contactAI.generateInsights(contact, ['opportunity'], withCount);
+          default:
+            return Promise.resolve(undefined);
+        }
+      });
       
       if (onAnalysisComplete && result) {
         onAnalysisComplete(result);
@@ -120,7 +123,7 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
       icon: Layers,
       color: 'bg-green-500',
       estimatedTime: '1-3s',
-      bestModel: 'Gemma preferred'
+      bestModel: 'Fast model preferred'
     },
     {
       id: 'qualify',
@@ -258,6 +261,11 @@ export const SmartAIControls: React.FC<SmartAIControlsProps> = ({
                 : `Run ${operations.find(op => op.id === selectedOperation)?.name}`}
             </span>
           </ModernButton>
+
+          <LiveRunStatus live={live} className="mt-4" />
+          {live.state.active && liveCount > 0 && (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{liveCount} insight{liveCount === 1 ? '' : 's'} so far…</p>
+          )}
 
           {/* Results Display */}
           {contactAI?.contactScore && (

@@ -73,13 +73,21 @@ Return JSON in this exact format:
 }
   `;
 
-  const res = await callOpenAI(prompt, {
-    model: "gpt-4.1",
-    temperature: 0.3
-  });
-
   let parsed: any;
+  let res: any;
   try {
+    res = await callOpenAI(prompt, {
+      role: "thinking",
+      schemaName: "deal_risk",
+      schema: {
+        type: "object",
+        properties: {
+          risk_score: { type: "number" },
+          reason: { type: "string" },
+          next_action: { type: "string" }
+        }
+      }
+    });
     parsed = typeof res === "string" ? JSON.parse(res) : res;
   } catch (e) {
     logger.error("Heatmap: failed to parse risk response", { res, e });

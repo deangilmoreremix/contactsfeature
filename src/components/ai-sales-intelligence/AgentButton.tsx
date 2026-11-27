@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { AgentConfig, AgentExecutionRequest, AgentExecutionResult } from '../../types/agent';
+import { AgentConfig, AgentExecutionResult } from '../../types/agent';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentModal } from './AgentModal';
+import { streamFunction } from '../../services/liveFunction';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
 import { Loader2, Sparkles, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface AgentButtonProps {
@@ -18,13 +21,21 @@ interface AgentButtonProps {
   children?: React.ReactNode;
 }
 
+/** The agent's answer as readable text: its output_text, else what streamed, else a text-like field of the payload. */
+function finalText(result: AgentExecutionResult, streamed: string): string {
+  const r = result as unknown as Record<string, unknown>;
+  const data = (r['data'] ?? {}) as Record<string, unknown>;
+  const candidates = [result.response?.output_text, r['content'], r['text'], r['summary'], data['text'], data['summary'], streamed];
+  const hit = candidates.find((c): c is string => typeof c === 'string' && c.trim().length > 0 && !/^\s*[{[]/.test(c));
+  return hit ?? '';
+}
+
 export const AgentButton: React.FC<AgentButtonProps> = ({
   agentId,
   functionName,
   contactId,
   dealId,
   variant = 'outline',
-  size = 'sm',
   className = '',
   onSuccess,
   onError,
@@ -35,6 +46,9 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [executionResult, setExecutionResult] = useState<AgentExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resultText, setResultText] = useState('');
+  // Live run: status line + the agent's answer typing in (dual-mode functions stream; others answer as plain JSON)
+  const live = useLiveCall();
 
   // Use functionName if provided, otherwise use agentId as function name
   const activeFunctionName = functionName || agentId;
@@ -55,10 +69,12 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         .from('agent_metadata')
         .select('*')
         .eq('id', agentId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      setAgent(data);
+      // No metadata row (or an unexpected shape): still usable, labelled by its id
+      const row = data && !Array.isArray(data) && typeof (data as AgentConfig).name === 'string' ? (data as AgentConfig) : null;
+      setAgent(row ?? ({ id: agentId, name: agentId } as AgentConfig));
     } catch (err) {
       console.error('Failed to load agent metadata:', err);
       setError('Failed to load agent');
@@ -71,43 +87,33 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
     setLoading(true);
     setError(null);
     setExecutionResult(null);
+    setResultText('');
 
     try {
       let result: AgentExecutionResult;
 
       if (functionName) {
-        // Call Netlify function directly
-        const response = await fetch(`/.netlify/functions/${functionName}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...(contactId && { contactId }),
-            ...(dealId && { dealId }),
-            ...(input && { input })
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Function ${functionName} failed: ${response.statusText}`);
-        }
-
-        result = await response.json();
-      } else {
-        // Use agent-runner (database lookup)
-        const request: AgentExecutionRequest = {
-          agentId,
-          userId: 'current-user',
+        // Call the Netlify function over SSE (dual-mode); a plain JSON reply is handled the same way
+        const run = await live.run((opts) => streamFunction<AgentExecutionResult>(`/.netlify/functions/${functionName}`, {
           ...(contactId && { contactId }),
           ...(dealId && { dealId }),
           ...(input && { input })
-        };
-
-        const response = await supabase.functions.invoke('agent-runner', {
-          body: request
-        });
-
-        if (response.error) throw new Error(response.error.message);
-        result = response.data;
+        }, opts));
+        if (!run) return; // stopped by the user
+        result = (run.result ?? {}) as AgentExecutionResult;
+        setResultText(finalText(result, run.outcome?.text ?? ""));
+      } else {
+        // Generic runner: dispatches the agent id to its dual-mode function server-side (allow-list) and streams
+        // the agent's own answer through; ownership of the contact / deal is checked there.
+        const run = await live.run((opts) => streamFunction<AgentExecutionResult>('/.netlify/functions/agent-runner', {
+          agentId,
+          ...(contactId && { contactId }),
+          ...(dealId && { dealId }),
+          ...(input && { input })
+        }, opts));
+        if (!run) return; // stopped by the user
+        result = (run.result ?? {}) as AgentExecutionResult;
+        setResultText(finalText(result, run.outcome?.text ?? ""));
       }
 
       setExecutionResult(result);
@@ -143,7 +149,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
     return (
       <ModernButton
         variant={variant}
-        size={size}
+        size="toolbar"
         className={className}
         disabled
       >
@@ -157,7 +163,7 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
     <>
       <ModernButton
         variant={variant}
-        size={size}
+        size="toolbar"
         className={className}
         onClick={() => setShowModal(true)}
         disabled={loading}
@@ -185,6 +191,16 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
         />
       )}
 
+      {/* The agent's answer, typing in while it runs and kept beneath the button once finished */}
+      {live.state.active && (
+        <LiveRunStatus live={live} showText className="w-full basis-full mt-2 text-left" placeholder="Agent is working…" />
+      )}
+      {!live.state.active && resultText && (
+        <div className="w-full basis-full mt-2 text-left rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3" aria-label={`${agent.name} result`}>
+          <pre className="whitespace-pre-wrap break-words text-sm font-sans text-gray-800 dark:text-gray-100 m-0">{resultText}</pre>
+        </div>
+      )}
+
       {/* Success/Error Feedback */}
       {executionResult && (
         <div className="fixed bottom-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 max-w-sm shadow-lg z-50">
@@ -193,7 +209,9 @@ export const AgentButton: React.FC<AgentButtonProps> = ({
             <div>
               <div className="font-medium text-green-900">{agent.name} completed</div>
               <div className="text-sm text-green-700">
-                Execution time: {executionResult.response?.usage?.total_tokens || 0} tokens
+                {executionResult.response?.usage?.total_tokens
+                  ? `${executionResult.response.usage.total_tokens} tokens used`
+                  : 'Finished'}
               </div>
             </div>
           </div>

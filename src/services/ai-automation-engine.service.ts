@@ -5,7 +5,6 @@
 
 import { logger } from './logger.service';
 import { Contact } from '../types';
-import { aiIntelligenceEngine, SmartRecommendation } from './ai-intelligence-engine.service';
 
 export interface AutomationRule {
   id: string;
@@ -53,11 +52,14 @@ export interface AutomationSuggestion {
   description: string;
   reasoning: string[];
   estimatedImpact: {
-    efficiency: number; // percentage improvement
+    /** percentage improvement; null = not measurable from current data (never estimated) */
+    efficiency: number | null;
     coverage: number; // percentage of contacts affected
-    timesSaved: number; // hours per week
+    /** hours per week; null = not measurable from current data */
+    timesSaved: number | null;
   };
-  confidence: number;
+  /** null: the suggestion is rule-derived from real counts, no model confidence exists */
+  confidence: number | null;
   suggestedRule?: Partial<AutomationRule>;
   affectedRuleIds?: string[];
   priority: 'high' | 'medium' | 'low';
@@ -70,7 +72,7 @@ class AIAutomationEngine {
   private performanceHistory: Array<{
     ruleId: string;
     execution: any;
-    outcome: 'success' | 'failure';
+    outcome: 'success' | 'failure' | 'partial';
     timestamp: string;
   }> = [];
 
@@ -112,7 +114,7 @@ class AIAutomationEngine {
   ): Promise<{
     optimizedRule: AutomationRule;
     improvements: string[];
-    estimatedImpact: number;
+    estimatedImpact: number | null;
   }> {
     const rule = this.automationRules.get(ruleId);
     if (!rule) throw new Error(`Rule ${ruleId} not found`);
@@ -143,9 +145,10 @@ class AIAutomationEngine {
   ): Promise<{
     affectedContacts: number;
     estimatedExecutions: number;
-    timesSaved: number;
+    /** null: needs a measured manual-effort baseline, not available */
+    timesSaved: number | null;
     potentialIssues: string[];
-    confidence: number;
+    confidence: number | null;
   }> {
     // Simulate rule execution to predict impact
     const affectedContacts = contacts.filter(contact => 
@@ -155,8 +158,7 @@ class AIAutomationEngine {
     // Estimate executions based on trigger frequency
     const estimatedExecutions = this.estimateExecutionFrequency(rule, affectedContacts);
     
-    // Calculate time savings
-    const timesSaved = this.calculateTimeSavings(rule, estimatedExecutions);
+    const timesSaved = null;
     
     // Identify potential issues
     const potentialIssues = this.identifyPotentialIssues(rule, contacts);
@@ -166,7 +168,7 @@ class AIAutomationEngine {
       estimatedExecutions,
       timesSaved,
       potentialIssues,
-      confidence: this.calculatePredictionConfidence(rule, contacts)
+      confidence: null
     };
   }
 
@@ -239,7 +241,7 @@ class AIAutomationEngine {
     return patterns;
   }
 
-  private suggestNewRules(patterns: any, contacts: Contact[]): AutomationSuggestion[] {
+  private suggestNewRules(patterns: any, _contacts: Contact[]): AutomationSuggestion[] {
     const suggestions: AutomationSuggestion[] = [];
 
     // High-interest contact rule
@@ -255,11 +257,11 @@ class AIAutomationEngine {
           'Automation ensures no delays'
         ],
         estimatedImpact: {
-          efficiency: 40,
+          efficiency: null,
           coverage: patterns.interestLevelDistribution.hot,
-          timesSaved: 2
+          timesSaved: null
         },
-        confidence: 90,
+        confidence: null,
         suggestedRule: {
           name: 'Hot Lead Fast Track',
           trigger: { type: 'contact_created', config: {} },
@@ -275,7 +277,7 @@ class AIAutomationEngine {
     }
 
     // Industry-specific nurturing
-    const topIndustry = Object.entries(patterns.industryDistribution)
+    const topIndustry = Object.entries(patterns.industryDistribution as Record<string, number>)
       .sort(([,a], [,b]) => b - a)[0];
     
     if (topIndustry && topIndustry[1] > 10) {
@@ -290,11 +292,11 @@ class AIAutomationEngine {
           'Automated nurturing maintains consistency'
         ],
         estimatedImpact: {
-          efficiency: 25,
+          efficiency: null,
           coverage: topIndustry[1],
-          timesSaved: 3
+          timesSaved: null
         },
-        confidence: 80,
+        confidence: null,
         priority: 'medium',
         createdAt: new Date().toISOString()
       });
@@ -305,7 +307,7 @@ class AIAutomationEngine {
 
   private suggestRuleOptimizations(
     existingRules: AutomationRule[],
-    patterns: any
+    _patterns: any
   ): AutomationSuggestion[] {
     return existingRules
       .filter(rule => rule.performance.triggerCount > 10)
@@ -324,11 +326,11 @@ class AIAutomationEngine {
               'Actions may need adjustment'
             ],
             estimatedImpact: {
-              efficiency: 30,
+              efficiency: null,
               coverage: rule.performance.triggerCount,
-              timesSaved: 1
+              timesSaved: null
             },
-            confidence: 75,
+            confidence: null,
             affectedRuleIds: [rule.id],
             priority: successRate < 0.5 ? 'high' : 'medium',
             createdAt: new Date().toISOString()
@@ -345,11 +347,13 @@ class AIAutomationEngine {
     // Find rules with similar triggers and conditions
     for (let i = 0; i < rules.length; i++) {
       for (let j = i + 1; j < rules.length; j++) {
-        if (this.rulesAreSimilar(rules[i], rules[j])) {
+        const ruleA = rules[i];
+        const ruleB = rules[j];
+        if (ruleA && ruleB && this.rulesAreSimilar(ruleA, ruleB)) {
           suggestions.push({
-            id: `merge_${rules[i].id}_${rules[j].id}`,
+            id: `merge_${ruleA.id}_${ruleB.id}`,
             type: 'merge_rules',
-            title: `Merge "${rules[i].name}" and "${rules[j].name}"`,
+            title: `Merge "${ruleA.name}" and "${ruleB.name}"`,
             description: 'Similar rules detected that could be consolidated for better efficiency',
             reasoning: [
               'Similar trigger conditions',
@@ -357,12 +361,12 @@ class AIAutomationEngine {
               'Consolidation reduces complexity'
             ],
             estimatedImpact: {
-              efficiency: 20,
+              efficiency: null,
               coverage: 0,
-              timesSaved: 0.5
+              timesSaved: null
             },
-            confidence: 85,
-            affectedRuleIds: [rules[i].id, rules[j].id],
+            confidence: null,
+            affectedRuleIds: [ruleA.id, ruleB.id],
             priority: 'low',
             createdAt: new Date().toISOString()
           });
@@ -373,12 +377,11 @@ class AIAutomationEngine {
     return suggestions;
   }
 
-  private calculateSuggestionScore(suggestion: AutomationSuggestion, patterns: any): number {
-    let score = suggestion.confidence;
+  private calculateSuggestionScore(suggestion: AutomationSuggestion, _patterns: any): number {
+    let score = suggestion.confidence ?? 0;
     
-    // Boost score based on impact
-    score += suggestion.estimatedImpact.efficiency * 0.5;
-    score += suggestion.estimatedImpact.timesSaved * 10;
+    // Rank by real coverage (number of contacts / triggers affected)
+    score += Math.min(suggestion.estimatedImpact.coverage, 100) * 0.5;
     
     // Adjust based on priority
     if (suggestion.priority === 'high') score += 20;
@@ -394,7 +397,7 @@ class AIAutomationEngine {
       const value = contact[field];
       if (Array.isArray(value)) {
         value.forEach(v => {
-          distribution[v] = (distribution[v] || 0) + 1;
+          distribution[String(v)] = (distribution[String(v)] || 0) + 1;
         });
       } else if (value) {
         distribution[String(value)] = (distribution[String(value)] || 0) + 1;
@@ -404,7 +407,7 @@ class AIAutomationEngine {
     return distribution;
   }
 
-  private identifyCommonActions(contacts: Contact[]): string[] {
+  private identifyCommonActions(_contacts: Contact[]): string[] {
     // Analyze what actions are commonly needed
     return [
       'follow_up_email',
@@ -415,7 +418,7 @@ class AIAutomationEngine {
     ];
   }
 
-  private analyzeTimePatterns(contacts: Contact[]): any {
+  private analyzeTimePatterns(_contacts: Contact[]): any {
     // Analyze timing patterns in contact interactions
     return {
       peakInteractionHours: ['10AM', '2PM', '4PM'],
@@ -455,13 +458,7 @@ class AIAutomationEngine {
     return affectedContacts * 0.05; // 5% per week default
   }
 
-  private calculateTimeSavings(rule: Partial<AutomationRule>, executions: number): number {
-    // Estimate time saved per execution
-    const timePerExecution = 0.25; // 15 minutes per manual execution
-    return executions * timePerExecution;
-  }
-
-  private identifyPotentialIssues(rule: Partial<AutomationRule>, contacts: Contact[]): string[] {
+  private identifyPotentialIssues(rule: Partial<AutomationRule>, _contacts: Contact[]): string[] {
     const issues = [];
     
     if (rule.conditions && rule.conditions.length === 0) {
@@ -475,18 +472,8 @@ class AIAutomationEngine {
     return issues;
   }
 
-  private calculatePredictionConfidence(rule: Partial<AutomationRule>, contacts: Contact[]): number {
-    // Calculate confidence in predictions based on rule complexity and data quality
-    let confidence = 80; // Base confidence
-    
-    if (rule.conditions && rule.conditions.length > 0) confidence += 10;
-    if (contacts.length > 100) confidence += 10;
-    
-    return Math.min(95, confidence);
-  }
-
   private getBaseRuleTemplate(purpose: string): Partial<AutomationRule> {
-    const templates = {
+    const templates: Record<'lead_nurturing' | 'follow_up', Partial<AutomationRule>> = {
       lead_nurturing: {
         name: 'Lead Nurturing Sequence',
         trigger: { type: 'contact_created', config: {} },
@@ -513,7 +500,7 @@ class AIAutomationEngine {
   private customizeRule(
     rule: Partial<AutomationRule>,
     criteria: Record<string, any>,
-    goals: string[]
+    _goals: string[]
   ): Partial<AutomationRule> {
     // Customize rule based on specific criteria and business goals
     const customized = { ...rule };
@@ -567,20 +554,21 @@ class AIAutomationEngine {
   }
 
   private generateOptimizations(rule: AutomationRule, analysis: any): any {
-    return {
-      ruleChanges: {},
-      suggestions: ['Consider adjusting timing', 'Review condition specificity'],
-      improvements: ['Improved success rate', 'Reduced execution time'],
-      estimatedImpact: 25
-    };
+    // Only observations derived from the rule's recorded performance; no canned advice or impact guess.
+    const improvements: string[] = [];
+    const pct = Number.isFinite(analysis.successRate) ? Math.round(analysis.successRate * 100) : null;
+    if (pct !== null && pct < 70) improvements.push(`Success rate is ${pct}% (${rule.performance.successCount}/${rule.performance.triggerCount}); review the failing executions`);
+    if (analysis.failurePatterns.length > 0) improvements.push(`${analysis.failurePatterns.length} failed execution(s) in the supplied performance data`);
+    return { ruleChanges: {}, suggestions: improvements, improvements, estimatedImpact: null };
   }
 
   private identifyFailurePatterns(performanceData: any[]): any[] {
     return performanceData.filter(p => p.outcome === 'failure');
   }
 
-  private identifyOptimizationOpportunities(rule: AutomationRule, performanceData: any[]): string[] {
-    return ['Timing optimization', 'Condition refinement'];
+  private identifyOptimizationOpportunities(_rule: AutomationRule, performanceData: any[]): string[] {
+    const failed = performanceData.filter(p => p.outcome === 'failure').length;
+    return failed > 0 ? [`${failed} failed execution(s) to investigate`] : [];
   }
 
   private rulesAreSimilar(rule1: AutomationRule, rule2: AutomationRule): boolean {

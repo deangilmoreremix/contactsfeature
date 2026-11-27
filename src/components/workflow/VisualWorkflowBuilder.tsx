@@ -1,17 +1,12 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import {
   Zap,
   Play,
-  Square,
   Settings,
-  Plus,
-  Trash2,
-  ArrowRight,
   GitBranch,
   CheckCircle,
   AlertCircle,
@@ -23,21 +18,15 @@ import {
   Database,
   Webhook,
   Code,
-  Filter,
   Target,
   Users,
   DollarSign,
   BarChart3,
   Save,
-  Download,
-  Upload,
-  Copy,
-  Eye,
-  Edit,
   X,
-  Move,
-  RotateCcw
 } from 'lucide-react';
+import { workflowService } from '../../services/workflowService';
+import { walkWorkflow } from '../../utils/conditionEvaluator';
 
 interface WorkflowNode {
   id: string;
@@ -135,7 +124,6 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   initialWorkflow,
   onSave,
   onExecute,
-  onDuplicate
 }) => {
   const [nodes, setNodes] = useState<WorkflowNode[]>(initialWorkflow?.nodes || []);
   const [edges, setEdges] = useState<WorkflowEdge[]>(initialWorkflow?.edges || []);
@@ -146,11 +134,27 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const [workflowDescription, setWorkflowDescription] = useState(initialWorkflow?.metadata?.description || '');
   const [isRunning, setIsRunning] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<any>(null);
+  const [savedId, setSavedId] = useState<string | undefined>(workflowId);
+  const [testContext, setTestContext] = useState('{\n  "score": 80,\n  "status": "lead"\n}');
+
+  // Load a persisted workflow when only an id is supplied.
+  useEffect(() => {
+    if (!workflowId || initialWorkflow) return;
+    let cancelled = false;
+    workflowService.get(workflowId).then((wf) => {
+      if (cancelled || !wf) return;
+      setNodes(wf.nodes);
+      setEdges(wf.edges);
+      setWorkflowName(wf.name);
+      setWorkflowDescription(wf.description);
+    }).catch(() => { /* builder stays empty; save will surface errors */ });
+    return () => { cancelled = true; };
+  }, [workflowId, initialWorkflow]);
   const [showNodePanel, setShowNodePanel] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [, setShowSettings] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
-  const researchThinking = useResearchThinking();
+  useResearchThinking();
   const researchStatus = useResearchStatus();
 
   // Initialize with basic workflow structure if empty
@@ -256,11 +260,15 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       return;
     }
 
+    // Condition nodes branch: first outgoing edge is the 'true' branch, the next one 'false'.
+    const sourceNode = nodes.find(n => n.id === connecting.sourceId);
+    const hasTrue = edges.some(e => e.sourceId === connecting.sourceId && e.condition === 'true');
     const newEdge: WorkflowEdge = {
       id: `edge_${Date.now()}`,
       sourceId: connecting.sourceId,
       targetId,
-      condition: 'true'
+      condition: sourceNode?.type === 'condition' && hasTrue ? 'false' : 'true',
+      ...(sourceNode?.type === 'condition' ? { label: hasTrue ? 'No' : 'Yes' } : {})
     };
 
     setEdges(prev => [...prev, newEdge]);
@@ -280,34 +288,42 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     setEdges(prev => prev.filter(edge => edge.id !== edgeId));
   };
 
-  const handleSaveWorkflow = () => {
-    const workflow = {
-      id: workflowId || `workflow_${Date.now()}`,
-      name: workflowName,
-      description: workflowDescription,
-      nodes,
-      edges,
-      metadata: {
-        name: workflowName,
-        description: workflowDescription,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        version: '1.0'
-      }
-    };
-
-    onSave?.(workflow);
+  const handleSaveWorkflow = async () => {
+    try {
+      const saved = await workflowService.save({ ...(savedId ? { id: savedId } : {}), name: workflowName, description: workflowDescription, nodes, edges });
+      setSavedId(saved.id);
+      onSave?.({
+        id: saved.id, name: workflowName, description: workflowDescription, nodes, edges,
+        metadata: { name: workflowName, description: workflowDescription, updatedAt: saved.updatedAt, version: '1.0' }
+      });
+      setExecutionStatus({ status: 'completed', title: 'Workflow saved', message: 'Saved to your account.' });
+    } catch (error) {
+      setExecutionStatus({ status: 'error', title: 'Save failed', message: error instanceof Error ? error.message : 'Could not save the workflow' });
+    }
   };
 
+  // "Test run" evaluates the graph (including condition nodes) against the sample data below.
+  // It never performs actions; live execution is handled server-side (webhook-trigger).
   const handleExecuteWorkflow = async () => {
-    if (!workflowId && !onExecute) return;
-
     setIsRunning(true);
     try {
-      await onExecute?.(workflowId || 'temp');
-      setExecutionStatus({ status: 'completed', message: 'Workflow executed successfully' });
+      if (onExecute && savedId) {
+        await onExecute(savedId);
+        setExecutionStatus({ status: 'completed', title: 'Workflow executed', message: 'Execution requested.' });
+        return;
+      }
+      let ctx: unknown;
+      try { ctx = JSON.parse(testContext || '{}'); } catch { throw new Error('Test data is not valid JSON'); }
+      const r = walkWorkflow({ nodes: nodes as any, edges: edges as any }, ctx);
+      if (r.status === 'no_trigger') throw new Error('Add a trigger node first');
+      if (r.status === 'error') throw new Error(r.error || 'Evaluation failed');
+      const branches = r.path.filter(p => p.type === 'condition').map(p => `${nodes.find(n => n.id === p.nodeId)?.label || p.nodeId}: ${p.result ? 'yes' : 'no'}`);
+      setExecutionStatus({
+        status: 'completed', title: 'Test run (no actions performed)',
+        message: `${r.path.length} node(s) reached, ${r.actions.length} action(s) would run${branches.length ? `; conditions - ${branches.join(', ')}` : ''}${r.pausedAt.length ? `; stops at ${r.pausedAt.length} delay node(s)` : ''}.`
+      });
     } catch (error) {
-      setExecutionStatus({ status: 'error', message: 'Workflow execution failed' });
+      setExecutionStatus({ status: 'error', title: 'Test run failed', message: error instanceof Error ? error.message : 'Workflow evaluation failed' });
     } finally {
       setIsRunning(false);
     }
@@ -355,7 +371,7 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             />
             <div
               className="w-3 h-3 bg-blue-500 rounded-full cursor-crosshair hover:bg-blue-600 transition-colors"
-              onClick={(e) => handleConnectionEnd(node.id)}
+              onClick={() => handleConnectionEnd(node.id)}
               title="Connect to this node"
             />
           </div>
@@ -483,7 +499,7 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               className="flex items-center space-x-2"
             >
               <Play className="w-4 h-4" />
-              <span>{isRunning ? 'Running...' : 'Execute'}</span>
+              <span>{isRunning ? 'Running...' : 'Test run'}</span>
             </ModernButton>
           </div>
         </div>
@@ -516,6 +532,10 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 placeholder="Describe what this workflow does"
               />
             </div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Test data (JSON) for condition nodes</label>
+            <textarea value={testContext} onChange={(e) => setTestContext(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </GlassCard>
 
@@ -772,7 +792,7 @@ export const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               )}
               <div>
                 <p className="font-medium text-gray-900">
-                  {executionStatus.status === 'completed' ? 'Workflow Completed' : 'Workflow Failed'}
+                  {executionStatus.title || (executionStatus.status === 'completed' ? 'Workflow Completed' : 'Workflow Failed')}
                 </p>
                 <p className="text-sm text-gray-600">{executionStatus.message}</p>
               </div>

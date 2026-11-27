@@ -3,12 +3,18 @@ import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
 import { SDRPreferencesService } from "../services/sdrPreferencesService";
 import { SDRUserPreferences } from "../types/sdr-preferences";
+import { useAIStream } from "../hooks/useAIStream";
+import { StreamingOutput } from "./ui/StreamingOutput";
+import { asArr, asObj, asStr, joinSections } from "../utils/partialText";
 
 interface VideoAgentResponse {
   contactId?: string;
   storyboard?: any;
   script?: string;
-  videoUrl?: string;
+  videoUrl?: string | null;
+  title?: string;
+  call_to_action?: string;
+  rendering?: { available: boolean; note: string };
   debug?: any;
 }
 
@@ -16,46 +22,39 @@ export const VideoAgentPanel: React.FC = () => {
   const [contactId, setContactId] = useState("");
   const [productUrl, setProductUrl] = useState("");
   const [goal, setGoal] = useState("demo");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VideoAgentResponse | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const live = useAIStream<VideoAgentResponse>();
+  const loading = live.isStreaming;
+  const result = live.state.result;
+  const error = formError || live.state.error;
   const [showSettings, setShowSettings] = useState(false);
   const [userPreferences, setUserPreferences] = useState<SDRUserPreferences | null>(null);
 
+  // Script + storyboard as they are written (partial structured output)
+  const streamText = () => {
+    const p = asObj(live.state.partial);
+    const scenes = asArr(p.storyboard).map((x) => {
+      const sc = asObj(x);
+      return `Scene ${asStr(sc.scene)}${sc.seconds ? ` (${asStr(sc.seconds)}s)` : ""}: ${asStr(sc.visual)}`;
+    });
+    return joinSections([asStr(p.title), asStr(p.script), scenes.length ? `Storyboard\n${scenes.join("\n")}` : ""]);
+  };
+
   const handleGenerate = async () => {
-    setError(null);
-    setResult(null);
+    setFormError(null);
+    live.reset();
 
     if (!contactId) {
-      setError("Please enter a contact ID.");
+      setFormError("Please enter a contact ID.");
       return;
     }
     if (!productUrl.trim()) {
-      setError("Please enter the product or landing page URL.");
+      setFormError("Please enter the product or landing page URL.");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch("/.netlify/functions/video-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, productUrl, goal })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Video agent request failed");
-      }
-
-      const json = (await res.json()) as VideoAgentResponse;
-      setResult(json);
-    } catch (e: any) {
-      console.error("[VideoAgentPanel] error:", e);
-      setError(e.message || "Failed to run video agent");
-    } finally {
-      setLoading(false);
-    }
+    // Streamed script + storyboard. No video file is rendered (no render backend); the result says so.
+    await live.runFunction("/.netlify/functions/video-agent", { contactId, productUrl, goal });
   };
 
   return (
@@ -65,6 +64,7 @@ export const VideoAgentPanel: React.FC = () => {
         padding: 16,
         border: "1px solid #e2e8f0",
         background: "#ffffff",
+        color: "#1a202c",
         maxWidth: 520,
         flex: "1 1 340px"
       }}
@@ -78,6 +78,7 @@ export const VideoAgentPanel: React.FC = () => {
             borderRadius: 6,
             border: '1px solid #cbd5e0',
             background: '#f7fafc',
+            color: '#4a5568',
             cursor: 'pointer',
             fontSize: 12,
             display: 'flex',
@@ -207,10 +208,20 @@ export const VideoAgentPanel: React.FC = () => {
           marginBottom: 10
         }}
       >
-        {loading ? "Generating Video Plan..." : "Generate Video"}
+        {loading ? "Writing Script..." : "Generate Script & Storyboard"}
       </button>
 
-      {result && (
+      {loading && (
+        <StreamingOutput
+          state={live.state}
+          onStop={live.stop}
+          display={streamText()}
+          placeholder="Writing the script…"
+          className="mb-2"
+        />
+      )}
+
+      {result && !loading && (
         <div
           style={{
             borderRadius: 8,
@@ -230,6 +241,10 @@ export const VideoAgentPanel: React.FC = () => {
           >
             Result
           </div>
+
+          {result.rendering && !result.rendering.available && (
+            <div style={{ fontSize: 12, color: "#718096", marginBottom: 6 }}>{result.rendering.note}</div>
+          )}
 
           {result.videoUrl && (
             <div style={{ marginBottom: 8 }}>

@@ -3,16 +3,18 @@
  * Comprehensive test suite for the integration system
  */
 
+import { vi } from 'vitest';
+
 // Mock implementations for testing
 const mockHttpClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  patch: jest.fn(),
-  delete: jest.fn(),
-  setAuth: jest.fn(),
-  clearAuth: jest.fn(),
-  isAuthenticated: jest.fn(),
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  patch: vi.fn(),
+  delete: vi.fn(),
+  setAuth: vi.fn(),
+  clearAuth: vi.fn(),
+  isAuthenticated: vi.fn(),
 };
 
 const mockContact = {
@@ -36,7 +38,7 @@ const mockContact = {
 
 // Jest setup
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('HTTP Client Service', () => {
@@ -76,10 +78,10 @@ describe('Cache Service', () => {
     // Mock cache service
     const cache = new Map();
     cacheService = {
-      set: jest.fn((namespace, key, data, ttl) => {
+      set: vi.fn((namespace, key, data, ttl) => {
         cache.set(`${namespace}:${key}`, { data, timestamp: Date.now(), ttl });
       }),
-      get: jest.fn((namespace, key) => {
+      get: vi.fn((namespace, key) => {
         const entry = cache.get(`${namespace}:${key}`);
         if (!entry) return null;
         if (Date.now() - entry.timestamp > entry.ttl) {
@@ -88,10 +90,10 @@ describe('Cache Service', () => {
         }
         return entry.data;
       }),
-      delete: jest.fn((namespace, key) => {
+      delete: vi.fn((namespace, key) => {
         return cache.delete(`${namespace}:${key}`);
       }),
-      clear: jest.fn(() => {
+      clear: vi.fn(() => {
         cache.clear();
       }),
     };
@@ -123,15 +125,6 @@ describe('Cache Service', () => {
 
 describe('Validation Service', () => {
   test('should validate contact data successfully', () => {
-    const validContact = {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@example.com',
-      title: 'Engineer',
-      company: 'Tech Corp',
-      interestLevel: 'medium',
-      status: 'lead',
-    };
 
     // Mock validation
     const result = {
@@ -144,15 +137,6 @@ describe('Validation Service', () => {
   });
 
   test('should fail validation for invalid email', () => {
-    const invalidContact = {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'invalid-email',
-      title: 'Engineer',
-      company: 'Tech Corp',
-      interestLevel: 'medium',
-      status: 'lead',
-    };
 
     // Mock validation failure
     const result = {
@@ -167,12 +151,6 @@ describe('Validation Service', () => {
   });
 
   test('should sanitize input data', () => {
-    const unsanitizedContact = {
-      firstName: '  John  ',
-      lastName: '  Doe  ',
-      email: '  JOHN.DOE@EXAMPLE.COM  ',
-      phone: '  +1-555-0123  ',
-    };
 
     // Mock sanitization
     const sanitized = {
@@ -191,7 +169,7 @@ describe('Rate Limiter Service', () => {
   test('should allow requests within limit', async () => {
     // Mock rate limiter
     const rateLimiter = {
-      checkLimit: jest.fn().mockResolvedValue({
+      checkLimit: vi.fn().mockResolvedValue({
         allowed: true,
         resetTime: Date.now() + 60000,
         remaining: 9,
@@ -212,7 +190,7 @@ describe('Rate Limiter Service', () => {
   test('should reject requests over limit', async () => {
     // Mock rate limiter
     const rateLimiter = {
-      checkLimit: jest.fn().mockResolvedValue({
+      checkLimit: vi.fn().mockResolvedValue({
         allowed: false,
         resetTime: Date.now() + 60000,
         remaining: 0,
@@ -334,7 +312,7 @@ describe('Contact API Service', () => {
 
     expect(result.contacts).toHaveLength(1);
     expect(result.total).toBe(1);
-    expect(result.contacts[0].name).toBe('John Doe');
+    expect(result.contacts[0]!.name).toBe('John Doe');
   });
 });
 
@@ -424,7 +402,7 @@ describe('AI Integration Service', () => {
     expect(result.summary.total).toBe(1);
     expect(result.summary.successful).toBe(1);
     expect(result.summary.failed).toBe(0);
-    expect(result.results[0].score).toBe(85);
+    expect(result.results[0]!.score).toBe(85);
   });
 });
 
@@ -463,7 +441,6 @@ describe('Integration Manager Service', () => {
         contactAPI: 'up' as const,
         aiProviders: [
           { name: 'openai', status: 'up' as const },
-          { name: 'gemini', status: 'up' as const },
         ],
         cache: 'up' as const,
         rateLimiter: 'up' as const,

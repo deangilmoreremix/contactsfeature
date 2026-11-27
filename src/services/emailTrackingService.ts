@@ -1,17 +1,22 @@
 /**
  * Email Tracking Service
- * Tracks email interactions and engagement metrics
+ *
+ * Engagement data comes from the `emails` table: `opened_at` / `clicked_at` are written by the
+ * track-open / track-click functions (pixel + link rewrite applied when the email is sent),
+ * `replied_at` by inbound handling and `status` by the sender. Nothing is kept in memory.
+ * Open tracking is inherently approximate (image blocking, proxy prefetch), so counts are lower bounds.
  */
+import { supabase } from '../lib/supabase';
 
-export interface EmailEvent {
+export interface TrackedEmail {
   id: string;
-  emailId: string;
-  contactId: string;
-  eventType: 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'unsubscribed';
-  timestamp: Date;
-  metadata?: Record<string, any>;
-  userAgent?: string;
-  ipAddress?: string;
+  contactId: string | null;
+  subject: string;
+  status: string;
+  sentAt: Date | null;
+  openedAt: Date | null;
+  clickedAt: Date | null;
+  repliedAt: Date | null;
 }
 
 export interface EmailMetrics {
@@ -19,144 +24,88 @@ export interface EmailMetrics {
   totalOpened: number;
   totalClicked: number;
   totalReplied: number;
+  totalFailed: number;
   openRate: number;
   clickRate: number;
   replyRate: number;
-  averageResponseTime: number;
+  /** Hours from send to reply, averaged over replied emails; null when nothing was replied to. */
+  averageResponseTime: number | null;
 }
+
+type Row = {
+  id: string; contact_id: string | null; subject: string | null; status: string; sent_at: string | null;
+  opened_at: string | null; clicked_at: string | null; replied_at: string | null;
+};
+
+const d = (v: string | null) => (v ? new Date(v) : null);
+const toTracked = (r: Row): TrackedEmail => ({
+  id: r.id, contactId: r.contact_id, subject: r.subject || '(no subject)', status: r.status,
+  sentAt: d(r.sent_at), openedAt: d(r.opened_at), clickedAt: d(r.clicked_at), repliedAt: d(r.replied_at),
+});
+
+/** Pure: metrics from tracked emails (only status 'sent' emails count as delivered sends). */
+export function computeMetrics(emails: TrackedEmail[]): EmailMetrics {
+  const sent = emails.filter((e) => e.status === 'sent' && e.sentAt);
+  const pct = (n: number) => (sent.length ? (n / sent.length) * 100 : 0);
+  const opened = sent.filter((e) => e.openedAt || e.clickedAt).length; // a click implies an open
+  const clicked = sent.filter((e) => e.clickedAt).length;
+  const replied = sent.filter((e) => e.repliedAt);
+  const waits = replied.map((e) => (e.repliedAt!.getTime() - e.sentAt!.getTime()) / 3600_000).filter((h) => h >= 0);
+  return {
+    totalSent: sent.length,
+    totalOpened: opened,
+    totalClicked: clicked,
+    totalReplied: replied.length,
+    totalFailed: emails.filter((e) => e.status === 'failed').length,
+    openRate: pct(opened),
+    clickRate: pct(clicked),
+    replyRate: pct(replied.length),
+    averageResponseTime: waits.length ? waits.reduce((a, b) => a + b, 0) / waits.length : null,
+  };
+}
+
+/** Pure: best send hour/weekday by open count, or null when there are too few opens to say. */
+export function bestSendWindow(emails: TrackedEmail[], minOpens = 5): { hour: number; day: number } | null {
+  const opened = emails.filter((e) => e.sentAt && (e.openedAt || e.clickedAt));
+  if (opened.length < minOpens) return null;
+  const hours = new Array(24).fill(0); const days = new Array(7).fill(0);
+  for (const e of opened) { hours[e.sentAt!.getHours()]++; days[e.sentAt!.getDay()]++; }
+  return { hour: hours.indexOf(Math.max(...hours)), day: days.indexOf(Math.max(...days)) };
+}
+
+const COLS = 'id,contact_id,subject,status,sent_at,opened_at,clicked_at,replied_at';
 
 class EmailTrackingService {
   private static instance: EmailTrackingService;
-  private events: EmailEvent[] = [];
-  private metricsCache: Map<string, EmailMetrics> = new Map();
-
   static getInstance(): EmailTrackingService {
-    if (!EmailTrackingService.instance) {
-      EmailTrackingService.instance = new EmailTrackingService();
-    }
+    if (!EmailTrackingService.instance) EmailTrackingService.instance = new EmailTrackingService();
     return EmailTrackingService.instance;
   }
 
-  trackEvent(event: Omit<EmailEvent, 'id' | 'timestamp'>): EmailEvent {
-    const emailEvent: EmailEvent = {
-      id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-      ...event
-    };
-
-    this.events.push(emailEvent);
-
-    // Clear cached metrics for this contact
-    this.metricsCache.delete(event.contactId);
-
-    console.log(`Email event tracked: ${event.eventType} for contact ${event.contactId}`);
-
-    return emailEvent;
+  /** Outbound emails (sent / failed) for a contact, newest first. */
+  async getEmailsForContact(contactId: string, since?: Date, limit = 500): Promise<TrackedEmail[]> {
+    let q = supabase.from('emails').select(COLS).eq('contact_id', contactId).eq('is_inbound', false).in('status', ['sent', 'failed'])
+      .order('sent_at', { ascending: false, nullsFirst: false }).limit(limit);
+    if (since) q = q.gte('created_at', since.toISOString());
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return ((data || []) as unknown as Row[]).map(toTracked);
   }
 
-  getEventsForContact(contactId: string, limit: number = 50): EmailEvent[] {
-    return this.events
-      .filter(event => event.contactId === contactId)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+  async getOverallEmails(since?: Date, limit = 2000): Promise<TrackedEmail[]> {
+    let q = supabase.from('emails').select(COLS).eq('is_inbound', false).in('status', ['sent', 'failed']).order('sent_at', { ascending: false, nullsFirst: false }).limit(limit);
+    if (since) q = q.gte('created_at', since.toISOString());
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return ((data || []) as unknown as Row[]).map(toTracked);
   }
 
-  getEventsForEmail(emailId: string): EmailEvent[] {
-    return this.events
-      .filter(event => event.emailId === emailId)
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  async getMetricsForContact(contactId: string, since?: Date): Promise<EmailMetrics> {
+    return computeMetrics(await this.getEmailsForContact(contactId, since));
   }
 
-  getMetricsForContact(contactId: string): EmailMetrics {
-    // Check cache first
-    const cached = this.metricsCache.get(contactId);
-    if (cached) return cached;
-
-    const contactEvents = this.events.filter(event => event.contactId === contactId);
-
-    const metrics: EmailMetrics = {
-      totalSent: contactEvents.filter(e => e.eventType === 'sent').length,
-      totalOpened: contactEvents.filter(e => e.eventType === 'opened').length,
-      totalClicked: contactEvents.filter(e => e.eventType === 'clicked').length,
-      totalReplied: contactEvents.filter(e => e.eventType === 'replied').length,
-      openRate: 0,
-      clickRate: 0,
-      replyRate: 0,
-      averageResponseTime: 0
-    };
-
-    // Calculate rates
-    if (metrics.totalSent > 0) {
-      metrics.openRate = (metrics.totalOpened / metrics.totalSent) * 100;
-      metrics.clickRate = (metrics.totalClicked / metrics.totalSent) * 100;
-      metrics.replyRate = (metrics.totalReplied / metrics.totalSent) * 100;
-    }
-
-    // Calculate average response time (time between sent and first reply)
-    const sentEvents = contactEvents.filter(e => e.eventType === 'sent');
-    const replyEvents = contactEvents.filter(e => e.eventType === 'replied');
-
-    if (sentEvents.length > 0 && replyEvents.length > 0) {
-      const responseTimes: number[] = [];
-
-      sentEvents.forEach(sentEvent => {
-        const replyEvent = replyEvents.find(reply =>
-          reply.timestamp > sentEvent.timestamp &&
-          replyEvents.filter(r => r.timestamp > sentEvent.timestamp && r.timestamp < reply.timestamp).length === 0
-        );
-
-        if (replyEvent) {
-          responseTimes.push(replyEvent.timestamp.getTime() - sentEvent.timestamp.getTime());
-        }
-      });
-
-      if (responseTimes.length > 0) {
-        metrics.averageResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
-      }
-    }
-
-    // Cache the metrics
-    this.metricsCache.set(contactId, metrics);
-
-    return metrics;
-  }
-
-  getOverallMetrics(): EmailMetrics {
-    const allEvents = this.events;
-
-    const metrics: EmailMetrics = {
-      totalSent: allEvents.filter(e => e.eventType === 'sent').length,
-      totalOpened: allEvents.filter(e => e.eventType === 'opened').length,
-      totalClicked: allEvents.filter(e => e.eventType === 'clicked').length,
-      totalReplied: allEvents.filter(e => e.eventType === 'replied').length,
-      openRate: 0,
-      clickRate: 0,
-      replyRate: 0,
-      averageResponseTime: 0
-    };
-
-    // Calculate rates
-    if (metrics.totalSent > 0) {
-      metrics.openRate = (metrics.totalOpened / metrics.totalSent) * 100;
-      metrics.clickRate = (metrics.totalClicked / metrics.totalSent) * 100;
-      metrics.replyRate = (metrics.totalReplied / metrics.totalSent) * 100;
-    }
-
-    return metrics;
-  }
-
-  // Simulate tracking pixel for demo purposes
-  generateTrackingPixel(emailId: string, contactId: string): string {
-    // In a real implementation, this would generate a unique tracking URL
-    // For demo purposes, we'll return a placeholder
-    return `https://track.example.com/pixel/${emailId}/${contactId}`;
-  }
-
-  // Simulate link tracking
-  generateTrackedLink(originalUrl: string, emailId: string, contactId: string): string {
-    // In a real implementation, this would generate a tracked redirect URL
-    // For demo purposes, we'll return the original URL
-    return originalUrl;
+  async getOverallMetrics(since?: Date): Promise<EmailMetrics> {
+    return computeMetrics(await this.getOverallEmails(since));
   }
 }
 

@@ -80,7 +80,7 @@ class FileStorageService {
       const filePath = `contacts/${fileId}`;
 
       // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from(this.BUCKET_NAME)
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -280,7 +280,7 @@ class FileStorageService {
         .maybeSingle();
 
       if (fetchError || !fileData) {
-        logger.error('File not found for deletion', { fileId });
+        logger.error('File not found for deletion', undefined, { fileId });
         return false;
       }
 
@@ -327,7 +327,7 @@ class FileStorageService {
         .maybeSingle();
 
       if (error || !fileData) {
-        logger.error('File not found for download', { fileId });
+        logger.error('File not found for download', undefined, { fileId });
         return false;
       }
 

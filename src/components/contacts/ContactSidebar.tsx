@@ -1,17 +1,22 @@
-import React from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { AvatarUpload } from '../ui/AvatarUpload';
-import { ModernButton } from '../ui/ModernButton';
 import { Contact } from '../../types/contact';
-import { contactService } from '../../services/contactService';
-import { useResearchStatus } from '../ui/ResearchStatusOverlay';
-import { aiEnrichmentService, ContactEnrichmentData } from '../../services/aiEnrichmentService';
-import { webSearchService } from '../../services/webSearchService';
+import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import type { ContactEnrichmentData } from '../../services/aiEnrichmentService';
+import { enrichContactWithWebSearch, type EnrichmentOutcome, type EnrichmentResult } from '../../services/contactEnrichment';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { enrichmentPreview, enrichmentSources } from '../../lib/streaming/previews';
 import { useContactEditing } from '../../hooks/useContactEditing';
+import { EditableTitle } from './fields/EditableTitle';
+import { EmailsField } from './fields/EmailsField';
+import { PhonesField } from './fields/PhonesField';
+import { LinksField } from './fields/LinksField';
+import { AddressField } from './fields/AddressField';
 import {
-  X, Edit, Mail, Phone, Plus, MessageSquare, FileText, Calendar,
-  User, Globe, Clock, Building, Tag, Brain, TrendingUp,
-  BarChart3, Zap, Activity, Database, Target,
-  Search, Sparkles, Wand2, Settings, Heart, HeartOff
+  X, Edit, Mail, Phone, Plus, MessageSquare, FileText,
+  User, Globe, Clock, Building, Brain,
+  Zap, Target,
+  Search, Sparkles, Wand2, Heart
 } from 'lucide-react';
 import {
   interestColors,
@@ -29,6 +34,8 @@ interface ContactSidebarProps {
   setLastEnrichment: (enrichment: ContactEnrichmentData | null) => void;
   isEnriching: boolean;
   setIsEnriching: (enriching: boolean) => void;
+  /** Opens the company drawer; when given, the company name in Contact Info becomes clickable. */
+  onOpenCompany?: (company: string) => void;
 }
 
 export const ContactSidebar: React.FC<ContactSidebarProps> = ({
@@ -37,26 +44,19 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
   onUpdate,
   lastEnrichment,
   setLastEnrichment,
-  isEnriching,
-  setIsEnriching
+  isEnriching: _isEnriching,
+  setIsEnriching,
+  onOpenCompany
 }) => {
   const {
     isEditing,
     setIsEditing,
     editedContact,
     setEditedContact,
-    handleToggleFavorite,
     handleEditField,
     handleStartEditingField,
     handleSaveField,
-    handleAddCustomField,
-    handleRemoveCustomField,
-    showAddField,
     setShowAddField,
-    newFieldName,
-    setNewFieldName,
-    newFieldValue,
-    setNewFieldValue,
     handleAddSocialProfile,
     handleAddSourceToContact,
     handleRemoveSource,
@@ -76,62 +76,124 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
     editingField
   } = useContactEditing({ contact, onUpdate });
 
+  // Header "Edit" button / E shortcut (ContactDetailView) asks the sidebar to enter edit mode.
+  React.useEffect(() => {
+    const onEdit = (e: Event) => {
+      const id = (e as CustomEvent<{ contactId?: string }>).detail?.contactId;
+      if (id && id !== contact.id) return;
+      e.preventDefault();
+      setIsEditing(true);
+    };
+    window.addEventListener('smartcrm:contact-edit', onEdit);
+    return () => window.removeEventListener('smartcrm:contact-edit', onEdit);
+  }, [contact.id, setIsEditing]);
+
   const researchStatus = useResearchStatus();
+  const [enrichmentOutcome, setEnrichmentOutcome] = useState<EnrichmentOutcome | null>(null);
+  const [addingEmail, setAddingEmail] = useState(false);
+  const [addingPhone, setAddingPhone] = useState(false);
+  // Live research run: status line, findings so far (partial JSON), Stop.
+  const [live, setLive] = useState<{ status: 'idle' | 'streaming'; label: string; steps: string[]; partial: Partial<EnrichmentResult> | null }>({ status: 'idle', label: '', steps: [], partial: null });
+  const enrichAbort = useRef<AbortController | null>(null);
+  React.useEffect(() => () => { enrichAbort.current?.abort(); }, []);
 
-  const handleAIEnrichment = async (enrichmentData: ContactEnrichmentData) => {
-    setLastEnrichment(enrichmentData);
-    setIsEnriching(true);
-
+  /**
+   * Optimistically apply a partial update and persist it through the existing update path
+   * (store updateContact -> timeline diff). Rejects (after rolling back) when saving fails.
+   */
+  const applyUpdates = useCallback(async (updates: Partial<Contact>) => {
+    const before = editedContact as unknown as Record<string, unknown>;
+    const previous: Record<string, unknown> = {};
+    Object.keys(updates).forEach((k) => { previous[k] = before[k]; });
+    setEditedContact((prev) => ({ ...prev, ...updates }));
+    if (!onUpdate) return;
     try {
-      // Apply enrichment data to contact
-      const updates: any = {};
-
-      if (enrichmentData.phone && !editedContact.phone) {
-        updates.phone = enrichmentData.phone;
-      }
-      if (enrichmentData.industry && !editedContact.industry) {
-        updates.industry = enrichmentData.industry;
-      }
-      if (enrichmentData.avatar && enrichmentData.avatar !== editedContact.avatarSrc) {
-        updates.avatarSrc = enrichmentData.avatar;
-      }
-      if (enrichmentData.notes) {
-        updates.notes = editedContact.notes ?
-          `${editedContact.notes}\n\nAI Research: ${enrichmentData.notes}` :
-          enrichmentData.notes;
-      }
-
-      // Social profiles
-      if (enrichmentData.socialProfiles) {
-        const socialUpdates: any = {};
-        Object.entries(enrichmentData.socialProfiles).forEach(([key, value]) => {
-          if (value && !editedContact.socialProfiles?.[key as keyof typeof editedContact.socialProfiles]) {
-            socialUpdates[key] = value;
-          }
-        });
-        if (Object.keys(socialUpdates).length > 0) {
-          updates.socialProfiles = { ...editedContact.socialProfiles, ...socialUpdates };
-        }
-      }
-
-      // Update AI score if provided
-      if (enrichmentData.confidence) {
-        updates.aiScore = Math.round(enrichmentData.confidence);
-      }
-
-      const updatedContact = { ...editedContact, ...updates };
-      setEditedContact(updatedContact);
-
-      if (onUpdate && Object.keys(updates).length > 0) {
-        await onUpdate(contact.id, updates);
-      }
-
+      await onUpdate(contact.id, updates);
     } catch (error) {
-      console.error('Failed to apply enrichment:', error);
+      setEditedContact((prev) => ({ ...prev, ...(previous as Partial<Contact>) }));
+      throw error;
+    }
+  }, [editedContact, onUpdate, contact.id, setEditedContact]);
+
+  const handleSaveTitle = useCallback(async (name: string) => {
+    const [first = '', ...rest] = name.split(' ');
+    await applyUpdates({ name, firstName: first, lastName: rest.join(' ') });
+  }, [applyUpdates]);
+
+  const hasExtraEmails = (editedContact.additionalEmails?.length ?? 0) > 0 || addingEmail;
+  const hasExtraPhones = (editedContact.additionalPhones?.length ?? 0) > 0 || addingPhone;
+
+  const handleWebEnrichment = async () => {
+    if (researchStatus.status.isActive) return;
+    const isDemo = editedContact.isMockData || editedContact.dataSource === 'mock' || editedContact.createdBy === 'demo';
+    if (isDemo) {
+      researchStatus.startResearch('Demo contact');
+      researchStatus.setError('This is a sample contact, so there is nothing real to research. Enrich a real contact instead.');
+      return;
+    }
+
+    setIsEnriching(true);
+    researchStatus.startResearch('🔍 Searching the web for public information...');
+    const ac = new AbortController();
+    enrichAbort.current = ac;
+    setEnrichmentOutcome(null);
+    setLive({ status: 'streaming', label: 'Starting…', steps: [], partial: null });
+    try {
+      const outcome = await enrichContactWithWebSearch(editedContact, {
+        signal: ac.signal,
+        live: {
+          onStatus: (label) => { researchStatus.updateStatus({ message: label }); setLive((l) => ({ ...l, label, steps: l.steps[l.steps.length - 1] === label ? l.steps : [...l.steps, label] })); },
+          onPartial: (partial) => setLive((l) => ({ ...l, partial: partial as Partial<EnrichmentResult> })),
+        },
+        onProgress: (stage) => {
+          if (stage === 'searching') {
+            researchStatus.updateStatus({ stage: 'researching', message: '🌐 Searching public sources (this can take up to a minute)...' });
+          } else if (stage === 'applying') {
+            researchStatus.updateStatus({ stage: 'synthesizing', message: '📊 Adding what was found to the contact...' });
+          }
+        }
+      });
+
+      setLastEnrichment({
+        confidence: outcome.result.confidence,
+        enrichmentType: 'real',
+        isMockData: false,
+        ...(outcome.result.summary ? { notes: outcome.result.summary } : {})
+      });
+      setEnrichmentOutcome(outcome);
+
+      if (outcome.appliedFields.length > 0) {
+        const applied: Partial<Contact> = {};
+        outcome.appliedFields.forEach((f) => {
+          (applied as Record<string, unknown>)[f] = (outcome.suggestedUpdates as Record<string, unknown>)[f];
+        });
+        setEditedContact((prev) => ({ ...prev, ...applied }));
+      }
+
+      researchStatus.complete(
+        !outcome.result.matched
+          ? 'No confident public match found. Nothing was changed.'
+          : outcome.appliedFields.length > 0
+            ? `✅ Added ${outcome.appliedFields.join(', ')} from public sources.`
+            : '✅ Research complete. No empty fields to fill.'
+      );
+    } catch (error) {
+      if (ac.signal.aborted) {
+        researchStatus.complete('Research stopped. Nothing was changed.');
+      } else {
+        console.error('Web enrichment failed:', error);
+        researchStatus.setError(error instanceof Error ? error.message : 'Enrichment failed. Please try again.');
+      }
     } finally {
+      setLive({ status: 'idle', label: '', steps: [], partial: null });
+      enrichAbort.current = null;
       setIsEnriching(false);
     }
   };
+
+  // The composers live in ContactDetailView; ask it to open the right one.
+  const openComposer = (kind: 'email' | 'sms' | 'call') =>
+    window.dispatchEvent(new CustomEvent('smartcrm:contact-compose', { detail: { kind, contactId: contact.id } }));
 
   const handleSendEmail = () => {
     // Validate email before opening composer
@@ -147,8 +209,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
       return;
     }
 
-    // Open enhanced email composer
-    // This will be handled by parent component
+    openComposer('email');
   };
 
   const handleMakeCall = () => {
@@ -157,8 +218,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
       return;
     }
 
-    // Open enhanced call handler
-    // This will be handled by parent component
+    openComposer('call');
   };
 
   const handleSendSMS = () => {
@@ -167,12 +227,19 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
       return;
     }
 
-    // Open SMS composer
-    // This will be handled by parent component
+    openComposer('sms');
   };
 
   return (
     <div className="w-80 bg-gradient-to-b from-gray-50 via-white to-gray-50 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+      {/* Research progress / errors for the AI Web Research, Enrich and AI Auto-Enrich buttons (closing it re-enables them) */}
+      <ResearchStatusOverlay
+        status={researchStatus.status}
+        onClose={() => researchStatus.reset()}
+        position="top"
+        size="md"
+      />
+
       {/* Fixed Header with AI Features */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 flex-shrink-0">
         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
@@ -182,68 +249,9 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
         <div className="flex space-x-2">
           {/* AI Research Button */}
           <button
-            onClick={async () => {
-              console.log('🧠 AI Web Research button clicked for contact:', editedContact.name);
-              const isMockData = editedContact.isMockData || editedContact.dataSource === 'mock' || editedContact.createdBy === 'demo';
-researchStatus.startResearch('🔍 Researching contact background...');
-
-try {
-  if (isMockData) {
-    // Mock research implementation
-    researchStatus.updateStatus({
-      stage: 'analyzing',
-      message: '🔍 Researching background information...'
-    });
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    researchStatus.updateStatus({
-      stage: 'synthesizing',
-      message: '📊 Synthesizing analysis results...'
-    });
-
-    const mockEnrichmentData: ContactEnrichmentData = {
-      firstName: editedContact.firstName,
-      lastName: editedContact.lastName,
-      email: editedContact.email,
-      company: editedContact.company,
-      notes: `AI Web Research: Found comprehensive contact information including social media profiles and professional details.`,
-      confidence: 91
-    };
-
-    await handleAIEnrichment(mockEnrichmentData);
-    researchStatus.complete('✅ Research complete! Enhanced with web intelligence.');
-  } else {
-    // Real research implementation
-    const searchQuery = `${editedContact.company} ${editedContact.firstName} ${editedContact.lastName} executive leadership news`;
-    const systemPrompt = `You are a business intelligence researcher...`;
-    const userPrompt = `Research this contact: ${editedContact.firstName} ${editedContact.lastName} at ${editedContact.company}.`;
-
-    const searchResults = await webSearchService.searchWithAI(
-      searchQuery,
-      systemPrompt,
-      userPrompt,
-      { includeSources: true, searchContextSize: 'high' }
-    );
-
-    const enrichmentData: ContactEnrichmentData = {
-      firstName: editedContact.firstName,
-      lastName: editedContact.lastName,
-      email: editedContact.email,
-      company: editedContact.company,
-      notes: `AI Research: ${searchResults.content.substring(0, 500)}...`,
-      confidence: 85
-    };
-
-    await handleAIEnrichment(enrichmentData);
-    researchStatus.complete('✅ Research complete! Enhanced with web intelligence.');
-  }
-
-} catch (error) {
-  console.error('Web research failed:', error);
-  researchStatus.setError('Research failed. Using cached data instead.');
-}
-            }}
+            onClick={handleWebEnrichment}
             disabled={researchStatus.status.isActive}
-            className="p-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
+            className="h-10 w-10 inline-flex items-center justify-center bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
             title="AI Web Research"
           >
             <Search className="w-4 h-4" />
@@ -278,7 +286,7 @@ try {
 
             {/* AI Score Badge */}
             {editedContact.aiScore && (
-              <div className={`absolute -top-1 -right-1 h-7 w-7 rounded-full ${editedContact.aiScore >= 80 ? 'bg-green-500' : editedContact.aiScore >= 60 ? 'bg-blue-500' : editedContact.aiScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'} text-white flex items-center justify-center text-xs font-bold shadow-lg ring-2 ring-white`}>
+              <div className={`absolute -top-1 -right-1 h-7 w-7 rounded-full ${editedContact.aiScore >= 80 ? 'bg-green-500' : editedContact.aiScore >= 60 ? 'bg-blue-500' : editedContact.aiScore >= 40 ? 'bg-yellow-500' : 'bg-red-600'} text-white flex items-center justify-center text-xs font-bold shadow-lg ring-2 ring-white`}>
                 {editedContact.aiScore}
               </div>
             )}
@@ -299,7 +307,11 @@ try {
           </div>
 
           {/* Name and Title */}
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 leading-tight">{editedContact.name}</h3>
+          <EditableTitle
+            value={editedContact.name}
+            onSave={handleSaveTitle}
+            className="text-xl font-bold text-gray-900 dark:text-white mb-2 leading-tight"
+          />
           <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">{editedContact.title}</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm">{editedContact.company}</p>
           {editedContact.industry && (
@@ -319,6 +331,88 @@ try {
               </div>
             </div>
           )}
+
+          {/* Live web research: status line, findings as they arrive, sources found so far */}
+          {live.status === 'streaming' && (
+            <div className="mt-3 text-left" data-testid="enrich-live">
+              <StreamingOutput
+                state={{ status: 'streaming', text: '', label: live.label, steps: live.steps, reasoning: '' }}
+                display={enrichmentPreview(live.partial)}
+                placeholder="Researching public sources…"
+                onStop={() => enrichAbort.current?.abort()}
+              />
+              {enrichmentSources(live.partial).length > 0 && (
+                <div className="mt-2 px-1">
+                  <p className="text-xs font-medium text-gray-900 dark:text-white">Sources</p>
+                  {enrichmentSources(live.partial).slice(0, 6).map((c) => (
+                    <a key={c.url} href={c.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 hover:underline truncate">
+                      {c.title}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Web enrichment findings with sources */}
+          {enrichmentOutcome && (
+            <div className="mt-3 p-3 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-700 rounded-lg text-left">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-900 dark:text-white">Web research</span>
+                <button
+                  onClick={() => setEnrichmentOutcome(null)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                  aria-label="Dismiss research findings"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              {!enrichmentOutcome.result.matched ? (
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  No confident public match was found, so nothing was changed.
+                  {enrichmentOutcome.result.warnings[0] ? ` ${enrichmentOutcome.result.warnings[0]}` : ''}
+                </p>
+              ) : (
+                <>
+                  {enrichmentOutcome.result.summary && (
+                    <p className="text-xs text-gray-700 dark:text-gray-300 mb-2">{enrichmentOutcome.result.summary}</p>
+                  )}
+                  {enrichmentOutcome.appliedFields.length > 0 && (
+                    <p className="text-xs text-green-700 dark:text-green-400 mb-2">
+                      Added: {enrichmentOutcome.appliedFields.join(', ')}
+                    </p>
+                  )}
+                  {enrichmentOutcome.result.talkingPoints.length > 0 && (
+                    <ul className="list-disc pl-4 mb-2 space-y-0.5">
+                      {enrichmentOutcome.result.talkingPoints.slice(0, 4).map((t) => (
+                        <li key={t} className="text-xs text-gray-700 dark:text-gray-300">{t}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {enrichmentOutcome.result.recentNews.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-xs font-medium text-gray-900 dark:text-white">Recent news</p>
+                      {enrichmentOutcome.result.recentNews.slice(0, 3).map((n) => (
+                        <a key={n.url} href={n.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 hover:underline truncate">
+                          {n.headline}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {enrichmentOutcome.citations.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-900 dark:text-white">Sources</p>
+                  {enrichmentOutcome.citations.slice(0, 6).map((c) => (
+                    <a key={c.url} href={c.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 hover:underline truncate">
+                      {c.title}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* AI Tools Section */}
@@ -332,7 +426,7 @@ try {
           <div className="mb-3">
             <button
               onClick={() => window.open('https://tubular-choux-2a9b3c.netlify.app/', '_blank')}
-              className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full flex items-center justify-center h-10 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 text-sm font-medium transition-all duration-200 border border-indigo-300/50 shadow-sm hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <Target className="w-4 h-4 mr-2" />
               AI Goals
@@ -350,21 +444,8 @@ try {
             </button>
 
             <button
-              onClick={() => {
-                const searchQuery = {
-                  email: editedContact.email,
-                  firstName: editedContact.firstName,
-                  lastName: editedContact.lastName,
-                  company: editedContact.company
-                };
-                handleAIEnrichment({
-                  email: searchQuery.email,
-                  firstName: searchQuery.firstName,
-                  lastName: searchQuery.lastName,
-                  company: searchQuery.company,
-                  confidence: 75
-                });
-              }}
+              onClick={handleWebEnrichment}
+              disabled={researchStatus.status.isActive}
               className="p-3 flex flex-col items-center justify-center rounded-lg font-medium transition-all duration-200 border shadow-sm hover:shadow-md hover:scale-105 min-h-[3.5rem] bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 dark:from-gray-700 dark:to-gray-600 dark:text-gray-200 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               <Search className="w-4 h-4 mb-1" />
@@ -374,45 +455,9 @@ try {
 
           {/* Enhanced AI Auto-Enrich Button */}
           <button
-            onClick={async () => {
-              const isMockData = editedContact.isMockData || editedContact.dataSource === 'mock' || editedContact.createdBy === 'demo';
-
-              researchStatus.startResearch('🔍 Starting intelligent enrichment...');
-
-              try {
-                if (isMockData) {
-                  researchStatus.updateStatus({
-                    stage: 'researching',
-                    message: '🌐 Searching for contact information...'
-                  });
-
-                  await new Promise(resolve => setTimeout(resolve, 1500));
-
-                  const mockEnrichmentData: ContactEnrichmentData = {
-                    firstName: editedContact.firstName,
-                    lastName: editedContact.lastName,
-                    email: editedContact.email,
-                    company: editedContact.company,
-                    phone: editedContact.phone || `+1 555 ${Math.floor(Math.random() * 9000) + 1000}`,
-                    industry: editedContact.industry || 'Technology',
-                    notes: `AI Web Research: Found comprehensive contact information including social media profiles and professional details.`,
-                    confidence: 92,
-                    socialProfiles: {
-                      linkedin: `https://linkedin.com/in/${editedContact.firstName.toLowerCase()}${editedContact.lastName.toLowerCase()}`,
-                      twitter: `https://twitter.com/${editedContact.firstName.toLowerCase()}${editedContact.lastName.toLowerCase()}`
-                    }
-                  };
-
-                  await handleAIEnrichment(mockEnrichmentData);
-                  researchStatus.complete('✅ Contact enriched with web intelligence!');
-                }
-              } catch (error) {
-                console.error('Enrichment failed:', error);
-                researchStatus.setError('Enrichment failed. Using cached data instead.');
-              }
-            }}
+            onClick={handleWebEnrichment}
             disabled={researchStatus.status.isActive}
-            className="w-full flex items-center justify-center py-2 px-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full flex items-center justify-center h-10 px-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm font-medium transition-all duration-200 border border-purple-300/50 shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
             {researchStatus.status.isActive ? (
               <>
@@ -510,8 +555,8 @@ try {
 
           <div className="space-y-3">
             {/* Email */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
+            <div className={`group flex ${hasExtraEmails ? 'items-start' : 'items-center'} justify-between`}>
+              <div className={`flex ${hasExtraEmails ? 'items-start' : 'items-center'} space-x-3 min-w-0 flex-1`}>
                 <div className="w-6 h-6 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Mail className="w-3 h-3 text-green-600" />
                 </div>
@@ -529,19 +574,39 @@ try {
                   ) : (
                     <p className="text-sm font-medium text-gray-900 truncate">{editedContact.email}</p>
                   )}
+                  <EmailsField
+                    email={editedContact.email}
+                    additionalEmails={editedContact.additionalEmails}
+                    editing={isEditing}
+                    adding={addingEmail}
+                    onCancelAdd={() => setAddingEmail(false)}
+                    onChange={(next) => applyUpdates({ email: next.email, additionalEmails: next.additionalEmails })}
+                  />
                 </div>
               </div>
-              <button
-                onClick={() => handleStartEditingField('email')}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-              >
-                <Edit className="w-3 h-3" />
-              </button>
+              <div className="flex items-center flex-shrink-0">
+                {!addingEmail && (
+                  <button
+                    onClick={() => setAddingEmail(true)}
+                    className={`p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ${isEditing ? 'inline-flex' : 'hidden group-hover:inline-flex focus:inline-flex'}`}
+                    title="Add another email"
+                    aria-label="Add another email"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleStartEditingField('email')}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+              </div>
             </div>
 
             {/* Phone */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
+            <div className={`group flex ${hasExtraPhones ? 'items-start' : 'items-center'} justify-between`}>
+              <div className={`flex ${hasExtraPhones ? 'items-start' : 'items-center'} space-x-3 min-w-0 flex-1`}>
                 <div className="w-6 h-6 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Phone className="w-3 h-3 text-yellow-600" />
                 </div>
@@ -560,14 +625,34 @@ try {
                   ) : (
                     <p className="text-sm font-medium text-gray-900">{editedContact.phone || 'Not provided'}</p>
                   )}
+                  <PhonesField
+                    phone={editedContact.phone ?? ''}
+                    additionalPhones={editedContact.additionalPhones}
+                    editing={isEditing}
+                    adding={addingPhone}
+                    onCancelAdd={() => setAddingPhone(false)}
+                    onChange={(next) => applyUpdates({ phone: next.phone, additionalPhones: next.additionalPhones })}
+                  />
                 </div>
               </div>
-              <button
-                onClick={() => handleStartEditingField('phone')}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-              >
-                <Edit className="w-3 h-3" />
-              </button>
+              <div className="flex items-center flex-shrink-0">
+                {!addingPhone && (
+                  <button
+                    onClick={() => setAddingPhone(true)}
+                    className={`p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ${isEditing ? 'inline-flex' : 'hidden group-hover:inline-flex focus:inline-flex'}`}
+                    title="Add another phone"
+                    aria-label="Add another phone"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleStartEditingField('phone')}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+              </div>
             </div>
 
             {/* Company */}
@@ -588,7 +673,19 @@ try {
                       autoFocus
                     />
                   ) : (
-                    <p className="text-sm font-medium text-gray-900">{editedContact.company}</p>
+                    onOpenCompany && editedContact.company?.trim() ? (
+                      <button
+                        type="button"
+                        data-testid="company-link"
+                        onClick={() => onOpenCompany(editedContact.company.trim())}
+                        title={`Open ${editedContact.company.trim()}`}
+                        className="text-sm font-medium text-gray-900 text-left hover:underline"
+                      >
+                        {editedContact.company}
+                      </button>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900">{editedContact.company}</p>
+                    )
                   )}
                 </div>
               </div>
@@ -599,6 +696,13 @@ try {
                 <Edit className="w-3 h-3" />
               </button>
             </div>
+
+            {/* Address (composite) */}
+            <AddressField
+              address={editedContact.address}
+              editing={isEditing}
+              onChange={(address) => applyUpdates({ address })}
+            />
 
             {/* Social Media */}
             <div className="flex items-center justify-between">
@@ -689,6 +793,13 @@ try {
                 </div>
               </div>
             )}
+
+            {/* Links (composite) */}
+            <LinksField
+              links={editedContact.links}
+              editing={isEditing}
+              onChange={(links) => applyUpdates({ links })}
+            />
 
             {/* Last Connected */}
             <div className="flex items-center justify-between">

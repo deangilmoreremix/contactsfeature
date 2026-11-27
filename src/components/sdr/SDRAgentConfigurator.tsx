@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { SDRUserPreferences, createDefaultPreferences, validatePreferences } from '../../types/sdr-preferences';
+import { SDRUserPreferences, createDefaultPreferences, validatePreferences, resolvePersonaId } from '../../types/sdr-preferences';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
 import { CampaignBuilder } from './CampaignBuilder';
+import { outboundPersonaOptions } from '../../agents/personas';
 import { X, Settings, Clock, Target, Zap, Save, RotateCcw, Workflow } from 'lucide-react';
 
 type TabId = 'basic' | 'advanced' | 'ai' | 'timing';
@@ -29,7 +30,6 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
   onSave,
   onClose,
   onReset,
-  loading = false
 }) => {
   const [config, setConfig] = useState<SDRUserPreferences>(
     currentConfig ? { ...createDefaultPreferences('temp-user', agentId), ...currentConfig } :
@@ -79,7 +79,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
       <GlassCard className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -212,6 +212,28 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                   <option value="medium">Medium - Basic personalization</option>
                   <option value="high">High - Deep personalization</option>
                 </select>
+              </div>
+
+              {/* Outbound Persona */}
+              <div>
+                <label htmlFor="sdr-persona-select" className="block text-sm font-medium text-gray-700 mb-2">
+                  Outbound Persona
+                </label>
+                <select
+                  id="sdr-persona-select"
+                  value={resolvePersonaId(config.aiSettings.personaId)}
+                  onChange={(e) => updateConfig({
+                    aiSettings: { ...config.aiSettings, personaId: resolvePersonaId(e.target.value) }
+                  })}
+                  className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {outboundPersonaOptions.map((persona) => (
+                    <option key={persona.id} value={persona.id}>{persona.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Sets the voice and playbook used for campaigns built from this agent
+                </p>
               </div>
             </div>
           )}
@@ -425,10 +447,10 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="gpt-5.2-thinking">GPT-5.2 Thinking (Deep Reasoning)</option>
-                    <option value="gpt-5.2">GPT-5.2 (Balanced)</option>
-                    <option value="gpt-5.2-instant">GPT-5.2 Instant (Fast)</option>
-                    <option value="gpt-5.2-pro">GPT-5.2 Pro (Advanced Analytics)</option>
+                    <option value="thinking">Thinking (Deep Reasoning)</option>
+                    <option value="default">Balanced</option>
+                    <option value="fast">Fast</option>
+                    <option value="pro">Pro (Advanced Analytics)</option>
                   </select>
                 </div>
 
@@ -558,6 +580,7 @@ export const SDRAgentConfigurator: React.FC<SDRAgentConfiguratorProps> = ({
           agentId={agentId}
           agentName={agentName}
           preferences={config}
+          personaId={resolvePersonaId(config.aiSettings.personaId)}
           onSave={(template) => {
             console.log('Campaign template saved:', template);
             // Here you could integrate with the SDR preferences to store campaign sequences

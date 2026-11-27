@@ -10,7 +10,7 @@ export interface MeetingParticipant {
   availability?: TimeSlot[];
   timezone: string;
   role: 'organizer' | 'required' | 'optional';
-  response?: 'accepted' | 'declined' | 'tentative' | 'pending';
+  response?: 'accepted' | 'declined' | 'tentative' | 'pending' | undefined;
 }
 
 export interface TimeSlot {
@@ -43,7 +43,7 @@ export interface MeetingRequest {
 export interface ScheduledMeeting {
   id: string;
   title: string;
-  description?: string;
+  description?: string | undefined;
   startTime: string;
   endTime: string;
   duration: number;
@@ -176,8 +176,8 @@ export class MeetingSchedulerService {
       if (!analysis.workHours.days.includes(dayOfWeek)) continue;
 
       // Generate time slots during work hours
-      const [startHour, startMinute] = analysis.workHours.start.split(':').map(Number);
-      const [endHour, endMinute] = analysis.workHours.end.split(':').map(Number);
+      const [startHour = NaN] = analysis.workHours.start.split(':').map(Number);
+      const [endHour = NaN] = analysis.workHours.end.split(':').map(Number);
 
       for (let hour = startHour; hour < endHour; hour++) {
         for (let minute = 0; minute < 60; minute += 30) { // 30-minute slots
@@ -235,11 +235,13 @@ export class MeetingSchedulerService {
     if (availabilityAnalyses.length === 0) return [];
 
     // Start with the first participant's available slots
-    let commonSlots = availabilityAnalyses[0].availableSlots;
+    const firstAnalysis = availabilityAnalyses[0];
+    if (!firstAnalysis) return [];
+    let commonSlots = firstAnalysis.availableSlots;
 
     // Find intersection with other participants' availability
     for (let i = 1; i < availabilityAnalyses.length; i++) {
-      const participantSlots = availabilityAnalyses[i].availableSlots;
+      const participantSlots = availabilityAnalyses[i]?.availableSlots ?? [];
       commonSlots = commonSlots.filter(slot1 =>
         participantSlots.some(slot2 =>
           slot1.start === slot2.start && slot1.end === slot2.end
@@ -265,18 +267,23 @@ export class MeetingSchedulerService {
       // Check if slots are consecutive
       let isConsecutive = true;
       for (let j = 1; j < consecutiveSlots.length; j++) {
-        const prevEnd = new Date(consecutiveSlots[j - 1].end);
-        const currentStart = new Date(consecutiveSlots[j].start);
+        const prevSlot = consecutiveSlots[j - 1];
+        const currentSlot = consecutiveSlots[j];
+        if (!prevSlot || !currentSlot) break;
+        const prevEnd = new Date(prevSlot.end);
+        const currentStart = new Date(currentSlot.start);
         if (currentStart.getTime() !== prevEnd.getTime()) {
           isConsecutive = false;
           break;
         }
       }
 
-      if (isConsecutive) {
+      const firstSlot = consecutiveSlots[0];
+      const lastSlot = consecutiveSlots[consecutiveSlots.length - 1];
+      if (isConsecutive && firstSlot && lastSlot) {
         meetingSlots.push({
-          start: consecutiveSlots[0].start,
-          end: consecutiveSlots[consecutiveSlots.length - 1].end,
+          start: firstSlot.start,
+          end: lastSlot.end,
           available: true,
           confidence: consecutiveSlots.reduce((sum, slot) => sum + (slot.confidence || 0), 0) / consecutiveSlots.length
         });
@@ -401,14 +408,18 @@ export class MeetingSchedulerService {
     } else {
       // Find optimal time automatically
       const result = await this.findOptimalTime(request);
-      if (result.suggestedSlots.length === 0) {
+      const firstSuggested = result.suggestedSlots[0];
+      if (!firstSuggested) {
         throw new Error('No suitable meeting time found');
       }
-      meetingTime = result.suggestedSlots[0];
+      meetingTime = firstSuggested;
     }
 
     const meetingId = `meeting_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const organizer = request.participants.find(p => p.role === 'organizer') || request.participants[0];
+    if (!organizer) {
+      throw new Error('At least one participant is required to schedule a meeting');
+    }
 
     const meeting: ScheduledMeeting = {
       id: meetingId,

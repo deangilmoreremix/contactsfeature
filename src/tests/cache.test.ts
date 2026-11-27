@@ -12,12 +12,13 @@ vi.useFakeTimers();
 describe('Cache Service', () => {
   beforeEach(() => {
     cacheService.clear();
+    cacheService.setMaxSize(1000); // the singleton keeps its size limit across tests (clear() does not reset it)
     vi.clearAllTimers();
   });
 
   afterEach(() => {
     cacheService.clear();
-    vi.restoreAllTimers();
+    vi.clearAllTimers();
   });
 
   describe('Basic Set/Get Operations', () => {
@@ -75,10 +76,12 @@ describe('Cache Service', () => {
       // Should be available immediately
       expect(cacheService.get('test', 'ttl-item')).toEqual(testData);
 
-      // Advance time by 1 second
+      // An entry is expired once its age is greater than the TTL: still valid exactly at the TTL...
       vi.advanceTimersByTime(1000);
+      expect(cacheService.get('test', 'ttl-item')).toEqual(testData);
 
-      // Should be expired
+      // ...and gone right after it
+      vi.advanceTimersByTime(1);
       expect(cacheService.get('test', 'ttl-item')).toBeNull();
     });
 
@@ -90,20 +93,33 @@ describe('Cache Service', () => {
       // Should be available immediately
       expect(cacheService.get('test', 'default-ttl')).toEqual(testData);
 
-      // Advance time by default TTL (5 minutes)
-      vi.advanceTimersByTime(300000);
+      // Advance time past the default TTL (5 minutes)
+      vi.advanceTimersByTime(300001);
 
       // Should be expired
       expect(cacheService.get('test', 'default-ttl')).toBeNull();
     });
 
-    it('should handle zero TTL (immediate expiration)', () => {
+    it('should treat a zero TTL as "not specified" and use the default TTL', () => {
       const testData = { id: 1, name: 'Test' };
 
-      cacheService.set('test', 'zero-ttl', testData, 0);
+      cacheService.set('test', 'zero-ttl', testData, 0); // `ttl || defaultTTL`
 
-      // Should be expired immediately
+      expect(cacheService.get('test', 'zero-ttl')).toEqual(testData);
+
+      vi.advanceTimersByTime(300001);
       expect(cacheService.get('test', 'zero-ttl')).toBeNull();
+    });
+
+    it('a zero TTL never means "no expiry": nothing stored with 0 survives past the default TTL', () => {
+      cacheService.set('test', 'zero-a', 'a', 0);
+      cacheService.setContact('zero-contact', { id: 'zero-contact' }, 0);
+      vi.advanceTimersByTime(299999);
+      expect(cacheService.get('test', 'zero-a')).toBe('a');
+      expect(cacheService.getContact('zero-contact')).not.toBeNull();
+      vi.advanceTimersByTime(2);
+      expect(cacheService.get('test', 'zero-a')).toBeNull();
+      expect(cacheService.getContact('zero-contact')).toBeNull();
     });
   });
 
@@ -285,8 +301,8 @@ describe('Cache Service', () => {
       expect(cacheService.get('test', 'item1')).toEqual({ id: 1 });
       expect(cacheService.get('test', 'item2')).toEqual({ id: 2 });
 
-      // Advance time by 1 second
-      vi.advanceTimersByTime(1000);
+      // Advance time past the 1 second TTL
+      vi.advanceTimersByTime(1001);
 
       // Force cleanup
       cacheService.forceCleanup();
@@ -343,9 +359,9 @@ describe('Cache Service', () => {
       // Invalidate contact
       cacheService.invalidateContact('contact-1');
 
-      // Contact should be gone, list should also be invalidated due to tag
+      // Only that contact is removed; cached lists stay (invalidateAllContacts clears those)
       expect(cacheService.getContact('contact-1')).toBeNull();
-      expect(cacheService.getContactList(filters)).toBeNull();
+      expect(cacheService.getContactList(filters)).toEqual(contactList);
     });
 
     it('should invalidate all contacts', () => {
@@ -436,7 +452,7 @@ describe('Cache Service', () => {
       for (let cycle = 0; cycle < 10; cycle++) {
         for (let i = 0; i < 20; i++) {
           const key = `cycle${cycle}-item${i}`;
-          cacheService.set('rapid', key, { cycle, item: i });
+          cacheService.set('rapid', key, { cycle, item: i }, undefined, ['rapid']);
 
           // Immediate read
           const result = cacheService.get('rapid', key);

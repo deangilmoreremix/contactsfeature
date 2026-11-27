@@ -4,7 +4,7 @@ export const outboundAgentsSeed: Omit<OutboundAgent, 'id' | 'created_at' | 'upda
   {
     key: "authority_outreach",
     name: "Authority Outreach Agent",
-    inbox_email: "authority@yourbrand.agentmail.to",
+    inbox_email: "authority@yourbrand.example",
     target_type: "contact",
     persona:
       "Calm, confident expert who sends short, high-value emails that position the founder as a trusted authority without sounding salesy.",
@@ -20,7 +20,7 @@ Emails are 3–6 concise lines, plain text, no emojis unless explicitly requeste
   {
     key: "high_ticket_closer",
     name: "High-Ticket Closer Agent",
-    inbox_email: "closer@yourbrand.agentmail.to",
+    inbox_email: "closer@yourbrand.example",
     target_type: "deal",
     persona:
       "Confident, direct, reassuring closer for high-ticket offers. Handles objections with logic and empathy.",
@@ -36,7 +36,7 @@ Keep emails under 10 concise lines, conversational, and focused on clarity and c
   {
     key: "nurture_followup",
     name: "Nurture & Follow-Up Agent",
-    inbox_email: "nurture@yourbrand.agentmail.to",
+    inbox_email: "nurture@yourbrand.example",
     target_type: "both",
     persona:
       "Warm, relational agent that checks in like a helpful friend and re-opens old conversations without pressure.",
@@ -52,7 +52,7 @@ Your goal is to get genuine replies and re-engage the person, not to hard close 
   {
     key: "partnership_connector",
     name: "Partnership & Collaboration Agent",
-    inbox_email: "connect@yourbrand.agentmail.to",
+    inbox_email: "connect@yourbrand.example",
     target_type: "contact",
     persona:
       "Friendly, enthusiastic networker focused on mutually beneficial collaborations: podcasts, JVs, bundles, affiliate deals.",
@@ -67,7 +67,7 @@ Your tone is friendly, enthusiastic, and concise. Always be clear about the mutu
   {
     key: "newsletter_growth",
     name: "Newsletter Growth Agent",
-    inbox_email: "newsletter@yourbrand.agentmail.to",
+    inbox_email: "newsletter@yourbrand.example",
     target_type: "contact",
     persona:
       "Strategic but friendly agent that arranges newsletter swaps and cross-promotions to grow both lists.",
@@ -83,7 +83,7 @@ Your tone is collaborative and respectful of their audience's trust.
   {
     key: "reviews_ugc",
     name: "Product Review & UGC Agent",
-    inbox_email: "reviews@yourbrand.agentmail.to",
+    inbox_email: "reviews@yourbrand.example",
     target_type: "deal",
     persona:
       "Grateful, clear agent that asks satisfied customers for reviews, testimonials, photos, and short videos.",
@@ -99,7 +99,7 @@ You are always appreciative and never pushy or manipulative.
   {
     key: "reactivation_agent",
     name: "Re-Activation Agent",
-    inbox_email: "reactivate@yourbrand.agentmail.to",
+    inbox_email: "reactivate@yourbrand.example",
     target_type: "both",
     persona:
       "Direct but friendly agent that checks in with past buyers or leads who have gone quiet and re-opens the relationship.",
@@ -115,7 +115,7 @@ You ask simple questions like "Is this still relevant?" or "Want to see what we'
   {
     key: "product_recommender",
     name: "Product Recommendation Agent",
-    inbox_email: "curate@yourbrand.agentmail.to",
+    inbox_email: "curate@yourbrand.example",
     target_type: "deal",
     persona:
       "Smart personal shopper that recommends the right product, plan, or bundle based on past behavior and current needs.",
@@ -131,7 +131,7 @@ Keep emails focused, benefit-driven, and easy to say yes or no to.
   {
     key: "cart_recovery",
     name: "Cart Recovery Agent",
-    inbox_email: "recover@yourbrand.agentmail.to",
+    inbox_email: "recover@yourbrand.example",
     target_type: "deal",
     persona:
       "Friendly, understanding agent that recovers abandoned checkouts by removing friction and answering questions.",
@@ -148,7 +148,7 @@ Your goal is to help them make a clear decision, not to pressure them.
   {
     key: "launch_promo",
     name: "Launch & Promo Agent",
-    inbox_email: "launch@yourbrand.agentmail.to",
+    inbox_email: "launch@yourbrand.example",
     target_type: "both",
     persona:
       "Excited but grounded campaign agent that runs full launch/promo email sequences with ethical urgency.",

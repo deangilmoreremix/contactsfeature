@@ -5,11 +5,14 @@ import type {
   ProductContactMatch,
   MatchReason,
   MatchScoreWeights,
-  DEFAULT_SCORE_WEIGHTS,
   CompanySize,
 } from '../types/userProduct';
+import { DEFAULT_SCORE_WEIGHTS } from '../types/userProduct';
 import { gpt52ProductIntelligenceService, AIMatchAnalysis } from './gpt52ProductIntelligenceService';
 import { logger } from './logger.service';
+
+/** Snake_case fields that older payloads may carry; they are not part of the typed Contact model. */
+type LegacyContactFields = { job_title?: string; company_size?: string; employees?: string; department?: string };
 
 interface ScoreResult {
   score: number;
@@ -121,7 +124,8 @@ export class ProductMatchingService {
       }]};
     }
 
-    const contactSize = (contact.company_size || contact.employees || '').toLowerCase();
+    const legacyContact = contact as Contact & LegacyContactFields;
+    const contactSize = (legacyContact.company_size || legacyContact.employees || '').toLowerCase();
 
     if (!contactSize) {
       return { score: Math.floor(maxScore * 0.3), maxScore, reasons: [{
@@ -163,8 +167,9 @@ export class ProductMatchingService {
       }]};
     }
 
-    const contactTitle = (contact.title || contact.job_title || '').toLowerCase();
-    const contactDepartment = (contact.department || '').toLowerCase();
+    const legacyContact = contact as Contact & LegacyContactFields;
+    const contactTitle = (contact.title || legacyContact.job_title || '').toLowerCase();
+    const contactDepartment = (legacyContact.department || '').toLowerCase();
 
     if (!contactTitle && !contactDepartment) {
       return { score: Math.floor(maxScore * 0.3), maxScore, reasons: [{
@@ -194,7 +199,7 @@ export class ProductMatchingService {
       score += maxScore * 0.7;
       reasons.push({
         category: 'Title',
-        reason: `${contact.title || contact.job_title} matches target title "${matchedTitle}"`,
+        reason: `${contact.title || legacyContact.job_title} matches target title "${matchedTitle}"`,
         score_contribution: Math.floor(maxScore * 0.7)
       });
     }
@@ -265,7 +270,7 @@ export class ProductMatchingService {
     }]};
   }
 
-  calculateStatusScore(product: UserProduct, contact: Contact): ScoreResult {
+  calculateStatusScore(_product: UserProduct, contact: Contact): ScoreResult {
     const reasons: MatchReason[] = [];
     const maxScore = this.weights.status;
 
@@ -305,10 +310,8 @@ export class ProductMatchingService {
     }]};
   }
 
-  generateRecommendedApproach(product: UserProduct, contact: Contact, matchScore: number): string {
+  generateRecommendedApproach(_product: UserProduct, contact: Contact, matchScore: number): string {
     const tier = matchScore >= 80 ? 'high' : matchScore >= 50 ? 'medium' : 'low';
-    const hasEmail = !!contact.email;
-    const hasPhone = !!contact.phone;
     const title = (contact.title || '').toLowerCase();
     const isExecutive = ['ceo', 'cto', 'cfo', 'coo', 'vp', 'director', 'head', 'chief'].some(t => title.includes(t));
 
@@ -341,7 +344,7 @@ export class ProductMatchingService {
 
     if (product.value_propositions.length > 0) {
       const vp = product.value_propositions[0];
-      reasons.push(`${vp.title}: ${vp.description}`);
+      if (vp) reasons.push(`${vp.title}: ${vp.description}`);
     }
 
     if (product.use_cases.length > 0) {
@@ -355,7 +358,7 @@ export class ProductMatchingService {
 
   generateObjectionsAnticipated(product: UserProduct, contact: Contact): string[] {
     const objections: string[] = [];
-    const companySize = (contact.company_size || '').toLowerCase();
+    const companySize = ((contact as Contact & LegacyContactFields).company_size || '').toLowerCase();
 
     if (companySize.includes('startup') || companySize.includes('small')) {
       objections.push('Budget constraints - emphasize ROI and flexible pricing');

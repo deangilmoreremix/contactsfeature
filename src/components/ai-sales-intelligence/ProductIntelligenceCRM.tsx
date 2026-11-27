@@ -8,8 +8,6 @@ interface ProductIntelligenceCRMProps {
 }
 
 export const ProductIntelligenceCRM: React.FC<ProductIntelligenceCRMProps> = ({
-  analysisResults,
-  generatedContent,
   onComplete,
   onBack
 }) => {

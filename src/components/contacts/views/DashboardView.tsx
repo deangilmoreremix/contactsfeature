@@ -1,16 +1,16 @@
-import React from 'react';
 import { Contact } from '../../../types/contact';
 import { GlassCard } from '../../ui/GlassCard';
 import {
   Users,
   TrendingUp,
   Target,
-  DollarSign,
   Award,
   Activity,
   Star
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PinChartMenu, PinnedCharts, usePinnedCharts } from '../dashboard/PinnedCharts';
+import { useDealStore } from '../../../store/useDealStore';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardViewProps {
   contacts: Contact[];
@@ -18,6 +18,10 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ contacts, onContactClick }: DashboardViewProps) {
+  const { pinned, toggle: togglePin } = usePinnedCharts();
+  const deals = useDealStore((s) => s.deals);
+  const dealsLoaded = useDealStore((s) => s.loaded);
+  const fetchDeals = useDealStore((s) => s.fetchDeals);
   const totalContacts = contacts.length;
   const avgAIScore = contacts.reduce((sum, c) => sum + (c.aiScore || 0), 0) / totalContacts;
   const hotLeads = contacts.filter(c => c.interestLevel === 'hot').length;
@@ -58,6 +62,12 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Contact Analytics Dashboard
         </h3>
+        <PinChartMenu
+          pinned={pinned}
+          onToggle={togglePin}
+          dealsAvailable={deals.length > 0}
+          onOpen={() => { if (!dealsLoaded) void fetchDeals(); }}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -199,9 +209,10 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
                    alt={contact.name}
                    className="w-10 h-10 rounded-full object-cover"
                    onError={(e) => {
-                     e.target.onerror = null;
-                     e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-                     e.target.style.opacity = '0.7';
+                     const img = e.currentTarget;
+                     img.onerror = null;
+                     img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                     img.style.opacity = '0.7';
                    }}
                    loading="lazy"
                  />
@@ -225,6 +236,8 @@ export function DashboardView({ contacts, onContactClick }: DashboardViewProps) 
           </div>
         </GlassCard>
       </div>
+
+      <PinnedCharts ids={pinned} contacts={contacts} deals={deals} onUnpin={togglePin} />
     </div>
   );
 }

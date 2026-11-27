@@ -64,7 +64,7 @@ export const MetricsCards: React.FC = () => {
       const progress = currentStep / steps;
 
       setAnimatedValues(prevValues =>
-        prevValues.map((currentValue, index) => {
+        prevValues.map((_currentValue, index) => {
           const target = targetValues[index] || 0;
           const difference = target - 0; // Start from 0
           return Math.floor(0 + difference * progress);

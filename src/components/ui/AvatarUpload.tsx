@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Camera, Upload, X, RotateCcw } from 'lucide-react';
+import { Camera, Upload, RotateCcw } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
 interface AvatarUploadProps {
@@ -99,7 +99,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
       const fileName = `avatar_${contactId || 'temp'}_${Date.now()}.png`;
 
       // Upload to Supabase storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('avatars')
         .upload(fileName, blob, {
           cacheControl: '3600',
@@ -175,7 +175,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
     }
   };
 
-  const findAIImage = async (name: string): Promise<string> => {
+  const findAIImage = async (_name: string): Promise<string> => {
     // Placeholder - integrate with your existing AI service
     // This should call your aiEnrichmentService.findContactImage
     return 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2';

@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { aspectToSize, generateImages } from './imageGenerationService';
 import { logger } from './logger.service';
 import { imageStorageService, type SavedImage } from './imageStorage.service';
 
@@ -46,8 +47,6 @@ export interface AgentImageContext {
 }
 
 class ImageAgentService {
-  private readonly GEMINI_FUNCTION_URL = '/.netlify/functions/gemini-image-generator';
-
   /**
    * Generate images for AI AE Agent (demo visuals)
    */
@@ -256,46 +255,47 @@ class ImageAgentService {
    */
   private async generateImages(request: ImageGenerationRequest): Promise<ImageGenerationResult> {
     try {
-      // Get authentication token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('User must be authenticated');
-      }
-
-      const response = await fetch(this.GEMINI_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(request)
+      const size = aspectToSize(request.aspect_ratio);
+      const count = Math.max(1, Math.min(6, request.variants || 1));
+      const referenceImages = (request.seeds || []).filter(s => s.startsWith('data:image/')).slice(0, 4);
+      // Variants run as background jobs that are polled (no long-lived request); with reference images the
+      // service falls back to one synchronous edit request per variant. Partial success is kept.
+      const generated = await generateImages({
+        prompt: request.prompt,
+        n: count,
+        size,
+        quality: 'medium',
+        ...(referenceImages.length ? { referenceImages } : {})
       });
+      const dataUrls = generated.images;
+      const model = generated.model;
+      if (generated.failed) logger.warn('Some image variants failed', { failed: generated.failed, requested: count });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+      const images: SavedImage[] = [];
+      for (const [i, dataUrl] of dataUrls.entries()) {
+        const saved = await imageStorageService.saveGeneratedImage(
+          dataUrl,
+          `${request.agent_id || 'agent'}-${request.feature || 'image'}-${Date.now()}-v${i + 1}.png`,
+          {
+            prompt: request.prompt,
+            feature: request.feature,
+            format: request.format,
+            aspect_ratio: request.aspect_ratio,
+            variants_generated: count,
+            model,
+            tags: [request.agent_id, request.feature, 'generated'].filter(Boolean) as string[],
+            ...(request.agent_id && { agent_id: request.agent_id }),
+            ...(request.contact_id && { contact_id: request.contact_id }),
+            ...(request.deal_id && { deal_id: request.deal_id })
+          } as SavedImage['metadata']
+        );
+        if (saved.success && saved.image) images.push(saved.image);
+        else logger.warn('Failed to save generated image', { error: saved.error });
       }
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Generation failed');
+      if (!images.length) {
+        throw new Error('Images were generated but could not be saved');
       }
-
-      // Convert the returned images to SavedImage format
-      const images: SavedImage[] = result.images.map((img: any) => ({
-        id: img.id,
-        user_id: '', // Will be set by the function
-        filename: img.filename,
-        original_filename: img.filename,
-        url: img.url,
-        thumbnail_url: img.thumbnail_url,
-        file_size: 0, // Will be set by storage service
-        mime_type: 'image/png',
-        metadata: img.metadata,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
 
       logger.info('Images generated successfully', {
         count: images.length,
@@ -306,7 +306,7 @@ class ImageAgentService {
       return {
         success: true,
         images,
-        metadata: result.metadata
+        metadata: { total_generated: images.length, model, cost_estimate: 0 }
       };
 
     } catch (error) {

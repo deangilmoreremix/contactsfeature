@@ -1,6 +1,13 @@
 import { supabase } from './supabaseClient';
 import { logger } from './logger.service';
 import { mcpAdapter } from './mcpAdapter';
+import { aiJson, type AIRole } from './aiClient';
+import type { LiveOptions } from './liveOptions';
+import { streamFunction } from './liveFunction';
+import aiEndpoints from '../lib/streaming/aiEndpoints.json';
+
+/** Netlify functions that answer over SSE when asked (dual-mode, docs/STREAMING.md). Everything else stays plain JSON. */
+const DUAL_MODE_FUNCTIONS = new Set<string>(aiEndpoints.endpoints);
 import type {
   AgentConfig,
   AgentRun,
@@ -18,76 +25,41 @@ export interface AgentExecutionRequest {
   input?: Record<string, any>;
   context?: AgentContext;
   instructions?: string;
+  /** Live progress for the planning turn (the agent's reply types in via onPartial: {response}). */
+  live?: LiveOptions;
 }
 
-export interface OpenAIResponsesRequest {
-  model: string;
-  messages: Array<{
-    role: 'system' | 'user' | 'assistant' | 'tool';
-    content: string;
-    tool_calls?: Array<{
-      id: string;
-      type: 'function';
-      function: {
-        name: string;
-        arguments: string;
-      };
-    }>;
-    tool_call_id?: string;
-  }>;
-  tools?: Array<{
-    type: 'function';
-    function: {
-      name: string;
-      description: string;
-      parameters: {
-        type: 'object';
-        properties: Record<string, any>;
-        required?: string[];
-      };
+/** Function-tool definition offered to the agent planner (executed client-side via Netlify functions / MCP). */
+export interface AgentToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, any>;
+      required?: string[];
     };
-  }>;
-  tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
-  temperature?: number;
-  max_tokens?: number;
-  reasoning_effort?: 'low' | 'medium' | 'high';
-}
-
-export interface OpenAIResponsesResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: 'assistant';
-      content: string | null;
-      tool_calls?: Array<{
-        id: string;
-        type: 'function';
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }>;
-    };
-    finish_reason: string;
-  }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-    reasoning_tokens?: number;
   };
 }
 
-class AgentFramework {
-  private readonly OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-  private readonly GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-exp:generateContent';
+export interface AgentModelUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  reasoning_tokens?: number;
+}
 
+/** Normalized result of one agent model turn (via the server-side AI proxy). */
+export interface AgentModelResult {
+  content: string;
+  tool_calls: Array<{ id: string; name: string; arguments: string }>;
+  usage: AgentModelUsage;
+}
+
+class AgentFramework {
   /**
-   * Execute an agent using OpenAI Responses API
+   * Execute an agent via the server-side AI proxy (Responses API)
    */
   async executeAgent(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
     try {
@@ -104,13 +76,13 @@ class AgentFramework {
       }
 
       // Gather context data
-      const context = await this.gatherContext(request.userId, request.contactId, request.dealId);
+      const context = await this.gatherContext(request.contactId, request.dealId);
 
       // Create agent run record
       const agentRun: Omit<AgentRun, 'id' | 'created_at'> = {
         agent_id: request.agentId,
-        contact_id: request.contactId || undefined,
-        deal_id: request.dealId || undefined,
+        ...(request.contactId ? { contact_id: request.contactId } : {}),
+        ...(request.dealId ? { deal_id: request.dealId } : {}),
         user_id: request.userId,
         input_data: request.input || {},
         status: 'running'
@@ -125,24 +97,15 @@ class AgentFramework {
         // Build tools from agent config
         const tools = await this.buildTools(agentConfig.tools);
 
-        // Execute agent with tool calling
-        const openAIRequest: OpenAIResponsesRequest = {
-          model: agentConfig.model || 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: JSON.stringify(request.input || {}) }
-          ],
-          tool_choice: 'auto',
-          temperature: 0.7,
-          max_tokens: agentConfig.max_output_tokens || 4000,
-          reasoning_effort: (agentConfig.reasoning_effort === 'none' ? 'low' : agentConfig.reasoning_effort) || 'medium'
-        };
-
-        if (tools && tools.length > 0) {
-          openAIRequest.tools = tools;
-        }
-
-        const response = await this.callOpenAIResponses(openAIRequest);
+        // Execute agent (planning turn: the model may request tool calls)
+        const response = await this.callAgentModel({
+          role: this.roleForAgent(agentConfig),
+          instructions: systemPrompt,
+          input: JSON.stringify(request.input || {}),
+          tools: tools || [],
+          maxOutputTokens: agentConfig.max_output_tokens || 4000,
+          ...(request.live ? { live: request.live } : {})
+        });
 
         // Process tool calls and responses
         const { toolCalls, finalResponse } = await this.processAgentResponse(response, agentConfig);
@@ -223,7 +186,7 @@ class AgentFramework {
       trigger_options: data.trigger_options || {},
       prompt_template: data.prompt_template,
       instructions: data.instructions,
-      model: data.model || 'gpt-4o',
+      model: data.model || 'default',
       reasoning_effort: data.reasoning_effort || 'medium',
       verbosity: data.verbosity || 'medium',
       max_output_tokens: data.max_output_tokens
@@ -233,7 +196,7 @@ class AgentFramework {
   /**
    * Gather context data for agent execution
    */
-  private async gatherContext(userId: string, contactId?: string, dealId?: string): Promise<AgentContext> {
+  private async gatherContext(contactId?: string, dealId?: string): Promise<AgentContext> {
     const context: AgentContext = {};
 
     try {
@@ -318,8 +281,8 @@ class AgentFramework {
   /**
    * Build tools array from agent config
    */
-  private async buildTools(toolNames: string[]): Promise<OpenAIResponsesRequest['tools']> {
-    const tools: OpenAIResponsesRequest['tools'] = [];
+  private async buildTools(toolNames: string[]): Promise<AgentToolDefinition[]> {
+    const tools: AgentToolDefinition[] = [];
 
     for (const toolName of toolNames) {
       // Check if it's an MCP tool first
@@ -346,7 +309,7 @@ class AgentFramework {
     const toolDefinitions: Record<string, any> = {
       'ai-enrichment': {
         name: 'ai-enrichment',
-        description: 'AI contact scoring and lead qualification using GPT-4 and Gemini',
+        description: 'AI contact scoring and lead qualification using AI',
         parameters: {
           type: 'object',
           properties: {
@@ -371,7 +334,7 @@ class AgentFramework {
       },
       'generate-demo-visuals': {
         name: 'generate-demo-visuals',
-        description: 'Generate presentation visuals using Gemini 2.5 Flash',
+        description: 'Generate presentation visuals using OpenAI image generation',
         parameters: {
           type: 'object',
           properties: {
@@ -518,61 +481,92 @@ class AgentFramework {
     };
   }
 
+  /** Map an agent's stored model/effort hints onto a server-side model role. */
+  private roleForAgent(agentConfig: AgentConfig): AIRole {
+    const hint = String(agentConfig.model || '').toLowerCase();
+    if (hint.includes('pro')) return 'pro';
+    if (hint.includes('instant') || hint.includes('fast') || hint.includes('mini') || hint.includes('nano')) return 'fast';
+    if (hint.includes('thinking') || agentConfig.reasoning_effort === 'high') return 'thinking';
+    return 'default';
+  }
+
   /**
-   * Call OpenAI Responses API
+   * One agent model turn through the AI proxy. The proxy does not accept raw function tools, so the
+   * model is asked (with a strict JSON schema) to reply and to list any tool calls it wants executed.
    */
-  private async callOpenAIResponses(request: OpenAIResponsesRequest): Promise<OpenAIResponsesResponse> {
-    const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
+  private async callAgentModel(params: {
+    role: AIRole;
+    instructions: string;
+    input: string;
+    tools: AgentToolDefinition[];
+    maxOutputTokens: number;
+    live?: LiveOptions;
+  }): Promise<AgentModelResult> {
+    const toolNames = params.tools.map(t => t.function.name);
+    const toolCatalog = params.tools.length
+      ? `\n\nAvailable tools (request them via tool_calls; arguments_json must be a JSON object string matching the parameters):\n${JSON.stringify(params.tools.map(t => t.function), null, 2)}`
+      : '\n\nNo tools are available; leave tool_calls empty.';
 
-    const response = await fetch(this.OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json'
+    const schema = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        response: { type: 'string', description: 'The agent response text (may itself be a JSON string if the instructions require structured output).' },
+        tool_calls: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              name: toolNames.length ? { type: 'string', enum: toolNames } : { type: 'string' },
+              arguments_json: { type: 'string' }
+            },
+            required: ['name', 'arguments_json']
+          }
+        }
       },
-      body: JSON.stringify(request)
-    });
+      required: ['response', 'tool_calls']
+    };
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`OpenAI API error: ${errorData}`);
-    }
+    const result = await aiJson<{ response: string; tool_calls: Array<{ name: string; arguments_json: string }> }>({
+      role: params.role,
+      instructions: params.instructions + toolCatalog,
+      input: params.input,
+      schema,
+      schemaName: 'agent_turn',
+      maxOutputTokens: params.maxOutputTokens
+    }, params.live);
 
-    return await response.json();
+    return {
+      content: result.response || '',
+      tool_calls: (result.tool_calls || []).map((c, i) => ({
+        id: `call_${Date.now()}_${i}`,
+        name: c.name,
+        arguments: c.arguments_json || '{}'
+      })),
+      // The proxy does not report per-call usage to this layer; do not fabricate numbers.
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+    };
   }
 
   /**
    * Process agent response and extract tool calls
    */
   private async processAgentResponse(
-    response: OpenAIResponsesResponse,
-    agentConfig: AgentConfig
+    response: AgentModelResult,
+    _agentConfig: AgentConfig
   ): Promise<{ toolCalls: ToolCall[], finalResponse: string }> {
-    const choice = response.choices[0];
-    if (!choice) {
-      throw new Error('No response choices returned');
-    }
-
-    const message = choice.message;
     const toolCalls: ToolCall[] = [];
-    const finalResponse = message.content || '';
-
-    // Process tool calls
-    if (message.tool_calls) {
-      for (const toolCall of message.tool_calls) {
-        toolCalls.push({
-          id: toolCall.id,
-          type: 'function',
-          name: toolCall.function.name,
-          arguments: JSON.parse(toolCall.function.arguments)
-        });
+    for (const call of response.tool_calls) {
+      let args: Record<string, any> = {};
+      try {
+        args = JSON.parse(call.arguments || '{}');
+      } catch {
+        throw new Error(`Agent requested tool "${call.name}" with invalid JSON arguments`);
       }
+      toolCalls.push({ id: call.id, type: 'function', name: call.name, arguments: args });
     }
-
-    return { toolCalls, finalResponse };
+    return { toolCalls, finalResponse: response.content };
   }
 
   /**
@@ -611,52 +605,53 @@ class AgentFramework {
       return await mcpAdapter.executeTool(name, args || {});
     }
 
+    // Tool runs report status / text to the caller's live callbacks. onPartial stays with the planning turn
+    // (the agent's own reply), so a tool's JSON never overwrites it.
+    const live: LiveOptions | undefined = request.live
+      ? { ...(request.live.onStatus ? { onStatus: request.live.onStatus } : {}), ...(request.live.onDelta ? { onDelta: request.live.onDelta } : {}), ...(request.live.signal ? { signal: request.live.signal } : {}) }
+      : undefined;
+
     // Route to appropriate Netlify function
     switch (name) {
       case 'ai-enrichment':
         return await this.callNetlifyFunction('ai-enrichment', args);
 
       case 'email-composer':
-        return await this.callNetlifyFunction('email-composer', args);
+        return await this.callNetlifyFunction('email-composer', args, live);
 
       case 'generate-demo-visuals':
-        return await this.callNetlifyFunction('gemini-image-generator', {
-          prompt: args?.prompt || '',
-          variants: 3,
-          aspect_ratio: '16:9',
-          contact_id: args?.contact_id,
-          deal_id: args?.deal_id,
-          agent_id: request.agentId,
-          feature: 'demo-visuals',
-          format: 'presentation'
+        return await this.callNetlifyFunction('generate-image', {
+          prompt: args?.['prompt'] || '',
+          n: 3,
+          size: '1536x1024'
         });
 
       case 'deal-health-analysis':
-        return await this.callNetlifyFunction('deal-health-analysis', args);
+        return await this.callNetlifyFunction('deal-health-analysis', args, live);
 
       case 'sales-forecasting':
-        return await this.callNetlifyFunction('sales-forecasting', args);
+        return await this.callNetlifyFunction('sales-forecasting', args, live);
 
       case 'semantic-search':
         return await this.callNetlifyFunction('semantic-search', args);
 
       case 'social-selling-agent':
-        return await this.callNetlifyFunction('social-selling-agent', args);
+        return await this.callNetlifyFunction('social-selling-agent', args, live);
 
       case 'email-personalization-agent':
-        return await this.callNetlifyFunction('email-personalization-agent', args);
+        return await this.callNetlifyFunction('email-personalization-agent', args, live);
 
       case 'revenue-intelligence-agent':
-        return await this.callNetlifyFunction('revenue-intelligence-agent', args);
+        return await this.callNetlifyFunction('revenue-intelligence-agent', args, live);
 
       case 'competitive-intelligence-agent':
-        return await this.callNetlifyFunction('competitive-intelligence-agent', args);
+        return await this.callNetlifyFunction('competitive-intelligence-agent', args, live);
 
       case 'negotiation-coach-agent':
-        return await this.callNetlifyFunction('negotiation-coach-agent', args);
+        return await this.callNetlifyFunction('negotiation-coach-agent', args, live);
 
       case 'content-creation-agent':
-        return await this.callNetlifyFunction('content-creation-agent', args);
+        return await this.callNetlifyFunction('content-creation-agent', args, live);
 
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -664,12 +659,23 @@ class AgentFramework {
   }
 
   /**
-   * Call Netlify function
+   * Call Netlify function. Dual-mode functions (the ones that stream) are called over SSE so `live` receives
+   * status / text while they work; the resolved value is the same JSON the function returns in plain mode.
    */
-  private async callNetlifyFunction(functionName: string, payload: any): Promise<any> {
+  private async callNetlifyFunction(functionName: string, payload: any, live?: LiveOptions): Promise<any> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('User must be authenticated');
+    }
+
+    if (DUAL_MODE_FUNCTIONS.has(functionName)) {
+      try {
+        const { result } = await streamFunction<any>(`/.netlify/functions/${functionName}`, payload ?? {}, live ?? {});
+        return result;
+      } catch (e) {
+        if (live?.signal?.aborted) throw e;
+        throw new Error(`Function ${functionName} error: ${e instanceof Error ? e.message : 'request failed'}`);
+      }
     }
 
     const response = await fetch(`/.netlify/functions/${functionName}`, {
@@ -695,7 +701,7 @@ class AgentFramework {
   private async generateAgentResponse(
     agentConfig: AgentConfig,
     content: string,
-    toolResults: any[],
+    _toolResults: any[],
     usage: any
   ): Promise<AgentResponse> {
     return {
@@ -731,14 +737,14 @@ class AgentFramework {
     try {
       const content = JSON.parse(response.output_text);
       if (content.contact_updates && request.contactId) {
-        updates.contacts.push({
+        updates.contacts?.push({
           id: request.contactId,
           updates: content.contact_updates
         });
       }
 
       if (content.deal_updates && request.dealId) {
-        updates.deals.push({
+        updates.deals?.push({
           id: request.dealId,
           updates: content.deal_updates
         });

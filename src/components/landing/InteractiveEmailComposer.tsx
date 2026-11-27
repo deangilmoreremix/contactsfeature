@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { 
-  Mail, 
-  Sparkles, 
-  Copy, 
-  CheckCircle, 
+import {
+  Mail,
+  Sparkles,
+  Copy,
+  CheckCircle,
   Loader2,
   Send,
-  Settings,
-  BarChart3
+  BarChart3,
 } from 'lucide-react';
 
 export const InteractiveEmailComposer: React.FC = () => {

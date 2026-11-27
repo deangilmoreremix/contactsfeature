@@ -1,11 +1,12 @@
 /**
- * Comprehensive tests for VoiceAgentPanel component
- * Tests voice message generation, UI interactions, and edge cases
+ * VoiceAgentPanel: the voice script is streamed from the voice-agent function through useAIStream
+ * (streamSse); the panel renders the final result or the error.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { VoiceAgentPanel } from '../components/VoiceAgentPanel';
+import { newOutcome } from '../lib/streaming/streamClient';
 
 // Mock dependencies
 vi.mock('../services/sdrPreferencesService', () => ({
@@ -16,12 +17,22 @@ vi.mock('../services/sdrPreferencesService', () => ({
 }));
 
 vi.mock('../lib/supabase', () => ({
-  supabase: {}
+  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } }
 }));
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.mock('../services/sdrClient', () => ({
+  sdrAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'Bearer test' })
+}));
+
+// The SSE transport is mocked; the real useAIStream hook and panel run on top of it.
+const streamSse = vi.hoisted(() => vi.fn());
+vi.mock('../lib/streaming/streamClient', async (orig) => ({
+  ...(await orig<typeof import('../lib/streaming/streamClient')>()),
+  streamSse
+}));
+
+const URL = '/.netlify/functions/voice-agent';
+const okOutcome = (result: unknown) => ({ ...newOutcome(), result });
 
 describe('VoiceAgentPanel', () => {
   const mockVoiceResponse = {
@@ -33,10 +44,7 @@ describe('VoiceAgentPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
+    streamSse.mockReset().mockResolvedValue(okOutcome(mockVoiceResponse));
   });
 
   describe('Initial Render', () => {
@@ -110,10 +118,7 @@ describe('VoiceAgentPanel', () => {
 
   describe('Voice Generation', () => {
     it('should generate voice message successfully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVoiceResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVoiceResponse));
 
       render(<VoiceAgentPanel />);
 
@@ -127,11 +132,12 @@ describe('VoiceAgentPanel', () => {
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/.netlify/functions/voice-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: 'contact-123', script: 'Test voice script' })
-        });
+        expect(streamSse).toHaveBeenCalledWith(
+          URL,
+          expect.objectContaining({ body: { contactId: 'contact-123', script: 'Test voice script', tts: false, stream: true } }),
+          expect.anything(),
+          expect.anything()
+        );
       });
 
       await waitFor(() => {
@@ -142,10 +148,7 @@ describe('VoiceAgentPanel', () => {
 
 
     it('should handle generation errors gracefully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'API Error: Invalid request'
-      });
+      streamSse.mockRejectedValueOnce(new Error('API Error: Invalid request'));
 
       render(<VoiceAgentPanel />);
 
@@ -164,7 +167,7 @@ describe('VoiceAgentPanel', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      streamSse.mockRejectedValueOnce(new Error('Network error'));
 
       render(<VoiceAgentPanel />);
 
@@ -183,11 +186,8 @@ describe('VoiceAgentPanel', () => {
     });
 
     it('should show loading state during generation', async () => {
-      mockFetch.mockImplementationOnce(
-        () => new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: async () => mockVoiceResponse
-        }), 100))
+      streamSse.mockImplementationOnce(
+        () => new Promise(resolve => setTimeout(() => resolve(okOutcome(mockVoiceResponse)), 100))
       );
 
       render(<VoiceAgentPanel />);
@@ -201,7 +201,7 @@ describe('VoiceAgentPanel', () => {
       const generateButton = screen.getByText('Generate Voice Message');
       fireEvent.click(generateButton);
 
-      expect(screen.getByText('Generating Voice...')).toBeInTheDocument();
+      expect(screen.getByText('Writing Voice Script...')).toBeInTheDocument();
       expect(generateButton).toBeDisabled();
 
       await waitFor(() => {
@@ -212,10 +212,7 @@ describe('VoiceAgentPanel', () => {
 
   describe('Result Display', () => {
     beforeEach(async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVoiceResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVoiceResponse));
 
       render(<VoiceAgentPanel />);
 
@@ -246,10 +243,7 @@ describe('VoiceAgentPanel', () => {
   describe('Error Handling', () => {
     it('should clear previous errors on successful generation', async () => {
       // First, trigger an error
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'First error'
-      });
+      streamSse.mockRejectedValueOnce(new Error('First error'));
 
       render(<VoiceAgentPanel />);
 
@@ -267,10 +261,7 @@ describe('VoiceAgentPanel', () => {
       });
 
       // Now successful call
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVoiceResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVoiceResponse));
 
       fireEvent.click(generateButton);
 
@@ -281,10 +272,7 @@ describe('VoiceAgentPanel', () => {
     });
 
     it('should clear previous results on new generation', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVoiceResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVoiceResponse));
 
       render(<VoiceAgentPanel />);
 
@@ -311,11 +299,8 @@ describe('VoiceAgentPanel', () => {
 
   describe('Accessibility', () => {
     it('should have proper button text and disabled state', async () => {
-      mockFetch.mockImplementationOnce(
-        () => new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: async () => mockVoiceResponse
-        }), 100))
+      streamSse.mockImplementationOnce(
+        () => new Promise(resolve => setTimeout(() => resolve(okOutcome(mockVoiceResponse)), 100))
       );
 
       render(<VoiceAgentPanel />);
@@ -330,7 +315,7 @@ describe('VoiceAgentPanel', () => {
       fireEvent.click(generateButton);
 
       expect(generateButton).toBeDisabled();
-      expect(generateButton).toHaveTextContent('Generating Voice...');
+      expect(generateButton).toHaveTextContent('Writing Voice Script...');
 
       await waitFor(() => {
         expect(generateButton).not.toBeDisabled();

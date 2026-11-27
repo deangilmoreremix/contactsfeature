@@ -1,5 +1,4 @@
 import React, { memo, useState } from 'react';
-import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { Contact } from '../../types';
 import { Loader2, User } from 'lucide-react';
 
@@ -43,7 +42,7 @@ const getBackgroundColor = (name: string): string => {
     'bg-indigo-500', 'bg-red-500', 'bg-yellow-500', 'bg-teal-500'
   ] as const;
   const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-  return colors[index];
+  return colors[index] ?? colors[0];
 };
 
 export const ContactAvatar: React.FC<ContactAvatarProps> = memo(({

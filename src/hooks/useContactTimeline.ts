@@ -6,7 +6,7 @@ import { Contact } from '../types/contact';
 export interface TimelineActivity {
   id: string;
   contactId: string;
-  activityType: 'created' | 'updated' | 'status_changed' | 'score_calculated' | 'email_sent' | 'note_added' | 'imported' | 'exported' | 'ai_analysis' | 'attachment_added' | 'custom_field_updated';
+  activityType: 'created' | 'updated' | 'status_changed' | 'score_calculated' | 'email_sent' | 'note_added' | 'imported' | 'exported' | 'ai_analysis' | 'attachment_added' | 'custom_field_updated' | 'merged' | 'enriched' | 'task_added';
   description: string;
   metadata?: Record<string, any>;
   userName?: string;
@@ -19,6 +19,16 @@ export interface TimelineFilters {
   dateTo?: string;
 }
 
+const toActivity = (row: any): TimelineActivity => ({
+  id: row.id,
+  contactId: row.contact_id,
+  activityType: row.activity_type,
+  description: row.description,
+  ...(row.metadata ? { metadata: row.metadata } : {}),
+  ...(row.user_name ? { userName: row.user_name } : {}),
+  createdAt: row.created_at
+});
+
 export function useContactTimeline(contactId: string | undefined, filters: TimelineFilters = {}) {
   const [activities, setActivities] = useState<TimelineActivity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +36,12 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
 
   const loadActivities = async () => {
     if (!contactId) return;
+    // Demo / offline contacts have no database history.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -50,7 +66,7 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
       const { data, error: fetchError } = await query;
       if (fetchError) throw fetchError;
 
-      setActivities((data || []) as TimelineActivity[]);
+      setActivities((data || []).map(toActivity));
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to load timeline', error);
@@ -72,17 +88,18 @@ export function useContactTimeline(contactId: string | undefined, filters: Timel
       const { data, error: insertError } = await supabase
         .from('contact_timeline')
         .insert({
+          user_id: user?.id,
           contact_id: contact.id,
           activity_type: activityType,
           description,
           metadata,
-          user_name: user?.user_metadata?.full_name || user?.email || 'System'
+          user_name: user?.user_metadata?.['full_name'] || user?.email || 'System'
         })
         .select()
         .single();
 
       if (insertError) throw insertError;
-      setActivities(prev => [data as TimelineActivity, ...prev]);
+      setActivities(prev => [toActivity(data), ...prev]);
     } catch (err) {
       logger.error('Failed to add timeline activity', err instanceof Error ? err : new Error(String(err)));
     }
@@ -107,6 +124,9 @@ export function useActivityTypeLabels() {
     exported: { label: 'Exported', color: 'bg-pink-100 text-pink-700', icon: '📤' },
     ai_analysis: { label: 'AI Analysis', color: 'bg-cyan-100 text-cyan-700', icon: '🧠' },
     attachment_added: { label: 'Attachment', color: 'bg-orange-100 text-orange-700', icon: '📎' },
-    custom_field_updated: { label: 'Field Updated', color: 'bg-teal-100 text-teal-700', icon: '🏷️' }
+    custom_field_updated: { label: 'Field Updated', color: 'bg-teal-100 text-teal-700', icon: '🏷️' },
+    merged: { label: 'Merged', color: 'bg-violet-100 text-violet-700', icon: '🔀' },
+    enriched: { label: 'Enriched', color: 'bg-cyan-100 text-cyan-700', icon: '🌐' },
+    task_added: { label: 'Task', color: 'bg-lime-100 text-lime-700', icon: '✅' }
   };
 }

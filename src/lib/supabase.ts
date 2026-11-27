@@ -3,23 +3,42 @@
  * Centralized Supabase client setup with proper error handling
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+/** Untyped-schema client (no generated Database types): table rows are `any`, not `never`. */
+export type AppSupabaseClient = SupabaseClient<any, 'public', any>;
 
 // Environment variables
 const supabaseUrl = import.meta.env['VITE_SUPABASE_URL'];
 const supabaseAnonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
 
 // Track if client has been initialized
-let supabaseInstance: ReturnType<typeof createClient> | null = null;
+let supabaseInstance: AppSupabaseClient | null = null;
+let placeholderInstance: AppSupabaseClient | null = null;
+
+/** False when VITE_SUPABASE_* are missing (demo mode): realtime/presence must not try to connect. */
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+/** Local stand-in for fetch when Supabase is not configured: no network, a clean 503 the callers already handle. */
+export const notConfiguredFetch: typeof fetch = async () =>
+  new Response(JSON.stringify({ message: 'Supabase is not configured', code: 'NOT_CONFIGURED' }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' }
+  });
 
 // Create Supabase client with optimized settings - lazy initialization
 function getSupabaseClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase environment variables not configured. Using mock client for development.');
     // Return a mock client that won't crash the app
-    return createClient('https://placeholder.supabase.co', 'placeholder-key', {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
+    // One shared instance: creating a client per property access opened a new realtime socket each time.
+    if (!placeholderInstance) {
+      placeholderInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
+        auth: { autoRefreshToken: false, persistSession: false },
+        // Demo mode: answer locally instead of sending requests to a host that does not exist.
+        global: { fetch: notConfiguredFetch }
+      });
+    }
+    return placeholderInstance;
   }
   
   if (!supabaseInstance) {
@@ -40,7 +59,7 @@ function getSupabaseClient() {
   return supabaseInstance;
 }
 
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+export const supabase = new Proxy({} as AppSupabaseClient, {
   get(_, prop) {
     const client = getSupabaseClient();
     const value = (client as any)[prop];

@@ -1,205 +1,46 @@
 /**
- * Netlify Function: Send SMS
- * Handles SMS sending via Twilio with delivery tracking
+ * Netlify Function: send an SMS through the user's own provider (Twilio).
+ * POST { to, message, from?, contactId?, automationId? }
+ * Credentials live encrypted in messaging_providers; nothing is simulated — without a provider
+ * the call fails with 412 NO_PROVIDER.
  */
+const { supabase } = require('./_supabaseClient');
+const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { sendSms } = require('./_messaging');
+const { checkOutbound, flaggedResponse } = require('./_moderation');
 
-const { createClient } = require('@supabase/supabase-js');
+const E164 = /^\+[1-9]\d{6,14}$/;
+const MAX_PER_MINUTE = 30;
 
-// Environment variables
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+exports.handler = withAuth(async (event, user) => {
+  let b;
+  try { b = JSON.parse(event.body || '{}'); } catch { return errorResponse(400, 'Invalid JSON'); }
+  const { to, message, from, contactId, automationId } = b;
 
-exports.handler = async (event, context) => {
-  // Only allow POST requests
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+  if (!to || !message) return errorResponse(400, 'Phone number and message are required');
+  if (!E164.test(String(to))) return errorResponse(400, 'Phone number must be in E.164 format, e.g. +14155550123');
+  if (String(message).length > 1600) return errorResponse(400, 'Message is too long (max 1600 characters)');
+
+  const mod = await checkOutbound({ texts: [message], userId: user.id, endpoint: 'send-sms' });
+  if (!mod.ok) return flaggedResponse(mod.categories, CORS_HEADERS);
+
+  if (contactId) {
+    const { data: c } = await supabase.from('contacts').select('id').eq('id', contactId).eq('user_id', user.id).maybeSingle();
+    if (!c) return errorResponse(404, 'Contact not found');
   }
 
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const { count } = await supabase.from('sms_events').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', since);
+  if ((count || 0) >= MAX_PER_MINUTE) return errorResponse(429, 'Rate limit exceeded');
+
+  const base = { user_id: user.id, contact_id: contactId || null, to_number: to, message, automation_id: automationId || null };
   try {
-    const { to, message, from, automationId, contactId } = JSON.parse(event.body);
-
-    if (!to || !message) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Phone number and message are required' })
-      };
-    }
-
-    // Initialize Supabase client
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // Get active Twilio configuration
-    const { data: twilioConfig, error: configError } = await supabase
-      .from('communication_configs')
-      .select('*')
-      .eq('type', 'twilio')
-      .eq('is_active', true)
-      .single();
-
-    if (configError || !twilioConfig) {
-      console.error('Twilio config error:', configError);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Twilio configuration not found' })
-      };
-    }
-
-    let fromNumber = from;
-    if (!fromNumber && twilioConfig.phone_numbers && twilioConfig.phone_numbers.length > 0) {
-      fromNumber = twilioConfig.phone_numbers[0];
-    }
-
-    if (!fromNumber) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'No sender phone number available' })
-      };
-    }
-
-    const canSend = await checkRateLimits(supabase, twilioConfig.id, twilioConfig.rate_limit);
-    if (!canSend) {
-      return {
-        statusCode: 429,
-        body: JSON.stringify({ error: 'Rate limit exceeded' })
-      };
-    }
-
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig.account_sid}/Messages.json`;
-    const credentials = Buffer.from(`${twilioConfig.account_sid}:${twilioConfig.auth_token}`).toString('base64');
-    const body = new URLSearchParams({ Body: message, From: fromNumber, To: to });
-
-    const twilioResponse = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: body.toString(),
-    });
-
-    const twilioMessage = await twilioResponse.json();
-
-    if (!twilioResponse.ok) {
-      throw new Error(twilioMessage.message || 'Twilio API error');
-    }
-
-    await supabase.from('sms_events').insert({
-      message_sid: twilioMessage.sid,
-      contact_id: contactId,
-      to_number: to,
-      from_number: fromNumber,
-      message: message,
-      status: twilioMessage.status,
-      automation_id: automationId,
-      twilio_response: twilioMessage,
-      config_id: twilioConfig.id
-    });
-
-    // Update daily usage
-    await updateUsageStats(supabase, twilioConfig.id);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        messageSid: twilioMessage.sid,
-        status: twilioMessage.status,
-        to: to,
-        from: fromNumber
-      })
-    };
-
-  } catch (error) {
-    console.error('SMS sending error:', error);
-
-    // Log error event
-    try {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      const { contactId, to, automationId } = JSON.parse(event.body);
-
-      await supabase.from('sms_events').insert({
-        contact_id: contactId,
-        to_number: to,
-        status: 'failed',
-        error_message: error.message,
-        automation_id: automationId,
-        metadata: { function: 'send-sms' }
-      });
-    } catch (logError) {
-      console.error('Error logging failed:', logError);
-    }
-
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error: 'Failed to send SMS',
-        details: error.message
-      })
-    };
+    const r = await sendSms(user.id, { to, body: message, from });
+    await supabase.from('sms_events').insert({ ...base, provider: r.provider, message_sid: r.messageId, status: 'sent' });
+    return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ success: true, messageSid: r.messageId, provider: r.provider, to }) };
+  } catch (err) {
+    await supabase.from('sms_events').insert({ ...base, status: 'failed', error_message: err.message });
+    const noProvider = err.code === 'NO_PROVIDER';
+    return { statusCode: noProvider ? 412 : 502, headers: CORS_HEADERS, body: JSON.stringify({ success: false, code: err.code || 'SEND_FAILED', error: err.message }) };
   }
-};
-
-/**
- * Check rate limits for SMS sending
- */
-async function checkRateLimits(supabase, configId, rateLimit) {
-  const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
-
-  // Count messages sent in the last minute
-  const { count, error } = await supabase
-    .from('sms_events')
-    .select('*', { count: 'exact', head: true })
-    .eq('config_id', configId)
-    .gte('created_at', oneMinuteAgo.toISOString());
-
-  if (error) {
-    console.error('Rate limit check error:', error);
-    return false;
-  }
-
-  return (count || 0) < rateLimit;
-}
-
-/**
- * Update usage statistics
- */
-async function updateUsageStats(supabase, configId) {
-  const today = new Date().toISOString().split('T')[0];
-
-  // Get or create usage record for today
-  const { data: usage, error: findError } = await supabase
-    .from('communication_usage')
-    .select('*')
-    .eq('config_id', configId)
-    .eq('date', today)
-    .single();
-
-  if (findError && findError.code !== 'PGRST116') { // PGRST116 = not found
-    console.error('Usage stats error:', findError);
-    return;
-  }
-
-  if (usage) {
-    // Update existing record
-    await supabase
-      .from('communication_usage')
-      .update({
-        sms_count: usage.sms_count + 1,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', usage.id);
-  } else {
-    // Create new record
-    await supabase
-      .from('communication_usage')
-      .insert({
-        config_id: configId,
-        date: today,
-        sms_count: 1
-      });
-  }
-}
+});

@@ -1,5 +1,4 @@
 import React from 'react';
-import { GlassCard } from '../ui/GlassCard';
 import { MoreHorizontal, ArrowRight } from 'lucide-react';
 
 const interactions = [

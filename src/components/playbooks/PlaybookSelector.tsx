@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Playbook, RECURRING_REVENUE_PLAYBOOKS, getPlaybooksByCategory } from '../../data/playbooks';
+import { Playbook, RECURRING_REVENUE_PLAYBOOKS } from '../../data/playbooks';
 import { ModernButton } from '../ui/ModernButton';
 import { SmartTooltip } from '../ui/SmartTooltip';
 import {
@@ -194,7 +194,7 @@ export const PlaybookSelector: React.FC<PlaybookSelectorProps> = ({
                   <div>
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Process</span>
                     <div className="flex items-center space-x-1 mt-1">
-                      {playbook.phases.slice(0, 4).map((phase, index) => (
+                      {playbook.phases.slice(0, 4).map((_phase, index) => (
                         <div key={index} className="flex items-center">
                           <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                           {index < playbook.phases.length - 1 && (

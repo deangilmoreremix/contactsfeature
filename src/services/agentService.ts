@@ -1,11 +1,11 @@
 /**
-import { SMARTCRM_DEFAULT_MODEL } from '../config/ai';
  * Agent Service
  * Handles agent metadata loading, run history management, and entity updates
  */
 
 import { supabase } from './supabaseClient';
 import { logger } from './logger.service';
+import { SMARTCRM_DEFAULT_MODEL } from '../config/ai';
 import type {
   AgentConfig,
   AgentRun,
@@ -290,7 +290,7 @@ export class AgentService {
    * Gather context data for agent execution
    */
   async gatherContext(
-    userId: string,
+    _userId: string,
     contactId?: string,
     dealId?: string
   ): Promise<AgentContext> {
@@ -394,7 +394,7 @@ export class AgentService {
 
   private async createTasks(
     tasks: Array<{ title: string; description?: string; due_date?: string; priority?: string; assigned_to?: string }>,
-    userId: string
+    _userId: string
   ): Promise<void> {
     // Placeholder - would need tasks table
     logger.info('Tasks creation placeholder', { count: tasks.length });

@@ -8,12 +8,61 @@
  * - 10 specialized agents
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { agentFramework } from '../services/agentFramework';
 import { agentService } from '../services/agentService';
 import { netlifyAdapter } from '../services/netlifyAdapter';
+import { supabase } from '../services/supabaseClient';
+import { aiJson } from '../services/aiClient';
+import type { FakeSupabase } from './helpers/fakeSupabase';
+
+vi.mock('../services/supabaseClient', async () => {
+  const { createFakeSupabase } = await import('./helpers/fakeSupabase');
+  return { supabase: createFakeSupabase() };
+});
+vi.mock('../services/aiClient', () => ({ aiJson: vi.fn() }));
+vi.mock('../services/mcpAdapter', () => ({
+  mcpAdapter: { getTool: async () => null, getOpenAITools: async () => [], executeTool: async () => { throw new Error('no MCP'); } }
+}));
+
+const db = supabase as unknown as FakeSupabase;
+
+/** The agent_metadata rows from supabase/seed_agent_metadata.sql, parsed into table rows (the DB itself is not available in unit tests). */
+function loadSeedAgents(): Array<Record<string, any>> {
+  const sql = readFileSync(resolve(__dirname, '../../supabase/seed_agent_metadata.sql'), 'utf8');
+  const values = sql.slice(sql.indexOf('VALUES') + 6);
+  const columns = ['name', 'description', 'tools', 'input_schema', 'output_schema', 'recommended_ui_placement', 'trigger_options', 'instructions', 'model', 'reasoning_effort', 'verbosity', 'max_output_tokens'];
+  const json = new Set(['tools', 'input_schema', 'output_schema', 'trigger_options']);
+  return values.split(/\),\s*\n\(/).map((row, index) => {
+    const tokens = [...row.matchAll(/'((?:[^']|'')*)'|(\d+)/g)].map(m => (m[1] !== undefined ? m[1].replace(/''/g, "'") : Number(m[2])));
+    const record: Record<string, any> = { id: `agent-${index + 1}` };
+    columns.forEach((col, k) => { record[col] = json.has(col) ? JSON.parse(tokens[k] as string) : tokens[k]; });
+    return record;
+  });
+}
 
 describe('SmartCRM Agent System', () => {
+  const seedAgents = loadSeedAgents();
+
+  beforeEach(() => {
+    db.reset();
+    vi.mocked(aiJson).mockReset();
+    (db.auth as any).getSession = async () => ({ data: { session: { access_token: 't' } }, error: null });
+    db.respond('agent_metadata', 'select', ({ filters }) => {
+      const byId = filters.find(([k]) => k === 'eq:id');
+      return { data: byId ? seedAgents.find(a => a['id'] === byId[1]) ?? null : seedAgents, error: null };
+    });
+    db.respond('agent_runs', 'select', { data: [], error: null });
+    db.respond('agent_runs', 'insert', { data: { id: 'run-1', status: 'running', created_at: new Date().toISOString() }, error: null });
+    db.respond('agent_runs', 'update', { data: null, error: null });
+  });
+
+  it('should parse the seed file into the ten documented agents', () => {
+    expect(seedAgents).toHaveLength(10);
+  });
+
   describe('Agent Framework', () => {
     it('should load agent configurations', async () => {
       const agents = await agentService.loadAllAgents();
@@ -27,22 +76,18 @@ describe('SmartCRM Agent System', () => {
 
     it('should execute AI SDR Agent', async () => {
       const agents = await agentService.loadAllAgents();
-      const aiSdrAgent = agents.find(a => a.name === 'AI SDR Agent');
+      const aiSdrAgent = agents.find(a => a.name === 'AI SDR Agent')!;
+      vi.mocked(aiJson).mockResolvedValue({ response: 'Outreach plan', tool_calls: [] });
 
-      if (aiSdrAgent) {
-        const result = await agentFramework.executeAgent({
-          agentId: aiSdrAgent.id,
-          contactId: 'test-contact-123',
-          userId: 'test-user-123',
-          input: {
-            campaign_type: 'cold_outreach'
-          }
-        });
+      const result = await agentFramework.executeAgent({
+        agentId: aiSdrAgent.id,
+        contactId: 'test-contact-123',
+        userId: 'test-user-123',
+        input: { campaign_type: 'cold_outreach' }
+      });
 
-        expect(result.success).toBe(true);
-        expect(result.run.status).toBe('completed');
-        expect(result.response).toBeDefined();
-      }
+      expect(result.run.status).toBe('completed');
+      expect(result.response.output_text).toBe('Outreach plan');
     });
   });
 
@@ -99,20 +144,20 @@ describe('SmartCRM Agent System', () => {
   });
 
   describe('Tool Integration', () => {
-    it('should integrate with Gemini image generation', async () => {
+    it('should integrate with OpenAI image generation', async () => {
       const metadata = netlifyAdapter.getFunctionMetadata('generate-demo-visuals');
 
       expect(metadata).toBeDefined();
-      expect(metadata?.parameters.properties.prompt).toBeDefined();
-      expect(metadata?.parameters.properties.contact_id).toBeDefined();
+      expect(metadata?.parameters.properties['prompt']).toBeDefined();
+      expect(metadata?.parameters.properties['contact_id']).toBeDefined();
     });
 
     it('should integrate with email composer', async () => {
       const metadata = netlifyAdapter.getFunctionMetadata('email-composer');
 
       expect(metadata).toBeDefined();
-      expect(metadata?.parameters.properties.contact).toBeDefined();
-      expect(metadata?.parameters.properties.generate_images).toBeDefined();
+      expect(metadata?.parameters.properties['contact']).toBeDefined();
+      expect(metadata?.parameters.properties['generate_images']).toBeDefined();
     });
   });
 

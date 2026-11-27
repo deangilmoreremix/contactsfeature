@@ -1,21 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GlassCard } from '../ui/GlassCard';
-import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
 import { webSearchService } from '../../services/webSearchService';
 import { useDocumentSummarization } from '../../hooks/useDocumentSummarization';
-import { fileStorageService, FileUploadResult, FileMetadata } from '../../services/fileStorage.service';
+import { fileStorageService, FileMetadata } from '../../services/fileStorage.service';
 import { journeyService, JourneyEvent as DbJourneyEvent, CreateJourneyEventInput } from '../../services/journeyService';
 import { isMockContact } from '../../utils/mockDataDetection';
+import { TimelineKindFilter, useTimelineKindFilter } from './TimelineKindFilter';
+import { classifyJourneyEvent, countByKind, filterByKinds } from '../../lib/timeline/filterEvents';
 import {
   Mail,
-  Phone,
-  MessageSquare,
-  Video,
-  Calendar,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -43,9 +39,9 @@ interface JourneyEvent {
   timestamp: string;
   status?: 'completed' | 'pending' | 'in_progress';
   metadata?: {
-    channel?: string;
-    sentiment?: 'positive' | 'neutral' | 'negative';
-    score?: number;
+    channel?: string | undefined;
+    sentiment?: 'positive' | 'neutral' | 'negative' | undefined;
+    score?: number | undefined;
     fileName?: string;
     fileSize?: number;
     fileType?: string;
@@ -118,24 +114,25 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     const [isUploading, setIsUploading] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [showFileUpload, setShowFileUpload] = useState(false);
-    const [filterType, setFilterType] = useState<string>('all');
     const [filterDateRange, setFilterDateRange] = useState<string>('all');
     const [summarizingFileId, setSummarizingFileId] = useState<string | null>(null);
     const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const isSummarizingFile = (id: string) => summarizingFileId === id;
 
     // Research state management
     const researchThinking = useResearchThinking();
     const researchStatus = useResearchStatus();
-    const [researchSources, setResearchSources] = useState<any[]>([]);
+    const [, setResearchSources] = useState<any[]>([]);
 
     // Document summarization hook
     const {
       isSummarizing,
-      error: summarizationError,
-      summaries,
       processAndSummarizeFile,
+      processAndSummarizeUrl,
       getSummary,
+      getLive,
+      getError,
       clearError
     } = useDocumentSummarization();
 
@@ -187,7 +184,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         includeSources: true,
         searchContextSize: 'high' as const,
         // Force mock mode for demo contacts to ensure citations show
-        useMockData: isMockContact || !import.meta.env['VITE_OPENAI_API_KEY']
+        useMockData: isMockContact
       };
 
       const searchResults = await webSearchService.searchWithAI(
@@ -342,10 +339,9 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           if (uploadedFile) {
             try {
               setSummarizingFileId(uploadedFile.id);
-              // Note: We need the original file object for summarization
-              // In a real implementation, you'd store the file blob or retrieve it
-              const mockFile = new File(['Mock content'], uploadedFile.name, { type: uploadedFile.type }) as any;
-              await processAndSummarizeFile(mockFile, uploadedFile.id, {
+              const originalFile = files.find(f => f.name === uploadedFile.name);
+              if (!originalFile) continue;
+              await processAndSummarizeFile(originalFile, uploadedFile.id, {
                 contactName: contact.name,
                 companyName: contact.company
               });
@@ -411,12 +407,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       setSummarizingFileId(file.id);
       clearError();
 
-      // We need to get the original file object to extract text
-      // In a real implementation, you'd store the file blob or retrieve it from storage
-      // For now, we'll create a mock file object for demonstration
-      const mockFile = new (File as any)(['Mock file content for summarization'], file.name, { type: file.type });
-
-      await processAndSummarizeFile(mockFile, file.id, {
+      await processAndSummarizeUrl(file.url, file.name, file.type, file.id, {
         contactName: contact.name,
         companyName: contact.company
       });
@@ -469,8 +460,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
     return Icon;
   };
 
-  const filteredEvents = journeyEvents.filter(event => {
-    if (filterType !== 'all' && event.type !== filterType) return false;
+  const dateFilteredEvents = useMemo(() => journeyEvents.filter(event => {
     if (filterDateRange !== 'all') {
       const eventDate = new Date(event.timestamp);
       const now = new Date();
@@ -479,7 +469,11 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
       if (filterDateRange === 'month' && daysDiff > 30) return false;
     }
     return true;
-  });
+  }), [journeyEvents, filterDateRange]);
+
+  const kindCounts = useMemo(() => countByKind(dateFilteredEvents, classifyJourneyEvent), [dateFilteredEvents]);
+  const kindFilter = useTimelineKindFilter(kindCounts);
+  const filteredEvents = filterByKinds(dateFilteredEvents, kindFilter.selected, classifyJourneyEvent);
 
   return (
     <>
@@ -509,19 +503,6 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
           <p className="text-sm text-gray-600 dark:text-gray-400">Timeline of interactions, milestones, and uploaded files for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Filter events by type"
-          >
-            <option value="all">All Types</option>
-            <option value="interaction">Interactions</option>
-            <option value="milestone">Milestones</option>
-            <option value="status_change">Status Changes</option>
-            <option value="ai_insight">AI Insights</option>
-            <option value="file_upload">File Uploads</option>
-          </select>
           <select
             value={filterDateRange}
             onChange={(e) => setFilterDateRange(e.target.value)}
@@ -630,6 +611,7 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
               {uploadedFiles.map((file) => {
                 const FileIcon = getFileIcon(file.type);
                 const summary = getSummary(file.id);
+                const live = isSummarizingFile(file.id) ? getLive(file.id) : null;
                 const isExpanded = expandedSummaries.has(file.id);
                 const isCurrentlySummarizing = summarizingFileId === file.id;
                 const isDocument = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'].includes(file.type);
@@ -705,12 +687,12 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                           <div className="flex items-center justify-between">
                             <h5 className="font-medium text-gray-900 dark:text-white flex items-center">
                               <Brain className="w-4 h-4 mr-2 text-purple-600" />
-                              AI Summary (GPT-4o-mini)
+                              AI Summary
                             </h5>
                             <div className="flex items-center space-x-2 text-xs text-gray-500">
                               <span>Confidence: {summary.confidence}%</span>
                               <span>•</span>
-                              <span>{summary.wordCount} words</span>
+                              <span>{summary.wordCount ?? 'n/a'} words</span>
                               <span>•</span>
                               <span>{summary.processingTime}ms</span>
                             </div>
@@ -746,12 +728,56 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
                       </div>
                     )}
 
+                    {/* Live AI summary (streams in while the model writes it) */}
+                    {live && !summary && (
+                      <div className="border-t border-gray-200 dark:border-gray-700 bg-white p-4" data-testid="live-summary">
+                        <div className="space-y-3">
+                          <h5 className="font-medium text-gray-900 dark:text-white flex items-center">
+                            <Brain className="w-4 h-4 mr-2 text-purple-600" />
+                            AI Summary
+                            {live.documentType && <span className="ml-2 text-xs font-normal text-gray-500">({live.documentType})</span>}
+                          </h5>
+                          {live.summary && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                              <p className="text-sm text-gray-800 leading-relaxed">{live.summary}</p>
+                            </div>
+                          )}
+                          {!!live.keyPoints?.length && (
+                            <div>
+                              <h6 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Key Points:</h6>
+                              <ul className="space-y-1">
+                                {live.keyPoints.map((point, index) => (
+                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <span className="text-purple-600 mt-1">•</span>
+                                    <span>{point}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {!!live.actionItems?.length && (
+                            <div>
+                              <h6 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Action Items:</h6>
+                              <ul className="space-y-1">
+                                {live.actionItems.map((item, index) => (
+                                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <span className="text-purple-600 mt-1">•</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Error Display */}
-                    {summarizationError && summarizingFileId === file.id && (
+                    {getError(file.id) && (
                       <div className="border-t border-red-200 bg-red-50 p-3">
                         <div className="flex items-center space-x-2 text-sm text-red-700">
                           <AlertCircle className="w-4 h-4" />
-                          <span>{summarizationError}</span>
+                          <span>{getError(file.id)}</span>
                         </div>
                       </div>
                     )}
@@ -763,15 +789,28 @@ export const ContactJourneyTimeline: React.FC<ContactJourneyTimelineProps> = ({ 
         </GlassCard>
       )}
 
+      {!isLoading && (
+        <TimelineKindFilter
+          counts={kindCounts}
+          selected={kindFilter.selected}
+          onToggle={kindFilter.toggle}
+          onClear={kindFilter.clear}
+        />
+      )}
+
       {/* Journey Timeline */}
       {!isLoading && <GlassCard className="p-6">
         {/* Empty State */}
         {filteredEvents.length === 0 && (
           <div className="text-center py-12">
             <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Journey Events Yet</h4>
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {dateFilteredEvents.length > 0 ? 'No Events Match This Filter' : 'No Journey Events Yet'}
+            </h4>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Start tracking interactions, milestones, and insights for this contact.
+              {dateFilteredEvents.length > 0
+                ? 'Choose "All" above to see every event type again.'
+                : 'Start tracking interactions, milestones, and insights for this contact.'}
             </p>
             <button
               onClick={handleGeneratePredictiveInsights}

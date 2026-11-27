@@ -3,6 +3,7 @@
  * AI-powered communication analysis, generation, and optimization
  */
 
+import type { LiveOptions } from './liveOptions';
 import { aiOrchestrator, AIRequest } from './ai-orchestrator.service';
 import { logger } from './logger.service';
 import { Contact } from '../types';
@@ -180,7 +181,7 @@ class CommunicationAIService {
         context
       },
       context: {
-        contactId: recipient?.id
+        ...(recipient?.id !== undefined ? { contactId: recipient.id } : {})
       }
     };
 
@@ -220,12 +221,15 @@ class CommunicationAIService {
   async generateCommunicationStrategy(
     contact: Contact,
     interactionHistory?: any[],
-    businessGoals?: string[]
+    businessGoals?: string[],
+    live?: LiveOptions
   ): Promise<CommunicationStrategy> {
     const request: Omit<AIRequest, 'id'> = {
+      ...(live ? { live } : {}),
       type: 'communication_analysis',
       priority: 'medium',
       data: {
+        schemaHint: 'communication_strategy',
         contact,
         interactionHistory,
         businessGoals
@@ -240,14 +244,12 @@ class CommunicationAIService {
       
       return {
         contactId: contact.id,
-        optimalChannels: response.result.optimalChannels || [
-          { channel: 'email', effectiveness: 80, reasoning: ['Primary business communication'] }
-        ],
+        optimalChannels: response.result.optimalChannels || [],
         timing: response.result.timing || {
-          bestDays: ['Tuesday', 'Wednesday', 'Thursday'],
-          bestHours: ['9AM-11AM', '2PM-4PM'],
-          frequency: 'Weekly',
-          nextOptimalContact: '2 days'
+          bestDays: [],
+          bestHours: [],
+          frequency: '',
+          nextOptimalContact: ''
         },
         messaging: response.result.messaging || {
           preferredTone: 'professional',
@@ -460,7 +462,7 @@ class CommunicationAIService {
     const wordCount = emailContent.body.split(' ').length;
     if (wordCount >= 50 && wordCount <= 200) score += 10;
     if (emailContent.body.includes('?')) score += 5;
-    if (emailContent.body.match(/\n\n/g)?.length >= 2) score += 5; // Paragraph breaks
+    if ((emailContent.body.match(/\n\n/g)?.length ?? 0) >= 2) score += 5; // Paragraph breaks
     
     return Math.max(0, Math.min(100, score));
   }

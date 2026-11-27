@@ -1,11 +1,22 @@
 import type { OutboundPersonaId } from '../agents/personas';
-import type { FollowupMode, ContactAgentSettings } from '../server/contactAgentSettings';
+import { sdrAuthHeaders } from '../services/sdrClient';
+
+export type FollowupMode = 'manual' | 'reply-only' | '2-step' | '5-step';
+
+export type ContactAgentSettings = {
+  id: string;
+  contact_id: string;
+  persona_id: OutboundPersonaId;
+  followup_mode: FollowupMode;
+  is_enabled: boolean;
+  notes: string | null;
+};
 
 // adjust base URL as needed
 const BASE = '/.netlify/functions/contact-agent-settings';
 
 export async function fetchContactAgentSettings(contactId: string): Promise<ContactAgentSettings | null> {
-  const res = await fetch(`${BASE}?contactId=${contactId}`);
+  const res = await fetch(`${BASE}?contactId=${encodeURIComponent(contactId)}`, { headers: await sdrAuthHeaders() });
   if (!res.ok) return null;
   return (await res.json()) as ContactAgentSettings;
 }
@@ -18,7 +29,7 @@ export async function saveContactAgentSettings(input: {
 }) {
   const res = await fetch(BASE, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await sdrAuthHeaders(),
     body: JSON.stringify(input),
   });
 

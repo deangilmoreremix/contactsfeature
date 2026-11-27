@@ -5,12 +5,10 @@ import {
   Sparkles,
   X,
   ChevronDown,
-  ChevronUp,
-  Lightbulb,
   CheckCircle,
   ArrowRight,
   RefreshCw,
-  Wand2
+  Wand2,
 } from 'lucide-react';
 import type { UserProduct } from '../../types/userProduct';
 import { gpt52ProductIntelligenceService, ProductSuggestion } from '../../services/gpt52ProductIntelligenceService';
@@ -19,7 +17,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  suggestions?: string[];
+  suggestions?: string[] | undefined;
   timestamp: Date;
 }
 
@@ -84,8 +82,8 @@ What would you like help with?`,
       const response = await gpt52ProductIntelligenceService.getConversationalAssistance(
         inputValue.trim(),
         {
-          product: product as UserProduct | undefined,
-          currentStep
+          ...(product ? { product: product as UserProduct } : {}),
+          ...(currentStep !== undefined ? { currentStep } : {})
         },
         conversationId.current
       );

@@ -1,106 +1,60 @@
 /**
- * Central AI Configuration for SmartCRM
- * Manages model versions and routing for GPT-5.2 upgrade
+ * Central AI configuration for SmartCRM.
+ *
+ * Model ids live in ONE place — src/config/models.json — and are resolved on the server
+ * (netlify/functions/_responses.js). The browser only ever names a ROLE
+ * ("default" | "thinking" | "fast" | "pro") when calling the AI proxy (src/services/aiClient.ts);
+ * it never needs, or holds, an OpenAI key.
  */
+import models from './models.json';
 
-// Environment-based model configuration
-export const SMARTCRM_DEFAULT_MODEL = import.meta.env['SMARTCRM_MODEL'] || "gpt-5.2";
-export const SMARTCRM_THINKING_MODEL = import.meta.env['SMARTCRM_THINKING_MODEL'] || "gpt-5.2-thinking";
-export const SMARTCRM_FAST_MODEL = import.meta.env['SMARTCRM_FAST_MODEL'] || "gpt-5.2-instant";
+export type ModelRole = 'default' | 'thinking' | 'fast' | 'pro';
 
-// Legacy model support (for backward compatibility)
-export const LEGACY_MODELS = {
-  DEFAULT: "gpt-5.1",
-  THINKING: "gpt-5.1-thinking",
-  FAST: "gpt-5.1-instant"
-};
+export const SMARTCRM_DEFAULT_MODEL: ModelRole = 'default';
+export const SMARTCRM_THINKING_MODEL: ModelRole = 'thinking';
+export const SMARTCRM_FAST_MODEL: ModelRole = 'fast';
 
-// Task-based model routing
+/** Display info for UI (real model ids from models.json, reasoning effort per role). */
+export const MODEL_ROLES: Record<ModelRole, { model: string; effort: string }> = models.text;
+
+// Task-based role routing
 export type SmartCRMTask = "sdr" | "ae" | "autopilot" | "summary" | "ui-helper" | "research" | "communication" | "analysis";
 
-export function getModelForTask(task: SmartCRMTask): string {
+export function getModelForTask(task: SmartCRMTask): ModelRole {
   switch (task) {
     case "sdr":
     case "ae":
     case "autopilot":
     case "research":
     case "analysis":
-      return SMARTCRM_THINKING_MODEL; // Deep reasoning for complex tasks
+      return SMARTCRM_THINKING_MODEL; // deep reasoning for complex tasks
 
     case "communication":
-      return SMARTCRM_DEFAULT_MODEL; // Balanced for communication tasks
+      return SMARTCRM_DEFAULT_MODEL; // balanced
 
     case "summary":
     case "ui-helper":
     default:
-      return SMARTCRM_FAST_MODEL; // Fast and cheap for simple tasks
+      return SMARTCRM_FAST_MODEL; // fast and cheap
   }
 }
 
-// User/workspace-specific model resolution
 export interface SmartCRMModels {
-  core: string;
-  fast: string;
-  thinking: string;
+  core: ModelRole;
+  fast: ModelRole;
+  thinking: ModelRole;
 }
 
-export async function resolveSmartcrmModelsForUser(userId?: string): Promise<SmartCRMModels> {
-  // TODO: Implement database lookup for user-specific model preferences
-  // For now, return environment defaults
-  return {
-    core: SMARTCRM_DEFAULT_MODEL,
-    fast: SMARTCRM_FAST_MODEL,
-    thinking: SMARTCRM_THINKING_MODEL
-  };
+export async function resolveSmartcrmModelsForUser(_userId?: string): Promise<SmartCRMModels> {
+  return { core: SMARTCRM_DEFAULT_MODEL, fast: SMARTCRM_FAST_MODEL, thinking: SMARTCRM_THINKING_MODEL };
 }
 
-// Model capabilities and limits
-export const MODEL_LIMITS = {
-  "gpt-5.2": {
-    maxTokens: 128000,
-    contextWindow: 128000,
-    supportsTools: true,
-    supportsVision: true
-  },
-  "gpt-5.2-thinking": {
-    maxTokens: 128000,
-    contextWindow: 128000,
-    supportsTools: true,
-    supportsVision: true
-  },
-  "gpt-5.2-instant": {
-    maxTokens: 32000,
-    contextWindow: 32000,
-    supportsTools: true,
-    supportsVision: false
-  }
-};
+// SDR autopilot roles
+export const SMARTCRM_SDR_MODEL: ModelRole = 'thinking'; // main SDR/autopilot brain
+export const SMARTCRM_SDR_FAST: ModelRole = 'fast';      // quick subject/reply helpers
+export const SMARTCRM_SDR_PRO: ModelRole = 'pro';        // heavy analytics
 
-// Migration utilities
-export function isLegacyModel(model: string): boolean {
-  return Object.values(LEGACY_MODELS).includes(model);
-}
-
-export function migrateModelToCurrent(model: string): string {
-  switch (model) {
-    case LEGACY_MODELS.DEFAULT:
-      return SMARTCRM_DEFAULT_MODEL;
-    case LEGACY_MODELS.THINKING:
-      return SMARTCRM_THINKING_MODEL;
-    case LEGACY_MODELS.FAST:
-      return SMARTCRM_FAST_MODEL;
-    default:
-      return model; // Already current
-  }
-}
-
-// SDR Autopilot specific models
-export const SMARTCRM_SDR_MODEL = "gpt-5.2-thinking";  // Main SDR/autopilot brain
-export const SMARTCRM_SDR_FAST  = "gpt-5.2-instant";   // Quick subject/reply helpers
-export const SMARTCRM_SDR_PRO   = "gpt-5.2-pro";       // Heavy analytics (optional)
-
-// Model selection helper for SDR tasks
-export function pickModelForSdrTask(task: "autopilot" | "inline" | "analytics") {
+export function pickModelForSdrTask(task: "autopilot" | "inline" | "analytics"): ModelRole {
   if (task === "autopilot") return SMARTCRM_SDR_MODEL;
   if (task === "analytics") return SMARTCRM_SDR_PRO;
   return SMARTCRM_SDR_FAST;

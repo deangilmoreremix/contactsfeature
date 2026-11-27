@@ -11,6 +11,7 @@ export { default } from './SmartCRMApp';
 
 // Mount app
 import SmartCRMApp from './SmartCRMApp';
+import { installStreamGuard } from './lib/streaming/streamGuard';
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
@@ -33,6 +34,8 @@ if (rootElement) {
   window.addEventListener('error', handleError as any);
   window.addEventListener('unhandledrejection', handleError as any);
 
+  installStreamGuard(); // dev/test only: flags AI requests made without streaming
+
   const root = createRoot(rootElement);
   root.render(
     <React.StrictMode>
@@ -44,4 +47,14 @@ if (rootElement) {
   );
 } else {
   console.error('Root element not found!');
+}
+
+// Offline app shell: production builds only (a worker in dev would serve stale modules).
+// public/sw.js caches hashed static assets and never touches /.netlify/functions or Supabase traffic.
+if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.warn('Service worker registration failed:', error);
+    });
+  });
 }

@@ -12,21 +12,13 @@ interface QueuedRequest {
   priority: number;
 }
 
-interface BatchRequest {
-  endpoint: string;
-  requests: QueuedRequest[];
-  batchSize: number;
-}
-
 export class APIOptimizationService {
   private requestQueue: Map<string, QueuedRequest[]> = new Map();
   private processingBatches: Set<string> = new Set();
   private readonly BATCH_SIZE = 10;
-  private readonly BATCH_TIMEOUT = 100; // ms
   private readonly MAX_CONCURRENT_REQUESTS = 6;
 
   private activeRequests = 0;
-  private requestQueueArray: QueuedRequest[] = [];
 
   /**
    * Queue a request for batching or deduplication
@@ -128,7 +120,7 @@ export class APIOptimizationService {
   /**
    * Process a batch of requests
    */
-  private async processBatch(key: string, batch: QueuedRequest[]): Promise<void> {
+  private async processBatch(_key: string, batch: QueuedRequest[]): Promise<void> {
     // For now, execute requests sequentially
     // In a real implementation, you might batch API calls to the same endpoint
     const results = await Promise.allSettled(
@@ -185,10 +177,10 @@ export class APIOptimizationService {
   async prefetch<T>(
     key: string,
     requestFn: () => Promise<T>,
-    ttl: number = 300000 // 5 minutes
+    _ttl: number = 300000 // 5 minutes
   ): Promise<void> {
     try {
-      const result = await requestFn();
+      await requestFn();
       // Store in cache with longer TTL
       // This would integrate with your cache service
       console.log(`[API Opt] Prefetched data for ${key}`);
@@ -239,8 +231,7 @@ export class APIOptimizationService {
   ): Promise<T> {
     const {
       failureThreshold = 5,
-      recoveryTimeout = 60000, // 1 minute
-      monitoringPeriod = 300000 // 5 minutes
+      recoveryTimeout = 60000 // 1 minute
     } = options;
 
     const now = Date.now();

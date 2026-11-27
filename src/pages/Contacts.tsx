@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useContactStore } from '../hooks/useContactStore';
 import { useView } from '../contexts/ViewContext';
 import { Contact } from '../types/contact';
@@ -26,7 +26,7 @@ import {
 
 export default function Contacts() {
   const { contacts, isLoading, searchContacts, exportContacts } = useContactStore();
-  const { currentView, filters, setFilters, isLoading: viewLoading } = useView();
+  const { currentView, filters, setFilters } = useView();
 
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showNewContactModal, setShowNewContactModal] = useState(false);
@@ -59,7 +59,9 @@ export default function Contacts() {
 
   const handleExport = async (format: 'csv' | 'json') => {
     try {
-      await exportContacts(format);
+      // Export what the user is looking at: when view filters or a search are active, pass the visible ids
+      const narrowed = activeFiltersCount > 0 || searchQuery.trim().length > 0;
+      await exportContacts(format, narrowed ? { ids: filteredContacts.map(c => c.id) } : undefined);
     } catch (error) {
       console.error('Export failed:', error);
     }

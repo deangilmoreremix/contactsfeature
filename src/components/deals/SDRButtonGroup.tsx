@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { executeDealAi } from '../../ai/deal/executeDealAi';
-import { metorialService } from '../../services/metorialService';
+import { gpt52EnrichmentService } from '../../services/gpt52EnrichmentService';
 import { sanitizeHtml } from '../../utils/validation';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { liveDisplay } from '../../lib/streaming/previewText';
+
+const esc = (v: string | null | undefined): string =>
+  v ? v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)) : '';
+const list = (items: string[]): string =>
+  items.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p>No data</p>';
 
 interface SDRButtonGroupProps {
   dealId: string;
@@ -19,6 +27,7 @@ interface SDRResult {
 
 export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspaceId, personaId, contact, onSequenceGenerated }) => {
   const [loading, setLoading] = useState<string | null>(null);
+  const stream = useFunctionStream<any>();
   const [campaignProgress, setCampaignProgress] = useState<{
     task: string;
     step: number;
@@ -85,26 +94,12 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
 
     // Special handling for AI research using GPT-5.2
     if (task === 'sdr_ai_research') {
+      const t = stream.start();
       try {
         if (!contact) {
           throw new Error('Contact information required for research');
         }
 
-        setCampaignProgress({
-          task,
-          step: 1,
-          totalSteps: 4,
-          currentStep: 'Initiating GPT-5.2 reasoning engine'
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        setCampaignProgress({
-          task,
-          step: 2,
-          totalSteps: 4,
-          currentStep: 'Researching company and contact with AI tools'
-        });
 
         // Use GPT-5.2 enrichment service
         const enrichmentResult = await gpt52EnrichmentService.enrichContact(
@@ -121,25 +116,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
             reasoningEffort: 'xhigh',
             includeCompanyResearch: true,
             includeContactResearch: true,
-            includeSDRInsights: true
+            includeSDRInsights: true,
+            live: t.h
           }
         );
-
-        setCampaignProgress({
-          task,
-          step: 3,
-          totalSteps: 4,
-          currentStep: 'Analyzing insights and generating recommendations'
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        setCampaignProgress({
-          task,
-          step: 4,
-          totalSteps: 4,
-          currentStep: 'Finalizing comprehensive research report'
-        });
 
         // Transform enrichment result to match expected format
         const transformedResult = {
@@ -149,59 +129,60 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
             subject: `AI Research Report: ${enrichmentResult.contact.firstName || contact.name} at ${enrichmentResult.company.name}`,
             body_html: `
               <h3>🤖 GPT-5.2 AI Research Insights</h3>
-              <p><strong>Model:</strong> ${enrichmentResult.metadata.model} | <strong>Confidence:</strong> ${enrichmentResult.metadata.confidence}% | <strong>Reasoning:</strong> ${enrichmentResult.metadata.reasoningEffort}</p>
+              <p><strong>Model:</strong> ${enrichmentResult.metadata.model} | <strong>Confidence:</strong> ${enrichmentResult.metadata.confidence != null ? `${enrichmentResult.metadata.confidence}%` : 'No data'}${enrichmentResult.metadata.confidenceRationale ? ` (${esc(enrichmentResult.metadata.confidenceRationale)})` : ''} | <strong>Reasoning:</strong> ${enrichmentResult.metadata.reasoningEffort}</p>
 
               <h4>Executive Summary</h4>
-              <p>${enrichmentResult.contact.bio || `Professional at ${enrichmentResult.company.name}`}</p>
+              <p>${esc(enrichmentResult.contact.bio) || 'No data'}</p>
 
               <h4>Company Profile</h4>
               <ul>
-                <li><strong>Name:</strong> ${enrichmentResult.company.name}</li>
-                <li><strong>Industry:</strong> ${enrichmentResult.company.industry}</li>
-                <li><strong>Size:</strong> ${enrichmentResult.company.size}</li>
-                ${enrichmentResult.company.revenue ? `<li><strong>Revenue:</strong> ${enrichmentResult.company.revenue}</li>` : ''}
-                ${enrichmentResult.company.growth ? `<li><strong>Growth:</strong> ${enrichmentResult.company.growth}</li>` : ''}
-                <li><strong>Key Products:</strong> ${enrichmentResult.company.keyProducts.join(', ')}</li>
-                <li><strong>Competitors:</strong> ${enrichmentResult.company.competitors.join(', ') || 'N/A'}</li>
+                <li><strong>Name:</strong> ${esc(enrichmentResult.company.name) || esc(contact.company) || 'No data'}</li>
+                <li><strong>Industry:</strong> ${esc(enrichmentResult.company.industry) || 'No data'}</li>
+                <li><strong>Size:</strong> ${esc(enrichmentResult.company.size) || 'No data'}</li>
+                ${enrichmentResult.company.revenue ? `<li><strong>Revenue:</strong> ${esc(enrichmentResult.company.revenue)}</li>` : ''}
+                ${enrichmentResult.company.growth ? `<li><strong>Growth:</strong> ${esc(enrichmentResult.company.growth)}</li>` : ''}
+                <li><strong>Key Products:</strong> ${enrichmentResult.company.keyProducts.map(esc).join(', ') || 'No data'}</li>
+                <li><strong>Competitors:</strong> ${enrichmentResult.company.competitors.map(esc).join(', ') || 'No data'}</li>
               </ul>
 
               <h4>Sales Insights</h4>
               <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa;">
                 <h5>🎯 Pain Points</h5>
-                <ul>${enrichmentResult.insights.painPoints.map(p => `<li>${p}</li>`).join('')}</ul>
+                ${list(enrichmentResult.insights.painPoints)}
               </div>
               <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #28a745; background: #f8f9fa;">
                 <h5>💡 Opportunities</h5>
-                <ul>${enrichmentResult.insights.opportunities.map(o => `<li>${o}</li>`).join('')}</ul>
+                ${list(enrichmentResult.insights.opportunities)}
               </div>
               <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #ffc107; background: #f8f9fa;">
                 <h5>📊 Decision Factors</h5>
-                <ul>${enrichmentResult.insights.decisionFactors.map(d => `<li>${d}</li>`).join('')}</ul>
+                ${list(enrichmentResult.insights.decisionFactors)}
               </div>
-              <p><strong>Timeline:</strong> ${enrichmentResult.insights.timeline}</p>
-              <p><strong>Budget:</strong> ${enrichmentResult.insights.budget}</p>
+              <p><strong>Timeline:</strong> ${esc(enrichmentResult.insights.timeline) || 'No data'}</p>
+              <p><strong>Budget:</strong> ${esc(enrichmentResult.insights.budget) || 'No data'}</p>
 
               <h4>🎤 SDR Outreach Strategy</h4>
               <div style="padding: 10px; border-left: 4px solid #6f42c1; background: #f8f9fa;">
-                <p><strong>Approach:</strong> ${enrichmentResult.sdrRecommendations.approach}</p>
+                <p><strong>Approach:</strong> ${esc(enrichmentResult.sdrRecommendations.approach) || 'No data'}</p>
                 <h5>Talking Points:</h5>
-                <ul>${enrichmentResult.sdrRecommendations.talkingPoints.map(t => `<li>${t}</li>`).join('')}</ul>
+                ${list(enrichmentResult.sdrRecommendations.talkingPoints)}
                 <h5>Anticipated Objections:</h5>
-                <ul>${enrichmentResult.sdrRecommendations.objections.map(o => `<li>${o}</li>`).join('')}</ul>
+                ${list(enrichmentResult.sdrRecommendations.objections)}
                 <h5>Recommended Next Steps:</h5>
-                <ul>${enrichmentResult.sdrRecommendations.nextSteps.map(n => `<li>${n}</li>`).join('')}</ul>
+                ${list(enrichmentResult.sdrRecommendations.nextSteps)}
               </div>
 
               ${enrichmentResult.company.recentNews.length > 0 ? `
               <h4>📰 Recent News</h4>
               ${enrichmentResult.company.recentNews.map(news => `
                 <div style="margin-bottom: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-                  <strong>${news.title}</strong> <span style="color: ${news.impact === 'high' ? '#dc3545' : news.impact === 'medium' ? '#ffc107' : '#6c757d'}">[${news.impact.toUpperCase()}]</span>
-                  <br/><small>${news.date}</small>
+                  <strong>${esc(news.title)}</strong>${news.impact ? ` <span style="color: ${news.impact === 'high' ? '#dc3545' : news.impact === 'medium' ? '#ffc107' : '#6c757d'}">[${news.impact.toUpperCase()}]</span>` : ''}
+                  <br/><small>${esc(news.date) || ''}${news.url ? ` <a href="${esc(news.url)}" target="_blank" rel="noopener noreferrer">source</a>` : ''}</small>
                 </div>
               `).join('')}
               ` : ''}
 
+              ${enrichmentResult.metadata.citations.length ? `<h4>Sources</h4><ul>${enrichmentResult.metadata.citations.map(c => `<li><a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.title || c.url)}</a></li>`).join('')}</ul>` : ''}
               <hr/>
               <p><small>Generated by GPT-5.2 with ${enrichmentResult.metadata.reasoningEffort} reasoning effort | Processing time: ${enrichmentResult.metadata.processingTime}ms</small></p>
             `
@@ -225,8 +206,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
         setSelectedResult(sdrResult);
         setShowModal(true);
 
+        t.finish();
         if (onSequenceGenerated) onSequenceGenerated(transformedResult);
       } catch (error) {
+        t.fail(error);
         console.error('GPT-5.2 AI research failed:', error);
       } finally {
         setLoading(null);
@@ -235,37 +218,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
       return;
     }
 
-    // For real contacts, do full campaign creation process
-    const campaignSteps = [
-      'Analyzing contact profile and engagement history',
-      'Researching company and industry context',
-      'Generating personalized messaging strategy',
-      'Creating sequence timeline and cadence',
-      'Optimizing subject lines and content',
-      'Finalizing campaign sequence'
-    ];
-
-    setCampaignProgress({
-      task,
-      step: 0,
-      totalSteps: campaignSteps.length,
-      currentStep: campaignSteps[0] || 'Initializing campaign creation'
-    });
+    // Real contacts: the campaign streams in live (status chip + text) instead of a timed progress bar.
+    const t = stream.start();
 
     try {
-      // Simulate campaign creation progress
-      for (let i = 0; i < campaignSteps.length; i++) {
-        setCampaignProgress({
-          task,
-          step: i + 1,
-          totalSteps: campaignSteps.length,
-          currentStep: campaignSteps[i] || 'Processing campaign data'
-        });
-
-        // Wait between steps (simulate processing time)
-        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
-      }
-
       // Determine sequence length based on task type
       const getSequenceLength = (taskType: string) => {
         if (taskType.includes('follow_up') || taskType.includes('bump')) return 10;
@@ -286,8 +242,10 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
           tone: 'friendly',
           ...options
         },
-        contact
+        contact,
+        live: t.h
       });
+      t.finish();
 
       const sdrResult: SDRResult = {
         task,
@@ -301,6 +259,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
 
       if (onSequenceGenerated) onSequenceGenerated(result);
     } catch (error) {
+      t.fail(error);
       console.error('SDR generation failed:', error);
       // Show error notification
     } finally {
@@ -460,6 +419,16 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
           ))}
         </div>
 
+        {loading !== null && stream.state.status !== 'idle' && !campaignProgress && (
+          <StreamingOutput
+            className="mt-3"
+            state={stream.state}
+            display={liveDisplay(stream.state.partial, stream.state.text)}
+            onStop={stream.stop}
+            placeholder="Building your campaign…"
+          />
+        )}
+
         {results.length > 0 && (
           <div className="mt-4 p-3 bg-green-50 rounded-lg">
             <h4 className="text-sm font-medium text-green-800 mb-2">Recent SDR Generations</h4>
@@ -482,7 +451,7 @@ export const SDRButtonGroup: React.FC<SDRButtonGroupProps> = ({ dealId, workspac
       </div>
 
       {showModal && selectedResult && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">{getTaskLabel(selectedResult.task)} Sequence</h3>

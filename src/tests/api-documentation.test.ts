@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { contactAPI } from '../services/contact-api.service';
 import { useContactStore } from '../hooks/useContactStore';
 import { encryptionService } from '../utils/encryption';
+import { asNewContact } from './helpers/contactFixtures';
 
 describe('API Documentation Validation', () => {
   describe('Contact API Service Documentation', () => {
@@ -27,7 +28,7 @@ describe('API Documentation Validation', () => {
       // Should not throw due to documentation issues, but due to validation
       expect(async () => {
         try {
-          await contactAPI.createContact(testContact);
+          await contactAPI.createContact(asNewContact(testContact));
         } catch (error: any) {
           // Should fail due to missing required fields, not documentation issues
           expect(error.message).toContain('validation');
@@ -35,14 +36,12 @@ describe('API Documentation Validation', () => {
       });
     });
 
-    it('should have documented error handling patterns', () => {
+    it('should have documented error handling patterns', async () => {
       // Test that error handling is documented by checking error types
-      expect(async () => {
-        await contactAPI.getContact('non-existent-id');
-      }).toThrow();
+      await expect(contactAPI.getContact('non-existent-id')).rejects.toThrow();
     });
 
-    it('should document filter parameters correctly', () => {
+    it('should document filter parameters correctly', async () => {
       const filters = {
         search: 'test',
         status: 'active' as const,
@@ -51,15 +50,13 @@ describe('API Documentation Validation', () => {
       };
 
       // Should accept documented filter parameters
-      expect(async () => {
-        await contactAPI.getContacts(filters);
-      }).not.toThrow();
+      await expect(contactAPI.getContacts(filters)).resolves.toBeDefined();
     });
   });
 
   describe('Contact Store Hook Documentation', () => {
     it('should export documented methods', () => {
-      const store = useContactStore();
+      const store = useContactStore.getState();
 
       // Check that all documented methods exist
       expect(typeof store.fetchContacts).toBe('function');
@@ -71,7 +68,7 @@ describe('API Documentation Validation', () => {
     });
 
     it('should have documented state properties', () => {
-      const store = useContactStore();
+      const store = useContactStore.getState();
 
       // Check that documented state properties exist
       expect(store.contacts).toBeDefined();
@@ -83,7 +80,7 @@ describe('API Documentation Validation', () => {
     });
 
     it('should handle documented error scenarios', async () => {
-      const store = useContactStore();
+      const store = useContactStore.getState();
 
       // Test documented error handling
       await expect(store.updateContact('non-existent', {}))
@@ -161,14 +158,14 @@ describe('API Documentation Validation', () => {
     it('should demonstrate documented error types', () => {
       // Test that errors follow documented patterns
       expect(async () => {
-        await contactAPI.createContact({
+        await contactAPI.createContact(asNewContact({
           firstName: '',
           lastName: 'Doe',
           name: 'John Doe',
           email: 'invalid-email',
           title: 'Developer',
           company: 'Test Corp'
-        });
+        }));
       }).rejects.toThrow();
     });
 
@@ -186,7 +183,7 @@ describe('API Documentation Validation', () => {
 
   describe('Performance Characteristics Documentation', () => {
     it('should validate documented search debouncing', async () => {
-      const store = useContactStore();
+      const store = useContactStore.getState();
 
       // Multiple rapid calls should be debounced as documented
       const promises = [
@@ -202,7 +199,7 @@ describe('API Documentation Validation', () => {
     });
 
     it('should demonstrate documented caching behavior', async () => {
-      const store = useContactStore();
+      const store = useContactStore.getState();
 
       // First call should cache results
       await store.fetchContacts({ limit: 5 });
@@ -216,18 +213,14 @@ describe('API Documentation Validation', () => {
   });
 
   describe('Migration Guide Validation', () => {
-    it('should validate deprecated store warnings', () => {
-      // Import the deprecated store to check warnings
-      // This test validates that migration documentation is accurate
-      expect(() => {
-        // The deprecated store should still be importable during migration
-        const { useContactStore: deprecatedStore } = require('../store/contactStore');
-        expect(typeof deprecatedStore).toBe('function');
-      }).not.toThrow();
+    it('should validate deprecated store warnings', async () => {
+      // The deprecated store should still be importable during migration
+      const { useContactStore: deprecatedStore } = await import('../store/contactStore');
+      expect(typeof deprecatedStore).toBe('function');
     });
 
     it('should validate new hook functionality', () => {
-      const store = useContactStore();
+      const store = useContactStore.getState();
 
       // New hook should provide all documented functionality
       expect(store.fetchContacts).toBeDefined();

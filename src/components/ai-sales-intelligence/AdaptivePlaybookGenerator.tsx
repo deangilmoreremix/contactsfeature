@@ -1,11 +1,14 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import { streamFunction } from '../../services/functionStream';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { cacheService } from '../../services/cache.service';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { BookOpen, Sparkles, Brain, Loader2 } from 'lucide-react';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { BookOpen } from 'lucide-react';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { PlaybookHeader } from './PlaybookHeader';
 import { StreamingProgress } from './StreamingProgress';
@@ -108,6 +111,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
   const [activeStreams, setActiveStreams] = useState<Set<string>>(new Set());
 
   const streamingControllerRef = useRef<AbortController | null>(null);
+  const gen = useFunctionStream<any>();
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
@@ -115,10 +119,11 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
   const stopStreaming = useCallback(() => {
     streamingControllerRef.current?.abort();
+    gen.stop();
     setActiveStreams(new Set());
     setStreamingProgress(0);
     setStreamingPhases([]);
-  }, []);
+  }, [gen]);
 
   const generatePlaybook = useCallback(async (onProgress?: (update: StreamingUpdate) => void) => {
     setLoading(true);
@@ -159,46 +164,27 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
       setStreamingProgress(30);
       onProgress?.({ type: 'progress', progress: 30 });
 
-      if (isStreamingMode) {
-        // Streaming generation with real-time updates
-        const streamId = `playbook-${Date.now()}`;
-        setActiveStreams(prev => new Set([...prev, streamId]));
+      // Real progress: each status the model/tools report becomes a phase; the playbook fills in live below.
+      const streamId = `playbook-${Date.now()}`;
+      if (isStreamingMode) setActiveStreams(prev => new Set([...prev, streamId]));
+      const onStatusPhase = (label: string) => {
+        setStreamingPhases(prev => (prev.some(ph => ph.name === label) ? prev : [...prev, { name: label, progress: Math.min(90, 40 + prev.length * 15) }]));
+        setStreamingProgress(prev => Math.min(90, prev + 10));
+        researchThinking.updateProgress(Math.min(90, 40), `📋 ${label}`);
+        onProgress?.({ type: 'phase', phase: { name: label } } as any);
+      };
 
-        // Simulate streaming phases
-        const mockPhases = [
-          { name: 'Discovery & Research', progress: 40 },
-          { name: 'Strategy Development', progress: 60 },
-          { name: 'Tactics Planning', progress: 80 },
-          { name: 'Risk Assessment', progress: 90 }
-        ];
-
-        for (const phase of mockPhases) {
-          if (streamingControllerRef.current?.signal.aborted) break;
-
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing time
-          setStreamingProgress(phase.progress);
-          setStreamingPhases(prev => [...prev, phase]);
-          researchThinking.updateProgress(phase.progress, `📋 ${phase.name}...`);
-          onProgress?.({ type: 'phase', phase });
-        }
-
-        setActiveStreams(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(streamId);
-          return newSet;
-        });
-      }
-
-      const response = await supabase.functions.invoke('adaptive-playbook', {
-        body: {
+      const out = await gen.runLive((h) => streamFunction<any>('adaptive-playbook', {
           contact: deal,
           currentStage: deal.stage,
           businessGoals: ['increase_revenue', 'improve_efficiency', 'expand_market'],
           automationType: playbookType,
           playbookType: playbookType,
           aiProvider: 'openai'
-        }
-      });
+        }, { ...h, onStatus: (label, e) => { h.onStatus?.(label, e); onStatusPhase(label); } }));
+        setActiveStreams(new Set());
+        if (!out) { researchThinking.complete('Stopped'); setStreamingProgress(0); analyticsService.endTracking(sessionId, false, 'Stopped'); return; }
+        const response = { data: out.result as any };
 
       researchThinking.updateProgress(60, '📋 Synthesizing strategic recommendations...');
       setStreamingProgress(60);
@@ -291,7 +277,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
         cacheService.set('AdaptivePlaybookGenerator', cacheKey, transformedPlaybook, 30 * 60 * 1000, ['playbook', 'ai']);
 
         // End analytics tracking - success
-        analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+        analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'default');
       } else {
         throw new Error('No playbook data received from API');
       }
@@ -325,41 +311,6 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
     }
   }, [deal, playbookType, isStreamingMode, researchThinking, analyticsService, cacheService]);
 
-  const getCompanyProfile = (companyName: string) => {
-    // This would integrate with your CRM/company data
-    return {
-      industry: deal.industry,
-      size: deal.companySize,
-      growthStage: 'growth', // startup, growth, mature, enterprise
-      decisionMaking: 'committee', // single, committee, consensus
-      budgetCycle: 'annual',
-      technologyStack: ['crm', 'marketing_automation']
-    };
-  };
-
-  const getCompetitiveAnalysis = (competitors: string[]) => {
-    return competitors.map(competitor => ({
-      name: competitor,
-      strengths: ['Strong brand recognition', 'Established relationships'],
-      weaknesses: ['Higher pricing', 'Complex implementation'],
-      marketPosition: 'leader',
-      winProbability: 0.6
-    }));
-  };
-
-  const getSimilarDeals = (deal: Deal) => {
-    // This would query your historical deal data
-    return {
-      similarDeals: [
-        { value: deal.value, duration: 45, won: true },
-        { value: deal.value, duration: 60, won: false }
-      ],
-      averageWinRate: 0.65,
-      averageDuration: 52,
-      commonObjections: ['budget', 'timeline', 'competition']
-    };
-  };
-
 
 
   return (
@@ -391,7 +342,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           <div>
             <div className="text-sm text-gray-600">Deal Value</div>
             <div className="text-sm font-medium text-gray-900">
-              ${deal.value?.toLocaleString() || 'TBD'}
+              {deal.value ? `$${deal.value.toLocaleString()}` : 'TBD'}
             </div>
           </div>
           <div>
@@ -412,6 +363,14 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           </div>
         </div>
       </div>
+
+      <LiveOutput
+        className="mb-6"
+        state={gen.state}
+        onStop={stopStreaming}
+        display={liveDisplay(gen.state.partial, gen.state.text)}
+        placeholder="Building your playbook…"
+      />
 
       <StreamingProgress
         isStreamingMode={isStreamingMode}
@@ -438,7 +397,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onCustomize || (() => {})}
               className="flex-1"
@@ -446,7 +405,7 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
             >
               🎨 Customize Strategy
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onGenerate || (() => {})}
               className="flex-1"
@@ -465,9 +424,9 @@ export const AdaptivePlaybookGenerator: React.FC<AdaptivePlaybookGeneratorProps>
           <p className="text-gray-600 mb-6">
             Create a comprehensive, AI-powered strategy tailored to this specific deal and competitive landscape.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
-            onClick={generatePlaybook}
+            onClick={() => generatePlaybook()}
             aria-label="Generate adaptive sales playbook"
           >
             🎯 Generate Playbook

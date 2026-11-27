@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { StreamingOutput } from '../ui/StreamingOutput';
+import { useAIStream } from '../../hooks/useAIStream';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Loader2, TrendingUp, MessageSquare, Target, Zap } from 'lucide-react';
+import { TrendingUp, MessageSquare, Target, Zap } from 'lucide-react';
 
 interface Contact {
   id: string;
@@ -35,6 +37,14 @@ interface NurtureStatus {
   status: 'active' | 'paused' | 'completed';
 }
 
+interface NurtureReply {
+  data?: {
+    nurtureSequence?: Array<Record<string, unknown>>;
+    contentCalendar?: Array<{ date?: string }>;
+    conversionPrediction?: { probability?: number };
+  };
+}
+
 export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> = ({
   contact,
   onNurturePlan,
@@ -44,47 +54,39 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
 }) => {
   const [nurtureStatus, setNurtureStatus] = useState<NurtureStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const nurture = useAIStream<NurtureReply>();
   const [activeTab, setActiveTab] = useState<'overview' | 'nurture' | 'insights'>('overview');
 
   const analyzeContact = async () => {
     setLoading(true);
     try {
-      // Get nurture status from lead-nurturing function
-      const nurtureResponse = await supabase.functions.invoke('lead-nurturing', {
-        body: {
-          leadId: contact.id,
-          leadData: {
-            name: contact.name,
-            email: contact.email,
-            company: contact.company,
-            role: contact.role,
-            industry: contact.industry,
-            companySize: contact.companySize,
-            currentStage: contact.currentStage || 'prospecting',
-            engagementScore: contact.engagementScore || 50,
-            lastContactedAt: contact.lastContactedAt,
-            painPoints: contact.painPoints,
-            budget: contact.budget,
-            timeline: contact.timeline,
-            engagementHistory: [] // Would be populated from actual data
-          },
-          nurtureGoals: ['awareness', 'consideration'],
-          availableContent: [], // Would be populated from content library
-          constraints: {
-            maxEmailsPerWeek: 3,
-            maxCallsPerWeek: 2,
-            preferredChannels: ['email'],
-            timezone: 'America/New_York',
-            workingHours: { start: '09:00', end: '17:00' }
-          }
-        }
+      // Netlify lead-nurturing is dual-mode: the strategy streams in while it is written.
+      const reply = await nurture.runFunction('/.netlify/functions/lead-nurturing', {
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          title: contact.role,
+          company: contact.company,
+          industry: contact.industry,
+          companySize: contact.companySize,
+          currentStage: contact.currentStage || 'prospecting',
+          engagementScore: contact.engagementScore || 50,
+          lastContactedAt: contact.lastContactedAt,
+          painPoints: contact.painPoints,
+          budget: contact.budget,
+          timeline: contact.timeline
+        },
+        nurtureStrategy: 'comprehensive',
+        timeframe: '90d',
+        businessGoals: ['awareness', 'consideration']
       });
 
-      if (nurtureResponse.data?.nurtureStrategy) {
-        const strategy = nurtureResponse.data.nurtureStrategy;
+      const strategy = reply?.data;
+      if (strategy) {
         setNurtureStatus({
-          sequenceProgress: `${strategy.contentSequence?.length || 0}/5 completed`,
-          nextTouch: strategy.contentSequence?.[0]?.sendDate || 'Tomorrow 10 AM',
+          sequenceProgress: `${strategy.nurtureSequence?.length || 0}/5 completed`,
+          nextTouch: strategy.contentCalendar?.[0]?.date || 'Tomorrow 10 AM',
           conversionProbability: strategy.conversionPrediction?.probability || 0.5,
           status: 'active'
         });
@@ -122,13 +124,23 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
         </div>
         <ModernButton
           variant="outline"
-          size="sm"
+          size="toolbar"
           onClick={analyzeContact}
           loading={loading}
         >
           {loading ? 'Analyzing...' : '🔍 Analyze'}
         </ModernButton>
       </div>
+
+      {(nurture.isStreaming || nurture.state.status === 'error') && (
+        <div className="mb-4">
+          {nurture.isStreaming ? (
+            <StreamingOutput state={nurture.state} display={liveDisplay(nurture.state.partial, nurture.state.text)} onStop={nurture.stop} placeholder="Building the nurture strategy…" />
+          ) : (
+            <p className="text-sm text-red-600" role="alert">{nurture.state.error}</p>
+          )}
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="flex gap-1 mb-6 p-1 bg-gray-100 rounded-lg">
@@ -187,7 +199,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
           <div className="flex gap-3">
             <ModernButton
               variant="primary"
-              size="sm"
+              size="toolbar"
               onClick={onNurturePlan || (() => {})}
               className="flex-1"
             >
@@ -195,7 +207,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onOptimizeMessage || (() => {})}
               className="flex-1"
             >
@@ -239,7 +251,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             <div className="text-center py-8">
               <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 mb-4">No nurture sequence active</p>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={onNurturePlan || (() => {})}
               >
@@ -251,7 +263,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
           <div className="flex gap-3">
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onGenerateDiscovery || (() => {})}
               className="flex-1"
             >
@@ -259,7 +271,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onAnalyzeHealth || (() => {})}
               className="flex-1"
             >
@@ -295,7 +307,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
           <div className="flex gap-3">
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onOptimizeMessage || (() => {})}
               className="flex-1"
             >
@@ -303,7 +315,7 @@ export const AISalesIntelligencePanel: React.FC<AISalesIntelligencePanelProps> =
             </ModernButton>
             <ModernButton
               variant="outline"
-              size="sm"
+              size="toolbar"
               onClick={onGenerateDiscovery || (() => {})}
               className="flex-1"
             >

@@ -1,9 +1,7 @@
 import React, { memo } from 'react';
 import { Contact } from '../../../types';
-import { AvatarUpload } from '../../ui/AvatarUpload';
 import { ModernButton } from '../../ui/ModernButton';
 import { ContactEnrichmentData } from '../../../services/aiEnrichmentService';
-import { contactService } from '../../../services/contactService';
 import {
   User,
   Mail,
@@ -56,7 +54,6 @@ const socialPlatforms = [
 ];
 
 export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
-  contact,
   editedContact,
   isEditing,
   setIsEditing,
@@ -97,7 +94,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
             <div>
               <h4 className="font-semibold text-purple-900">Contact Enhanced with AI Research</h4>
               <p className="text-purple-700 text-sm">
-                This contact was enriched with additional information from OpenAI & Gemini research
+                This contact was enriched with additional information from OpenAI research
               </p>
             </div>
           </div>
@@ -260,7 +257,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
               <div className="flex space-x-3">
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleAddSocialProfile}
                   disabled={!selectedSocialPlatform || !socialFieldValue}
                 >
@@ -268,7 +265,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
                 </ModernButton>
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => setShowAddSocial(false)}
                 >
                   Cancel
@@ -360,7 +357,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
               <div className="flex space-x-3">
                 <ModernButton
                   variant="primary"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleAddCustomField}
                   disabled={!newFieldName || !newFieldValue}
                 >
@@ -368,7 +365,7 @@ export const ContactOverviewTab: React.FC<ContactOverviewTabProps> = memo(({
                 </ModernButton>
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={() => setShowAddField(false)}
                 >
                   Cancel

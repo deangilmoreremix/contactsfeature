@@ -1,14 +1,19 @@
 const { supabase } = require('./_supabaseClient');
 const { extractPreferences, buildPreferencesPromptBlock, resolveModel, resolveTemperature, resolveMaxTokens } = require('./_sdrPreferences');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
+const { withAuth, errorResponse } = require('./_auth');
 const { validateContactId, parseBody } = require('./_validation');
-const { callOpenAI, parseJSONResponse } = require('./_fetchWithRetry');
+const { parseJSONResponse } = require('./_fetchWithRetry');
+const { runDual } = require('./_stream/dual');
+const { S, callOptions } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 const { getGTMPrompt } = require('./_gtmPrompts');
 
+const OUTPUT_SCHEMA = S.obj({ healthScore: S.num, riskFactors: S.arr(S.obj({ factor: S.str, severity: S.oneOf('low', 'medium', 'high'), description: S.str })), strengths: S.strArr, recommendedActions: S.strArr, nextSteps: S.strArr, closingTimeline: S.obj({ estimatedClose: S.str, confidence: S.str }), competitorIntel: S.str });
+
 const log = createLogger('deal-analysis-agent');
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
 
   const body = parseBody(event);
@@ -39,7 +44,7 @@ exports.handler = withAuth(async (event, user) => {
       .eq('id', deal.contact_id)
       .maybeSingle();
 
-    const sdrModel = resolveModel(prefs, 'gpt-5.2-thinking', 'SMARTCRM_MODEL');
+    const sdrModel = resolveModel(prefs, 'thinking', 'SMARTCRM_MODEL');
     const temperature = resolveTemperature(prefs, 0.5);
     const maxTokens = resolveMaxTokens(prefs, 1500);
     const prefsBlock = buildPreferencesPromptBlock(prefs);
@@ -71,36 +76,34 @@ Analyze and return JSON with:
 4. "recommendedActions" - Array of specific actions to move deal forward
 5. "nextSteps" - What to do in the next call/meeting
 6. "closingTimeline" - Estimated close date and confidence
-7. "competitor intel" - Any competitive insights if available${prefsBlock}`;
+7. "competitorIntel" - Any competitive insights if available${prefsBlock}`;
 
-    const content = await callOpenAI(
-      [{ role: 'user', content: prompt }],
-      { model: sdrModel, temperature, maxTokens }
-    );
+    return await runDual({
+      event,
+      body,
+      options: callOptions([{ role: 'user', content: prompt }], { model: sdrModel, temperature, maxTokens, schema: OUTPUT_SCHEMA, schemaName: 'deal_analysis' }),
+      finalize: (content) => {
+        const parsed = parseJSONResponse(content, {
+          healthScore: 50,
+          riskFactors: [],
+          strengths: [],
+          recommendedActions: [],
+          nextSteps: [],
+          closingTimeline: { estimatedClose: null, confidence: 'medium' },
+        });
 
-    const parsed = parseJSONResponse(content, {
-      healthScore: 50,
-      riskFactors: [],
-      strengths: [],
-      recommendedActions: [],
-      nextSteps: [],
-      closingTimeline: { estimatedClose: null, confidence: 'medium' },
+        log.info('Deal analysis completed', { dealId, contactId, healthScore: parsed.healthScore });
+
+        return {
+          dealId,
+          contactId,
+          ...parsed,
+          gtmPromptUsed: !!gtmPrompt,
+        };
+      },
     });
-
-    log.info('Deal analysis completed', { dealId, contactId, healthScore: parsed.healthScore });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        dealId,
-        contactId,
-        ...parsed,
-        gtmPromptUsed: !!gtmPrompt,
-      }),
-    };
   } catch (error) {
     log.error('Deal analysis failed', { dealId, contactId, error: error.message });
     return errorResponse(500, 'Deal analysis failed');
   }
-});
+}));

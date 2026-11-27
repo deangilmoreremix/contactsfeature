@@ -52,7 +52,6 @@ export const SOURCE_COLORS: { [key: string]: string } = {
   'CSV Import': 'bg-violet-500',
   'Salesforce': 'bg-rose-500',
   'HubSpot': 'bg-amber-500',
-  'Zapier': 'bg-lime-500',
   'Twitter': 'bg-sky-500',
   'Instagram': 'bg-fuchsia-500',
   'WhatsApp': 'bg-green-400'

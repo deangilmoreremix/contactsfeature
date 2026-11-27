@@ -7,12 +7,12 @@ interface DealDetailActionsProps {
   onEditSave?: (oldDeal: any, newDeal: any) => void;
 }
 
-export const DealDetailActions: React.FC<DealDetailActionsProps> = ({ dealId, workspaceId, onEditSave }) => {
+export const DealDetailActions: React.FC<DealDetailActionsProps> = ({ dealId, workspaceId }) => {
   const [favoriteTooltip, setFavoriteTooltip] = useState('');
-  const [shareData, setShareData] = useState<any>(null);
+  const [, setShareData] = useState<any>(null);
 
   const handleFavorite = async () => {
-    const result = await executeDealAi({ task: 'deal_favorite_insights', dealId, workspaceId });
+    const result = await executeDealAi({ task: 'deal_favorite_insights', dealId, workspaceId, live: { onDelta: (_t, full) => setFavoriteTooltip(full) } });
     setFavoriteTooltip(result);
   };
 
@@ -20,12 +20,6 @@ export const DealDetailActions: React.FC<DealDetailActionsProps> = ({ dealId, wo
     const result = await executeDealAi({ task: 'deal_share_summary', dealId, workspaceId });
     setShareData(result);
     // Perhaps open share modal or copy to clipboard
-  };
-
-  const handleEditSave = async (oldDeal: any, newDeal: any) => {
-    const result = await executeDealAi({ task: 'deal_edit_helper', dealId, workspaceId, options: { oldDeal, newDeal } });
-    // Show suggestions
-    if (onEditSave) onEditSave(oldDeal, newDeal);
   };
 
   return (

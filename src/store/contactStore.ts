@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Contact } from '../types';
-import { contactAPI } from '../services/contact-api.service';
+import { contactAPI, type ContactFilters } from '../services/contact-api.service';
 import { logger } from '../services/logger.service';
 
 // DEPRECATED: This store is deprecated in favor of useContactStore hook
@@ -21,7 +21,7 @@ interface ContactStore {
   deleteContact: (id: string) => Promise<void>;
   selectContact: (contact: Contact | null) => void;
   importContacts: (contacts: any[]) => Promise<void>;
-  exportContacts: (format: 'csv' | 'json') => Promise<void>;
+  exportContacts: (format: 'csv' | 'json', filters?: ContactFilters) => Promise<void>;
   searchContacts: (query: string) => Promise<void>;
 }
 
@@ -379,8 +379,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       }
       
       // Create an updated contact locally
-      const updatedContact = {
-        ...contacts[contactIndex],
+      const updatedContact: Contact = {
+        ...(contacts[contactIndex] as Contact),
         ...updates,
         updatedAt: new Date().toISOString()
       };
@@ -438,7 +438,9 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         tags: contact.tags
       }));
       
-      const createdContacts = await contactAPI.createContactsBatch(formattedContacts);
+      const createdContacts = await contactAPI.createContactsBatch(
+        formattedContacts as Parameters<typeof contactAPI.createContactsBatch>[0]
+      );
       
       set(state => ({
         contacts: [...state.contacts, ...createdContacts],
@@ -455,11 +457,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
     }
   },
 
-  exportContacts: async (format: 'csv' | 'json' = 'csv') => {
+  exportContacts: async (format: 'csv' | 'json' = 'csv', filters: ContactFilters = {}) => {
     try {
-      // Get current filters from state (implement if needed)
-      const filters = {};
-      
       const blob = await contactAPI.exportContacts(filters, format);
       
       // Create download link

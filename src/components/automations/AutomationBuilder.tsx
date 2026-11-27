@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { automationService } from '../../services/automation.service';
 import { ContactAutomation } from '../../types/automation';
-import { Plus, Settings, Play, Pause, Trash2, Edit } from 'lucide-react';
+import { generateAutomationRule } from '../../services/automationRuleGenerator';
+import { useLiveCall } from '../../hooks/useLiveCall';
+import { LiveRunStatus } from '../ui/LiveRunStatus';
+import { objectList, asString } from '../../lib/streaming/previews';
+import { Plus, Settings, Play, Pause, Trash2 } from 'lucide-react';
 
 export const AutomationBuilder: React.FC = () => {
   const [automations, setAutomations] = useState<ContactAutomation[]>([]);
@@ -15,8 +19,8 @@ export const AutomationBuilder: React.FC = () => {
   const loadAutomations = async () => {
     try {
       setLoading(true);
-      const activeAutomations = await automationService.getActiveAutomations();
-      setAutomations(activeAutomations);
+      // Include paused rules so they can be resumed.
+      setAutomations(await automationService.getAllAutomations());
     } catch (error) {
       console.error('Failed to load automations:', error);
     } finally {
@@ -172,13 +176,48 @@ const AutomationForm: React.FC<{
   onSubmit: (data: any) => void;
   onCancel: () => void;
 }> = ({ onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string; type: ContactAutomation['type']; trigger: ContactAutomation['trigger'];
+    conditions: ContactAutomation['conditions']; actions: ContactAutomation['actions']; isActive: boolean;
+  }>({
     name: '',
-    type: 'scoring' as const,
-    trigger: { type: 'contact_created' as const },
+    type: 'scoring',
+    trigger: { type: 'contact_created' },
     conditions: [],
-    actions: []
+    actions: [],
+    isActive: true
   });
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  // Live draft: the rule name and action list fill in while the model writes the rule
+  const live = useLiveCall();
+  const [draftActions, setDraftActions] = useState<string[]>([]);
+
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      setDraftActions([]);
+      const rule = await live.run((opts) => generateAutomationRule(aiPrompt.trim(), {
+        ...opts,
+        onPartial: (partial) => {
+          opts.onPartial?.(partial);
+          const p = (partial ?? {}) as Record<string, unknown>;
+          const name = asString(p['name']);
+          if (name) setFormData((f) => ({ ...f, name }));
+          setDraftActions(objectList(p['actions']).map((a) => asString(a['type'])).filter(Boolean));
+        },
+      }));
+      if (!rule) return;
+      setFormData({ name: rule.name, type: 'followup', trigger: rule.trigger, conditions: rule.conditions, actions: rule.actions, isActive: true });
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Could not generate a rule');
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,9 +225,32 @@ const AutomationForm: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
       <div className="bg-white rounded-lg max-w-md w-full p-6">
         <h2 className="text-xl font-semibold mb-4">Create Automation</h2>
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md space-y-2">
+          <label className="block text-sm font-medium text-blue-900">Describe it and let AI draft the rule</label>
+          <textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm"
+            placeholder="e.g., When a lead's score goes above 70, create a call task due tomorrow"
+          />
+          <button type="button" onClick={() => void handleGenerate()} disabled={aiBusy || !aiPrompt.trim()} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md disabled:opacity-50">
+            {aiBusy ? 'Generating...' : 'Generate with AI'}
+          </button>
+          {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+          <LiveRunStatus live={live} />
+          {live.state.active && draftActions.length > 0 && (
+            <p className="text-xs text-blue-800">Drafting actions: {draftActions.join(', ')}</p>
+          )}
+          {formData.actions.length > 0 && (
+            <p className="text-xs text-blue-800">
+              Draft: trigger {formData.trigger.type}, {formData.conditions.length} condition(s), actions: {formData.actions.map((a) => a.type).join(', ')}
+            </p>
+          )}
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

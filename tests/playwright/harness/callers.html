@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Direct-caller streaming harness (tests only)</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>window.process = window.process || { env: {} }; // lib/core/* (pulled in by gpt52EnrichmentService) reads process.env in the dev server</script>
+    <script type="module" src="/tests/playwright/harness/callers.tsx"></script>
+  </body>
+</html>

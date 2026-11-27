@@ -1,0 +1,34 @@
+# Functions the UI calls that are legitimately NOT generative AI (data ops, auth, CRUD, delivery).
+# Format: <function-name>   # reason
+contacts                # contact CRUD
+admin-user-management   # user admin
+send-email              # delivery via the user's provider
+duplicate-detection     # deterministic matching
+semantic-search         # embeddings ranking (non-generative)
+gtm-prompt-library      # prompt CRUD
+sdr-autopilot           # state machine / scheduling (non-visible)
+messaging-providers     # provider CRUD
+get-agents              # catalogue read
+get-personas            # catalogue read
+save-agent-settings     # settings write
+get-agent-logs          # log read
+contact-agent-settings  # settings
+sequence-enroll         # enrollment ops
+webhook-trigger         # webhooks
+webhook-dispatch        # webhooks
+calendar-list           # calendar reads
+calendar-schedule       # calendar writes
+manage-sdr-thread       # conversation bookkeeping
+realtime-token          # mints voice token (voice itself streams over WebRTC)
+get-autopilot-status    # status read
+update-autopilot-settings # settings write
+autopilot-run           # non-visible scheduler trigger
+ai-respond              # plain proxy branch for NON-visible pipelines; user-visible calls use ai-stream (gated separately)
+generate-image          # reference-image edit stays synchronous; generation streams via generate-image-stream
+insights-manager        # CRUD only (get/create/update/delete of stored insight rows); insight GENERATION is the ai-task `ai-insights`/`relationship-insights` path
+communication-manager   # CRUD only (communication history rows)
+email-manager           # data ops only (send via provider, history read, open/click tracking)
+automation-manager      # CRUD only (stored automation rules); rule PLANNING is the ai-task `automation-ai`
+analytics-manager       # CRUD only (analytics rows)
+journey-manager         # CRUD + deterministic month grouping/counts of journey events; narrative timelines are the ai-task `timeline-generator`
+trigger-autopilot      # background autopilot pipeline (queues a draft email in the next step, no user-facing answer); same class as sdr-autopilot, scheduled/state-only

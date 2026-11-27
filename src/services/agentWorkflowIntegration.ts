@@ -1,7 +1,20 @@
 // src/services/agentWorkflowIntegration.ts
 
 import { supabase } from './supabaseClient';
-import { triggerAutopilot } from './autopilotService';
+
+// Thin client for the trigger-autopilot Netlify function (no ./autopilotService module exists).
+async function triggerAutopilot(params: Record<string, unknown>) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const response = await fetch('/.netlify/functions/trigger-autopilot', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+    },
+    body: JSON.stringify(params)
+  });
+  return response.json();
+}
 
 export interface WorkflowTrigger {
   contactId: string;
@@ -40,6 +53,7 @@ export class AgentWorkflowIntegration {
 
     // Start qualification sequence
     await this.startSequence(contactId, {
+      contactId,
       triggerType: 'automated',
       agentId: agentConfig.agentId,
       personaId: agentConfig.personaId,
@@ -80,7 +94,7 @@ export class AgentWorkflowIntegration {
    * Escalate high-value contacts to AE agents
    */
   static async escalateToAE(contactId: string, reason: string) {
-    const contact = await this.getContact(contactId);
+    await this.getContact(contactId);
 
     // Switch to AE agent
     await supabase
@@ -137,7 +151,11 @@ export class AgentWorkflowIntegration {
     return data;
   }
 
-  private static determineInitialAgent(contact: any, leadSource: string) {
+  private static determineInitialAgent(contact: any, leadSource: string): {
+    agentId: string;
+    personaId: string;
+    sequence: SequenceConfig;
+  } {
     // Logic to determine best initial agent based on contact and source
     if (leadSource === 'linkedin') {
       return {
@@ -176,7 +194,7 @@ export class AgentWorkflowIntegration {
   }
 
   private static async startSequence(contactId: string, trigger: WorkflowTrigger) {
-    const result = await triggerAutopilot({
+    await triggerAutopilot({
       contactId,
       agentId: trigger.agentId,
       personaId: trigger.personaId,
@@ -197,13 +215,13 @@ export class AgentWorkflowIntegration {
       });
   }
 
-  private static async handleEmailOpened(contact: any, eventData: any) {
+  private static async handleEmailOpened(contact: any, _eventData: any) {
     // Increase engagement score
     await this.updateEngagementScore(contact.id, 10);
 
     // Schedule follow-up if not already sent
     const nextStep = await this.getNextSequenceStep(contact.id);
-    if (nextStep && nextStep.condition === 'no_response') {
+    if (nextStep && (nextStep as { condition?: string }).condition === 'no_response') {
       await this.advanceSequence(contact.id);
     }
   }
@@ -221,12 +239,12 @@ export class AgentWorkflowIntegration {
     }
   }
 
-  private static async handleMeetingBooked(contact: any, eventData: any) {
+  private static async handleMeetingBooked(contact: any, _eventData: any) {
     // Mark as won and escalate to AE
     await this.escalateToAE(contact.id, 'meeting_booked');
   }
 
-  private static async handleObjection(contact: any, eventData: any) {
+  private static async handleObjection(contact: any, _eventData: any) {
     // Switch to objection-handling agent
     await this.switchAgent(contact.id, 'objection_sdr', 'challenger_seller');
   }
@@ -278,8 +296,9 @@ export class AgentWorkflowIntegration {
       .order('created_at', { ascending: false });
 
     // Calculate metrics
+    const interactionList = interactions ?? [];
     const metrics = {
-      totalInteractions: interactions.length,
+      totalInteractions: interactionList.length,
       responseRate: 0,
       conversionRate: 0,
       averageResponseTime: 0,
@@ -287,12 +306,12 @@ export class AgentWorkflowIntegration {
     };
 
     // Calculate response rate
-    const responses = interactions.filter(i => i.response_received);
-    metrics.responseRate = responses.length / interactions.length;
+    const responses = interactionList.filter(i => i.response_received);
+    metrics.responseRate = responses.length / interactionList.length;
 
     // Calculate conversion rate (meetings booked)
-    const conversions = interactions.filter(i => i.conversion_type === 'meeting_booked');
-    metrics.conversionRate = conversions.length / interactions.length;
+    const conversions = interactionList.filter(i => i.conversion_type === 'meeting_booked');
+    metrics.conversionRate = conversions.length / interactionList.length;
 
     return metrics;
   }

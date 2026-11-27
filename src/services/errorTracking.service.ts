@@ -7,7 +7,7 @@ interface ErrorContext {
   component?: string;
   action?: string;
   userId?: string;
-  contactId?: string;
+  contactId?: string | undefined;
   feature?: string;
   timestamp: string;
   userAgent: string;
@@ -16,7 +16,7 @@ interface ErrorContext {
 
 interface ErrorReport {
   message: string;
-  stack?: string;
+  stack?: string | undefined;
   context: ErrorContext;
   severity: 'low' | 'medium' | 'high' | 'critical';
 }
@@ -125,7 +125,7 @@ class ErrorTrackingService {
     });
   }
 
-  private async sendToErrorReporting(error: ErrorReport) {
+  private async sendToErrorReporting(_error: ErrorReport) {
     // In a real implementation, send to services like Sentry, LogRocket, etc.
     try {
       // Example: Send to a logging endpoint

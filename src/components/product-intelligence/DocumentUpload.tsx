@@ -43,7 +43,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = memo(({
     return null;
   }, [maxFileSize, acceptedTypes]);
 
-  const processFile = useCallback(async (file: File, fileState: FileUploadState) => {
+  const processFile = useCallback(async (file: File, _fileState: FileUploadState) => {
     try {
       // Update status to processing
       setUploadedFiles(prev => prev.map(f =>

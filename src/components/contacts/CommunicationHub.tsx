@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { communicationAI } from '../../services/communication-ai.service';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { CitationBadge } from '../ui/CitationBadge';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
 import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { Contact } from '../../types';
-import { edgeFunctionService } from '../../services/edgeFunctionService';
 import { webSearchService } from '../../services/webSearchService';
 import { gpt5ToolsService } from '../../services/gpt5ToolsService';
-import { SDRPersonaSelector } from './SDRPersonaSelector';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { streamFunction } from '../../services/functionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import {
   Mail,
   Phone,
@@ -17,22 +19,8 @@ import {
   Calendar,
   Send,
   Paperclip,
-  Smile,
-  MoreHorizontal,
-  Clock,
-  CheckCircle,
-  AlertCircle,
   Filter,
   Search,
-  Download,
-  Settings,
-  Linkedin,
-  Twitter,
-  Facebook,
-  Smartphone,
-  ExternalLink,
-  BarChart3,
-  TrendingUp,
   Brain,
   X
 } from 'lucide-react';
@@ -121,32 +109,29 @@ const sampleCommunications: CommunicationRecord[] = [
 ];
 
 export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) => {
-    const [activeTab, setActiveTab] = useState('timeline');
     const [selectedType, setSelectedType] = useState('all');
-    const [isComposing, setIsComposing] = useState(false);
-    const [composeType, setComposeType] = useState<'email' | 'sms' | 'call'>('email');
+    const [, setIsComposing] = useState(false);
     const [communications] = useState<CommunicationRecord[]>(sampleCommunications);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, setError] = useState<string | null>(null);
     const [generatedContent, setGeneratedContent] = useState<{
       type: 'email' | 'meeting' | 'proposal' | 'strategy';
       content: string;
-      subject?: string;
+      subject?: string | undefined;
       timestamp: Date;
     } | null>(null);
     const [showContentModal, setShowContentModal] = useState(false);
 
+   // Live AI output (status line, typing text, Stop) shared by every generate action
+   const hub = useFunctionStream<any>();
    // Research state management
    const researchThinking = useResearchThinking();
    const researchStatus = useResearchStatus();
-   const [researchSources, setResearchSources] = useState<any[]>([]);
-
-  const tabs = [
-    { id: 'timeline', label: 'Timeline', icon: Clock },
-    { id: 'compose', label: 'Compose', icon: Send },
-    { id: 'templates', label: 'Templates', icon: Mail },
-    { id: 'analytics', label: 'Analytics', icon: MoreHorizontal }
-  ];
+   React.useEffect(() => {
+     if (hub.state.error) { setError(hub.state.error); researchThinking.complete('❌ Generation failed'); }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [hub.state.error]);
+   const [, setResearchSources] = useState<any[]>([]);
 
   const communicationTypes = [
     { value: 'all', label: 'All Communications' },
@@ -220,15 +205,8 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         const systemPrompt = `You are a communication strategist. Research this contact's company and provide insights for effective communication. Focus on recent news, company culture, leadership changes, and optimal communication strategies.`;
         const userPrompt = `Research ${contact.firstName} ${contact.lastName} at ${contact.company} for ${type} communication. Find recent company news, leadership information, communication preferences, and optimal timing for ${type} contact.`;
 
-        const searchResults = await webSearchService.searchWithAI(
-          searchQuery,
-          systemPrompt,
-          userPrompt,
-          {
-            includeSources: true,
-            searchContextSize: 'high'
-          }
-        );
+        const searchResults = await hub.runLive((h) => webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, { includeSources: true, searchContextSize: 'high' }, h));
+        if (!searchResults) { researchThinking.complete('Stopped'); return; }
 
         researchThinking.moveToSynthesizing('✨ Synthesizing communication insights...');
 
@@ -248,14 +226,32 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
         if (type === 'email') {
           researchThinking.moveToOptimizing('📧 Generating personalized email...');
 
-          const result = await edgeFunctionService.composeEmail(contact, 'follow-up', {
-            tone: 'professional',
-            urgency: 'medium',
-            webResearch: searchResults.content,
-            companyContext: searchResults.sources
+          // The email types itself into the content modal while it is written, and stays there when done.
+          const composed = await hub.runLive((h) => streamFunction<any>('email-composer', {
+            contact, purpose: 'follow-up', tone: 'professional', context: { urgency: 'medium' },
+            webResearch: searchResults.content, companyContext: searchResults.sources
+          }, {
+            ...h,
+            onPartial: (j) => {
+              const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string; content?: string };
+              const text = p.content ?? p.body;
+              if (text || p.subject) {
+                setGeneratedContent({ type: 'email', content: text || '', subject: p.subject, timestamp: new Date() });
+                setShowContentModal(true);
+              }
+              h.onPartial?.(j);
+            }
+          }));
+          if (!composed) { researchThinking.complete('Stopped'); return; }
+          const result = composed.result || {};
+          setGeneratedContent({
+            type: 'email',
+            content: result.content || result.body || 'Email generated successfully.',
+            subject: result.subject || `Following up: ${contact.company}`,
+            timestamp: new Date()
           });
+          setShowContentModal(true);
           setIsComposing(true);
-          console.log('Generated email with web research:', result);
         } else if (type === 'sms') {
           researchThinking.moveToOptimizing('📱 Generating personalized SMS...');
 
@@ -264,10 +260,11 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
           }
 
           // Generate SMS content using GPT-5
-          const smsResult = await gpt5ToolsService.sendSMS({
-            to: contact.phone,
+          const smsResult = await hub.runLive((h) => gpt5ToolsService.sendSMS({
+            to: contact.phone as string,
             message: `Hi ${contact.firstName || contact.name}, following up on our recent conversation. Would you be available for a quick call this week?`
-          });
+          }, h));
+          if (!smsResult) { researchThinking.complete('Stopped'); return; }
 
           if (smsResult.success && smsResult.smsAppUrl) {
             window.open(smsResult.smsAppUrl, '_blank');
@@ -283,10 +280,11 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
           }
 
           // Prepare call with GPT-5 enhanced notes
-          const callResult = await gpt5ToolsService.makeCall({
-            to: contact.phone,
+          const callResult = await hub.runLive((h) => gpt5ToolsService.makeCall({
+            to: contact.phone as string,
             notes: `Call preparation for ${contact.firstName || contact.name} at ${contact.company}. Recent research: ${searchResults.content.substring(0, 200)}...`
-          });
+          }, h));
+          if (!callResult) { researchThinking.complete('Stopped'); return; }
 
           if (callResult.success && callResult.callUrl) {
             window.open(callResult.callUrl, '_blank');
@@ -313,13 +311,21 @@ export const CommunicationHub: React.FC<CommunicationHubProps> = ({ contact }) =
       setLoading(true);
       setError(null);
 
-      const result = await edgeFunctionService.getCommunicationHistory(contact.id || 'test-contact-123', {
-        action: 'strategy'
-      });
+      const strategy = await hub.runLive((h) => communicationAI.generateCommunicationStrategy(contact, undefined, undefined, h));
+      if (!strategy) return;
+      const lines = [
+        ...strategy.optimalChannels.map((c) => `Channel: ${c.channel} (${c.effectiveness}%)${c.reasoning[0] ? ` - ${c.reasoning[0]}` : ''}`),
+        strategy.timing.bestDays.length ? `Best days: ${strategy.timing.bestDays.join(', ')}` : '',
+        strategy.timing.bestHours.length ? `Best hours: ${strategy.timing.bestHours.join(', ')}` : '',
+        strategy.timing.frequency ? `Frequency: ${strategy.timing.frequency}` : '',
+        strategy.messaging.preferredTone ? `Tone: ${strategy.messaging.preferredTone}` : '',
+        ...strategy.messaging.keyMessages.map((m) => `Key message: ${m}`),
+        ...strategy.messaging.avoidTopics.map((m) => `Avoid: ${m}`),
+      ].filter(Boolean);
 
       setGeneratedContent({
         type: 'strategy',
-        content: result.strategy || 'Communication strategy generated successfully. Key recommendations: Maintain weekly touchpoints, focus on relationship building, and leverage multiple channels for engagement.',
+        content: lines.join('\n') || 'The model did not return a strategy for this contact.',
         timestamp: new Date()
       });
       setShowContentModal(true);
@@ -384,28 +390,33 @@ Sales Representative`
         const systemPrompt = `You are a meeting scheduling expert. Create personalized meeting invites based on contact research and communication patterns.`;
         const userPrompt = `Generate a professional meeting invite for ${contact.firstName} ${contact.lastName} at ${contact.company}. Include optimal timing suggestions and personalized content based on their role and company.`;
 
-        const searchResults = await webSearchService.searchWithAI(
-          searchQuery,
-          systemPrompt,
-          userPrompt,
-          {
-            includeSources: true,
-            searchContextSize: 'medium'
-          }
-        );
+        const searchResults = await hub.runLive((h) => webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, { includeSources: true, searchContextSize: 'medium' }, h));
+        if (!searchResults) { researchThinking.complete('Stopped'); return; }
 
         researchThinking.moveToSynthesizing('✨ Crafting personalized meeting invite...');
 
-        const result = await edgeFunctionService.composeEmail(contact, 'meeting_invite', {
-          tone: 'professional',
-          urgency: 'medium',
-          webResearch: searchResults.content,
-          companyContext: searchResults.sources
-        });
+        // The invite / email types itself into the modal while it is written.
+        const composed = await hub.runLive((h) => streamFunction<any>('email-composer', {
+          contact, purpose: 'meeting_invite', tone: 'professional', context: { urgency: 'medium' },
+          webResearch: searchResults.content, companyContext: searchResults.sources
+        }, {
+          ...h,
+          onPartial: (j) => {
+            const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string; content?: string };
+            const text = p.content ?? p.body;
+            if (text || p.subject) {
+              setGeneratedContent({ type: 'meeting', content: text || '', subject: p.subject, timestamp: new Date() });
+              setShowContentModal(true);
+            }
+            h.onPartial?.(j);
+          }
+        }));
+        if (!composed) { researchThinking.complete('Stopped'); return; }
+        const result = composed.result || {};
 
         setGeneratedContent({
           type: 'meeting',
-          content: result.content || 'Meeting invite generated successfully.',
+          content: result.content || result.body || 'Meeting invite generated successfully.',
           subject: result.subject || `Meeting Request: ${contact.company} Discussion`,
           timestamp: new Date()
         });
@@ -476,28 +487,33 @@ Sales Representative`
         const systemPrompt = `You are a sales proposal expert. Create compelling, personalized proposal emails based on contact research and business needs.`;
         const userPrompt = `Generate a professional proposal email for ${contact.firstName} ${contact.lastName} at ${contact.company}. Focus on their specific business challenges and how our solution addresses their needs. Include compelling value propositions and clear next steps.`;
 
-        const searchResults = await webSearchService.searchWithAI(
-          searchQuery,
-          systemPrompt,
-          userPrompt,
-          {
-            includeSources: true,
-            searchContextSize: 'high'
-          }
-        );
+        const searchResults = await hub.runLive((h) => webSearchService.searchWithAI(searchQuery, systemPrompt, userPrompt, { includeSources: true, searchContextSize: 'high' }, h));
+        if (!searchResults) { researchThinking.complete('Stopped'); return; }
 
         researchThinking.moveToSynthesizing('✨ Crafting compelling proposal email...');
 
-        const result = await edgeFunctionService.composeEmail(contact, 'proposal', {
-          tone: 'professional',
-          urgency: 'high',
-          webResearch: searchResults.content,
-          companyContext: searchResults.sources
-        });
+        // The invite / email types itself into the modal while it is written.
+        const composed = await hub.runLive((h) => streamFunction<any>('email-composer', {
+          contact, purpose: 'proposal', tone: 'professional', context: { urgency: 'high' },
+          webResearch: searchResults.content, companyContext: searchResults.sources
+        }, {
+          ...h,
+          onPartial: (j) => {
+            const p = (j && typeof j === 'object' ? j : {}) as { subject?: string; body?: string; content?: string };
+            const text = p.content ?? p.body;
+            if (text || p.subject) {
+              setGeneratedContent({ type: 'proposal', content: text || '', subject: p.subject, timestamp: new Date() });
+              setShowContentModal(true);
+            }
+            h.onPartial?.(j);
+          }
+        }));
+        if (!composed) { researchThinking.complete('Stopped'); return; }
+        const result = composed.result || {};
 
         setGeneratedContent({
           type: 'proposal',
-          content: result.content || 'Proposal email generated successfully.',
+          content: result.content || result.body || 'Proposal email generated successfully.',
           subject: result.subject || `Custom Solution Proposal for ${contact.company}`,
           timestamp: new Date()
         });
@@ -538,9 +554,20 @@ Sales Representative`
         size="md"
       />
 
+      {!showContentModal && (
+        <LiveOutput
+          showError={false}
+          className="mb-3"
+          state={hub.state}
+          onStop={() => { hub.stop(); researchThinking.complete('Stopped'); }}
+          display={liveDisplay(hub.state.partial, hub.state.text)}
+          placeholder="Researching and writing…"
+        />
+      )}
+
       {/* Generated Content Modal */}
       {showContentModal && generatedContent && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center space-x-3">
@@ -550,6 +577,7 @@ Sales Representative`
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
                     AI Generated {generatedContent.type === 'meeting' ? 'Meeting Invite' :
+                                 generatedContent.type === 'email' ? 'Email' :
                                  generatedContent.type === 'proposal' ? 'Proposal Email' :
                                  generatedContent.type === 'strategy' ? 'Communication Strategy' : 'Content'}
                   </h3>
@@ -574,6 +602,10 @@ Sales Representative`
                 </div>
               )}
 
+              {hub.isStreaming && (
+                <LiveOutput showError={false} className="mb-4" state={hub.state} onStop={() => { hub.stop(); researchThinking.complete('Stopped'); }} display="" />
+              )}
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
                 <div className="p-4 bg-gray-50 rounded-lg border max-h-96 overflow-y-auto">
@@ -585,13 +617,13 @@ Sales Representative`
             </div>
 
             <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="outline"
                 onClick={() => setShowContentModal(false)}
               >
                 Close
               </ModernButton>
-              <ModernButton
+              <ModernButton size="toolbar"
                 variant="primary"
                 onClick={() => {
                   // Copy to clipboard
@@ -605,8 +637,8 @@ Sales Representative`
               >
                 Copy to Clipboard
               </ModernButton>
-              {generatedContent.type === 'meeting' || generatedContent.type === 'proposal' ? (
-                <ModernButton
+              {generatedContent.type === 'meeting' || generatedContent.type === 'proposal' || generatedContent.type === 'email' ? (
+                <ModernButton size="toolbar"
                   variant="primary"
                   onClick={() => {
                     // Open email client with content
@@ -632,15 +664,15 @@ Sales Representative`
           <p className="text-gray-600">Unified communication center for {contact.name}</p>
         </div>
         <div className="flex items-center space-x-3">
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Search className="w-4 h-4" />
             <span>Search</span>
           </ModernButton>
-          <ModernButton variant="outline" size="sm" className="flex items-center space-x-2">
+          <ModernButton variant="outline" size="toolbar" className="flex items-center space-x-2">
             <Filter className="w-4 h-4" />
             <span>Filter</span>
           </ModernButton>
-          <ModernButton variant="primary" size="sm" onClick={() => setIsComposing(true)} className="flex items-center space-x-2">
+          <ModernButton variant="primary" size="toolbar" onClick={() => setIsComposing(true)} className="flex items-center space-x-2">
             <Send className="w-4 h-4" />
             <span>New Message</span>
           </ModernButton>
@@ -651,7 +683,7 @@ Sales Representative`
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {communicationTypes.slice(1).map((type, index) => {
           const count = communications.filter(c => c.type === type.value).length;
-          const colors = ['bg-blue-100 text-blue-600', 'bg-green-100 text-green-600', 'bg-purple-100 text-purple-600', 'bg-orange-100 text-orange-600', 'bg-pink-100 text-pink-600'];
+          const colors = ['bg-blue-100 text-blue-700', 'bg-green-100 text-green-700', 'bg-purple-100 text-purple-700', 'bg-orange-100 text-orange-700', 'bg-pink-100 text-pink-700'];
           
           return (
             <GlassCard key={type.value} className="p-4">
@@ -738,7 +770,7 @@ Sales Representative`
           <GlassCard className="p-6">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h4>
             <div className="space-y-3">
-              <ModernButton 
+              <ModernButton size="toolbar" 
                 variant="primary" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('email')}
@@ -747,7 +779,7 @@ Sales Representative`
                 <Mail className="w-4 h-4" />
                 <span>AI Email</span>
               </ModernButton>
-              <ModernButton 
+              <ModernButton size="toolbar" 
                 variant="outline" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('call')}
@@ -755,7 +787,7 @@ Sales Representative`
                 <Phone className="w-4 h-4" />
                 <span>Start Call</span>
               </ModernButton>
-              <ModernButton 
+              <ModernButton size="toolbar" 
                 variant="outline" 
                 className="w-full flex items-center justify-center space-x-2"
                 onClick={() => handleQuickCompose('sms')}
@@ -763,11 +795,11 @@ Sales Representative`
                 <MessageSquare className="w-4 h-4" />
                 <span>AI SMS</span>
               </ModernButton>
-              <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton size="toolbar" variant="outline" className="w-full flex items-center justify-center space-x-2">
                 <Video className="w-4 h-4" />
                 <span>Video Call</span>
               </ModernButton>
-              <ModernButton variant="outline" className="w-full flex items-center justify-center space-x-2">
+              <ModernButton size="toolbar" variant="outline" className="w-full flex items-center justify-center space-x-2">
                 <Calendar className="w-4 h-4" />
                 <span>Schedule Meeting</span>
               </ModernButton>
@@ -834,7 +866,7 @@ Sales Representative`
               <div className="pt-3 border-t border-gray-200">
                 <ModernButton
                   variant="outline"
-                  size="sm"
+                  size="toolbar"
                   onClick={handleGetCommunicationStrategy}
                   className="w-full"
                   loading={loading}

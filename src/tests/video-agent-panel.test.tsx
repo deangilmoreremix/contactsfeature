@@ -1,11 +1,12 @@
 /**
- * Comprehensive tests for VideoAgentPanel component
- * Tests video generation, UI interactions, and edge cases
+ * VideoAgentPanel: the script + storyboard are streamed from the video-agent function through useAIStream
+ * (streamSse); the panel renders the final result, the "no video rendered" note and any error.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { VideoAgentPanel } from '../components/VideoAgentPanel';
+import { newOutcome } from '../lib/streaming/streamClient';
 
 // Mock dependencies
 vi.mock('../services/sdrPreferencesService', () => ({
@@ -16,12 +17,22 @@ vi.mock('../services/sdrPreferencesService', () => ({
 }));
 
 vi.mock('../lib/supabase', () => ({
-  supabase: {}
+  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } }
 }));
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.mock('../services/sdrClient', () => ({
+  sdrAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'Bearer test' })
+}));
+
+// The SSE transport is mocked; the real useAIStream hook and panel run on top of it.
+const streamSse = vi.hoisted(() => vi.fn());
+vi.mock('../lib/streaming/streamClient', async (orig) => ({
+  ...(await orig<typeof import('../lib/streaming/streamClient')>()),
+  streamSse
+}));
+
+const URL = '/.netlify/functions/video-agent';
+const okOutcome = (result: unknown) => ({ ...newOutcome(), result });
 
 describe('VideoAgentPanel', () => {
   const mockVideoResponse = {
@@ -29,15 +40,13 @@ describe('VideoAgentPanel', () => {
     storyboard: { scenes: ['Opening', 'Demo', 'Close'] },
     script: 'Welcome to our product demo...',
     videoUrl: 'https://example.com/video.mp4',
+    rendering: { available: false, note: 'No render backend is configured' },
     debug: { processingTime: 15.2, tokens: 500 }
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
+    streamSse.mockReset().mockResolvedValue(okOutcome(mockVideoResponse));
   });
 
   describe('Initial Render', () => {
@@ -48,7 +57,7 @@ describe('VideoAgentPanel', () => {
       expect(screen.getByText(/Auto-generate Loom-style explainer videos/)).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Enter contact UUID')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('https://your-landing-page.com/offer')).toBeInTheDocument();
-      expect(screen.getByText('Generate Video')).toBeInTheDocument();
+      expect(screen.getByText('Generate Script & Storyboard')).toBeInTheDocument();
     });
 
     it('should have empty form fields initially', () => {
@@ -71,7 +80,7 @@ describe('VideoAgentPanel', () => {
       const productUrlInput = screen.getByPlaceholderText('https://your-landing-page.com/offer');
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -85,7 +94,7 @@ describe('VideoAgentPanel', () => {
       const contactIdInput = screen.getByPlaceholderText('Enter contact UUID');
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -96,10 +105,7 @@ describe('VideoAgentPanel', () => {
 
   describe('Video Generation', () => {
     it('should generate video successfully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVideoResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVideoResponse));
 
       render(<VideoAgentPanel />);
 
@@ -109,15 +115,16 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/.netlify/functions/video-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: 'contact-123', productUrl: 'https://example.com', goal: 'demo' })
-        });
+        expect(streamSse).toHaveBeenCalledWith(
+          URL,
+          expect.objectContaining({ body: { contactId: 'contact-123', productUrl: 'https://example.com', goal: 'demo', stream: true } }),
+          expect.anything(),
+          expect.anything()
+        );
       });
 
       await waitFor(() => {
@@ -127,10 +134,7 @@ describe('VideoAgentPanel', () => {
     });
 
     it('should display video player when videoUrl is provided', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVideoResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVideoResponse));
 
       render(<VideoAgentPanel />);
 
@@ -140,7 +144,7 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -150,10 +154,7 @@ describe('VideoAgentPanel', () => {
     });
 
     it('should handle generation errors gracefully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'API Error: Invalid request'
-      });
+      streamSse.mockRejectedValueOnce(new Error('API Error: Invalid request'));
 
       render(<VideoAgentPanel />);
 
@@ -163,7 +164,7 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -172,7 +173,7 @@ describe('VideoAgentPanel', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      streamSse.mockRejectedValueOnce(new Error('Network error'));
 
       render(<VideoAgentPanel />);
 
@@ -182,7 +183,7 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -191,11 +192,8 @@ describe('VideoAgentPanel', () => {
     });
 
     it('should show loading state during generation', async () => {
-      mockFetch.mockImplementationOnce(
-        () => new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: async () => mockVideoResponse
-        }), 100))
+      streamSse.mockImplementationOnce(
+        () => new Promise(resolve => setTimeout(() => resolve(okOutcome(mockVideoResponse)), 100))
       );
 
       render(<VideoAgentPanel />);
@@ -206,22 +204,19 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
-      expect(screen.getByText('Generating Video Plan...')).toBeInTheDocument();
+      expect(screen.getByText('Writing Script...')).toBeInTheDocument();
       expect(generateButton).toBeDisabled();
 
       await waitFor(() => {
-        expect(screen.getByText('Generate Video')).toBeInTheDocument();
+        expect(screen.getByText('Generate Script & Storyboard')).toBeInTheDocument();
       });
     });
 
     it('should use selected video goal in request', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVideoResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVideoResponse));
 
       render(<VideoAgentPanel />);
 
@@ -233,25 +228,23 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
       fireEvent.change(goalSelect, { target: { value: 'followup' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/.netlify/functions/video-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: 'contact-123', productUrl: 'https://example.com', goal: 'followup' })
-        });
+        expect(streamSse).toHaveBeenCalledWith(
+          URL,
+          expect.objectContaining({ body: { contactId: 'contact-123', productUrl: 'https://example.com', goal: 'followup', stream: true } }),
+          expect.anything(),
+          expect.anything()
+        );
       });
     });
   });
 
   describe('Result Display', () => {
     beforeEach(async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVideoResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVideoResponse));
 
       render(<VideoAgentPanel />);
 
@@ -261,7 +254,7 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -283,10 +276,7 @@ describe('VideoAgentPanel', () => {
   describe('Error Handling', () => {
     it('should clear previous errors on successful generation', async () => {
       // First, trigger an error
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'First error'
-      });
+      streamSse.mockRejectedValueOnce(new Error('First error'));
 
       render(<VideoAgentPanel />);
 
@@ -296,7 +286,7 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {
@@ -304,10 +294,7 @@ describe('VideoAgentPanel', () => {
       });
 
       // Now successful call
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVideoResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVideoResponse));
 
       fireEvent.click(generateButton);
 
@@ -318,10 +305,7 @@ describe('VideoAgentPanel', () => {
     });
 
     it('should clear previous results on new generation', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockVideoResponse
-      });
+      streamSse.mockResolvedValueOnce(okOutcome(mockVideoResponse));
 
       render(<VideoAgentPanel />);
 
@@ -331,7 +315,7 @@ describe('VideoAgentPanel', () => {
       fireEvent.change(contactIdInput, { target: { value: 'contact-123' } });
       fireEvent.change(productUrlInput, { target: { value: 'https://example.com' } });
 
-      const generateButton = screen.getByText('Generate Video');
+      const generateButton = screen.getByText('Generate Script & Storyboard');
       fireEvent.click(generateButton);
 
       await waitFor(() => {

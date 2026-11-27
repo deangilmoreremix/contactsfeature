@@ -1,16 +1,16 @@
 /**
  * AI Integration Service
- * Enhanced with proper Gemma and Gemini 2.5 Flash model support
+ * Contact analysis/enrichment via the server-side AI proxy (src/services/aiClient.ts).
+ * Failures are thrown; no fabricated or random results are returned.
  */
 
-import { httpClient } from './http-client.service';
 import { validationService } from './validation.service';
 import { cacheService } from './cache.service';
 import { logger } from './logger.service';
-import { rateLimiter } from './rate-limiter.service';
 import { Contact } from '../types';
-import { ContactEnrichmentData } from './aiEnrichmentService';
-import apiConfig, { getDefaultModel, getBestModelForTask } from '../config/api.config';
+import { ContactEnrichmentData, aiEnrichmentService } from './aiEnrichmentService';
+import type { AIRole } from './aiClient';
+import { aiCall, type LiveOptions } from './liveOptions';
 
 export interface AIAnalysisRequest {
   contactId: string;
@@ -18,10 +18,14 @@ export interface AIAnalysisRequest {
   analysisTypes: ('scoring' | 'enrichment' | 'categorization' | 'tagging' | 'relationships')[];
   options?: {
     forceRefresh?: boolean;
-    provider?: 'openai' | 'gemini' | 'anthropic';
+    /** @deprecated Ignored: provider/model are resolved server-side. */
+    provider?: 'openai';
+    /** Model role (default | thinking | fast | pro). Other values are treated as 'default'. */
     model?: string;
     includeConfidence?: boolean;
   };
+  /** Live progress callbacks (partial insights / recommendations as they are written). */
+  live?: LiveOptions;
 }
 
 export interface AIAnalysisResponse {
@@ -67,21 +71,35 @@ export interface BulkAnalysisResponse {
   };
 }
 
+const ANALYSIS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    score: { type: 'number' },
+    confidence: { type: 'number' },
+    insights: { type: 'array', items: { type: 'string' } },
+    recommendations: { type: 'array', items: { type: 'string' } },
+    categories: { type: 'array', items: { type: 'string' } },
+    tags: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['score', 'confidence', 'insights', 'recommendations', 'categories', 'tags']
+};
+
+const ROLES: AIRole[] = ['default', 'thinking', 'fast', 'pro'];
+const toRole = (m?: string): AIRole => (ROLES.includes(m as AIRole) ? (m as AIRole) : 'default');
+
 class AIIntegrationService {
-  private apiUrl = apiConfig.dataProcessing.enrichment.baseURL;
-  
   async analyzeContact(request: AIAnalysisRequest): Promise<AIAnalysisResponse> {
     const startTime = Date.now();
-    
+
     // Validate request
     if (!request.contactId || !request.contact) {
       throw new Error('Contact ID and contact data are required');
     }
-    
     if (!request.analysisTypes || request.analysisTypes.length === 0) {
       throw new Error('At least one analysis type is required');
     }
-    
+
     // Check cache first (unless force refresh)
     const cacheKey = `${request.contactId}_${request.analysisTypes.join('_')}_${request.options?.model || 'default'}`;
     if (!request.options?.forceRefresh) {
@@ -91,318 +109,204 @@ class AIIntegrationService {
         return cached;
       }
     }
-    
+
     try {
-      logger.info(`Starting AI analysis for contact ${request.contactId}`, {
-        analysisTypes: request.analysisTypes,
-        provider: request.options?.provider,
-        model: request.options?.model
-      });
-      
-      const response = await httpClient.post<AIAnalysisResponse>(
-        `${this.apiUrl}/analyze`,
-        request,
-        {
-          timeout: 60000, // 1 minute for analysis
-          retries: 2
-        }
-      );
-      
-      const result = response.data;
-      
-      // Cache the result
+      logger.info(`Starting AI analysis for contact ${request.contactId}`, { analysisTypes: request.analysisTypes });
+
+      const c = request.contact;
+      const wants = request.analysisTypes;
+      const profile = {
+        name: c.name || `${c.firstName} ${c.lastName}`.trim(),
+        title: c.title,
+        company: c.company,
+        industry: c.industry,
+        status: c.status,
+        interestLevel: c.interestLevel,
+        tags: c.tags,
+        notes: c.notes,
+        lastConnected: c.lastConnected
+      };
+
+      const res = await aiCall<{
+        score: number; confidence: number; insights: string[]; recommendations: string[]; categories: string[]; tags: string[];
+      }>({
+        role: toRole(request.options?.model),
+        instructions:
+          'You are a sales intelligence analyst for a CRM. Analyze ONLY the data provided; do not invent facts about the person or company. ' +
+          'score is a 0-100 lead quality score (only meaningful if scoring is requested, otherwise 0). confidence is 0-100 reflecting how much data you had. ' +
+          'Return empty arrays for sections that were not requested.',
+        input: `Requested analyses: ${wants.join(', ')}\n\nContact data:\n${JSON.stringify(profile)}`,
+        schema: ANALYSIS_SCHEMA,
+        schemaName: 'contact_analysis',
+        maxOutputTokens: 1500
+      }, request.live);
+      const j = res.json;
+      if (!j) throw new Error('AI did not return a valid analysis');
+
+      const result: AIAnalysisResponse = {
+        contactId: request.contactId,
+        ...(wants.includes('scoring') ? { score: Math.max(0, Math.min(100, Math.round(j.score))) } : {}),
+        confidence: Math.max(0, Math.min(100, Math.round(j.confidence))),
+        insights: j.insights || [],
+        recommendations: j.recommendations || [],
+        categories: wants.includes('categorization') ? j.categories || [] : [],
+        tags: wants.includes('tagging') ? j.tags || [] : [],
+        provider: 'openai',
+        model: toRole(request.options?.model),
+        timestamp: new Date().toISOString(),
+        processingTime: Date.now() - startTime
+      };
+
+      if (wants.includes('enrichment')) {
+        result.enrichmentData = await this.enrichContact(request.contactId, {
+          ...(c.email ? { email: c.email } : {}),
+          ...(c.firstName ? { firstName: c.firstName } : {}),
+          ...(c.lastName ? { lastName: c.lastName } : {}),
+          ...(c.company ? { company: c.company } : {})
+        });
+      }
+      // 'relationships' needs other contacts' data this service does not have; none are fabricated.
+
       cacheService.setAIAnalysis(cacheKey, result, 3600000); // Cache for 1 hour
-      
+
       logger.info('AI analysis completed successfully', {
         contactId: request.contactId,
-        provider: result.provider,
-        model: result.model,
         processingTime: Date.now() - startTime,
         score: result.score
       });
-      
+
       return result;
-      
     } catch (error) {
       logger.error('AI analysis failed', error as Error, {
         contactId: request.contactId,
         analysisTypes: request.analysisTypes,
         processingTime: Date.now() - startTime
       });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback AI analysis in development mode');
-        
-        // Create a fallback analysis response
-        const fallbackAnalysis: AIAnalysisResponse = {
-          contactId: request.contactId,
-          score: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
-          confidence: 70,
-          insights: [
-            'Based on profile and engagement data, shows strong interest in your solutions',
-            'Professional background suggests decision-making authority',
-            'Company size and industry align well with your target market'
-          ],
-          recommendations: [
-            'Schedule a follow-up call within 48 hours',
-            'Share case studies relevant to their industry',
-            'Connect on LinkedIn to strengthen the relationship'
-          ],
-          categories: ['Qualified Lead', 'Decision Maker'],
-          tags: ['follow-up', 'high-potential'],
-          provider: request.options?.provider || 'fallback',
-          model: request.options?.model || 'development-fallback',
-          timestamp: new Date().toISOString(),
-          processingTime: Date.now() - startTime
-        };
-        
-        return fallbackAnalysis;
-      }
-      
       throw error;
     }
   }
-  
+
   async analyzeBulk(request: BulkAnalysisRequest): Promise<BulkAnalysisResponse> {
     const startTime = Date.now();
-    
+
     if (!request.contactIds || request.contactIds.length === 0) {
       throw new Error('Contact IDs are required');
     }
-    
+
     if (request.contactIds.length > 50) {
       throw new Error('Bulk analysis is limited to 50 contacts at a time');
     }
-    
+
     logger.info('Starting bulk AI analysis', {
       contactCount: request.contactIds.length,
       analysisTypes: request.analysisTypes
     });
-    
-    try {
-      const response = await httpClient.post<BulkAnalysisResponse>(
-        `${this.apiUrl}/analyze/bulk`,
-        request,
-        {
-          timeout: 300000, // 5 minutes for bulk operations
-          retries: 1
+
+    // Dynamic import avoids a services <-> store import cycle.
+    const { useContactStore } = await import('../hooks/useContactStore');
+    const all = useContactStore.getState().contacts as Contact[];
+
+    const results: AIAnalysisResponse[] = [];
+    const failed: Array<{ contactId: string; error: string }> = [];
+
+    let next = 0;
+    const worker = async () => {
+      while (next < request.contactIds.length) {
+        const contactId = request.contactIds[next++]!;
+        const contact = all.find(c => c.id === contactId);
+        if (!contact) {
+          failed.push({ contactId, error: 'Contact not found' });
+          continue;
         }
-      );
-      
-      const result = response.data;
-      
-      logger.info('Bulk AI analysis completed successfully', {
-        total: result.summary.total,
-        successful: result.summary.successful,
-        failed: result.summary.failed,
-        averageScore: result.summary.averageScore,
-        processingTime: Date.now() - startTime
-      });
-      
-      return result;
-      
-    } catch (error) {
-      logger.error('Bulk AI analysis failed', error as Error, {
-        contactCount: request.contactIds.length,
-        processingTime: Date.now() - startTime
-      });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback bulk AI analysis in development mode');
-        
-        // Generate mock results for each contact
-        const results: AIAnalysisResponse[] = [];
-        const failed: Array<{ contactId: string; error: string }> = [];
-        
-        for (const contactId of request.contactIds) {
-          // Randomly fail some analyses to simulate real-world behavior
-          if (Math.random() < 0.1) {
-            failed.push({ contactId, error: 'Analysis failed due to insufficient data' });
-            continue;
-          }
-          
-          const score = Math.floor(Math.random() * 40) + 60; // Random score between 60-100
-          
-          results.push({
+        try {
+          results.push(await this.analyzeContact({
             contactId,
-            score,
-            confidence: Math.floor(Math.random() * 20) + 70,
-            insights: [
-              'Shows engagement with marketing materials',
-              'Professional background indicates decision-making capacity',
-              'Industry alignment suggests good fit for our solutions'
-            ],
-            recommendations: [
-              'Schedule follow-up',
-              'Send targeted content',
-              'Connect on social platforms'
-            ],
-            categories: ['Potential Client', 'Decision Maker'],
-            tags: ['follow-up', 'qualified'],
-            provider: 'fallback',
-            model: 'development-fallback',
-            timestamp: new Date().toISOString(),
-            processingTime: Math.floor(Math.random() * 2000) + 500
-          });
+            contact,
+            analysisTypes: request.analysisTypes,
+            ...(request.options ? { options: request.options } : {})
+          }));
+        } catch (error) {
+          failed.push({ contactId, error: (error as Error).message || 'Analysis failed' });
         }
-        
-        const totalProcessingTime = Date.now() - startTime;
-        
-        return {
-          results,
-          failed,
-          summary: {
-            total: request.contactIds.length,
-            successful: results.length,
-            failed: failed.length,
-            averageScore: results.reduce((sum, r) => sum + (r.score || 0), 0) / (results.length || 1),
-            processingTime: totalProcessingTime
-          }
-        };
       }
-      
-      throw error;
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, request.contactIds.length) }, worker));
+
+    const scored = results.filter(r => typeof r.score === 'number');
+    const result: BulkAnalysisResponse = {
+      results,
+      failed,
+      summary: {
+        total: request.contactIds.length,
+        successful: results.length,
+        failed: failed.length,
+        averageScore: scored.length ? scored.reduce((sum, r) => sum + (r.score || 0), 0) / scored.length : 0,
+        processingTime: Date.now() - startTime
+      }
+    };
+
+    logger.info('Bulk AI analysis completed', result.summary);
+    return result;
   }
-  
+
   async enrichContact(
     contactId: string,
-    enrichmentRequest: Partial<ContactEnrichmentData>
+    enrichmentRequest: Partial<ContactEnrichmentData>,
+    live?: LiveOptions
   ): Promise<ContactEnrichmentData> {
     const validation = validationService.validateEnrichmentRequest(enrichmentRequest);
     if (!validation.isValid) {
       throw new Error(`Enrichment request validation failed: ${Object.values(validation.errors).flat().join(', ')}`);
     }
-    
+
     // Check cache first
     const cacheKey = `enrichment_${JSON.stringify(enrichmentRequest)}`;
     const cached = cacheService.get<ContactEnrichmentData>('enrichment', cacheKey);
     if (cached) {
       return cached;
     }
-    
+
     try {
       logger.info(`Starting contact enrichment for ${contactId}`);
-      
-      const response = await httpClient.post<ContactEnrichmentData>(
-        `${this.apiUrl}/enrich`,
-        {
-          contactId,
-          enrichmentRequest
-        },
-        {
-          timeout: 45000,
-          retries: 2
-        }
-      );
-      
-      const result = response.data;
-      
-      // Cache the result
-      cacheService.set('enrichment', cacheKey, result, 86400000); // Cache for 24 hours
-      
-      logger.info('Contact enrichment completed successfully', {
-        contactId,
-        confidence: result.confidence
-      });
-      
-      return result;
-      
-    } catch (error) {
-      logger.error('Contact enrichment failed', error as Error, {
-        contactId,
-        enrichmentRequest
-      });
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        logger.warn('Using fallback contact enrichment in development mode');
-        
-        // Create fallback enrichment data
-        let fallbackData: ContactEnrichmentData = {
-          confidence: 60,
-          notes: 'API enrichment unavailable, showing estimated data'
-        };
-        
-        if (enrichmentRequest.email) {
-          // Extract data from email
-          const [username, domain] = enrichmentRequest.email.split('@');
-          const [firstName, lastName] = username.split('.');
-          
-          fallbackData = {
-            ...fallbackData,
-            firstName: firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : '',
-            lastName: lastName ? lastName.charAt(0).toUpperCase() + lastName.slice(1) : '',
-            email: enrichmentRequest.email,
-            company: domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1),
-            socialProfiles: {
-              linkedin: `https://linkedin.com/in/${username}`,
-              website: `https://${domain}`
-            }
-          };
-        } else if (enrichmentRequest.firstName) {
-          // Use provided name data
-          fallbackData = {
-            ...fallbackData,
-            firstName: enrichmentRequest.firstName,
-            lastName: enrichmentRequest.lastName || '',
-            company: enrichmentRequest.company || 'Unknown Company',
-            socialProfiles: {
-              linkedin: `https://linkedin.com/in/${enrichmentRequest.firstName.toLowerCase()}${enrichmentRequest.lastName ? `-${enrichmentRequest.lastName.toLowerCase()}` : ''}`,
-            }
-          };
-        }
-        
-        return fallbackData;
+
+      let result: ContactEnrichmentData;
+      if (enrichmentRequest.socialProfiles?.linkedin) {
+        result = await aiEnrichmentService.enrichContactByLinkedIn(enrichmentRequest.socialProfiles.linkedin, live);
+      } else if (enrichmentRequest.firstName) {
+        result = await aiEnrichmentService.enrichContactByName(
+          enrichmentRequest.firstName,
+          enrichmentRequest.lastName || '',
+          enrichmentRequest.company,
+          live
+        );
+      } else if (enrichmentRequest.email) {
+        result = await aiEnrichmentService.enrichContactByEmail(enrichmentRequest.email, {}, live);
+      } else {
+        throw new Error('Enrichment needs an email, name or LinkedIn URL');
       }
-      
+
+      cacheService.set('enrichment', cacheKey, result, 86400000); // Cache for 24 hours
+
+      logger.info('Contact enrichment completed successfully', { contactId, confidence: result.confidence });
+      return result;
+    } catch (error) {
+      logger.error('Contact enrichment failed', error as Error, { contactId });
       throw error;
     }
   }
-  
-  // Utility methods
+
+  /** The proxy is a single server-side provider; status is "available" when a user is signed in. */
   async getProviderStatus(): Promise<Array<{ name: string; status: 'available' | 'rate_limited' | 'error'; remaining?: number }>> {
     try {
-      const response = await httpClient.get<any>(
-        `${this.apiUrl}/providers/status`,
-        undefined,
-        {
-          timeout: 10000,
-          retries: 1,
-          cache: {
-            key: 'ai_provider_status',
-            ttl: 60000, // Cache for 1 minute
-            tags: ['ai', 'status']
-          }
-        }
-      );
-      
-      return response.data;
+      const { supabase } = await import('../lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      return [{ name: 'openai', status: session ? 'available' : 'error' }];
     } catch (error) {
       logger.error('Failed to get AI provider status', error as Error);
-      
-      // Development fallback
-      if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'development') {
-        return [
-          { 
-            name: 'openai', 
-            status: import.meta.env.VITE_OPENAI_API_KEY ? 'available' : 'error',
-            remaining: 45 
-          },
-          { 
-            name: 'gemini', 
-            status: import.meta.env.VITE_GEMINI_API_KEY ? 'available' : 'error',
-            remaining: 50 
-          }
-        ];
-      }
-      
-      throw error;
+      return [{ name: 'openai', status: 'error' }];
     }
   }
-  
+
   async clearCache(contactId?: string): Promise<void> {
     if (contactId) {
       cacheService.deleteByTag('ai');

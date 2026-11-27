@@ -9,6 +9,18 @@
 [functions]
   directory = "netlify/functions"
 
+[functions."process-email-queue-scheduled"]
+  schedule = "*/5 * * * *"
+
+[functions."sequence-advance-scheduled"]
+  schedule = "*/5 * * * *"
+
+[functions."autopilot-scheduled"]
+  schedule = "*/10 * * * *"
+
+[functions."ai-batch-poll"]
+  schedule = "*/15 * * * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

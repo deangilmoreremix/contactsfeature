@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Phone, PhoneCall, PhoneOff, CheckCircle } from 'lucide-react';
+import { Phone, PhoneCall, CheckCircle } from 'lucide-react';
 
 interface CallStateDisplayProps {
   callState: 'idle' | 'calling' | 'connected' | 'completed';
@@ -11,7 +11,7 @@ interface CallStateDisplayProps {
 
 export const CallStateDisplay: React.FC<CallStateDisplayProps> = memo(({
   callState,
-  contactName,
+  contactName: _contactName,
   contactPhone,
   callDuration,
   formatDuration

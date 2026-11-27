@@ -408,7 +408,7 @@ export const SDRModal: React.FC<SDRModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onClose}
             >

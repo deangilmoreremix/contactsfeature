@@ -73,7 +73,7 @@ async function logAgentActivity(contactId, userId, stateId, level, message) {
 }
 
 async function generateEmailWithAI(contact, stage, followUpCount, persona, customInstructions) {
-  const model = process.env.SMARTCRM_MODEL || 'gpt-5.2';
+  const model = 'thinking';
   const contactName = contact.firstname || contact.name || 'there';
   const company = contact.company || 'your company';
   const title = contact.title || '';
@@ -327,3 +327,4 @@ exports.handler = withAuth(async (event, user) => {
     return errorResponse(500, 'Failed to trigger autopilot');
   }
 });
+exports.runAutopilotStep = runAutopilotStep;

@@ -59,7 +59,9 @@ class CacheService {
     if (this.cache.size === 0) return;
     
     let oldestKey = '';
-    let oldestTime = Date.now();
+    // Infinity (not Date.now()): entries stored within the current millisecond must still be evictable,
+    // otherwise nothing is evicted and setMaxSize() would loop forever. Ties keep the first-inserted entry.
+    let oldestTime = Infinity;
     
     for (const [key, entry] of this.cache.entries()) {
       if (entry.timestamp < oldestTime) {
@@ -80,6 +82,13 @@ class CacheService {
       : 0;
   }
   
+  /**
+   * Store a value.
+   *
+   * @param ttl Time to live in milliseconds. Omitted, `undefined` or `0` all mean "use the service default TTL"
+   *   (5 minutes unless set in the constructor); `0` does NOT mean "no expiry" and not "expire immediately".
+   *   There is no never-expires mode. No caller in the app passes 0 (audited), pass a large TTL instead.
+   */
   set<T>(
     namespace: string,
     identifier: string | object,
@@ -197,12 +206,12 @@ class CacheService {
     return this.get('contact', contactId);
   }
   
-  setContactList(filters: object, contacts: any[], ttl?: number): void {
+  setContactList(filters: object, contacts: unknown, ttl?: number): void {
     this.set('contact_list', filters, contacts, ttl, ['contact', 'list']);
   }
   
-  getContactList(filters: object): any[] | null {
-    return this.get('contact_list', filters);
+  getContactList<T = any>(filters: object): T | null {
+    return this.get<T>('contact_list', filters);
   }
   
   setAIAnalysis(contactId: string, analysis: any, ttl?: number): void {

@@ -2,6 +2,8 @@
 import { logger } from './logger.service';
 import { aiCache } from '../utils/cache';
 import { sanitizeString } from '../utils/validation';
+import { aiJson } from './aiClient';
+import type { LiveOptions } from './liveOptions';
 
 interface EmailData {
   to: string;
@@ -18,29 +20,21 @@ interface SMSData {
 
 interface CallData {
   to: string;
-  notes?: string;
+  notes?: string | undefined;
 }
 
 export class GPT5ToolsService {
-  private apiKey = import.meta.env['VITE_OPENAI_API_KEY'];
-  private model = import.meta.env['VITE_OPENAI_MODEL'] || 'gpt-4'; // Use valid model
   private maxRetries = 3;
   private retryDelay = 1000; // 1 second
 
   constructor() {
-    logger.info('GPT-5 Tools Service initialized', {
-      model: this.model,
-      hasApiKey: !!this.apiKey
-    });
+    logger.info('AI Tools Service initialized (server-proxied)');
   }
 
   /**
     * Prepare email using GPT-5 tools to open Gmail compose window
     */
-   async prepareEmail(emailData: EmailData): Promise<{ success: boolean; message: string; gmailUrl?: string }> {
-     if (!this.apiKey) {
-       throw new Error('OpenAI API key is not configured');
-     }
+   async prepareEmail(emailData: EmailData, live?: LiveOptions): Promise<{ success: boolean; message: string; gmailUrl?: string }> {
 
      try {
        logger.info('Preparing email via GPT-5 tools', { to: emailData.to, subject: emailData.subject });
@@ -51,7 +45,7 @@ export class GPT5ToolsService {
 
        if (!enhancedEmail) {
          // Use GPT-5 to validate and enhance the email
-         enhancedEmail = await this.enhanceEmailWithGPT5(emailData);
+         enhancedEmail = await this.enhanceEmailWithGPT5(emailData, live);
          // Cache the result
          aiCache.set(cacheKey, enhancedEmail);
        }
@@ -75,16 +69,13 @@ export class GPT5ToolsService {
   /**
    * Send SMS using GPT-5 tools
    */
-  async sendSMS(smsData: SMSData): Promise<{ success: boolean; message: string; smsAppUrl?: string }> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
+  async sendSMS(smsData: SMSData, live?: LiveOptions): Promise<{ success: boolean; message: string; smsAppUrl?: string }> {
 
     try {
       logger.info('Sending SMS via GPT-5 tools', { to: smsData.to });
 
       // Use GPT-5 to enhance the SMS message
-      const enhancedSMS = await this.enhanceSMSWithGPT5(smsData);
+      const enhancedSMS = await this.enhanceSMSWithGPT5(smsData, live);
 
       // Generate SMS app URL (this would depend on the user's SMS app)
       const smsUrl = this.generateSMSUrl(enhancedSMS);
@@ -106,16 +97,13 @@ export class GPT5ToolsService {
   /**
    * Make call using GPT-5 tools
    */
-  async makeCall(callData: CallData): Promise<{ success: boolean; message: string; callUrl?: string }> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
+  async makeCall(callData: CallData, live?: LiveOptions): Promise<{ success: boolean; message: string; callUrl?: string }> {
 
     try {
       logger.info('Making call via GPT-5 tools', { to: callData.to });
 
       // Use GPT-5 to prepare call notes and context
-      const enhancedCall = await this.enhanceCallWithGPT5(callData);
+      const enhancedCall = await this.enhanceCallWithGPT5(callData, live);
 
       // Generate call URL (this would depend on the user's calling app like Skype)
       const callUrl = this.generateCallUrl(enhancedCall);
@@ -178,46 +166,22 @@ export class GPT5ToolsService {
   /**
    * Use GPT-5 to enhance email content with retry logic
    */
-  private async enhanceEmailWithGPT5(emailData: EmailData): Promise<EmailData> {
+  private async enhanceEmailWithGPT5(emailData: EmailData, live?: LiveOptions): Promise<EmailData> {
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`
-          },
-          body: JSON.stringify({
-            model: this.model,
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an expert email copywriter. Enhance the provided email to make it more professional, engaging, and effective. Keep the core message but improve the language, structure, and persuasiveness.'
-              },
-              {
-                role: 'user',
-                content: `Please enhance this email:
+        const enhancedContent = await aiJson<{ subject: string; body: string }>({
+          role: 'fast',
+          instructions: 'You are an expert email copywriter. Enhance the provided email to make it more professional, engaging, and effective. Keep the core message but improve the language, structure, and persuasiveness.',
+          input: `Please enhance this email:
 
 Subject: ${emailData.subject}
 
 Body:
-${emailData.body}
-
-Return the enhanced email in JSON format with "subject" and "body" fields.`
-              }
-            ],
-            temperature: 0.7,
-            max_tokens: 1000
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`OpenAI API error: ${response.status} ${response.statusText}. ${errorData.error?.message || ''}`);
-        }
-
-        const data = await response.json();
-        const enhancedContent = JSON.parse(data.choices[0].message.content);
+${emailData.body}`,
+          schema: { type: 'object', properties: { subject: { type: 'string' },body: { type: 'string' } }, required: ['subject','body'], additionalProperties: false },
+          schemaName: 'enhanced_email',
+          maxOutputTokens: 1000
+        }, live);
 
         // Sanitize AI-generated content
         const sanitizedSubject = sanitizeString(enhancedContent.subject || emailData.subject);
@@ -247,41 +211,16 @@ Return the enhanced email in JSON format with "subject" and "body" fields.`
   /**
    * Use GPT-5 to enhance SMS content
    */
-  private async enhanceSMSWithGPT5(smsData: SMSData): Promise<SMSData> {
+  private async enhanceSMSWithGPT5(smsData: SMSData, live?: LiveOptions): Promise<SMSData> {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert SMS copywriter. Enhance the provided SMS message to make it concise, clear, and effective. Keep it under 160 characters if possible.'
-            },
-            {
-              role: 'user',
-              content: `Please enhance this SMS message:
-
-"${smsData.message}"
-
-Return the enhanced message as a JSON object with a "message" field.`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 200
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`GPT-5 API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const enhancedContent = JSON.parse(data.choices[0].message.content);
+      const enhancedContent = await aiJson<{ message: string }>({
+        role: 'fast',
+        instructions: 'You are an expert SMS copywriter. Enhance the provided SMS message to make it concise, clear, and effective. Keep it under 160 characters if possible.',
+        input: `Please enhance this SMS message:\n\n"${smsData.message}"`,
+        schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false },
+        schemaName: 'enhanced_sms',
+        maxOutputTokens: 200
+      }, live);
 
       return {
         ...smsData,
@@ -296,41 +235,16 @@ Return the enhanced message as a JSON object with a "message" field.`
   /**
    * Use GPT-5 to enhance call preparation
    */
-  private async enhanceCallWithGPT5(callData: CallData): Promise<CallData> {
+  private async enhanceCallWithGPT5(callData: CallData, live?: LiveOptions): Promise<CallData> {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert sales call strategist. Enhance the call preparation notes to make them more effective and professional.'
-            },
-            {
-              role: 'user',
-              content: `Please enhance these call preparation notes:
-
-"${callData.notes || 'No specific notes provided'}"
-
-Return enhanced notes as a JSON object with a "notes" field.`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 300
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`GPT-5 API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const enhancedContent = JSON.parse(data.choices[0].message.content);
+      const enhancedContent = await aiJson<{ notes: string }>({
+        role: 'fast',
+        instructions: 'You are an expert sales call strategist. Enhance the call preparation notes to make them more effective and professional.',
+        input: `Please enhance these call preparation notes:\n\n"${callData.notes || 'No specific notes provided'}"`,
+        schema: { type: 'object', properties: { notes: { type: 'string' } }, required: ['notes'], additionalProperties: false },
+        schemaName: 'enhanced_call_notes',
+        maxOutputTokens: 300
+      }, live);
 
       return {
         ...callData,

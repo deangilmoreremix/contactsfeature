@@ -38,11 +38,13 @@ export const GPT51Controls: React.FC<GPT51ControlsProps> = ({
     setIsProcessing(true);
     try {
       const response = await gpt51ResponsesService.createResponse({
-        model: 'gpt-5.1',
+        model: 'default',
         input: input.trim(),
         reasoning: { effort: reasoningEffort },
         text: { verbosity },
-        max_output_tokens: 1000
+        max_output_tokens: 1000,
+        // live: the answer types in as it is generated
+        live: { onDelta: (_t, full) => setResult(full) }
       });
 
       const output = response.output_text;
@@ -161,7 +163,7 @@ export const GPT51Controls: React.FC<GPT51ControlsProps> = ({
         </div>
 
         {/* Action Button */}
-        <ModernButton
+        <ModernButton size="toolbar"
           onClick={handleTestGPT51}
           loading={isProcessing}
           disabled={!input.trim()}

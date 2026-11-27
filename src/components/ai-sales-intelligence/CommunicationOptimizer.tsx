@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { streamFunction } from '../../services/functionStream';
+import { useFunctionStream } from '../../hooks/useFunctionStream';
+import { LiveOutput } from '../ui/LiveOutput';
+import { liveDisplay } from '../../lib/streaming/previewText';
 import { analyticsService } from '../../services/analyticsService';
 import { GlassCard } from '../ui/GlassCard';
 import { ModernButton } from '../ui/ModernButton';
-import { Send, TrendingUp, AlertTriangle, CheckCircle, Zap, MessageSquare, Sparkles, Brain, Settings } from 'lucide-react';
-import { ResearchThinkingAnimation, useResearchThinking } from '../ui/ResearchThinkingAnimation';
-import { ResearchStatusOverlay, useResearchStatus } from '../ui/ResearchStatusOverlay';
+import { Send, AlertTriangle, CheckCircle, Zap, MessageSquare, Settings } from 'lucide-react';
+import { useResearchThinking } from '../ui/ResearchThinkingAnimation';
+import { useResearchStatus } from '../ui/ResearchStatusOverlay';
 import { SDRAgentConfigurator } from '../sdr/SDRAgentConfigurator';
 
 interface CommunicationContext {
@@ -50,7 +53,6 @@ interface CommunicationOptimizerProps {
 }
 
 export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
-  content,
   context,
   onOptimize,
   onApplyOptimization,
@@ -58,12 +60,13 @@ export const CommunicationOptimizer: React.FC<CommunicationOptimizerProps> = ({
 }) => {
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const gen = useFunctionStream<any>();
   const [appliedOptimizations, setAppliedOptimizations] = useState<Set<string>>(new Set());
   const [showSettings, setShowSettings] = useState(false);
 
   // Research state management (matching AIInsightsPanel pattern)
   const researchThinking = useResearchThinking();
-  const researchStatus = useResearchStatus();
+  useResearchStatus();
 
   const optimizeCommunication = async () => {
     setLoading(true);
@@ -154,8 +157,7 @@ Best regards,
         analyticsService.endTracking(sessionId, true, undefined, 'mock', 'mock');
       } else {
         // Real optimization for non-mock contacts
-        const response = await supabase.functions.invoke('communication-optimization', {
-          body: {
+        const out = await gen.runLive((h) => streamFunction<any>('communication-optimization', {
             contact: {
               id: 'temp-id', // Would need actual contact ID
               name: context.recipient.name,
@@ -167,8 +169,9 @@ Best regards,
             timeframe: '30d',
             optimizationType: 'comprehensive',
             aiProvider: 'openai'
-          }
-        });
+          }, h));
+        if (!out) { researchThinking.complete('Stopped'); analyticsService.endTracking(sessionId, false, 'Stopped'); return; }
+        const response = { data: out.result as any };
 
         researchThinking.moveToSynthesizing('📊 Generating optimization recommendations...');
 
@@ -233,7 +236,7 @@ Best regards,
           researchThinking.complete('✅ Communication optimized successfully!');
 
           // End analytics tracking - success
-          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'gpt-4o');
+          analyticsService.endTracking(sessionId, true, undefined, response.data.provider, 'default');
         } else {
           throw new Error('No optimization data received');
         }
@@ -246,36 +249,6 @@ Best regards,
       analyticsService.endTracking(sessionId, false, error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getOptimizationGoals = (context: CommunicationContext) => {
-    switch (context.purpose) {
-      case 'nurture':
-        return ['engagement', 'relationship_building', 'value_demonstration'];
-      case 'qualify':
-        return ['information_gathering', 'need_identification', 'qualification'];
-      case 'close':
-        return ['urgency_creation', 'objection_handling', 'commitment'];
-      case 'follow_up':
-        return ['next_step_creation', 'momentum_maintenance'];
-      case 're_engage':
-        return ['attention_grabbing', 'value_reminder', 'reconnection'];
-      default:
-        return ['general_engagement'];
-    }
-  };
-
-  const getTargetMetrics = (type: string) => {
-    switch (type) {
-      case 'email':
-        return { openRate: 0.25, responseRate: 0.08, clickRate: 0.03 };
-      case 'call_script':
-        return { connectionRate: 0.60, conversionRate: 0.15 };
-      case 'social_message':
-        return { engagementRate: 0.08, responseRate: 0.05 };
-      default:
-        return { engagementRate: 0.10 };
     }
   };
 
@@ -296,7 +269,7 @@ Best regards,
     return <AlertTriangle className="w-5 h-5 text-red-600" />;
   };
 
-  const getPerformanceIndicator = (metric: string, value: number) => {
+  const getPerformanceIndicator = (_metric: string, value: number) => {
     const colors = {
       excellent: 'text-green-600 bg-green-50',
       good: 'text-blue-600 bg-blue-50',
@@ -327,15 +300,15 @@ Best regards,
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap shrink-0 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             title="Configure Communication Optimizer Settings"
           >
-            <Settings className="w-3 h-3" />
+            <Settings className="w-4 h-4" />
             Settings
           </button>
           <ModernButton
             variant="outline"
-            size="sm"
+            size="toolbar"
             onClick={optimizeCommunication}
             loading={loading}
           >
@@ -439,7 +412,7 @@ Best regards,
                     {!appliedOptimizations.has(`suggestion-${index}`) && (
                       <ModernButton
                         variant="outline"
-                        size="sm"
+                        size="toolbar"
                         onClick={() => applyOptimization(`suggestion-${index}`)}
                       >
                         Apply
@@ -508,14 +481,14 @@ Best regards,
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="primary"
               onClick={onApplyOptimization || (() => {})}
               className="flex-1"
             >
               ✨ Apply Optimizations
             </ModernButton>
-            <ModernButton
+            <ModernButton size="toolbar"
               variant="outline"
               onClick={onViewAnalytics || (() => {})}
               className="flex-1"
@@ -526,6 +499,14 @@ Best regards,
         </>
       )}
 
+      <LiveOutput
+        className="mb-6"
+        state={gen.state}
+        onStop={() => { gen.stop(); researchThinking.complete('Stopped'); }}
+        display={liveDisplay(gen.state.partial, gen.state.text)}
+        placeholder="Analyzing your communication…"
+      />
+
       {!optimization && !loading && (
         <div className="text-center py-12">
           <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -533,7 +514,7 @@ Best regards,
           <p className="text-gray-600 mb-6">
             Get AI-powered suggestions to improve your message effectiveness and increase response rates.
           </p>
-          <ModernButton
+          <ModernButton size="toolbar"
             variant="primary"
             onClick={optimizeCommunication}
           >

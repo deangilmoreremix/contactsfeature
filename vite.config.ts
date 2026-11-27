@@ -12,9 +12,6 @@ export default defineConfig({
   optimizeDeps: {
     include: ["react", "react-dom", "@supabase/supabase-js"],
   },
-  ssr: {
-    external: ["@google/generative-ai"],
-  },
   define: {
     global: "globalThis",
     DEFAULT_SCORE_WEIGHTS: JSON.stringify({
@@ -44,7 +41,7 @@ export default defineConfig({
           if (id.includes('node_modules')) {
             if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
             if (id.includes('lucide-react') || id.includes('react-avatar') || id.includes('react-select')) return 'ui-vendor';
-            if (id.includes('@google/generative-ai') || id.includes('@supabase/supabase-js')) return 'ai-vendor';
+            if (id.includes('@supabase/supabase-js')) return 'ai-vendor';
             if (id.includes('fuse.js') || id.includes('crypto-js') || id.includes('xlsx')) return 'utils-vendor';
           }
         },

@@ -6,6 +6,14 @@ import { ObjectionHandlerSDRAgent } from '../sdr/ObjectionHandlerSDRAgent';
 import { ReactivationSDRAgent } from '../sdr/ReactivationSDRAgent';
 import { WinBackSDRAgent } from '../sdr/WinBackSDRAgent';
 import { DiscoverySDRAgent } from '../sdr/DiscoverySDRAgent';
+import { LinkedInSDRAgent } from '../sdr/LinkedInSDRAgent';
+import { WhatsAppSDRAgent } from '../sdr/WhatsAppSDRAgent';
+import { EventBasedSDRAgent } from '../sdr/EventBasedSDRAgent';
+import { ReferralSDRAgent } from '../sdr/ReferralSDRAgent';
+import { NewsletterSDRAgent } from '../sdr/NewsletterSDRAgent';
+import { HighIntentSDRAgent } from '../sdr/HighIntentSDRAgent';
+import { DataEnrichmentSDRAgent } from '../sdr/DataEnrichmentSDRAgent';
+import { CompetitorAwareSDRAgent } from '../sdr/CompetitorAwareSDRAgent';
 import { ModernButton } from '../ui/ModernButton';
 import { AgentButton } from '../ai-sales-intelligence/AgentButton';
 import { OUTBOUND_PERSONAS, getPersonaById, OutboundPersonaId } from '../../agents/personas';
@@ -18,9 +26,31 @@ import {
   getAutopilotLogs,
 } from '../../agents/sdr/runSdrAutopilot';
 import {
-  Target, Mail, MessageSquare, AlertTriangle, RotateCcw, Trophy, Search,
-  Bot, Play, Pause, Square, Clock, Save, RefreshCw, Info, ChevronDown, Check,
-  Phone, TrendingUp, Users, Calendar, Rocket, BarChart3, Zap, Brain, MessageCircle
+  Target,
+  Mail,
+  MessageSquare,
+  AlertTriangle,
+  RotateCcw,
+  Trophy,
+  Search,
+  Bot,
+  Play,
+  Pause,
+  Square,
+  Clock,
+  Save,
+  RefreshCw,
+  Info,
+  ChevronDown,
+  Check,
+  Phone,
+  TrendingUp,
+  Calendar,
+  Rocket,
+  BarChart3,
+  Zap,
+  Brain,
+  MessageCircle
 } from 'lucide-react';
 
 interface ContactSDRPanelProps {
@@ -221,7 +251,15 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
     { id: 'objection-handler', component: ObjectionHandlerSDRAgent, icon: AlertTriangle, title: 'Objection Handler SDR', description: 'Handle common sales objections intelligently' },
     { id: 'reactivation', component: ReactivationSDRAgent, icon: RotateCcw, title: 'Re-Activation SDR', description: 'Re-engage dormant or inactive contacts' },
     { id: 'win-back', component: WinBackSDRAgent, icon: Trophy, title: 'Win-Back SDR', description: 'Recover lost deals and churned customers' },
-    { id: 'discovery', component: DiscoverySDRAgent, icon: Search, title: 'Discovery SDR', description: 'Research and qualify prospects with AI intelligence' }
+    { id: 'discovery', component: DiscoverySDRAgent, icon: Search, title: 'Discovery SDR', description: 'Research and qualify prospects with AI intelligence' },
+    { id: 'linkedin', component: LinkedInSDRAgent, icon: MessageCircle, title: 'LinkedIn SDR', description: 'Connection notes and follow-ups for LinkedIn' },
+    { id: 'whatsapp', component: WhatsAppSDRAgent, icon: MessageSquare, title: 'WhatsApp SDR', description: 'Short conversational WhatsApp messages' },
+    { id: 'event-based', component: EventBasedSDRAgent, icon: Zap, title: 'Event-Based SDR', description: 'Outreach triggered by real, recent events' },
+    { id: 'referral', component: ReferralSDRAgent, icon: Trophy, title: 'Referral SDR', description: 'Referral and warm-introduction requests' },
+    { id: 'newsletter', component: NewsletterSDRAgent, icon: Mail, title: 'Newsletter SDR', description: 'Newsletter-style invitations and teasers' },
+    { id: 'high-intent', component: HighIntentSDRAgent, icon: AlertTriangle, title: 'High-Intent SDR', description: 'Fast replies to buying-intent signals' },
+    { id: 'data-enrichment', component: DataEnrichmentSDRAgent, icon: Search, title: 'Data Enrichment SDR', description: 'Verify public details with web research' },
+    { id: 'competitor-aware', component: CompetitorAwareSDRAgent, icon: BarChart3, title: 'Competitor-Aware SDR', description: 'Position against a verified competitor' }
   ];
 
   const enhancedAgents = [
@@ -358,31 +396,31 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
 
         <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
           {!isAutopilotRunning && !isAutopilotPaused && (
-            <ModernButton variant="primary" size="sm" onClick={handleStartAutopilot} disabled={isLoading} className="flex items-center space-x-2">
+            <ModernButton variant="primary" size="toolbar" onClick={handleStartAutopilot} disabled={isLoading} className="flex items-center space-x-2">
               <Play className="w-4 h-4" /><span>Start Autopilot</span>
             </ModernButton>
           )}
           {isAutopilotRunning && (
             <>
-              <ModernButton variant="outline" size="sm" onClick={handlePauseAutopilot} disabled={isLoading} className="flex items-center space-x-2">
+              <ModernButton variant="outline" size="toolbar" onClick={handlePauseAutopilot} disabled={isLoading} className="flex items-center space-x-2">
                 <Pause className="w-4 h-4" /><span>Pause</span>
               </ModernButton>
-              <ModernButton variant="outline" size="sm" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
+              <ModernButton variant="outline" size="toolbar" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
                 <Square className="w-4 h-4" /><span>Stop</span>
               </ModernButton>
             </>
           )}
           {isAutopilotPaused && (
             <>
-              <ModernButton variant="primary" size="sm" onClick={handleResumeAutopilot} disabled={isLoading} className="flex items-center space-x-2">
+              <ModernButton variant="primary" size="toolbar" onClick={handleResumeAutopilot} disabled={isLoading} className="flex items-center space-x-2">
                 <Play className="w-4 h-4" /><span>Resume</span>
               </ModernButton>
-              <ModernButton variant="outline" size="sm" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
+              <ModernButton variant="outline" size="toolbar" onClick={handleStopAutopilot} disabled={isLoading} className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50">
                 <Square className="w-4 h-4" /><span>Stop</span>
               </ModernButton>
             </>
           )}
-          <ModernButton variant="outline" size="sm" onClick={handleLoadLogs} disabled={isLoading} className="flex items-center space-x-2 ml-auto">
+          <ModernButton variant="outline" size="toolbar" onClick={handleLoadLogs} disabled={isLoading} className="flex items-center space-x-2 ml-auto">
             <Clock className="w-4 h-4" /><span>View Logs</span>
           </ModernButton>
         </div>
@@ -490,10 +528,10 @@ export const ContactSDRPanel: React.FC<ContactSDRPanelProps> = ({ contact }) => 
         )}
 
         <div className="flex items-center justify-end pt-3 border-t border-gray-200 dark:border-gray-700 space-x-2">
-          <ModernButton variant="outline" size="sm" onClick={() => setSettings({ personaId: 'cold_saas_founder', isEnabled: false, autopilotEnabled: false, followupMode: 'manual', customNotes: '', sequenceLength: 5, maxEmailsPerDay: 3, respectBusinessHours: true })} className="flex items-center space-x-1">
+          <ModernButton variant="outline" size="toolbar" onClick={() => setSettings({ personaId: 'cold_saas_founder', isEnabled: false, autopilotEnabled: false, followupMode: 'manual', customNotes: '', sequenceLength: 5, maxEmailsPerDay: 3, respectBusinessHours: true })} className="flex items-center space-x-1">
             <RefreshCw className="w-3 h-3" /><span>Reset</span>
           </ModernButton>
-          <ModernButton variant="primary" size="sm" onClick={handleSave} disabled={isLoading} className="flex items-center space-x-1">
+          <ModernButton variant="primary" size="toolbar" onClick={handleSave} disabled={isLoading} className="flex items-center space-x-1">
             <Save className="w-3 h-3" /><span>{isLoading ? 'Saving...' : 'Save Settings'}</span>
           </ModernButton>
         </div>

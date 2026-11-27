@@ -1,4 +1,8 @@
 import { supabase } from './supabaseClient'
+import { streamTask, type TaskLive } from './aiTask'
+import { streamFunction } from './functionStream'
+
+const CHAT_URL = '/.netlify/functions/chat'
 
 export class EdgeFunctionService {
   private static instance: EdgeFunctionService
@@ -19,7 +23,7 @@ export class EdgeFunctionService {
     return result
   }
 
-  async enrichContact(data: any, type: string = 'comprehensive') {
+  async enrichContact(data: any, _type: string = 'comprehensive') {
     const { data: result, error } = await supabase.functions.invoke('contacts', {
       body: { action: 'enrich', data }
     })
@@ -35,22 +39,9 @@ export class EdgeFunctionService {
     return result
   }
 
-  // AI Enrichment
-  async enrichContactData(contactData: any, enrichmentType: string = 'comprehensive') {
-    const { data: result, error } = await supabase.functions.invoke('ai-enrichment', {
-      body: { contactData, enrichmentType }
-    })
-    if (error) throw error
-    return result
-  }
-
   // Smart Scoring
-  async calculateContactScore(contactData: any, criteria: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('smart-score', {
-      body: { contactData, scoringCriteria: criteria }
-    })
-    if (error) throw error
-    return result
+  async calculateContactScore(contactData: any, criteria: any = {}, live?: TaskLive) {
+    return streamTask<any>('smart-score', { contactData, scoringCriteria: criteria }, live)
   }
 
   // Email functions
@@ -80,75 +71,44 @@ export class EdgeFunctionService {
   }
 
   // Automation
-  async processAutomation(trigger: string, data: any, rules: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('automation-ai', {
-      body: { trigger, data, rules }
-    })
-    if (error) throw error
-    return result
+  async processAutomation(trigger: string, data: any, rules: any = {}, live?: TaskLive) {
+    return streamTask<any>('automation-ai', { trigger, data, rules }, live)
   }
 
   // Bulk operations
-  async processBulkContacts(contacts: any[], operation: string, options: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('smart-bulk', {
-      body: { contacts, operation, options }
-    })
-    if (error) throw error
-    return result
+  async processBulkContacts(contacts: any[], operation: string, options: any = {}, live?: TaskLive) {
+    return streamTask<any>('smart-bulk', { contacts, operation, options }, live)
   }
 
   // Categorization
-  async categorizeContacts(contacts: any[], criteria: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('smart-categorize', {
-      body: { contacts, criteria }
-    })
-    if (error) throw error
-    return result
+  async categorizeContacts(contacts: any[], criteria: any = {}, live?: TaskLive) {
+    return streamTask<any>('smart-categorize', { contacts, criteria }, live)
   }
 
   // Qualification
-  async qualifyLeads(leads: any[], qualificationRules: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('smart-qualify', {
-      body: { leads, qualificationRules }
-    })
-    if (error) throw error
-    return result
+  async qualifyLeads(leads: any[], qualificationRules: any = {}, live?: TaskLive) {
+    return streamTask<any>('smart-qualify', { leads, qualificationRules }, live)
   }
 
   // Predictive Analytics
-  async generatePredictions(data: any, predictionType: string) {
-    const { data: result, error } = await supabase.functions.invoke('predictive-analytics', {
-      body: { data, predictionType }
-    })
-    if (error) throw error
-    return result
+  async generatePredictions(data: any, predictionType: string, live?: TaskLive) {
+    return streamTask<any>('predictive-analytics', { data, predictionType, timeFrame: data?.timeFrame }, live)
   }
 
   // Meeting optimization
-  async optimizeMeeting(data: any) {
-    const { data: result, error } = await supabase.functions.invoke('meeting-optimizer', {
-      body: data
-    })
-    if (error) throw error
-    return result
+  async optimizeMeeting(data: any, live?: TaskLive) {
+    // accepts { meetingData, optimizationType } or the meeting fields directly
+    return streamTask<any>('meeting-optimizer', data && data.meetingData ? data : { meetingData: data, optimizationType: data?.optimizationType }, live)
   }
 
   // Relationship insights
-  async analyzeRelationships(contactId: string, data: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('relationship-insights', {
-      body: { contactId, ...data }
-    })
-    if (error) throw error
-    return result
+  async analyzeRelationships(contactId: string, data: any = {}, live?: TaskLive) {
+    return streamTask<any>('relationship-insights', { contactId, ...data }, live)
   }
 
   // Timeline generation
-  async generateTimeline(contactId: string, options: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('timeline-generator', {
-      body: { contactId, options }
-    })
-    if (error) throw error
-    return result
+  async generateTimeline(contactId: string, options: any = {}, live?: TaskLive) {
+    return streamTask<any>('timeline-generator', { contactId, entityType: 'contact', options }, live)
   }
 
   // Duplicate detection
@@ -161,21 +121,17 @@ export class EdgeFunctionService {
   }
 
   // Conversation analysis
-  async analyzeConversation(conversationData: any) {
-    const { data: result, error } = await supabase.functions.invoke('conversation-analysis', {
-      body: conversationData
-    })
-    if (error) throw error
-    return result
+  async analyzeConversation(conversationData: any, live?: TaskLive) {
+    // accepts either the conversation itself or { conversationData, analysisType }
+    const params = conversationData && conversationData.conversationData
+      ? { conversationData: conversationData.conversationData, analysisType: conversationData.analysisType }
+      : { conversationData, analysisType: conversationData?.analysisType }
+    return streamTask<any>('conversation-analysis', params, live)
   }
 
   // Personalized messages
-  async generatePersonalizedMessage(contactData: any, context: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('personalized-messages', {
-      body: { contactData, context }
-    })
-    if (error) throw error
-    return result
+  async generatePersonalizedMessage(contactData: any, context: any = {}, live?: TaskLive) {
+    return streamTask<any>('personalized-messages', { contactData, context }, live)
   }
 
   // Email templates
@@ -188,30 +144,18 @@ export class EdgeFunctionService {
   }
 
   // AI Reasoning
-  async performReasoning(data: any, reasoningType: string) {
-    const { data: result, error } = await supabase.functions.invoke('ai-reasoning', {
-      body: { data, reasoningType }
-    })
-    if (error) throw error
-    return result
+  async performReasoning(data: any, reasoningType: string, live?: TaskLive) {
+    return streamTask<any>('ai-reasoning', { data, reasoningType }, live)
   }
 
   // Contact card AI
-  async enhanceContactCard(contactData: any) {
-    const { data: result, error } = await supabase.functions.invoke('contact-card-ai', {
-      body: contactData
-    })
-    if (error) throw error
-    return result
+  async enhanceContactCard(contactData: any, live?: TaskLive) {
+    return streamTask<any>('contact-card-ai', { contactData, cardType: contactData?.cardType }, live)
   }
 
   // Contact detail AI
-  async enhanceContactDetail(contactData: any) {
-    const { data: result, error } = await supabase.functions.invoke('contact-detail-ai', {
-      body: contactData
-    })
-    if (error) throw error
-    return result
+  async enhanceContactDetail(contactData: any, live?: TaskLive) {
+    return streamTask<any>('contact-detail-ai', { contactData, detailType: contactData?.detailType }, live)
   }
 
   // Journey Manager
@@ -421,20 +365,12 @@ export class EdgeFunctionService {
   }
 
   // Specialized AI Tools Functions
-  async generateInstantResponse(message: string, context: any = {}, contactData: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('instant-response', {
-      body: { message, context, contactData }
-    })
-    if (error) throw error
-    return result
+  async generateInstantResponse(message: string, context: any = {}, contactData: any = {}, live?: TaskLive) {
+    return streamTask<any>('instant-response', { message, context, contactData }, live)
   }
 
-  async analyzeDeal(dealData: any, analysisType: string = 'comprehensive') {
-    const { data: result, error } = await supabase.functions.invoke('deal-analysis', {
-      body: { dealData, analysisType }
-    })
-    if (error) throw error
-    return result
+  async analyzeDeal(dealData: any, analysisType: string = 'comprehensive', live?: TaskLive) {
+    return streamTask<any>('deal-analysis', { dealData, dealId: dealData?.id, analysisType }, live)
   }
 
   async performSemanticSearch(query: string, searchType: string = 'universal', filters: any = {}, options: any = {}) {
@@ -445,20 +381,26 @@ export class EdgeFunctionService {
     return result
   }
 
-  async streamChat(message: string, conversationId: string, context: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('streaming-chat', {
-      body: { message, conversationId, context, stream: true }
-    })
-    if (error) throw error
-    return result
+  /** Create a server-side chat conversation (netlify/functions/chat.js) and return its `conv_...` id. */
+  async startChat(): Promise<string> {
+    const { result } = await streamFunction<{ conversationId: string }>(CHAT_URL, { action: 'start' })
+    if (!result?.conversationId) throw new Error('Could not start the chat')
+    return result.conversationId
   }
 
-  async generateChatResponse(message: string, conversationId: string, context: any = {}) {
-    const { data: result, error } = await supabase.functions.invoke('streaming-chat', {
-      body: { message, conversationId, context, stream: false }
-    })
-    if (error) throw error
-    return result
+  /**
+   * Send one chat turn; text streams into `live.onDelta`. `conversationId` must be a `conv_...` id from startChat()
+   * (anything else starts a new conversation); the id actually used is returned for the next turn.
+   */
+  async streamChat(message: string, conversationId: string | null | undefined, context: any = {}, live?: TaskLive) {
+    const id = conversationId && /^conv_/.test(conversationId) ? conversationId : await this.startChat()
+    const { result } = await streamFunction<any>(CHAT_URL, { message, conversationId: id, context }, live ?? {})
+    if (!result) throw new Error('The assistant returned no reply')
+    return { ...result, conversationId: result.conversationId ?? id }
+  }
+
+  async generateChatResponse(message: string, conversationId: string | null | undefined, context: any = {}, live?: TaskLive) {
+    return this.streamChat(message, conversationId, context, live)
   }
 }
 

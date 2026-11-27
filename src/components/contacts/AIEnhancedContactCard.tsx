@@ -34,8 +34,8 @@ const AIEnhancedContactCardComponent: React.FC<AIEnhancedContactCardProps> = mem
   onAnalyze,
   isAnalyzing = false,
   variant = 'default',
-  density,
-  viewMode
+  density: _density,
+  viewMode: _viewMode
 }) => {
   const [showActions, setShowActions] = useState(false);
 

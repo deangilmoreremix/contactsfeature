@@ -5,17 +5,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useContactStore } from '../../hooks/useContactStore';
 import { contactAPI } from '../../services/contact-api.service';
 import { Contact } from '../../types';
+import { asNewContact } from '../helpers/contactFixtures';
 
 // Test configuration - these should be set in CI/CD environment
 const TEST_CONFIG = {
-  supabaseUrl: process.env.VITE_SUPABASE_URL || 'test-url',
-  supabaseKey: process.env.VITE_SUPABASE_ANON_KEY || 'test-key',
-  enableRealApi: process.env.ENABLE_REAL_API_TESTS === 'true',
-  testDatabase: process.env.TEST_DATABASE_NAME || 'test_contacts'
+  supabaseUrl: process.env['VITE_SUPABASE_URL'] || 'test-url',
+  supabaseKey: process.env['VITE_SUPABASE_ANON_KEY'] || 'test-key',
+  enableRealApi: process.env['ENABLE_REAL_API_TESTS'] === 'true',
+  testDatabase: process.env['TEST_DATABASE_NAME'] || 'test_contacts'
 };
 
 // Skip these tests if real API is not enabled
@@ -109,10 +110,10 @@ describeConditional('API Integration Tests', () => {
 
       // CREATE
       const contactData = testContacts.basic;
-      let createdContact: Contact;
+      let createdContact!: Contact;
 
       await act(async () => {
-        createdContact = await result.current.createContact(contactData);
+        createdContact = await result.current.createContact(asNewContact(contactData));
       });
 
       expect(createdContact).toBeDefined();
@@ -162,9 +163,9 @@ describeConditional('API Integration Tests', () => {
 
       const contactData = testContacts.complex;
 
-      let createdContact: Contact;
+      let createdContact!: Contact;
       await act(async () => {
-        createdContact = await result.current.createContact(contactData);
+        createdContact = await result.current.createContact(asNewContact(contactData));
       });
 
       expect(createdContact).toBeDefined();
@@ -190,9 +191,9 @@ describeConditional('API Integration Tests', () => {
 
       const contactData = testContacts.international;
 
-      let createdContact: Contact;
+      let createdContact!: Contact;
       await act(async () => {
-        createdContact = await result.current.createContact(contactData);
+        createdContact = await result.current.createContact(asNewContact(contactData));
       });
 
       expect(createdContact).toBeDefined();
@@ -337,7 +338,7 @@ describeConditional('API Integration Tests', () => {
           contact.lastName.toLowerCase().includes('tech') ||
           contact.email.toLowerCase().includes('tech') ||
           contact.company.toLowerCase().includes('tech') ||
-          contact.tags.some(tag => tag.toLowerCase().includes('tech'))
+          contact.tags!.some(tag => tag.toLowerCase().includes('tech'))
         ).toBe(true);
       });
     });
@@ -426,12 +427,12 @@ describeConditional('API Integration Tests', () => {
 
       // Create first contact
       await act(async () => {
-        const created = await result.current.createContact(contactData);
+        const created = await result.current.createContact(asNewContact(contactData));
         createdContactIds.push(created.id);
       });
 
       // Try to create duplicate
-      await expect(result.current.createContact(contactData)).rejects.toThrow();
+      await expect(result.current.createContact(asNewContact(contactData))).rejects.toThrow();
 
       expect(result.current.error).toBeDefined();
       expect(result.current.contacts).toHaveLength(1); // Should not add duplicate
@@ -444,7 +445,7 @@ describeConditional('API Integration Tests', () => {
 
       const { result } = renderHook(() => useContactStore());
 
-      await expect(result.current.createContact(testContacts.basic)).rejects.toThrow('Network Error');
+      await expect(result.current.createContact(asNewContact(testContacts.basic))).rejects.toThrow('Network Error');
 
       expect(result.current.error).toContain('Network Error');
 
@@ -463,7 +464,7 @@ describeConditional('API Integration Tests', () => {
         lastName: '' // Required field
       };
 
-      await expect(result.current.createContact(invalidContact)).rejects.toThrow();
+      await expect(result.current.createContact(asNewContact(invalidContact))).rejects.toThrow();
 
       expect(result.current.error).toBeDefined();
       expect(result.current.contacts).toHaveLength(0);
@@ -484,7 +485,7 @@ describeConditional('API Integration Tests', () => {
       const startTime = Date.now();
 
       await act(async () => {
-        await Promise.all(concurrentContacts.map(contact => result.current.createContact(contact)));
+        await Promise.all(concurrentContacts.map(contact => result.current.createContact(asNewContact(contact))));
       });
 
       const endTime = Date.now();
@@ -515,15 +516,15 @@ describeConditional('API Integration Tests', () => {
       const createdIds: string[] = [];
 
       await act(async () => {
-        const promises = operations.map(async (op, i) => {
+        const promises = operations.map(async (op) => {
           if (op.type === 0) {
             // Create
-            const created = await result.current.createContact(op.data);
+            const created = await result.current.createContact(asNewContact(op.data));
             createdIds.push(created.id);
             return created;
           } else if (op.type === 1 && createdIds.length > 0) {
             // Update existing
-            const idToUpdate = createdIds[createdIds.length - 1];
+            const idToUpdate = createdIds[createdIds.length - 1]!;
             return result.current.updateContact(idToUpdate, { title: 'Updated Title' });
           } else if (op.type === 2 && createdIds.length > 0) {
             // Delete existing
@@ -558,18 +559,18 @@ describeConditional('API Integration Tests', () => {
       };
 
       await act(async () => {
-        const created = await result.current.createContact(maliciousContact);
+        const created = await result.current.createContact(asNewContact(maliciousContact));
         createdContactIds.push(created.id);
       });
 
       // Verify data was sanitized
-      expect(result.current.contacts[0].firstName).not.toContain('<script>');
-      expect(result.current.contacts[0].firstName).toContain('Malicious');
-      expect(result.current.contacts[0].notes).not.toContain('<img');
-      expect(result.current.contacts[0].notes).not.toContain('onerror');
+      expect(result.current.contacts[0]!.firstName).not.toContain('<script>');
+      expect(result.current.contacts[0]!.firstName).toContain('Malicious');
+      expect(result.current.contacts[0]!.notes).not.toContain('<img');
+      expect(result.current.contacts[0]!.notes).not.toContain('onerror');
 
       // Verify in database
-      const fetched = await contactAPI.getContact(result.current.contacts[0].id);
+      const fetched = await contactAPI.getContact(result.current.contacts[0]!.id);
       expect(fetched.firstName).not.toContain('<script>');
       expect(fetched.notes).not.toContain('<img');
     });
@@ -603,9 +604,9 @@ describeConditional('API Integration Tests', () => {
       expect(result.current.contacts).toHaveLength(2);
 
       // Verify special characters are preserved
-      expect(result.current.contacts[0].firstName).toBe('User with "quotes"');
-      expect(result.current.contacts[1].firstName).toBe('José María');
-      expect(result.current.contacts[1].company).toBe('Compañía S.A. de C.V.');
+      expect(result.current.contacts[0]!.firstName).toBe('User with "quotes"');
+      expect(result.current.contacts[1]!.firstName).toBe('José María');
+      expect(result.current.contacts[1]!.company).toBe('Compañía S.A. de C.V.');
 
       // Store for cleanup
       result.current.contacts.forEach(contact => {

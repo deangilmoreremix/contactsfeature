@@ -5,13 +5,12 @@ import {
   TrendingUp,
   Sparkles,
   Target,
-  Users,
   BarChart3,
   MessageSquare,
   Loader2,
   CheckCircle,
   AlertTriangle,
-  Lightbulb
+  Lightbulb,
 } from 'lucide-react';
 
 export const InteractiveAISalesIntelligence: React.FC = () => {

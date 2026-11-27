@@ -52,6 +52,7 @@ export interface AiExecutionResult {
 export interface CrmContext {
   contact?: any;
   deal?: any;
+  deals?: any[];
   company?: any;
   emails?: any[];
   tasks?: any[];

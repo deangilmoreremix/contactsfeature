@@ -243,7 +243,7 @@ export const ConversationalAIWidget: React.FC<ConversationalAIWidgetProps> = ({
     }
   };
 
-  const processVoiceInput = async (audioBlob: Blob) => {
+  const processVoiceInput = async (_audioBlob: Blob) => {
     setIsProcessing(true);
 
     try {
@@ -429,7 +429,7 @@ export const ConversationalAIWidget: React.FC<ConversationalAIWidgetProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+        className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onClose();

@@ -1,5 +1,5 @@
 /**
- * Context Manager for GPT-5.2
+ * Context Manager for OpenAI Responses calls
  * Handles context compaction, reasoning item persistence, and memory management
  */
 
@@ -41,7 +41,7 @@ export class ContextManager {
 
   constructor(config: Partial<ContextManagerConfig> = {}) {
     this.config = {
-      maxTokens: 128000, // GPT-5.2 context window
+      maxTokens: 128000, // model context window budget
       compactionThreshold: 0.8, // 80% of max tokens
       minImportanceThreshold: 0.3,
       reasoningRetentionDays: 7,

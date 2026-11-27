@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { Contact } from '../types/contact';
-import { logger } from '../services/logger.service';
+import { supabase } from '../../lib/supabase';
+import { Contact } from '../../types/contact';
+import { logger } from '../../services/logger.service';
 
 export interface RecordPickerProps {
   isOpen: boolean;
@@ -53,7 +53,7 @@ export function RecordPicker({ isOpen, onClose, onSelect, title = 'Select Contac
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
@@ -84,8 +84,9 @@ export function RecordPicker({ isOpen, onClose, onSelect, title = 'Select Contac
                 alt={contact.name}
                 className="w-8 h-8 rounded-full object-cover"
                 onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                  const img = e.currentTarget;
+                  img.onerror = null;
+                  img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
                 }}
               />
               <div>

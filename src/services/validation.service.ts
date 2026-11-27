@@ -2,6 +2,12 @@
  * Validation Service
  * Input/output validation schemas and utilities
  */
+import {
+  normalizeAddress,
+  normalizeEmailEntries,
+  normalizeLinkEntries,
+  normalizePhoneEntries,
+} from '../lib/fields/compositeFields';
 
 export interface ValidationRule {
   required?: boolean;
@@ -259,6 +265,25 @@ class ValidationService {
     return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
   }
   
+  /**
+   * Sanitize only the keys present in a partial update. (sanitizeContact fills every text field,
+   * which would blank firstName/email/company/... on any single-field update.)
+   */
+  sanitizePartialContact(updates: any): any {
+    const out: any = { ...updates };
+    for (const key of ['firstName', 'lastName', 'title', 'company', 'industry', 'notes']) {
+      if (key in updates) out[key] = this.sanitizeString(updates[key]);
+    }
+    if ('email' in updates) out.email = this.sanitizeEmail(updates.email);
+    if ('phone' in updates) out.phone = updates.phone ? this.sanitizePhone(updates.phone) : undefined;
+    // Composite fields: validated/normalized (invalid entries dropped, http(s)-only links), never dropped.
+    if ('additionalEmails' in updates) out.additionalEmails = normalizeEmailEntries(updates.additionalEmails, [updates.email]);
+    if ('additionalPhones' in updates) out.additionalPhones = normalizePhoneEntries(updates.additionalPhones, [updates.phone]);
+    if ('links' in updates) out.links = normalizeLinkEntries(updates.links);
+    if ('address' in updates) out.address = normalizeAddress(updates.address);
+    return out;
+  }
+
   sanitizeContact(contact: any): any {
     return {
       ...contact,
@@ -270,6 +295,10 @@ class ValidationService {
       company: this.sanitizeString(contact.company),
       industry: this.sanitizeString(contact.industry),
       notes: this.sanitizeString(contact.notes),
+      ...('additionalEmails' in contact ? { additionalEmails: normalizeEmailEntries(contact.additionalEmails, [contact.email]) } : {}),
+      ...('additionalPhones' in contact ? { additionalPhones: normalizePhoneEntries(contact.additionalPhones, [contact.phone]) } : {}),
+      ...('links' in contact ? { links: normalizeLinkEntries(contact.links) } : {}),
+      ...('address' in contact ? { address: normalizeAddress(contact.address) } : {}),
     };
   }
 }

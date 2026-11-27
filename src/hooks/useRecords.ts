@@ -52,10 +52,40 @@ export interface UseRecordsQueryResult<T> {
   hasPreviousPage: boolean;
 }
 
+/** A value spliced into a PostgREST `or(...)` string: double-quoted, with quote/backslash stripped, so `,` `(` `)` cannot break out. */
+function pgValue(value: unknown): string {
+  return `"${String(value ?? '').replace(/["\\]/g, '')}"`;
+}
+
+/** One filter as a PostgREST condition (for `.or(...)`), or null when the operator is not expressible. */
+function filterToCondition({ field, operator, value }: FilterConfig): string | null {
+  const f = String(field).replace(/[^\w.]/g, '');
+  switch (operator) {
+    case 'equals': return `${f}.eq.${pgValue(value)}`;
+    case 'notEquals': return `${f}.neq.${pgValue(value)}`;
+    case 'contains': return `${f}.ilike.${pgValue(`%${value}%`)}`;
+    case 'notContains': return `${f}.not.ilike.${pgValue(`%${value}%`)}`;
+    case 'startsWith': return `${f}.ilike.${pgValue(`${value}%`)}`;
+    case 'endsWith': return `${f}.ilike.${pgValue(`%${value}`)}`;
+    case 'greaterThan': return `${f}.gt.${pgValue(value)}`;
+    case 'lessThan': return `${f}.lt.${pgValue(value)}`;
+    case 'between': return Array.isArray(value) ? `and(${f}.gte.${pgValue(value[0])},${f}.lte.${pgValue(value[1])})` : null;
+    case 'isNull': return `${f}.is.null`;
+    case 'isNotNull': return `${f}.not.is.null`;
+    case 'in': return `${f}.in.(${(Array.isArray(value) ? value : [value]).map(pgValue).join(',')})`;
+    default: return null;
+  }
+}
+
 function applyFilters(query: any, filters: FilterConfig[], logic: 'AND' | 'OR' = 'AND') {
   if (!filters || filters.length === 0) return query;
 
-  filters.forEach((filter, index) => {
+  if (logic === 'OR') {
+    const conditions = filters.map(filterToCondition).filter((c): c is string => c !== null);
+    return conditions.length > 0 ? query.or(conditions.join(',')) : query;
+  }
+
+  filters.forEach((filter, _index) => {
     const { field, operator, value } = filter;
     
     switch (operator) {
@@ -117,7 +147,7 @@ function applySearch(query: any, searchQuery: string, searchFields: (keyof any)[
   if (!searchQuery || searchFields.length === 0) return query;
   
   const orConditions = searchFields
-    .map(field => `${field}.ilike.%${searchQuery}%`)
+    .map(field => `${String(field).replace(/[^\w.]/g, '')}.ilike.${pgValue(`%${searchQuery}%`)}`)
     .join(',');
   
   return query.or(orConditions);
@@ -148,6 +178,9 @@ export function useFindManyRecords<T>({
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
+  // fetchMore moves this forward; it takes precedence over the `pagination` prop until the query inputs change
+  const [pageOverride, setPageOverride] = useState<number | null>(null);
+  useEffect(() => { setPageOverride(null); }, [tableName, select, filters, filterLogic, sorts, searchQuery, searchFields]);
 
   const fetchRecords = useCallback(async () => {
     if (!enabled) return;
@@ -178,7 +211,7 @@ export function useFindManyRecords<T>({
       }
 
       const pageSize = pagination?.pageSize || 20;
-      const page = pagination?.page || 0;
+      const page = pageOverride ?? pagination?.page ?? 0;
       const from = page * pageSize;
       const to = from + pageSize - 1;
 
@@ -191,7 +224,7 @@ export function useFindManyRecords<T>({
       if (fetchError) throw fetchError;
 
       if (isMountedRef.current) {
-        setRecords(data || []);
+        setRecords((data || []) as unknown as T[]);
         setTotalCount(count || 0);
         setPaginationState({
           page,
@@ -216,7 +249,7 @@ export function useFindManyRecords<T>({
         setLoading(false);
       }
     }
-  }, [tableName, select, filters, filterLogic, sorts, pagination, searchQuery, searchFields, enabled, logger]);
+  }, [tableName, select, filters, filterLogic, sorts, pagination, pageOverride, searchQuery, searchFields, enabled, logger]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -237,19 +270,9 @@ export function useFindManyRecords<T>({
   const fetchMore = useCallback(async () => {
     if (!paginationState.hasNextPage || loading) return;
     
-    const newPagination = {
-      ...pagination,
-      page: (pagination?.page || 0) + 1
-    };
-    
-    setPaginationState(prev => ({
-      ...prev,
-      page: prev.page + 1
-    }));
-    
-    // Trigger refetch with new pagination
-    // The effect will pick it up via pagination dependency
-  }, [paginationState.hasNextPage, loading, pagination]);
+    // fetchRecords reads pageOverride, so changing it re-runs the query for the next page
+    setPageOverride(paginationState.page + 1);
+  }, [paginationState.hasNextPage, paginationState.page, loading]);
 
   return {
     records,
@@ -301,7 +324,7 @@ export function useFindOneRecord<T>({
       if (fetchError) throw fetchError;
 
       if (isMountedRef.current) {
-        setRecord(data);
+        setRecord(data as unknown as T);
       }
     } catch (err) {
       if (isMountedRef.current) {
@@ -356,7 +379,7 @@ export function useCreateOneRecord<T>({
     try {
       const { data: result, error: createError } = await supabase
         .from(tableName)
-        .insert(data)
+        .insert(data as Record<string, unknown>)
         .select()
         .single();
 
@@ -417,7 +440,7 @@ export function useUpdateOneRecord<T>({
     try {
       const { data: result, error: updateError } = await supabase
         .from(tableName)
-        .update(data)
+        .update(data as Record<string, unknown>)
         .eq('id', id)
         .select()
         .single();

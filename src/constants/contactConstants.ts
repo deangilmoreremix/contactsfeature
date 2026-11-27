@@ -1,6 +1,6 @@
 import {
   MessageSquare, Linkedin, Mail, Twitter, Facebook, Instagram,
-  User, Building, Tag, Activity, Bot, Target, BookOpen, Zap
+  User, Building, Tag, Activity, Bot, Target, BookOpen, ListChecks, Inbox, Calendar
 } from 'lucide-react';
 
 export const interestColors = {
@@ -48,6 +48,12 @@ export const contactTabs = [
   { id: 'email', label: 'Email', icon: Mail },
   { id: 'agents', label: 'AI Agents', icon: Bot },
   { id: 'sdr-agents', label: 'SDR Agents', icon: Target },
+  { id: 'activity', label: 'Activity', icon: ListChecks },
+  // >>> NEW DETAIL TABS GO HERE. Wired: 'emails' -> ContactEmailsTab, 'calendar' -> ContactCalendarTab.
+  { id: 'emails', label: 'Emails', icon: Inbox },
+  { id: 'calendar', label: 'Calendar', icon: Calendar },
+  // Add the entry here AND the matching render block in ContactDetailView.tsx (marked the same way).
+  // The per-user tab layout (useContactTabLayout) picks new ids up automatically.
 ];
 
 export const quickSourceSuggestions = ['LinkedIn', 'Website', 'Email', 'Cold Call', 'Referral'];

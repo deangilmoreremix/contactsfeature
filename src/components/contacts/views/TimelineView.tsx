@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Contact } from '../../../types/contact';
 import { GlassCard } from '../../ui/GlassCard';
 import { ModernButton } from '../../ui/ModernButton';
@@ -63,7 +63,7 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
         lastContactDate.setDate(lastContactDate.getDate() - (index % 15));
 
         const eventTypes = ['email', 'call', 'meeting', 'note'] as const;
-        const randomType = eventTypes[index % eventTypes.length];
+        const randomType = eventTypes[index % eventTypes.length] ?? 'email';
 
         events.push({
           id: `${contact.id}-last-contact`,
@@ -142,7 +142,7 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
           </span>
         </div>
 
-        <ModernButton
+        <ModernButton size="toolbar"
           variant="secondary"
           onClick={() => setShowFilters(!showFilters)}
           icon={Filter}
@@ -190,7 +190,7 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
             <div className="relative pl-8 space-y-4">
               <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 to-purple-600"></div>
 
-              {dateEvents.map((event, index) => {
+              {dateEvents.map((event) => {
                 const config = eventTypeConfig[event.type];
                 const Icon = config.icon;
 
@@ -211,9 +211,10 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
                              alt={event.contact.name}
                              className="w-10 h-10 rounded-full object-cover"
                              onError={(e) => {
-                               e.target.onerror = null;
-                               e.target.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
-                               e.target.style.opacity = '0.7';
+                               const img = e.currentTarget;
+                               img.onerror = null;
+                               img.src = 'https://images.pexels.com/photos/735911/pexels-photo-735911.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+                               img.style.opacity = '0.7';
                              }}
                              loading="lazy"
                            />
@@ -238,7 +239,7 @@ export function TimelineView({ contacts, onContactClick }: TimelineViewProps) {
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {event.contact.company}
                         </span>
-                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">•</span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {event.contact.title}
                         </span>

@@ -6,7 +6,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useContactStore } from '../hooks/useContactStore';
 import { contactAPI } from '../services/contact-api.service';
-import { cacheService } from '../services/cache.service';
 import { Contact } from '../types';
 
 // Mock dependencies
@@ -15,37 +14,12 @@ vi.mock('../services/cache.service');
 vi.mock('../services/logger.service');
 
 // Mock DOM APIs
-Object.defineProperty(global, 'window', {
-  value: {
-    localStorage: {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(() => null),
-      removeItem: vi.fn(() => null),
-      clear: vi.fn(() => null),
-    },
-    URL: {
-      createObjectURL: vi.fn(() => 'mock-url'),
-      revokeObjectURL: vi.fn(() => null),
-    },
-  },
-  writable: true,
-});
 
-Object.defineProperty(global, 'document', {
-  value: {
-    createElement: vi.fn(() => ({
-      click: vi.fn(),
-      setAttribute: vi.fn(),
-    })),
-    body: {
-      appendChild: vi.fn(),
-    },
-  },
-  writable: true,
-});
+
+
 
 describe('Contact CRUD Operations', () => {
-  let store: ReturnType<typeof useContactStore>;
+  let store: ReturnType<typeof useContactStore.getState>;
 
   const mockContact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
     firstName: 'John',
@@ -72,11 +46,20 @@ describe('Contact CRUD Operations', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Direct instantiation for testing (avoiding React hooks in unit tests)
-    store = useContactStore.getState() as any;
+    // Database mode with the development fallbacks off: API failures must reach the caller, and the
+    // store starts empty instead of with the built-in sample contacts.
+    vi.stubEnv('DEV', false);
+    vi.mocked(contactAPI.usesDatabase).mockReturnValue(true);
+    useContactStore.setState({ contacts: [], totalCount: 0, hasMore: false, error: null, isLoading: false, selectedContact: null, trashedContacts: [] });
+    // Live view of the zustand state: reads see the current state, assignments write to it
+    store = new Proxy({} as any, {
+      get: (_t, key) => (useContactStore.getState() as any)[key],
+      set: (_t, key, value) => { useContactStore.setState({ [key]: value } as any); return true; }
+    });
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.resetAllMocks();
   });
 
@@ -114,11 +97,14 @@ describe('Contact CRUD Operations', () => {
       expect(store.contacts).toContain(result);
     });
 
-    it('should validate contact data before creation', async () => {
+    it('should surface the API layer\'s validation error and not add the contact', async () => {
+      // Validation lives in contact-api.service (see api-service.test.ts); the store hands the data over
       const invalidContact = { ...mockContact, email: 'invalid-email' };
+      vi.mocked(contactAPI.createContact).mockRejectedValue(new Error('Contact validation failed: Invalid email format'));
 
       await expect(store.createContact(invalidContact)).rejects.toThrow('Contact validation failed');
-      expect(contactAPI.createContact).not.toHaveBeenCalled();
+      expect(contactAPI.createContact).toHaveBeenCalledWith(invalidContact);
+      expect(store.contacts).toHaveLength(0);
     });
   });
 

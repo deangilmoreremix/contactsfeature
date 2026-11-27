@@ -1,17 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { SDRAgentConfigurator } from "./sdr/SDRAgentConfigurator";
+import { sdrAuthHeaders } from "../services/sdrClient";
 
 interface CalendarEvent {
   id: string;
   contact_id: string;
-  datetime: string;
+  scheduled_for: string;
+  title?: string | null;
+  duration_minutes?: number;
   status: string;
   contacts?: {
     id: string;
     name: string | null;
     email: string | null;
-  };
+  } | undefined;
 }
 
 interface CalendarListResponse {
@@ -20,6 +23,8 @@ interface CalendarListResponse {
 
 interface ScheduleResponse {
   event: CalendarEvent;
+  notified: boolean;
+  reason?: string;
 }
 
 export const CalendarAIPanel: React.FC = () => {
@@ -30,12 +35,17 @@ export const CalendarAIPanel: React.FC = () => {
   const [scheduling, setScheduling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const loadEvents = async () => {
     setLoadingList(true);
     setError(null);
     try {
-      const res = await fetch("/.netlify/functions/calendar-list");
+      const res = await fetch("/.netlify/functions/calendar-list", {
+        method: "POST",
+        headers: await sdrAuthHeaders(),
+        body: JSON.stringify({ from: new Date().toISOString() })
+      });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || "Request failed");
@@ -56,6 +66,7 @@ export const CalendarAIPanel: React.FC = () => {
 
   const handleSchedule = async () => {
     setError(null);
+    setNotice(null);
 
     if (!contactId || !datetime) {
       setError("Please enter both contact ID and datetime.");
@@ -66,15 +77,16 @@ export const CalendarAIPanel: React.FC = () => {
     try {
       const res = await fetch("/.netlify/functions/calendar-schedule", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, datetime })
+        headers: await sdrAuthHeaders(),
+        body: JSON.stringify({ action: "create", contactId, scheduledFor: new Date(datetime).toISOString() })
       });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || "Request failed");
       }
       const data = (await res.json()) as ScheduleResponse;
-      setEvents((prev) => [data.event, ...prev]);
+      setEvents((prev) => [{ ...data.event, contacts: prev.find((p) => p.contact_id === data.event.contact_id)?.contacts }, ...prev]);
+      setNotice(data.notified ? "Meeting booked and confirmation email sent." : `Meeting booked. Contact was not notified: ${data.reason || "unknown reason"}`);
       setContactId("");
       setDatetime("");
     } catch (e: any) {
@@ -243,13 +255,19 @@ export const CalendarAIPanel: React.FC = () => {
                   {ev.contacts?.email || "No email"}
                 </div>
                 <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>
-                  {new Date(ev.datetime).toLocaleString()}
+                  {new Date(ev.scheduled_for).toLocaleString()}
                 </div>
               </div>
             ))
           )}
         </div>
       </div>
+
+      {notice && (
+        <div style={{ marginTop: 4, padding: "8px 10px", borderRadius: 8, background: "#f0fff4", color: "#276749", fontSize: 13 }}>
+          {notice}
+        </div>
+      )}
 
       {error && (
         <div

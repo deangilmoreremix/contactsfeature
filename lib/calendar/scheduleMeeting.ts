@@ -1,20 +1,31 @@
 import { supabase } from "../core/supabaseClient";
-import { executeTool } from "../core/mcpExecutor";
+import { sendEmailToContact } from "../messaging/sendEmail";
 
-export async function scheduleMeeting(contactId: string, datetime: string) {
-  const { error } = await supabase.from("calendar_events").insert({
-    contact_id: contactId,
-    scheduled_for: datetime,
-    status: "scheduled"
-  });
-
+/**
+ * Canonical calendar_events schema: id, user_id, contact_id, title, scheduled_for,
+ * duration_minutes, status, location, meeting_url, notes. (`datetime` never existed.)
+ * Prefer the calendar-schedule Netlify function (ownership-checked); this helper is for callers
+ * that already hold an authenticated client session.
+ */
+export async function scheduleMeeting(contactId: string, scheduledFor: string, opts: { userId?: string; title?: string; durationMinutes?: number } = {}) {
+  const { data: event, error } = await supabase
+    .from("calendar_events")
+    .insert({
+      contact_id: contactId,
+      user_id: opts.userId,
+      title: opts.title || "Meeting",
+      scheduled_for: scheduledFor,
+      duration_minutes: opts.durationMinutes || 30,
+      status: "scheduled",
+    })
+    .select("*")
+    .maybeSingle();
   if (error) throw error;
 
-  await executeTool("AgentMail.send_message", {
-    to: contactId,
-    subject: "Your meeting is confirmed",
-    body: `Your meeting is scheduled for ${datetime}.`
-  });
-
-  return { success: true };
+  const notified = await sendEmailToContact(
+    contactId,
+    "Your meeting is confirmed",
+    `Your meeting is scheduled for ${new Date(scheduledFor).toUTCString()}.`
+  );
+  return { success: true, event, notified: notified.success, notifyError: notified.error };
 }

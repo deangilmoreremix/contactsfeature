@@ -1,13 +1,13 @@
 /**
  * Video Calling Integration Service
- * Supports Zoom, Google Meet, and Microsoft Teams integration
+ * Supports Google Meet and Microsoft Teams links (in-memory; persistence is via Supabase calendar_events)
  */
 
 export interface VideoCall {
   id: string;
   title: string;
   description?: string | undefined;
-  platform: 'zoom' | 'meet' | 'teams';
+  platform: 'meet' | 'teams';
   meetingUrl: string;
   meetingId?: string;
   passcode?: string;
@@ -35,7 +35,7 @@ export interface VideoParticipant {
 export interface MeetingRequest {
   title: string;
   description?: string;
-  platform: 'zoom' | 'meet' | 'teams';
+  platform: 'meet' | 'teams';
   startTime: Date;
   duration: number;
   participants: { name: string; email: string }[];
@@ -92,8 +92,6 @@ export class VideoCallService {
    */
   private generateMeetingUrl(platform: string, meetingId: string): string {
     switch (platform) {
-      case 'zoom':
-        return `https://zoom.us/j/${this.generatePlatformMeetingId('zoom')}`;
       case 'meet':
         return `https://meet.google.com/${this.generatePlatformMeetingId('meet')}`;
       case 'teams':
@@ -109,8 +107,6 @@ export class VideoCallService {
   private generatePlatformMeetingId(platform: string): string {
     const randomNum = Math.floor(Math.random() * 1000000000);
     switch (platform) {
-      case 'zoom':
-        return randomNum.toString();
       case 'meet':
         return `${randomNum.toString().slice(0, 3)}-${randomNum.toString().slice(3, 6)}-${randomNum.toString().slice(6)}`;
       case 'teams':
@@ -322,12 +318,6 @@ END:VCALENDAR`.replace(/\n/g, '\r\n');
     helpUrl?: string;
   } {
     switch (platform) {
-      case 'zoom':
-        return {
-          scheduleUrl: 'https://zoom.us/meeting/schedule',
-          appUrl: 'https://zoom.us/download',
-          helpUrl: 'https://support.zoom.us'
-        };
       case 'meet':
         return {
           scheduleUrl: 'https://calendar.google.com',

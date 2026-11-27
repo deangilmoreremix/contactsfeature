@@ -1,6 +1,9 @@
 const { supabase } = require('./_supabaseClient');
-const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
-const { createStreamingResponse, parseJsonResponse, MODEL_CONFIG } = require('./_streamingUtils');
+const { withAuth, errorResponse } = require('./_auth');
+const { parseJsonResponse, MODEL_CONFIG } = require('./_streamingUtils');
+const { runDual } = require('./_stream/dual');
+const { sdrOptions, EMAIL_DRAFT_SCHEMA } = require('./_stream/helpers');
+const { stream } = require('@netlify/functions');
 const { createLogger, generateCorrelationId } = require('./_logger');
 
 const log = createLogger('email-composer');
@@ -43,12 +46,8 @@ const TONE_CONFIG = {
   direct: 'Concise, to-the-point, and action-oriented. No fluff, clear ask.',
 };
 
-exports.handler = withAuth(async (event, user) => {
+exports.handler = stream(withAuth(async (event, user) => {
   log.setCorrelationId(generateCorrelationId());
-
-  // Check if streaming is requested
-  const isStreaming = event.headers?.accept?.includes('text/event-stream') || 
-                      event.queryStringParameters?.stream === 'true';
 
   // Parse body
   let body = {};
@@ -130,146 +129,55 @@ ${includeSignature ? '- Professional sign-off' : ''}
 
 Return ONLY valid JSON with "subject" and "body" fields. Example: {"subject": "Quick question about ${company}", "body": "Hi ${contactName},..."}`;
 
-    // If streaming requested, return streaming response
-    if (isStreaming) {
-      const responseStream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          
-          try {
-            let fullContent = '';
+    return await runDual({
+      event,
+      body,
+      options: sdrOptions({
+        instructions: systemPrompt,
+        input: userInput,
+        model,
+        temperature: emailConfig.temperature,
+        maxTokens: 1500,
+        schema: EMAIL_DRAFT_SCHEMA,
+        schemaName: 'email_composer',
+      }),
+      // Template row is written here (after the model finished), exactly once per request.
+      finalize: async (text) => {
+        const parsed = parseJsonResponse(text, {
+          subject: `Following up with ${company}`,
+          body: text,
+        });
 
-            for await (const chunk of createStreamingResponse({
-              instructions: systemPrompt,
-              input: userInput,
-              model,
-              temperature: emailConfig.temperature,
-              maxTokens: 1500,
-            })) {
-              if (chunk.type === 'token') {
-                fullContent += chunk.token;
-                const data = JSON.stringify({ 
-                  type: 'token', 
-                  token: chunk.token,
-                  partial: fullContent 
-                });
-                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-              } else if (chunk.type === 'error') {
-                const errorData = JSON.stringify({ type: 'error', error: chunk.error });
-                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-                controller.close();
-                return;
-              }
-            }
-
-            const parsed = parseJsonResponse(fullContent, {
-              subject: `Following up with ${company}`,
-              body: fullContent,
-            });
-
-            // Store email template in database
-            await supabase.from('email_templates').insert({
-              contact_id: contact.id,
-              user_id: user.id,
-              email_type: type,
-              subject: parsed.subject,
-              body: parsed.body,
-              tone,
-              ai_provider: 'openai',
-              created_at: new Date().toISOString(),
-            });
-
-            log.info('Email composed (streaming)', { contactId: contact.id, type, tone, model });
-
-            const completeData = JSON.stringify({ 
-              type: 'complete', 
-              data: {
-                ...parsed,
-                tone,
-                type,
-                generated: new Date().toISOString(),
-              }
-            });
-            controller.enqueue(encoder.encode(`data: ${completeData}\n\n`));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (error) {
-            log.error('Streaming email composition failed', { contactId: contact.id, error: error.message });
-            const errorData = JSON.stringify({ type: 'error', error: error.message });
-            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-            controller.close();
-          }
-        }
-      });
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-        body: responseStream,
-        isBase64Encoded: false,
-      };
-    }
-
-    // Non-streaming response
-    let fullContent = '';
-    for await (const chunk of createStreamingResponse({
-      instructions: systemPrompt,
-      input: userInput,
-      model,
-      temperature: emailConfig.temperature,
-      maxTokens: 1500,
-    })) {
-      if (chunk.type === 'token') {
-        fullContent += chunk.token;
-      } else if (chunk.type === 'complete') {
-        fullContent = chunk.content;
-      }
-    }
-
-    const parsed = parseJsonResponse(fullContent, {
-      subject: `Following up with ${company}`,
-      body: fullContent,
-    });
-
-    // Store email template in database
-    await supabase.from('email_templates').insert({
-      contact_id: contact.id,
-      user_id: user.id,
-      email_type: type,
-      subject: parsed.subject,
-      body: parsed.body,
-      tone,
-      ai_provider: 'openai',
-      created_at: new Date().toISOString(),
-    });
-
-    log.info('Email composed', { contactId: contact.id, type, tone, model });
-
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        success: true,
-        data: {
+        await supabase.from('email_templates').insert({
+          contact_id: contact.id,
+          user_id: user.id,
+          email_type: type,
           subject: parsed.subject,
           body: parsed.body,
           tone,
-          type,
-          generated: new Date().toISOString(),
-        },
-        provider: aiProvider,
-        model,
-        timestamp: new Date().toISOString(),
-      }),
-    };
+          ai_provider: 'openai',
+          created_at: new Date().toISOString(),
+        });
+
+        log.info('Email composed', { contactId: contact.id, type, tone, model });
+
+        return {
+          success: true,
+          data: {
+            subject: parsed.subject,
+            body: parsed.body,
+            tone,
+            type,
+            generated: new Date().toISOString(),
+          },
+          provider: aiProvider,
+          model,
+          timestamp: new Date().toISOString(),
+        };
+      },
+    });
   } catch (error) {
     log.error('Email composition failed', { contactId: contact?.id, error: error.message });
     return errorResponse(500, 'Email composition failed');
   }
-});
+}));

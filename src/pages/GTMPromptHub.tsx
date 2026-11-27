@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   Sparkles,
@@ -6,7 +6,6 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Settings,
   BookOpen,
   Zap,
   Filter,
@@ -17,18 +16,13 @@ import {
   Save,
   Edit3,
   Trash2,
-  ChevronDown,
   Lightbulb,
   MessageSquare,
-  Mail,
-  Phone,
-  FileText,
-  Users,
-  TrendingUp,
-  Target,
   ArrowRight,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { StreamingOutput } from '../components/ui/StreamingOutput';
+import { useAIStream } from '../hooks/useAIStream';
 import { ModernButton } from '../components/ui/ModernButton';
 import { GlassCard } from '../components/ui/GlassCard';
 
@@ -37,7 +31,7 @@ interface GTMPrompt {
   name: string;
   description?: string;
   category: string;
-  role: string;
+  role?: string | undefined;
   tags?: string[];
   prompt?: string;
 }
@@ -79,6 +73,7 @@ export default function GTMPromptHub() {
   const [generatedContent, setGeneratedContent] = useState('');
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const genStream = useAIStream<{ content?: string }>();
   
   const [showNewPromptModal, setShowNewPromptModal] = useState(false);
   const [newPrompt, setNewPrompt] = useState({ name: '', description: '', prompt: '', category: 'outreach' });
@@ -96,7 +91,7 @@ export default function GTMPromptHub() {
   const loadPrompts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('gtm-prompt-library', {
+      const { data } = await supabase.functions.invoke('gtm-prompt-library', {
         body: { action: 'list', category: selectedCategory === 'all' ? undefined : selectedCategory, limit: 50 }
       });
       if (data?.prompts) {
@@ -137,15 +132,14 @@ export default function GTMPromptHub() {
     setGeneratedContent('');
     
     try {
-      const { data, error } = await supabase.functions.invoke('generate-with-prompt', {
-        body: {
-          prompt: selectedPrompt.prompt,
-          contactId: selectedContact?.id,
-          customInput: customInput,
-          outputFormat: 'text'
-        }
+      // Netlify dual-mode function: the text streams in while it is written (supabase.functions.invoke cannot stream).
+      const data = await genStream.runFunction('/.netlify/functions/generate-with-prompt', {
+        prompt: selectedPrompt.prompt,
+        contactId: selectedContact?.id,
+        customInput: customInput,
+        outputFormat: 'text'
       });
-      
+
       if (data?.content) {
         setGeneratedContent(data.content);
       }
@@ -352,9 +346,9 @@ export default function GTMPromptHub() {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-medium text-gray-900">{prompt.name}</h3>
-                        {prompt.tags?.length > 0 && (
+                        {(prompt.tags?.length ?? 0) > 0 && (
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                            {prompt.tags[0]}
+                            {prompt.tags?.[0]}
                           </span>
                         )}
                       </div>
@@ -476,7 +470,9 @@ export default function GTMPromptHub() {
                   </ModernButton>
                 )}
               </div>
-              {generatedContent ? (
+              {generating ? (
+                <StreamingOutput state={genStream.state} onStop={genStream.stop} placeholder="Writing your content…" className="max-h-[500px] overflow-y-auto" />
+              ) : generatedContent ? (
                 <div className="bg-white border border-gray-200 rounded-lg p-4 max-h-[500px] overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono">
                     {generatedContent}
@@ -485,7 +481,7 @@ export default function GTMPromptHub() {
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Select a prompt and click Generate to create content</p>
+                  <p>{genStream.state.status === 'error' ? genStream.state.error : 'Select a prompt and click Generate to create content'}</p>
                 </div>
               )}
             </GlassCard>

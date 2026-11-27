@@ -4,7 +4,6 @@ import { useHoverPreview } from '../../hooks/useHoverPreview';
 import { useContactMetrics } from '../../hooks/useContactMetrics';
 import { AvatarWithStatus } from '../ui/AvatarWithStatus';
 import { AgentStatusIndicator } from './AgentStatusIndicator';
-import { ModernButton } from '../ui/ModernButton';
 import {
   Mail,
   Phone,
@@ -14,7 +13,6 @@ import {
   Activity,
   Clock,
   Heart,
-  Zap,
   Sparkles,
   Target,
   BookOpen
@@ -24,7 +22,7 @@ import clsx from 'clsx';
 interface SmartContactCardProps {
   contact: Contact;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (opts?: { shift: boolean }) => void;
   onClick: () => void;
   onEdit?: (contact: Contact) => void;
   onAnalyze?: (contact: Contact) => Promise<boolean>;
@@ -43,8 +41,8 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
   isSelected,
   onSelect,
   onClick,
-  onEdit,
-  onAnalyze,
+  onEdit: _onEdit,
+  onAnalyze: _onAnalyze,
   isAnalyzing = false,
   variant = 'standard',
   showMetrics = true,
@@ -100,7 +98,7 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
     switch (level) {
       case 'very-high': return 'text-green-600 bg-green-100';
       case 'high': return 'text-blue-600 bg-blue-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
+      case 'medium': return 'text-yellow-700 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -109,7 +107,7 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
     switch (strength) {
       case 'excellent': return 'text-purple-600 bg-purple-100';
       case 'strong': return 'text-blue-600 bg-blue-100';
-      case 'moderate': return 'text-yellow-600 bg-yellow-100';
+      case 'moderate': return 'text-yellow-700 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -151,9 +149,10 @@ const SmartContactCardComponent: React.FC<SmartContactCardProps> = ({
         <input
           type="checkbox"
           checked={isSelected}
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
             e.stopPropagation();
-            onSelect();
+            onSelect({ shift: (e.nativeEvent as MouseEvent).shiftKey === true });
           }}
           className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500 bg-white border-gray-300"
           aria-label={`Select contact ${contact.name}`}

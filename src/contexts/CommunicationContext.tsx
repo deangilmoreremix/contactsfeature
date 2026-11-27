@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { isSupabaseConfigured } from '../lib/supabase';
 import {
   CommunicationContextType,
   CommunicationState,
@@ -12,6 +13,7 @@ import {
   QueuedMessage,
   MessageData
 } from '../types/communication';
+import { groupMessagesIntoConversations, type UnifiedMessageRow } from '../lib/messageGrouping';
 
 // Initial state
 const initialState: CommunicationState = {
@@ -185,66 +187,22 @@ const CommunicationContext = createContext<CommunicationContextType | undefined>
 export const CommunicationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(communicationReducer, initialState);
 
-  // Load conversations on mount
-  useEffect(() => {
-    loadConversations();
-    subscribeToUpdates();
-    loadDrafts();
-
-    return () => {
-      unsubscribeFromUpdates();
-    };
-  }, []);
-
   const loadConversations = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      // This would integrate with Supabase to load conversations
-      // For now, using placeholder
-      const conversations: UnifiedConversation[] = [];
-      dispatch({ type: 'SET_CONVERSATIONS', payload: conversations });
+      const { data, error } = await supabase
+        .from('unified_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      dispatch({ type: 'SET_CONVERSATIONS', payload: groupMessagesIntoConversations((data ?? []) as UnifiedMessageRow[]) });
     } catch (error) {
+      // Signed out, offline or table not migrated yet: show an empty inbox rather than invented data.
       console.error('Failed to load conversations:', error);
+      dispatch({ type: 'SET_CONVERSATIONS', payload: [] });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, []);
-
-  const subscribeToUpdates = useCallback(() => {
-    // Subscribe to Supabase realtime updates
-    const channel = supabase
-      .channel('communication_updates')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'unified_messages'
-      }, (payload) => {
-        // Handle real-time message updates
-        handleRealtimeUpdate(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const unsubscribeFromUpdates = useCallback(() => {
-    // Cleanup subscriptions
-  }, []);
-
-  const handleRealtimeUpdate = useCallback((payload: any) => {
-    // Handle different types of real-time updates
-    switch (payload.eventType) {
-      case 'INSERT':
-        // New message received
-        break;
-      case 'UPDATE':
-        // Message status updated
-        break;
-      case 'DELETE':
-        // Message deleted
-        break;
     }
   }, []);
 
@@ -260,6 +218,32 @@ export const CommunicationProvider: React.FC<{ children: React.ReactNode }> = ({
       console.error('Failed to load drafts:', error);
     }
   }, []);
+
+  // Load on mount and keep live: any change to unified_messages reloads the (debounced) inbox.
+  useEffect(() => {
+    void loadConversations();
+    void loadDrafts();
+
+    if (!isSupabaseConfigured) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const channel = supabase
+      .channel('communication_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'unified_messages' }, () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => void loadConversations(), 300);
+      })
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadConversations, loadDrafts]);
+
+  // The live subscription is owned by the provider effect above; these keep the context API stable.
+  const subscribeToUpdates = useCallback(() => { void loadConversations(); }, [loadConversations]);
+  const unsubscribeFromUpdates = useCallback(() => {}, []);
 
   // Action implementations
   const setActiveConversation = useCallback((id: string | null) => {
@@ -289,7 +273,7 @@ export const CommunicationProvider: React.FC<{ children: React.ReactNode }> = ({
   const sendMessage = useCallback(async (messageData: Partial<MessageData>) => {
     // Implementation for sending messages
     console.log('Sending message:', messageData);
-    // This would integrate with Unipile client
+    // TODO: persist via a Supabase-backed messages table
   }, []);
 
   const saveDraft = useCallback(async (draft: Partial<DraftMessage>) => {

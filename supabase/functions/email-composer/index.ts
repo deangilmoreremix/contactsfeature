@@ -1,4 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { resolveModel, respondDual } from "../_shared/openai.ts";
+import { generateImages as generateBannerImages } from "../_shared/images.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +9,7 @@ const corsHeaders = {
 };
 
 interface EmailCompositionRequest {
-  contact: {
+  contact?: {
     id?: string;
     name: string;
     firstName?: string;
@@ -17,7 +19,12 @@ interface EmailCompositionRequest {
     company: string;
     industry?: string;
   };
-  purpose: string;
+  purpose?: string;
+  /** Accepted aliases from older clients */
+  contactData?: EmailCompositionRequest["contact"];
+  emailType?: string;
+  /** Free-form extra context (object or string) from older clients */
+  context?: unknown;
   tone?: string;
   length?: string;
   includeSignature?: boolean;
@@ -36,24 +43,20 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key not configured");
-    }
-
+    const body: EmailCompositionRequest = await req.json();
+    const contact = body.contact ?? body.contactData;
+    const purpose = body.purpose ?? body.emailType;
     const {
-      contact,
-      purpose,
       tone = "professional",
       length = "medium",
       includeSignature = true,
       webResearch,
       companyContext,
       generateImages = false,
-      campaignId,
-    }: EmailCompositionRequest = await req.json();
+      campaignId: _campaignId,
+    } = body;
 
-    if (!contact || !purpose) {
+    if (!contact || !contact.name || !purpose) {
       return new Response(
         JSON.stringify({ error: "Contact data and purpose are required" }),
         {
@@ -63,10 +66,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const firstName = contact.firstName || contact.name.split(" ")[0];
-    const contextInfo = webResearch
-      ? `\n\nRecent Research Context:\n${webResearch}`
+    const firstName = contact.firstName || String(contact.name).split(" ")[0];
+    const extraContext = body.context
+      ? typeof body.context === "string" ? body.context : JSON.stringify(body.context)
       : "";
+    const contextInfo = (webResearch ? `\n\nRecent Research Context:\n${webResearch}` : "") +
+      (extraContext ? `\n\nAdditional Context:\n${extraContext}` : "");
 
     const lengthGuidelines = {
       short: "Keep the email concise and to the point (50-100 words). Focus on one key message.",
@@ -112,17 +117,13 @@ Guidelines:
 - Length: ${lengthGuidelines[length as keyof typeof lengthGuidelines] || lengthGuidelines.medium}
 - Purpose: ${purposeGuidelines[purpose as keyof typeof purposeGuidelines] || "General business communication"}
 
-Return ONLY valid JSON with this exact structure:
-{
-  "subject": "compelling subject line (40-60 characters)",
-  "body": "email body with proper formatting and line breaks"
-}`;
+Return a subject line (40-60 characters) and the email body with proper formatting and line breaks. Use only facts given in the prompt; never invent company news, metrics or prior interactions.`;
 
     const userPrompt = `Generate a ${tone} ${purpose} email for this contact:
 
 Contact Information:
 - Name: ${contact.name}
-- Title: ${contact.title}
+- Title: ${contact.title || "Not specified"}
 - Company: ${contact.company}
 - Industry: ${contact.industry || "Not specified"}
 - Email: ${contact.email || "Not provided"}
@@ -137,92 +138,57 @@ Requirements:
 6. Clear, specific call-to-action
 7. ${includeSignature ? "Professional sign-off with placeholders: [Your Name], [Your Title], [Your Company], [Your Contact]" : "Simple closing"}
 
-${length === "short" ? "Be extremely concise - every word must add value." : length === "long" ? "Provide thorough detail while maintaining engagement." : "Balance detail with brevity."}
+${length === "short" ? "Be extremely concise - every word must add value." : length === "long" ? "Provide thorough detail while maintaining engagement." : "Balance detail with brevity."}`;
 
-Return ONLY valid JSON, no other text.`;
-
-    const openaiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: tone === "creative" || tone === "casual" ? 0.7 : 0.4,
-          max_tokens: length === "long" ? 800 : length === "medium" ? 500 : 300,
-          response_format: { type: "json_object" },
-        }),
-      }
-    );
-
-    if (!openaiResponse.ok) {
-      const errorData = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${errorData}`);
-    }
-
-    const openaiData = await openaiResponse.json();
-    const content = JSON.parse(
-      openaiData.choices[0].message.content
-    );
-
-    let generatedImages: any[] = [];
-
-    // Generate email banner images if requested
-    if (generateImages) {
-      try {
-        const imageResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/gemini-image-generator`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': req.headers.get('Authorization') || '',
+    return await respondDual({
+      req, body, headers: corsHeaders,
+      options: {
+        role: "default",
+        effort: "low",
+        instructions: systemPrompt,
+        input: userPrompt,
+        schemaName: "email_draft",
+        maxOutputTokens: 3000,
+        schema: {
+          type: "object",
+          properties: {
+            subject: { type: "string" },
+            body: { type: "string" },
           },
-          body: JSON.stringify({
-            prompt: `Create a professional email banner for ${contact.company} ${purpose} campaign. ${tone} style, suitable for email headers. Company: ${contact.company}, Industry: ${contact.industry || 'general'}. Make it visually appealing and brand-appropriate.`,
-            variants: 2,
-            aspect_ratio: '3:1',
-            contact_id: contact.id,
-            agent_id: 'email-composer',
-            feature: 'email-banners',
-            format: 'banner'
-          })
-        });
+        },
+      },
+      finalize: async (ai) => {
+        if (!ai.json) throw new Error("AI returned no structured email");
+        const content = ai.json;
 
-        if (imageResponse.ok) {
-          const imageResult = await imageResponse.json();
-          if (imageResult.success) {
-            generatedImages = imageResult.images;
-          }
+        let generatedImages: { url: string; mime_type: string }[] = [];
+        let imageError: string | null = null;
+
+        // Generate email banner images if requested (failure does not fail the whole request)
+        if (generateImages) {
+          const gen = await generateBannerImages(
+            req.headers.get("Authorization"),
+            `Create a professional email banner for ${contact.company} ${purpose} campaign. ${tone} style, suitable for email headers. Company: ${contact.company}, Industry: ${contact.industry || "general"}. Make it visually appealing and brand-appropriate.`,
+            2,
+          );
+          generatedImages = gen.images;
+          imageError = gen.error;
         }
-      } catch (imageError) {
-        console.warn('Email banner generation failed:', imageError);
-        // Continue without images - don't fail the whole request
-      }
-    }
 
-    const result = {
-      subject: content.subject,
-      body: content.body,
-      purpose,
-      tone,
-      confidence: 90,
-      model: "gpt-4o",
-      webResearchUsed: !!webResearch,
-      sources: companyContext || [],
-      images: generatedImages,
-      bannerImageUrl: generatedImages.length > 0 ? generatedImages[0].url : null,
-    };
+        const result = {
+          subject: content.subject,
+          body: content.body,
+          purpose,
+          tone,
+          model: resolveModel("default").model,
+          webResearchUsed: !!webResearch,
+          sources: companyContext || [],
+          images: generatedImages,
+          imageError,
+          bannerImageUrl: generatedImages.length > 0 ? generatedImages[0].url : null,
+        };
 
-    return new Response(JSON.stringify(result), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
+        return result;
       },
     });
   } catch (error) {
@@ -230,7 +196,7 @@ Return ONLY valid JSON, no other text.`;
     return new Response(
       JSON.stringify({
         error: "Email composition failed",
-        details: error.message,
+        details: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,

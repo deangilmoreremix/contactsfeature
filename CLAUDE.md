@@ -2,14 +2,14 @@
 
 ## Project Overview
 
-SmartCRM is an AI-powered CRM and SDR (Sales Development Representative) automation platform built for solopreneurs scaling their business, agency, or executive career in tech. The platform uses GPT-5.2 via the OpenAI Responses API exclusively for all AI operations.
+SmartCRM is an AI-powered CRM and SDR (Sales Development Representative) automation platform built for solopreneurs scaling their business, agency, or executive career in tech. The platform uses the OpenAI Responses API (GPT-6 family, model ids in `src/config/models.json`) exclusively for all AI operations.
 
 ## Tech Stack
 
 - **Frontend**: React 18, TypeScript, Vite 5, Tailwind CSS 3, Zustand (state), Lucide React (icons)
 - **Backend**: Netlify Functions (serverless), Supabase Edge Functions (Deno)
 - **Database**: Supabase (PostgreSQL with RLS)
-- **AI**: OpenAI GPT-5.2 exclusively (Responses API + Agent SDK when needed)
+- **AI**: OpenAI exclusively (Responses API; `@openai/agents` for the 8 Agents-SDK SDR agents)
 - **UI Libraries**: React Hook Form, React Table, Recharts, Floating UI, Fuse.js, React Select
 - **File Handling**: xlsx, react-csv, react-dropzone
 - **Testing**: Vitest (unit), Playwright (E2E)
@@ -17,21 +17,24 @@ SmartCRM is an AI-powered CRM and SDR (Sales Development Representative) automat
 ### What We Do NOT Use
 
 - No AgentMail (removed)
-- No Twilio (not using)
+- No built-in Twilio account: SMS/email are **bring-your-own providers** (Resend, SendGrid, Postmark, Mailgun, Twilio) that each user connects in Settings → Email & SMS; credentials are encrypted server-side
+- No Gemini/Google AI, Zapier, Zoom or Unipile
 - No magic links or social auth (email/password only via Supabase Auth)
 - No external CSS frameworks beyond Tailwind
 - No icon libraries beyond Lucide React
 
 ## AI Configuration
 
-All AI calls go through GPT-5.2. Model routing is defined in `src/config/ai.ts`:
+Single source of truth: `src/config/models.json` (roles → model id + reasoning effort). Server code resolves roles with `netlify/functions/_responses.js` (Deno copy: `supabase/functions/_shared/openai.ts`, kept in sync by a test).
 
-- `gpt-5.2` -- default model for balanced tasks
-- `gpt-5.2-thinking` -- deep reasoning for SDR, AE, autopilot, research, analysis
-- `gpt-5.2-instant` -- fast model for summaries, UI helpers
-- `gpt-5.2-pro` -- heavy analytics (optional)
+- `default` -- balanced tasks
+- `thinking` -- deep reasoning (SDR, AE, autopilot, research, analysis)
+- `fast` -- summaries, UI helpers (effort `none`)
+- `pro` -- heavy analytics
 
-Environment variables: `SMARTCRM_MODEL`, `SMARTCRM_THINKING_MODEL`, `SMARTCRM_FAST_MODEL`
+Rules: Responses API only (never chat/completions, never `max_tokens`); no `temperature`/`top_p` unless effort is `none`; structured output via `text.format` json_schema; `web_search` tool for research. **The browser never holds an OpenAI key**: frontend code calls `src/services/aiClient.ts` (`aiRespond` / `aiStream` / `aiJson`) → `netlify/functions/ai-respond` / `ai-stream` (auth, role + tool allowlist, per-user rate limit in `ai_usage_log`).
+
+Env (server only): `OPENAI_API_KEY`, `MESSAGING_ENCRYPTION_KEY`, optional `SMARTCRM_<ROLE>_MODEL` / `SMARTCRM_<ROLE>_EFFORT` overrides.
 
 ## Architecture
 
@@ -74,7 +77,7 @@ netlify/functions/   # Serverless backend (82 functions)
   _supabaseClient.js # Shared Supabase client
 
 supabase/
-  functions/         # 50 Edge Functions (Deno)
+  functions/         # 28 Edge Functions (Deno)
   migrations/        # Database migrations with RLS
   config.toml        # Supabase local config
 
@@ -108,7 +111,7 @@ Each SDR agent follows this pattern:
 - CORS headers on every response
 - Input validation with early returns
 - Supabase queries use `.maybeSingle()` not `.single()`
-- OpenAI calls via fetch to `https://api.openai.com/v1/chat/completions`
+- OpenAI calls via `_responses.js` (`createResponse`/`streamResponse`) or the `callOpenAI` wrapper in `_fetchWithRetry.js`
 - JSON response parsing with regex fallback
 
 **Supabase Edge Functions** (`supabase/functions/`):
@@ -140,36 +143,37 @@ Defined in `src/agents/personas.ts`. Each persona has: id, name, label, shortTag
 
 ## 14 SDR Agent Types
 
-Located in `src/components/sdr/` with corresponding Netlify functions:
+Located in `src/components/sdr/` with corresponding Netlify functions. The first six are hand-written; the other eight (`linkedin-sdr`, `whatsapp-sdr`, `event-based-sdr`, `referral-sdr`, `newsletter-sdr`, `high-intent-sdr`, `data-enrichment-sdr`, `competitor-aware-sdr`) are built on the OpenAI Agents SDK in `netlify/functions/_agents/` (definitions + factory + shared handler) and rendered by `GenericSdrAgentCard`. Persona prompts for all 30 personas ship to the server via `_agents/personas.json` (regenerate with `node scripts/export-personas.cjs` after editing `src/agents/personas.ts`).
 1. Cold Email SDR
 2. Follow-Up SDR
 3. Objection Handler SDR
 4. Discovery SDR
 5. Win-Back SDR
 6. Reactivation SDR
-7. LinkedIn SDR (planned)
-8. WhatsApp SDR (planned)
-9. Event-Based SDR (planned)
-10. Referral SDR (planned)
-11. Newsletter SDR (planned)
-12. High-Intent SDR (planned)
-13. Data Enrichment SDR (planned)
-14. Competitor-Aware SDR (planned)
+7. LinkedIn SDR
+8. WhatsApp SDR
+9. Event-Based SDR
+10. Referral SDR
+11. Newsletter SDR
+12. High-Intent SDR
+13. Data Enrichment SDR
+14. Competitor-Aware SDR
 
 ## Environment Variables
 
 Required in `.env`:
-- `OPENAI_API_KEY` -- GPT-5.2 API access
+- `OPENAI_API_KEY` -- OpenAI API access (server only)
 - `VITE_SUPABASE_URL` / `SUPABASE_URL` -- Supabase project URL
 - `VITE_SUPABASE_ANON_KEY` / `SUPABASE_ANON_KEY` -- Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY` -- Server-side Supabase access (Netlify env only)
-- `SMARTCRM_MODEL` / `SMARTCRM_THINKING_MODEL` / `SMARTCRM_FAST_MODEL` -- AI model config
+- `SMARTCRM_MODEL` / `SMARTCRM_THINKING_MODEL` / `SMARTCRM_FAST_MODEL` -- optional model overrides
+- `MESSAGING_ENCRYPTION_KEY` -- 32-byte key (64 hex chars) encrypting user email/SMS provider credentials
 
 ## Commands
 
 - `npm run dev` -- Start Vite dev server
 - `npm run build` -- Production build
-- `npm run typecheck` -- TypeScript validation
+- `npm run typecheck` -- TypeScript validation (strict, `tsconfig.app.json`; must stay at 0 errors, enforced by `scripts/check-stack.sh`)
 - `npm run lint` -- ESLint
 - `npm run test:functions` -- Test Netlify functions
 

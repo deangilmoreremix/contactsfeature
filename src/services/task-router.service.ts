@@ -1,12 +1,11 @@
 /**
  * Task Router Service
- * Intelligent routing between Gemma and OpenAI models based on task requirements
+ * Intelligent routing across OpenAI models based on task requirements
  */
 
 import { logger } from './logger.service';
 import { rateLimiter } from './rate-limiter.service';
-import { cacheService } from './cache.service';
-import apiConfig, { AIModel, getModelsByCapability } from '../config/api.config';
+import apiConfig, { AIModel } from '../config/api.config';
 
 export interface TaskRequirements {
   accuracy: 'low' | 'medium' | 'high' | 'critical';
@@ -22,14 +21,14 @@ export interface TaskContext {
             'opportunity_analysis' | 'risk_assessment' | 'engagement_prediction';
   requirements: TaskRequirements;
   contactData?: any;
-  businessContext?: string;
+  businessContext?: string | undefined;
   urgency?: 'low' | 'medium' | 'high' | 'critical';
   batchSize?: number;
   retryCount?: number;
 }
 
 export interface ModelSelection {
-  provider: 'openai' | 'gemini';
+  provider: 'openai';
   model: string;
   reasoning: string;
   expectedCost: number;
@@ -54,92 +53,62 @@ class TaskRouterService {
   
   // Task-specific model preferences
   private taskProfiles: Record<string, { 
-    gemmaModels: Array<{ model: string; score: number; reasoning: string }>;
     openaiModels: Array<{ model: string; score: number; reasoning: string }>;
     defaultRequirements: TaskRequirements;
   }> = {
     contact_scoring: {
-      gemmaModels: [
-        { model: 'gemma-2-9b-it', score: 85, reasoning: 'Excellent balance of speed and accuracy for scoring' },
-        { model: 'gemma-2-27b-it', score: 90, reasoning: 'Higher accuracy for complex scoring scenarios' },
-        { model: 'gemma-2-2b-it', score: 75, reasoning: 'Fast scoring for simple cases' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 88, reasoning: 'Optimal cost-performance for contact scoring' },
-        { model: 'gpt-4o', score: 95, reasoning: 'Highest accuracy for critical scoring decisions' },
-        { model: 'gpt-3.5-turbo', score: 78, reasoning: 'Cost-effective for basic scoring' }
+        { model: 'fast', score: 88, reasoning: 'Optimal cost-performance for contact scoring' },
+        { model: 'thinking', score: 95, reasoning: 'Highest accuracy for critical scoring decisions' },
+        { model: 'default', score: 78, reasoning: 'Cost-effective for basic scoring' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'fast', cost: 'low', complexity: 'medium', volume: 'single' }
     },
     
     contact_enrichment: {
-      gemmaModels: [
-        { model: 'gemma-2-27b-it', score: 88, reasoning: 'Comprehensive data analysis and inference' },
-        { model: 'gemma-2-9b-it', score: 82, reasoning: 'Good balance for standard enrichment' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o', score: 95, reasoning: 'Superior reasoning for complex data enrichment' },
-        { model: 'gpt-4o-mini', score: 85, reasoning: 'Cost-effective enrichment with good quality' }
+        { model: 'thinking', score: 95, reasoning: 'Superior reasoning for complex data enrichment' },
+        { model: 'fast', score: 85, reasoning: 'Cost-effective enrichment with good quality' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'medium', cost: 'medium', complexity: 'complex', volume: 'single' }
     },
     
     categorization: {
-      gemmaModels: [
-        { model: 'gemma-2-2b-it', score: 90, reasoning: 'Optimized for classification tasks' },
-        { model: 'gemini-1.5-flash-8b', score: 92, reasoning: 'Fastest categorization with good accuracy' },
-        { model: 'gemma-2-9b-it', score: 85, reasoning: 'More nuanced categorization' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 88, reasoning: 'Reliable categorization with consistency' },
-        { model: 'gpt-3.5-turbo', score: 82, reasoning: 'Basic categorization at low cost' }
+        { model: 'fast', score: 88, reasoning: 'Reliable categorization with consistency' },
+        { model: 'default', score: 82, reasoning: 'Basic categorization at low cost' }
       ],
       defaultRequirements: { accuracy: 'medium', speed: 'fast', cost: 'free', complexity: 'simple', volume: 'batch' }
     },
     
     tagging: {
-      gemmaModels: [
-        { model: 'gemma-2-2b-it', score: 88, reasoning: 'Excellent for simple tagging tasks' },
-        { model: 'gemini-1.5-flash-8b', score: 90, reasoning: 'Ultra-fast tagging with good precision' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 85, reasoning: 'Consistent tagging quality' },
-        { model: 'gpt-3.5-turbo', score: 80, reasoning: 'Cost-effective basic tagging' }
+        { model: 'fast', score: 85, reasoning: 'Consistent tagging quality' },
+        { model: 'default', score: 80, reasoning: 'Cost-effective basic tagging' }
       ],
       defaultRequirements: { accuracy: 'medium', speed: 'realtime', cost: 'free', complexity: 'simple', volume: 'bulk' }
     },
     
     relationship_mapping: {
-      gemmaModels: [
-        { model: 'gemma-2-27b-it', score: 85, reasoning: 'Complex reasoning for relationship analysis' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o', score: 95, reasoning: 'Superior reasoning for complex relationship mapping' },
-        { model: 'gpt-4o-mini', score: 80, reasoning: 'Good relationship detection with efficiency' }
+        { model: 'thinking', score: 95, reasoning: 'Superior reasoning for complex relationship mapping' },
+        { model: 'fast', score: 80, reasoning: 'Good relationship detection with efficiency' }
       ],
       defaultRequirements: { accuracy: 'critical', speed: 'medium', cost: 'medium', complexity: 'expert', volume: 'single' }
     },
     
     lead_qualification: {
-      gemmaModels: [
-        { model: 'gemma-2-9b-it', score: 88, reasoning: 'Good business logic understanding' },
-        { model: 'gemma-2-27b-it', score: 92, reasoning: 'Advanced qualification criteria analysis' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o', score: 95, reasoning: 'Best-in-class qualification accuracy' },
-        { model: 'gpt-4o-mini', score: 87, reasoning: 'Efficient qualification with good accuracy' }
+        { model: 'thinking', score: 95, reasoning: 'Best-in-class qualification accuracy' },
+        { model: 'fast', score: 87, reasoning: 'Efficient qualification with good accuracy' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'fast', cost: 'low', complexity: 'medium', volume: 'batch' }
     },
     
     sentiment_analysis: {
-      gemmaModels: [
-        { model: 'gemma-2-9b-it', score: 85, reasoning: 'Good sentiment understanding' },
-        { model: 'gemini-1.5-flash', score: 88, reasoning: 'Fast sentiment analysis with accuracy' }
-      ],
       openaiModels: [
-        { model: 'gpt-4o-mini', score: 90, reasoning: 'Nuanced sentiment detection' },
-        { model: 'gpt-4o', score: 95, reasoning: 'Superior emotional intelligence' }
+        { model: 'fast', score: 90, reasoning: 'Nuanced sentiment detection' },
+        { model: 'thinking', score: 95, reasoning: 'Superior emotional intelligence' }
       ],
       defaultRequirements: { accuracy: 'high', speed: 'fast', cost: 'low', complexity: 'medium', volume: 'batch' }
     }
@@ -172,17 +141,15 @@ class TaskRouterService {
     const providerAvailability = await this.checkProviderAvailability();
     
     // Score all available models
-    const gemmaOptions = await this.scoreModels('gemini', profile.gemmaModels, finalRequirements, providerAvailability.gemini);
     const openaiOptions = await this.scoreModels('openai', profile.openaiModels, finalRequirements, providerAvailability.openai);
     
     // Combine and sort all options
-    const allOptions = [...gemmaOptions, ...openaiOptions].sort((a, b) => b.score - a.score);
+    const allOptions = [...openaiOptions].sort((a, b) => b.score - a.score);
     
-    if (allOptions.length === 0) {
+    const bestOption = allOptions[0];
+    if (!bestOption) {
       throw new Error('No available models for the specified task');
     }
-
-    const bestOption = allOptions[0];
     const fallbackOptions = allOptions.slice(1, 4).map(option => ({
       provider: option.provider,
       model: option.model,
@@ -190,7 +157,7 @@ class TaskRouterService {
     }));
 
     const selection: ModelSelection = {
-      provider: bestOption.provider as 'openai' | 'gemini',
+      provider: bestOption.provider as 'openai',
       model: bestOption.model,
       reasoning: bestOption.reasoning,
       expectedCost: bestOption.estimatedCost,
@@ -269,10 +236,8 @@ class TaskRouterService {
     let score = baseScore;
 
     // Accuracy requirement adjustment
-    if (requirements.accuracy === 'critical' && modelConfig.id.includes('gpt-4o')) {
-      score += 15; // Boost OpenAI GPT-4o for critical accuracy
-    } else if (requirements.accuracy === 'critical' && modelConfig.id.includes('gemma-2-27b')) {
-      score += 10; // Boost largest Gemma for critical accuracy
+    if (requirements.accuracy === 'critical' && modelConfig.id === 'thinking') {
+      score += 15; // Boost the thinking model for critical accuracy
     } else if (requirements.accuracy === 'low' && modelConfig.id.includes('2b')) {
       score += 5; // Boost smaller models for low accuracy needs
     }
@@ -283,17 +248,17 @@ class TaskRouterService {
         score += 20; // Significant boost for fastest models
       } else if (modelConfig.id.includes('mini') || modelConfig.id.includes('flash')) {
         score += 10;
-      } else if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
+      } else if (modelConfig.id === 'thinking') {
         score -= 10; // Penalize slower models for realtime needs
       }
     }
 
     // Cost requirement adjustment
     if (requirements.cost === 'free') {
-      if (modelConfig.id.includes('gemma') || modelConfig.id.includes('gemini')) {
-        score += 25; // Strong preference for free Gemini/Gemma models
+      if (modelConfig.id.includes('mini') || modelConfig.id.includes('3.5')) {
+        score += 10; // Prefer the cheapest OpenAI models when cost must be minimal
       } else {
-        score -= 30; // Heavy penalty for paid models when free is required
+        score -= 30; // Heavy penalty for pricier models when free is required
       }
     } else if (requirements.cost === 'low') {
       if (modelConfig.costPer1kTokens && modelConfig.costPer1kTokens < 0.001) {
@@ -312,8 +277,8 @@ class TaskRouterService {
 
     // Complexity adjustment
     if (requirements.complexity === 'expert') {
-      if (modelConfig.id.includes('gpt-4o') && !modelConfig.id.includes('mini')) {
-        score += 20; // Strong preference for GPT-4o for expert tasks
+      if (modelConfig.id === 'thinking') {
+        score += 20; // Strong preference for the thinking model for expert tasks
       } else if (modelConfig.id.includes('27b') || modelConfig.id.includes('1.5-pro')) {
         score += 15; // Boost larger models for complex tasks
       }
@@ -367,23 +332,17 @@ class TaskRouterService {
     }
   }
 
-  private async checkProviderAvailability(): Promise<{ openai: boolean; gemini: boolean }> {
-    const availability = { openai: false, gemini: false };
+  private async checkProviderAvailability(): Promise<{ openai: boolean }> {
+    const availability = { openai: false };
 
     // Check OpenAI
     try {
       const openaiConfig = apiConfig.aiProviders.openai;
-      availability.openai = openaiConfig.enabled && !!openaiConfig.apiKey;
+      // The browser never holds an API key: OpenAI is reached through the server proxy (ai-respond / ai-stream),
+      // so the provider is available whenever it is enabled in the config.
+      availability.openai = openaiConfig.enabled;
     } catch (error) {
       logger.warn('OpenAI availability check failed', error);
-    }
-
-    // Check Gemini
-    try {
-      const geminiConfig = apiConfig.aiProviders.gemini;
-      availability.gemini = geminiConfig.enabled && !!geminiConfig.apiKey;
-    } catch (error) {
-      logger.warn('Gemini availability check failed', error);
     }
 
     return availability;
@@ -414,16 +373,9 @@ class TaskRouterService {
   private estimateLatency(modelConfig: AIModel, requirements: TaskRequirements): number {
     // Base latency estimates (in milliseconds)
     const baseLatencies: Record<string, number> = {
-      'gemini-1.5-flash-8b': 800,
-      'gemma-2-2b-it': 1000,
-      'gemini-2.0-flash-exp': 1200,
-      'gemini-1.5-flash': 1500,
-      'gemma-2-9b-it': 2000,
-      'gpt-4o-mini': 2200,
-      'gpt-3.5-turbo': 1800,
-      'gemma-2-27b-it': 3500,
-      'gemini-1.5-pro': 3000,
-      'gpt-4o': 4000
+      'fast': 2200,
+      'default': 1800,
+      'thinking': 4000
     };
 
     let latency = baseLatencies[modelConfig.id] || 2500;
@@ -506,16 +458,17 @@ class TaskRouterService {
     if (!profile) return null;
 
     // Get top recommendations
-    const allModels = [...profile.gemmaModels, ...profile.openaiModels].sort((a, b) => b.score - a.score);
+    const allModels = [...profile.openaiModels].sort((a, b) => b.score - a.score);
     const top = allModels[0];
+    if (!top) return null;
     const alternatives = allModels.slice(1, 4);
 
     return {
-      recommendedProvider: profile.gemmaModels.find(m => m.model === top.model) ? 'gemini' : 'openai',
+      recommendedProvider: 'openai',
       recommendedModel: top.model,
       reasoning: top.reasoning,
       alternatives: alternatives.map(alt => ({
-        provider: profile.gemmaModels.find(m => m.model === alt.model) ? 'gemini' : 'openai',
+        provider: 'openai',
         model: alt.model,
         reasoning: alt.reasoning
       }))
