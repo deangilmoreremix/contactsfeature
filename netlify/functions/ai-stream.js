@@ -7,7 +7,7 @@
 const { stream } = require('@netlify/functions');
 const { authenticateRequest, CORS_HEADERS } = require('./_auth');
 const { streamResponse, retrieveResponse } = require('./_responses');
-const { buildOptions, underRateLimit, logUsage, withinTokenBudget } = require('./_aiProxy');
+const { buildOptions, underRateLimit, logUsage, withinTokenBudget, ownerMetadata, userOwnsResponse } = require('./_aiProxy');
 const { userOwnsConversation } = require('./_conversations');
 
 const { SSE_HEADERS: BASE_SSE, toSseReadable } = require('./_stream/sse');
@@ -29,6 +29,7 @@ exports.handler = stream(async (event) => {
   const { options, error } = buildOptions(body);
   if (error) return plain(400, error);
   if (options.conversationId && !(await userOwnsConversation(user.id, options.conversationId))) return plain(404, 'Conversation not found');
+  if (options.previousResponseId && !(await userOwnsResponse(user.id, options.previousResponseId))) return plain(404, 'Previous response not found');
   if (!(await underRateLimit(user.id))) return plain(429, 'Too many AI requests. Please wait a moment.');
   const budget = await withinTokenBudget(options);
   if (!budget.ok) return plain(413, `Input is too long (${budget.tokens} tokens). Shorten it and try again.`);
@@ -38,7 +39,9 @@ exports.handler = stream(async (event) => {
     ...options,
     user: user.id,
     reasoningSummary: body.reasoningSummary === true,
-    ...(wantsBackground ? { background: true, metadata: { user_id: user.id, purpose: 'ai_stream' } } : {}),
+    // every stored response (background runs, or anything a later previousResponseId may point at) carries its owner
+    ...(wantsBackground ? { background: true } : {}),
+    ...(wantsBackground || options.store ? { metadata: ownerMetadata(user.id, 'ai_stream') } : {}),
   };
 
   // Resume an earlier background stream (ownership verified through the response metadata).

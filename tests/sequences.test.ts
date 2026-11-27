@@ -76,6 +76,20 @@ describe('advanceEnrollment (db)', () => {
     expect(calls.updates.at(-1).row).toMatchObject({ current_step: 1, last_email_id: 'email-1' });
   });
 
+  it('pauses the enrollment and sends nothing when the contact is in the trash', async () => {
+    const { supabase, calls } = fakeDb();
+    const trashed = { ...supabase, from: (name: string) => {
+      const q: any = supabase.from(name);
+      if (name !== 'contacts') return q;
+      q.maybeSingle = () => Promise.resolve({ data: { ...contact, deleted_at: '2026-03-01T00:00:00Z' }, error: null });
+      return q;
+    } };
+    const r = await S.advanceEnrollment(trashed, { id: 'e1', user_id: 'u1', sequence_id: 's1', contact_id: 'c1', current_step: 0, created_at: now.toISOString() }, now);
+    expect(r).toEqual({ action: 'contact_trashed' });
+    expect(calls.inserts).toHaveLength(0);
+    expect(calls.updates.at(-1).row).toMatchObject({ status: 'paused', next_run_at: null, last_error: 'Contact is in the trash' });
+  });
+
   it('does nothing for an enrollment whose sequence is paused', async () => {
     const { supabase, calls } = fakeDb();
     const paused = { ...supabase, from: (name: string) => {

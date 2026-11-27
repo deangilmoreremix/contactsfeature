@@ -122,4 +122,27 @@ async function withinTokenBudget(options, deps = {}) {
   }
 }
 
-module.exports = { withinTokenBudget, MAX_INPUT_TOKENS, buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE };
+const RESPONSE_ID_RE = /^resp_[A-Za-z0-9_-]{8,}$/;
+
+/** Metadata stamped on every STORED proxy response so `previousResponseId` can later be tied back to its owner. */
+function ownerMetadata(userId, purpose) {
+  return { user_id: userId, purpose };
+}
+
+/**
+ * True only when `responseId` is a response THIS user created through the proxy (metadata.user_id matches).
+ * The proxy uses one shared OpenAI key, so without this check a caller who knew another user's response id could continue
+ * that user's stored context. Unknown, malformed, foreign or unretrievable ids are all "not owned".
+ */
+async function userOwnsResponse(userId, responseId, deps = {}) {
+  if (typeof responseId !== 'string' || !RESPONSE_ID_RE.test(responseId)) return false;
+  try {
+    const retrieve = deps.retrieveResponse || require('./_responses').retrieveResponse;
+    const run = await retrieve(responseId);
+    return !!(run && run.metadata && run.metadata.user_id === userId);
+  } catch (_) {
+    return false;
+  }
+}
+
+module.exports = { withinTokenBudget, MAX_INPUT_TOKENS, buildOptions, underRateLimit, underEndpointLimit, logUsage, MAX_PER_MINUTE, CONVERSATION_ID_RE, ownerMetadata, userOwnsResponse };

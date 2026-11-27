@@ -8,7 +8,7 @@
  */
 const { withAuth, CORS_HEADERS, errorResponse } = require('./_auth');
 const { createResponse } = require('./_responses');
-const { buildOptions, underRateLimit, logUsage, withinTokenBudget } = require('./_aiProxy');
+const { buildOptions, underRateLimit, logUsage, withinTokenBudget, ownerMetadata, userOwnsResponse } = require('./_aiProxy');
 const { userOwnsConversation } = require('./_conversations');
 
 exports.handler = withAuth(async (event, user) => {
@@ -18,12 +18,14 @@ exports.handler = withAuth(async (event, user) => {
   const { options, error } = buildOptions(body);
   if (error) return errorResponse(400, error);
   if (options.conversationId && !(await userOwnsConversation(user.id, options.conversationId))) return errorResponse(404, 'Conversation not found');
+  if (options.previousResponseId && !(await userOwnsResponse(user.id, options.previousResponseId))) return errorResponse(404, 'Previous response not found');
   if (!(await underRateLimit(user.id))) return errorResponse(429, 'Too many AI requests. Please wait a moment.');
   const budget = await withinTokenBudget(options);
   if (!budget.ok) return errorResponse(413, `Input is too long (${budget.tokens} tokens). Shorten it and try again.`);
 
   try {
-    const r = await createResponse({ ...options, user: user.id });
+    // stored responses carry their owner so a later previousResponseId can be verified (see userOwnsResponse)
+    const r = await createResponse({ ...options, user: user.id, ...(options.store ? { metadata: ownerMetadata(user.id, 'ai_respond') } : {}) });
     await logUsage(user.id, 'ai-respond', options, r.usage);
     return {
       statusCode: 200,

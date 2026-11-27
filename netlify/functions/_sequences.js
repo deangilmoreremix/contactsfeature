@@ -99,9 +99,16 @@ async function advanceEnrollment(supabase, enrollment, now = new Date()) {
 
   const [{ data: steps }, { data: contact }] = await Promise.all([
     supabase.from('sequence_steps').select('*').eq('sequence_id', enrollment.sequence_id).eq('user_id', enrollment.user_id).order('position'),
-    supabase.from('contacts').select('id, firstname, lastname, name, company, email').eq('id', enrollment.contact_id).eq('user_id', enrollment.user_id).maybeSingle(),
+    supabase.from('contacts').select('id, firstname, lastname, name, company, email, deleted_at').eq('id', enrollment.contact_id).eq('user_id', enrollment.user_id).maybeSingle(),
   ]);
   const patchOnly = async (p) => supabase.from('sequence_enrollments').update({ ...p, updated_at: now.toISOString() }).eq('id', enrollment.id).eq('user_id', enrollment.user_id);
+
+  // A contact moved to the trash (contacts.deleted_at) must not receive further steps. Pause (not fail) the enrollment so
+  // nothing is lost; it is not picked up again because advanceDue only reads status 'active'.
+  if (contact && contact.deleted_at) {
+    await patchOnly({ status: 'paused', next_run_at: null, last_error: 'Contact is in the trash' });
+    return { action: 'contact_trashed' };
+  }
 
   if (!steps || !steps.length || !contact || !contact.email) {
     await patchOnly({ status: 'failed', next_run_at: null, last_error: !contact?.email ? 'Contact has no email address' : 'Sequence has no steps or contact is missing' });
