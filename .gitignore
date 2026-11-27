@@ -28,3 +28,7 @@ dist-ssr
 .netlify
 30-second-walkthrough-demos.zip
 public_dist/
+
+# Playwright run output (screenshots, videos, traces)
+test-results/
+playwright-report/
