@@ -27,15 +27,23 @@ function recipientAddresses(to) {
  * never guess an owner.
  */
 async function resolveRecipientOwner(to) {
-  const addrs = recipientAddresses(to);
+  const addrs = recipientAddresses(to).slice(0, 10);
   if (addrs.length === 0) return null;
-  const { data } = await supabase
-    .from('messaging_providers')
-    .select('user_id, from_address')
-    .eq('channel', 'email')
-    // case-insensitive (stored from_address may be mixed case); wildcards in ilike are re-filtered by exact compare below
-    .or(addrs.map((a) => `from_address.ilike."${a.replace(/[\\"]/g, '')}"`).join(','));
-  const owners = new Set((data || []).filter((r) => addrs.includes(String(r.from_address || '').toLowerCase())).map((r) => r.user_id));
+  // One parameterised ILIKE per address (stored from_address may be mixed case). The value is passed as a query
+  // parameter, never spliced into a PostgREST filter string, and LIKE wildcards are escaped; the exact lowercase
+  // compare below is the final authority.
+  const owners = new Set();
+  for (const addr of addrs) {
+    const pattern = addr.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data } = await supabase
+      .from('messaging_providers')
+      .select('user_id, from_address')
+      .eq('channel', 'email')
+      .ilike('from_address', pattern);
+    for (const r of data || []) {
+      if (String(r.from_address || '').toLowerCase() === addr) owners.add(r.user_id);
+    }
+  }
   return owners.size === 1 ? [...owners][0] : null;
 }
 

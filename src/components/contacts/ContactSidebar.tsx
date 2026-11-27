@@ -95,6 +95,7 @@ export const ContactSidebar: React.FC<ContactSidebarProps> = ({
   // Live research run: status line, findings so far (partial JSON), Stop.
   const [live, setLive] = useState<{ status: 'idle' | 'streaming'; label: string; steps: string[]; partial: Partial<EnrichmentResult> | null }>({ status: 'idle', label: '', steps: [], partial: null });
   const enrichAbort = useRef<AbortController | null>(null);
+  React.useEffect(() => () => { enrichAbort.current?.abort(); }, []);
 
   /**
    * Optimistically apply a partial update and persist it through the existing update path

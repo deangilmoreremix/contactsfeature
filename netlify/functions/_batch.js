@@ -80,7 +80,10 @@ function buildRequests(kind, contacts, userId) {
     for (const c of contacts) {
       const text = embedText(c);
       if (!text) { skipped.push({ id: c.id, reason: 'nothing to embed' }); continue; }
-      requests.push({ customId: c.id, body: { model: process.env.SMARTCRM_EMBEDDING_MODEL || models.embedding.model, input: text }, hash: sha(text) });
+      const hash = sha(text);
+      // The submission-time content hash rides in the custom id (`<contactId>~<hash prefix>`) so a contact edited while the
+      // batch is pending is detected when results are applied (see applyResults).
+      requests.push({ customId: `${c.id}~${hash.slice(0, 16)}`, contactId: c.id, body: { model: process.env.SMARTCRM_EMBEDDING_MODEL || models.embedding.model, input: text }, hash });
     }
     return { endpoint: '/v1/embeddings', requests, skipped };
   }
@@ -110,7 +113,9 @@ async function applyResults(kind, results, ctx) {
   const now = new Date().toISOString();
 
   for (const r of results) {
-    const contact = contactsById.get(r.customId);
+    // custom ids are `<contactId>` (enrich, or older embed batches) or `<contactId>~<submission hash prefix>` (embed)
+    const [customContactId, submittedHash] = String(r.customId).split('~');
+    const contact = contactsById.get(customContactId);
     if (!contact || !r.ok) { failed++; continue; }
     try {
       if (kind === 'enrich') {
@@ -133,8 +138,12 @@ async function applyResults(kind, results, ctx) {
       } else {
         const vec = r.body && r.body.data && r.body.data[0] && r.body.data[0].embedding;
         if (!vec) { failed++; continue; }
+        // The contact changed after submission: this vector describes the OLD text, so do not store it as current.
+        // Leaving the row alone means the next index pass re-embeds the edited contact.
+        const currentHash = hashes[contact.id] || sha(embedText(contact));
+        if (submittedHash && !String(currentHash).startsWith(submittedHash)) { failed++; continue; }
         const { error } = await supabase.from('contact_embeddings').upsert({
-          contact_id: contact.id, user_id: userId, embedding: JSON.stringify(vec), content_hash: hashes[contact.id] || sha(embedText(contact)), updated_at: now,
+          contact_id: contact.id, user_id: userId, embedding: JSON.stringify(vec), content_hash: currentHash, updated_at: now,
         }, { onConflict: 'contact_id' });
         if (error) throw new Error(error.message);
         applied++;

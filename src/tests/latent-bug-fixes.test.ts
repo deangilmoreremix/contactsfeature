@@ -61,3 +61,19 @@ describe('accessibility fixes', () => {
     expect(screen.getByLabelText('Include notes')).toHaveAttribute('type', 'checkbox');
   });
 });
+
+describe('useSmartAI enrichment state', () => {
+  it('clears `enriching` after a successful enrichment (it used to stay true forever)', async () => {
+    vi.resetModules();
+    vi.doMock('../services/enhanced-ai-integration.service', () => ({
+      enhancedAI: { enrichContact: vi.fn().mockResolvedValue({ ok: true }) },
+    }));
+    const { renderHook, act } = await import('@testing-library/react');
+    const { useSmartAI } = await import('../hooks/useSmartAI');
+    const { result } = renderHook(() => useSmartAI());
+    await act(async () => { await result.current.smartEnrichContact('c1', { id: 'c1' } as any); });
+    expect(result.current.enriching).toBe(false);
+    expect(result.current.getResult('enrich_c1')).toEqual({ ok: true });
+    vi.doUnmock('../services/enhanced-ai-integration.service');
+  });
+});

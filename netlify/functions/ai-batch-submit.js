@@ -28,7 +28,7 @@ exports.handler = withAuth(async (event, user) => {
     const batch = await createBatch(endpoint, requests.map(({ customId, body: b }) => ({ customId, body: b })), { metadata: { user_id: user.id, kind: body.kind } });
     const row = {
       user_id: user.id, kind: body.kind, openai_batch_id: batch.id, input_file_id: batch.inputFileId,
-      status: batch.status, total: requests.length, contact_ids: requests.map((r) => r.customId),
+      status: batch.status, total: requests.length, contact_ids: requests.map((r) => r.contactId || r.customId),
     };
     const { data: saved, error: insErr } = await supabase.from('ai_batches').insert(row).select('id,kind,status,total,completed,failed,created_at').maybeSingle();
     if (insErr) throw new Error(insErr.message);

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useOverlayEscape } from '../../hooks/useOverlayEscape';
 import { Check, GitMerge, X } from 'lucide-react';
 import { ModernButton } from '../ui/ModernButton';
 import type { Contact } from '../../types/contact';
@@ -66,10 +67,12 @@ export function MergeContactsModal({ contacts, onClose, onMerged, primaryId }: M
     }
   };
 
+  useOverlayEscape(true, () => { if (!busy) onClose(); });
+
   const mergedRecord = preview.merged as unknown as Record<string, unknown>;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="merge-contacts-title">
       <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
@@ -77,7 +80,7 @@ export function MergeContactsModal({ contacts, onClose, onMerged, primaryId }: M
               <GitMerge className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Merge {contacts.length} contacts</h3>
+              <h3 id="merge-contacts-title" className="text-xl font-bold text-gray-900 dark:text-white">Merge {contacts.length} contacts</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Choose the contact to keep, then click a value to use it instead.
               </p>

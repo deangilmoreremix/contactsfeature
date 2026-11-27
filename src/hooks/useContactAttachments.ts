@@ -21,7 +21,7 @@ export function useContactAttachments(contactId: string | undefined) {
   const [error, setError] = useState<Error | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const loadAttachments = async () => {
+  const loadAttachments = async (isStale: () => boolean = () => false) => {
     if (!contactId) return;
     setLoading(true);
     setError(null);
@@ -35,13 +35,15 @@ export function useContactAttachments(contactId: string | undefined) {
       if (fetchError) throw fetchError;
 
       const mapped = await Promise.all((data || []).map((att: any) => toAttachment(att)));
+      if (isStale()) return;
       setAttachments(mapped);
     } catch (err) {
+      if (isStale()) return;
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to load attachments', error);
       setError(error);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   };
 
@@ -158,7 +160,9 @@ export function useContactAttachments(contactId: string | undefined) {
   };
 
   useEffect(() => {
-    void loadAttachments();
+    let alive = true;
+    void loadAttachments(() => !alive);
+    return () => { alive = false; };
   }, [contactId]);
 
   return {
@@ -170,6 +174,6 @@ export function useContactAttachments(contactId: string | undefined) {
     uploadFile,
     deleteAttachment,
     downloadAttachment,
-    refetch: loadAttachments
+    refetch: () => loadAttachments()
   };
 }

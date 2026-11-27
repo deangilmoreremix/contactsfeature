@@ -75,4 +75,17 @@ describe('advanceEnrollment (db)', () => {
     expect(calls.inserts[0].row).toMatchObject({ user_id: 'u1', contact_id: 'c1', status: 'queued', is_inbound: false });
     expect(calls.updates.at(-1).row).toMatchObject({ current_step: 1, last_email_id: 'email-1' });
   });
+
+  it('does nothing for an enrollment whose sequence is paused', async () => {
+    const { supabase, calls } = fakeDb();
+    const paused = { ...supabase, from: (name: string) => {
+      if (name !== 'sequences') return supabase.from(name);
+      const q: any = { select() { return q; }, eq() { return q; }, maybeSingle() { return Promise.resolve({ data: { is_active: false }, error: null }); } };
+      return q;
+    } };
+    const r = await S.advanceEnrollment(paused, { id: 'e1', user_id: 'u1', sequence_id: 's1', contact_id: 'c1', current_step: 0, created_at: now.toISOString() }, now);
+    expect(r).toEqual({ action: 'paused' });
+    expect(calls.inserts).toHaveLength(0);
+    expect(calls.updates).toHaveLength(0);
+  });
 });

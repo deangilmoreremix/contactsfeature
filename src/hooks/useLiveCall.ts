@@ -25,7 +25,10 @@ export function useLiveCall() {
   const [state, setState] = useState<LiveCallState>(idle);
   const abortRef = useRef<AbortController | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; abortRef.current?.abort(); }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; abortRef.current?.abort(); };
+  }, []);
 
   const patch = useCallback((p: Partial<LiveCallState> | ((s: LiveCallState) => Partial<LiveCallState>)) => {
     if (!mounted.current) return;

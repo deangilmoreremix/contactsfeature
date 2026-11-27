@@ -36,7 +36,10 @@ export function useAIStream<R = unknown>() {
   const [state, setState] = useState<AIStreamState<R>>(initial<R>());
   const abortRef = useRef<AbortController | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; abortRef.current?.abort(); }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; abortRef.current?.abort(); };
+  }, []);
 
   const patch = useCallback((p: Partial<AIStreamState<R>> | ((s: AIStreamState<R>) => Partial<AIStreamState<R>>)) => {
     if (!mounted.current) return;

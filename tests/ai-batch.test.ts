@@ -31,7 +31,8 @@ describe('batch request builders', () => {
   it('embed: /v1/embeddings bodies with content hash, skipping empty contacts', () => {
     const { endpoint, requests, skipped } = b.buildRequests('embed', contacts, 'u1');
     expect(endpoint).toBe('/v1/embeddings');
-    expect(requests.map((r: any) => r.customId)).toEqual(['c1', 'c3']);
+    expect(requests.map((r: any) => r.contactId)).toEqual(['c1', 'c3']);
+    expect(requests.map((r: any) => r.customId)).toEqual(requests.map((r: any) => `${r.contactId}~${r.hash.slice(0, 16)}`));
     expect(requests[1].body.input).toContain('met at expo');
     expect(requests[0].hash).toMatch(/^[0-9a-f]{64}$/);
     expect(skipped[0].id).toBe('c2');
@@ -81,5 +82,23 @@ describe('applyResults', () => {
       { supabase: client, userId: 'u1', contactsById: new Map([['c1', { id: 'c1', name: 'Ada' }]]), hashes: { c1: 'h1' } });
     expect(res.applied).toBe(1);
     expect(calls[0][2]).toMatchObject({ contact_id: 'c1', embedding: '[0.1,0.2]', content_hash: 'h1' });
+  });
+
+  it('embed: rejects a vector whose contact was edited after submission', async () => {
+    const { client, calls } = mkSupabase();
+    const contact = { id: 'c1', name: 'Ada', company: 'Acme' };
+    const { requests } = b.buildRequests('embed', [contact], 'u1');
+    const body = { data: [{ embedding: [0.1, 0.2] }] };
+    // unchanged: applied, stored with the current full hash
+    const ok = await b.applyResults('embed', [{ customId: requests[0].customId, ok: true, body }],
+      { supabase: client, userId: 'u1', contactsById: new Map([['c1', contact]]) });
+    expect(ok.applied).toBe(1);
+    expect(calls[0][2].content_hash).toBe(requests[0].hash);
+    // edited while the batch was pending: stale vector must not be stored as current
+    const stale = mkSupabase();
+    const res = await b.applyResults('embed', [{ customId: requests[0].customId, ok: true, body }],
+      { supabase: stale.client, userId: 'u1', contactsById: new Map([['c1', { ...contact, company: 'Globex' }]]) });
+    expect(res).toMatchObject({ applied: 0, failed: 1 });
+    expect(stale.calls).toHaveLength(0);
   });
 });

@@ -60,6 +60,7 @@ export const DealHealthPanel: React.FC<DealHealthPanelProps> = ({ contactId, con
   // Live run: status line + the structured result as it is written (partial JSON)
   const [live, setLive] = useState<{ label: string; steps: string[]; partial: unknown }>({ label: '', steps: [], partial: undefined });
   const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);

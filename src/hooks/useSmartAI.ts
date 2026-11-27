@@ -82,7 +82,7 @@ export const useSmartAI = () => {
       const result = await enhancedAI.enrichContact(contactId, contact, priority, live);
       setState(prev => ({
         ...prev,
-        analyzing: false,
+        enriching: false,
         results: { ...prev.results, [`enrich_${contactId}`]: result }
       }));
       logger.info('Smart contact enrichment completed', { contactId, priority });

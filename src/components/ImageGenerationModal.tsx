@@ -104,6 +104,9 @@ export default function ImageGenerationModal({ open, onClose }: Props) {
   const streamingControllerRef = useRef<AbortController | null>(null);
   const modelRef = useRef<string>(DEFAULT_MODEL_LABEL);
 
+  // Abort any in-flight stream on unmount.
+  useEffect(() => () => { streamingControllerRef.current?.abort(); }, []);
+
   // init / reset
   useEffect(() => {
     if (open) {

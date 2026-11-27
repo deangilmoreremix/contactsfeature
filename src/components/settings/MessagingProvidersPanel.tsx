@@ -136,8 +136,12 @@ export const MessagingProvidersPanel: React.FC = () => {
                     size="toolbar"
                     variant="outline"
                     onClick={async () => {
-                      await messagingProviderService.setDefault(p.id);
-                      await load();
+                      try {
+                        await messagingProviderService.setDefault(p.id);
+                        await load();
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Could not set default provider');
+                      }
                     }}
                   >
                     <Star className="w-4 h-4" /> Make default
@@ -147,8 +151,12 @@ export const MessagingProvidersPanel: React.FC = () => {
                   size="toolbar"
                   variant="outline"
                   onClick={async () => {
-                    await messagingProviderService.remove(p.id);
-                    await load();
+                    try {
+                      await messagingProviderService.remove(p.id);
+                      await load();
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : 'Could not remove provider');
+                    }
                   }}
                 >
                   <Trash2 className="w-4 h-4" /> Remove

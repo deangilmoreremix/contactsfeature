@@ -75,13 +75,15 @@ export function useSmartSearch<T>({
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
     setIsSearching(true);
     (async () => {
       try {
         const res = await fetch('/.netlify/functions/semantic-search', {
           method: 'POST',
           headers: await sdrAuthHeaders(),
-          body: JSON.stringify({ query: q })
+          body: JSON.stringify({ query: q }),
+          signal: controller.signal
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Semantic search failed (${res.status})`);
@@ -96,7 +98,7 @@ export function useSmartSearch<T>({
         if (!cancelled) setIsSearching(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [mode, debouncedQuery, minQueryLength, getId]);
 
   const fuzzyResults: SearchResult<T>[] = useMemo(() => {

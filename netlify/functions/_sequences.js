@@ -92,6 +92,11 @@ function firstRunAt(steps, now = new Date()) {
  * Returns { action, emailId? }.
  */
 async function advanceEnrollment(supabase, enrollment, now = new Date()) {
+  // A paused sequence (sequences.is_active = false) must not send anything: leave the enrollment untouched so it
+  // resumes where it was when the sequence is re-activated.
+  const { data: sequence } = await supabase.from('sequences').select('is_active').eq('id', enrollment.sequence_id).eq('user_id', enrollment.user_id).maybeSingle();
+  if (sequence && sequence.is_active === false) return { action: 'paused' };
+
   const [{ data: steps }, { data: contact }] = await Promise.all([
     supabase.from('sequence_steps').select('*').eq('sequence_id', enrollment.sequence_id).eq('user_id', enrollment.user_id).order('position'),
     supabase.from('contacts').select('id, firstname, lastname, name, company, email').eq('id', enrollment.contact_id).eq('user_id', enrollment.user_id).maybeSingle(),
@@ -130,8 +135,13 @@ async function advanceEnrollment(supabase, enrollment, now = new Date()) {
 }
 
 async function advanceDue(supabase, limit = 25, now = new Date()) {
-  const { data: due } = await supabase.from('sequence_enrollments').select('*')
-    .eq('status', 'active').is('completed_at', null).lte('next_run_at', now.toISOString()).order('next_run_at').limit(limit);
+  // Skip enrollments of paused sequences in the query itself so they cannot fill the batch and starve active ones.
+  const { data: paused } = await supabase.from('sequences').select('id').eq('is_active', false);
+  const pausedIds = (paused || []).map((s) => s.id).filter((id) => /^[0-9a-f-]{36}$/i.test(String(id)));
+  let dueQuery = supabase.from('sequence_enrollments').select('*')
+    .eq('status', 'active').is('completed_at', null).lte('next_run_at', now.toISOString());
+  if (pausedIds.length) dueQuery = dueQuery.not('sequence_id', 'in', `(${pausedIds.join(',')})`);
+  const { data: due } = await dueQuery.order('next_run_at').limit(limit);
   const results = [];
   for (const e of due || []) {
     try { results.push({ id: e.id, ...(await advanceEnrollment(supabase, e, now)) }); }

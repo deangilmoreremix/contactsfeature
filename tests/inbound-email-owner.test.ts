@@ -36,9 +36,10 @@ function fakeSupabase() {
       const q: any = {
         select: () => q, order: () => q, limit: () => q, is: () => q, not: () => q,
         in: (k: string, v: any[]) => { data = data.filter((r) => v.includes(r[k])); return q; },
-        or: (expr: string) => {
-          const pats = [...expr.matchAll(/(\w+)\.ilike\."([^"]*)"/g)].map((m) => ({ k: m[1], v: m[2].toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[_%]/g, '.') }));
-          data = data.filter((r) => pats.some((p) => new RegExp(`^${p.v}$`).test(String(r[p.k] || '').toLowerCase())));
+        ilike: (k: string, pattern: string) => {
+          // PostgREST ILIKE with backslash-escaped wildcards -> regex
+          const re = new RegExp('^' + pattern.toLowerCase().replace(/\\([\\%_])/g, '\u0000$1').replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.').replace(/\u0000(.)/g, (_m, c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) + '$');
+          data = data.filter((r) => re.test(String(r[k] || '').toLowerCase()));
           return q;
         },
         eq: (k: string, v: any) => { data = data.filter((r) => r[k] === v); return q; },

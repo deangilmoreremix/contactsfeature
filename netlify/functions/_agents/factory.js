@@ -53,9 +53,14 @@ function buildTools({ supabase, userId, contact, def }) {
         const n = Math.max(1, Math.min(10, Math.floor(limit || 5)));
         const [emails, timeline] = await Promise.all([
           supabase.from('emails').select('subject,status,is_inbound,created_at,opened_at,clicked_at').eq('contact_id', contact.id).eq('user_id', userId).order('created_at', { ascending: false }).limit(n),
-          supabase.from('contact_timeline').select('event_type,title,created_at').eq('contact_id', contact.id).eq('user_id', userId).order('created_at', { ascending: false }).limit(n),
+          supabase.from('contact_timeline').select('event_type:activity_type,title:description,created_at').eq('contact_id', contact.id).eq('user_id', userId).order('created_at', { ascending: false }).limit(n),
         ]);
-        return JSON.stringify({ emails: emails.data || [], timeline: timeline.data || [] });
+        // a failed query must not look like "no activity": tell the agent which source is unavailable
+        return JSON.stringify({
+          emails: emails.data || [],
+          timeline: timeline.data || [],
+          ...(emails.error || timeline.error ? { errors: [emails.error && 'emails unavailable', timeline.error && 'timeline unavailable'].filter(Boolean) } : {}),
+        });
       },
     }),
   ];
